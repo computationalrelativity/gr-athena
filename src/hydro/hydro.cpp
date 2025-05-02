@@ -31,6 +31,8 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    derived_ms(NDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+    derived_int(NIDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of
     // flux[3] array --> direct list init. of each array element --> direct init. via
     // constructor overload resolution of non-aggregate class type AthenaArray<Real>
@@ -48,16 +50,12 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
-    mask_reset_u(pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    c2p_status(pmb->ncells3, pmb->ncells2, pmb->ncells1),
     hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
     hsrc(this, pin),
     hdif(this, pin)
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
-
-  c2p_status.Fill(0);
 
   pmb->RegisterMeshBlockDataCC(u);
 
@@ -67,12 +65,40 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   split_lr_fallback = pin->GetOrAddBoolean(
     "hydro", "split_lr_fallback", false);
 
+  flux_table_limiter = pin->GetOrAddBoolean(
+    "hydro", "flux_table_limiter", false);
+
   opt_excision.alpha_threshold =
       pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
   opt_excision.horizon_based =
-      pin->GetOrAddBoolean("excision", "horizon_based", 0.0);
+      pin->GetOrAddBoolean("excision", "horizon_based", false);
   opt_excision.horizon_factor =
       pin->GetOrAddReal("excision", "horizon_factor", 1.0);
+
+  opt_excision.hybrid_hydro =
+      pin->GetOrAddBoolean("excision", "hybrid_hydro", false);
+
+  opt_excision.hybrid_fac_min_alpha =
+      pin->GetOrAddReal("excision", "hybrid_fac_min_alpha", 1.5);
+
+  opt_excision.use_taper =
+      pin->GetOrAddBoolean("excision", "use_taper", false);
+
+  if (opt_excision.use_taper)
+  {
+    excision_mask.NewAthenaArray(nc3,nc2,nc1);
+    excision_mask.Fill(1);
+  }
+
+  opt_excision.taper_pow =
+      pin->GetOrAddReal("excision", "taper_pow", 1.0);
+
+  opt_excision.excise_hydro_freeze_evo =
+      pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
+
+  opt_excision.excise_hydro_taper =
+      pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
+
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
@@ -100,11 +126,25 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
 
+  if (pmy_block->precon->xorder_use_auxiliaries)
+  {
+    al_.NewAthenaArray(NDRV_HYDRO, nc1);
+    ar_.NewAthenaArray(NDRV_HYDRO, nc1);
+    alb_.NewAthenaArray(NDRV_HYDRO, nc1);
+  }
+
   if (pmy_block->precon->xorder_use_fb)
   {
     r_wl_.NewAthenaArray(NWAVE, nc1);
     r_wr_.NewAthenaArray(NWAVE, nc1);
     r_wlb_.NewAthenaArray(NWAVE, nc1);
+
+    if (pmy_block->precon->xorder_use_auxiliaries)
+    {
+      r_al_.NewAthenaArray(NDRV_HYDRO, nc1);
+      r_ar_.NewAthenaArray(NDRV_HYDRO, nc1);
+      r_alb_.NewAthenaArray(NDRV_HYDRO, nc1);
+    }
   }
   else
   {
@@ -118,10 +158,6 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   dflx_.NewAthenaArray(NHYDRO, nc1);
 
-#if USETM
-    temperature.NewAthenaArray(nc3, nc2, nc1);
-#endif
-
   UserTimeStep_ = pmb->pmy_mesh->UserTimeStep_;
 
   // scratches for rsolver ----------------------------------------------------
@@ -133,9 +169,12 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   oo_detgamma_.NewAthenaTensor(  nn1);
 
   alpha_.NewAthenaTensor(   nn1);
+  oo_alpha_.NewAthenaTensor(nn1);
   beta_u_.NewAthenaTensor(  nn1);
   gamma_dd_.NewAthenaTensor(nn1);
   gamma_uu_.NewAthenaTensor(nn1);
+
+  chi_.NewAthenaTensor(nn1);
 
   w_v_u_l_.NewAthenaTensor(nn1);
   w_v_u_r_.NewAthenaTensor(nn1);

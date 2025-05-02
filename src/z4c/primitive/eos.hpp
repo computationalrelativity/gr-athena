@@ -254,10 +254,18 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \fn Real GetMinimumEnthalpy()
     //  \brief Get the global minimum for enthalpy per mass from the EOS.
     //
-    //  \return the minimum enthalpy per baryon.
+    //  \return the minimum enthalpy per mass.
     inline Real GetMinimumEnthalpy() {
       return MinimumEnthalpy()/mb *
              eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units);
+    }
+
+    //! \fn Real GetAsymptoticEnthalpy()
+    //  \brief Get the the enthalpy per mass for a given Ye at zero density and temperature
+    //
+    //  \return the asymptotic enthalpy per mass.
+    inline Real GetAsymptoticEnthalpy(Real *Y) {
+      return GetEnthalpy(min_n, min_T, Y);
     }
 
     //! \fn Real GetSoundSpeed(Real n, Real T, Real *Y)
@@ -452,6 +460,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] v The maximum velocity
     inline void SetMaxVelocity(Real v) {
       v_max = (v >= 0) ? ((v <= 1.0-1e-15) ? v : 1.0e-15) : 0.0;
+    }
+
+    // Maximum velocity will be set according to Lorentz factor W
+    inline void SetMaxVelocityLorentz(Real W)
+    {
+      v_max = std::sqrt(1.0 - SQR(1.0 / W));
     }
 
     //! \brief Get the maximum number density (in EOS units) permitted by the EOS.

@@ -10,6 +10,9 @@
 #include "../utils/utils.hpp"
 
 #include "../m1/m1.hpp"
+#include "../field/field.hpp"
+#include "../hydro/hydro.hpp"
+#include "../scalars/scalars.hpp"
 #include "../z4c/z4c.hpp"
 
 // hdf5 / mpi macros
@@ -255,6 +258,34 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pz4c->storage.adm;
     }
+    case variety_data::hydro_cons:
+    {
+      return &pmb->phydro->u;
+    }
+    case variety_data::hydro_prim:
+    {
+      return &pmb->phydro->w;
+    }
+    case variety_data::hydro_aux:
+    {
+      return &pmb->phydro->derived_ms;
+    }
+    case variety_data::field_aux:
+    {
+      return &pmb->pfield->derived_ms;
+    }
+    case variety_data::passive_scalars_cons:
+    {
+      return &pmb->pscalars->s;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      return &pmb->pscalars->r;
+    }
+    case variety_data::B:
+    {
+      return &pmb->pfield->bcc;
+    }
     case variety_data::M1_lab:
     {
       return &pmb->pm1->storage.u;
@@ -275,6 +306,10 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->geom.sp_K_dd.array();
     }
+    case variety_data::M1_rad:
+    {
+      return &pmb->pm1->storage.u_rad;
+    }
     case variety_data::M1_radmat:
     {
       return &pmb->pm1->storage.radmat;
@@ -290,6 +325,25 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     case variety_data::M1_radmat_sc_avg_nrg_02:
     {
       return &pmb->pm1->radmat.sc_avg_nrg(0,2).array();
+    }
+    case variety_data::tracer_vel:
+    {
+      return &pmb->phydro->derived_int;
+    }
+    case variety_data::tracer_rho:
+    {
+      return &pmb->phydro->w;
+    }
+    case variety_data::tracer_ye:
+    {
+      return &pmb->pscalars->r;
+    }
+    case variety_data::tracer_aux_T:
+    case variety_data::tracer_aux_U_d_0:
+    case variety_data::tracer_aux_HU_d_0:
+    case variety_data::tracer_aux_SPB:
+    {
+      return &pmb->phydro->derived_ms;
     }
     default:
     {
@@ -312,6 +366,34 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     case variety_data::geom_ADM:
     {
       return Z4c::N_ADM;
+    }
+    case variety_data::hydro_cons:
+    {
+      return NHYDRO;
+    }
+    case variety_data::hydro_prim:
+    {
+      return NHYDRO;
+    }
+    case variety_data::hydro_aux:
+    {
+      return NDRV_HYDRO;
+    }
+    case variety_data::field_aux:
+    {
+      return NDRV_FIELD;
+    }
+    case variety_data::passive_scalars_cons:
+    {
+      return NSCALARS;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      return NSCALARS;
+    }
+    case variety_data::B:
+    {
+      return NFIELD;
     }
     case variety_data::M1_lab:
     {
@@ -337,6 +419,14 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 6;
     }
+    case variety_data::M1_rad:
+    {
+      // multiple groups / species per these vars
+      const int N_GRPS = pm->pblock->pm1->N_GRPS;
+      const int N_SPCS = pm->pblock->pm1->N_SPCS;
+      const int N_VARS = M1::M1::ixn_Rad::N;
+      return N_VARS * N_GRPS * N_SPCS;
+    }
     case variety_data::M1_radmat:
     {
       const int N_GRPS = pm->pblock->pm1->N_GRPS;
@@ -356,6 +446,34 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 1;
     }
+    case variety_data::tracer_vel:
+    {
+      return 3;  // assume NDIM is 3
+    }
+    case variety_data::tracer_rho:
+    {
+      return 1;
+    }
+    case variety_data::tracer_ye:
+    {
+      return 1;
+    }
+    case variety_data::tracer_aux_T:
+    {
+      return 1;
+    }
+    case variety_data::tracer_aux_U_d_0:
+    {
+      return 1;
+    }
+    case variety_data::tracer_aux_HU_d_0:
+    {
+      return 1;
+    }
+    case variety_data::tracer_aux_SPB:
+    {
+      return 1;
+    }
     default:
     {
       assert(false);
@@ -363,6 +481,101 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
   }
 
   return -1;
+}
+
+/*
+std::vector<int> Surface::GetFieldComponentIndices(Surfaces::variety_data vd)
+{
+  typedef Surfaces::variety_data variety_data;
+  switch(vd)
+  {
+    case variety_data::tracer_vel:
+    {
+      return {IX_TR_V1, IX_TR_V2, IX_TR_V3};
+    }
+    case variety_data::tracer_rho:
+    {
+      return {IDN};
+    }
+    case variety_data::tracer_ye:
+    {
+      return {0};
+    }
+    case variety_data::tracer_aux:
+    {
+      return {IX_T, IX_U_d_0, IX_HU_d_0, IX_SPB};
+    }
+    // case variety_data::tracer_m1:
+    // {
+    //
+    // }
+    default:
+    {
+      const int n_pts = GetNumFieldComponents(vd);
+      std::vector<int> ret(n_pts);
+      std::iota(ret.begin(), ret.end(), 0);
+      return ret;
+    }
+  }
+}
+*/
+
+int Surface::GetRemappedFieldIndex(Surfaces::variety_data vd, const int nix)
+{
+  int ret = nix;
+
+  typedef Surfaces::variety_data variety_data;
+  switch(vd)
+  {
+    case variety_data::tracer_vel:
+    {
+      // slot of hydro->derived_int
+      ret = IX_TR_V1 + nix;
+      break;
+    }
+    case variety_data::tracer_rho:
+    {
+      // slot of hydro->prim
+      ret = IDN;
+      break;
+    }
+    case variety_data::tracer_ye:
+    {
+      // slot of Y_e in passive-scalars->r / s
+      ret = 0;
+      break;
+    }
+    case variety_data::tracer_aux_T:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_T;
+      break;
+    }
+    case variety_data::tracer_aux_U_d_0:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_U_d_0;
+      break;
+    }
+    case variety_data::tracer_aux_HU_d_0:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_HU_d_0;
+      break;
+    }
+    case variety_data::tracer_aux_SPB:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_SPB;
+      break;
+    }
+    default:
+    {
+      ret = nix;
+    }
+  }
+
+  return ret;
 }
 
 std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
@@ -429,6 +642,41 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       ret = Z4c::ADM_names[nix];
       break;
     }
+    case variety_data::hydro_cons:
+    {
+      ret = Hydro::ixn_cons::names[nix];
+      break;
+    }
+    case variety_data::hydro_prim:
+    {
+      ret = Hydro::ixn_prim::names[nix];
+      break;
+    }
+    case variety_data::hydro_aux:
+    {
+      ret = Hydro::ixn_derived_ms::names[nix];
+      break;
+    }
+    case variety_data::field_aux:
+    {
+      ret = Field::ixn_derived_ms::names[nix];
+      break;
+    }
+    case variety_data::passive_scalars_cons:
+    {
+      ret = "passive_scalars.s_" + std::to_string(nix);
+      break;
+    }
+    case variety_data::passive_scalars_prim:
+    {
+      ret = "passive_scalars.r_" + std::to_string(nix);
+      break;
+    }
+    case variety_data::B:
+    {
+      ret = Field::ixn_cc::names[nix];
+      break;
+    }
     case variety_data::M1_lab:
     {
       int v, g, s;
@@ -478,6 +726,14 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       ret = names[nix];
       break;
     }
+    case variety_data::M1_rad:
+    {
+      int v, g, s;
+      m1_vgs_idx(nix, M1::M1::ixn_Rad::N, v, g, s);
+      ret += M1::M1::ixn_Rad::names[v];
+      ret += "_" + std::to_string(g) + std::to_string(s);
+      break;
+    }
     case variety_data::M1_radmat:
     {
       int v, g, s;
@@ -499,6 +755,49 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
     case variety_data::M1_radmat_sc_avg_nrg_02:
     {
       ret = "M1.radmat.sc_avg_nrg_02";
+      break;
+    }
+    case variety_data::tracer_vel:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_int::names[IX_TR_V1+nix]
+      );
+      break;
+    }
+    case variety_data::tracer_rho:
+    {
+      ret = "tracer." + std::string(Hydro::ixn_prim::names[IDN]);
+      break;
+    }
+    case variety_data::tracer_ye:
+    {
+      ret = "tracer.passive_scalars.r_0";
+      break;
+    }
+    case variety_data::tracer_aux_T:
+    {
+      ret = "tracer." + std::string(Hydro::ixn_derived_ms::names[IX_T]);
+      break;
+    }
+    case variety_data::tracer_aux_U_d_0:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_ms::names[IX_U_d_0]
+      );
+      break;
+    }
+    case variety_data::tracer_aux_HU_d_0:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_ms::names[IX_HU_d_0]
+      );
+      break;
+    }
+    case variety_data::tracer_aux_SPB:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_ms::names[IX_SPB]
+      );
       break;
     }
     default:
@@ -1094,7 +1393,10 @@ void SurfaceSpherical::DoInterpolations()
       for (int cix=0; cix<N_cpts(vix); ++cix)
       {
         // slice to current function component for interp
-        AA sl_u(raw_var, cix, 1);
+        const int mapped_cix = GetRemappedFieldIndex(
+          psurfs->variables(vix), cix
+        );
+        AA sl_u(raw_var, mapped_cix, 1);
 
         // const int ix_dump = cix + vix * N_cpts(vix);
         u_vars(ix_dump,i,j) = InterpolateAtPoint(sl_u, vbg, i, j);

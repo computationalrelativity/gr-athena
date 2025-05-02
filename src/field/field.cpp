@@ -35,6 +35,7 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
     e3_x2f( pmb->ncells3   ,(pmb->ncells2+1), pmb->ncells1   ),
     e1_x3f((pmb->ncells3+1), pmb->ncells2   , pmb->ncells1   ),
     e2_x3f((pmb->ncells3+1), pmb->ncells2   , pmb->ncells1   ),
+    derived_ms(NDRV_FIELD, pmb->ncells3, pmb->ncells2, pmb->ncells1),
     coarse_bcc_(3, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                 (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                  AthenaArray<Real>::DataStatus::empty)),

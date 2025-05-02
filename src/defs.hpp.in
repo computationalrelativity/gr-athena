@@ -77,6 +77,9 @@
 // Additional scattering operation within GRMHD?
 #define NO_DBG_SCATTER_MATTER_GRMHD
 
+// Push physical cell ConservedToPrimitive earlier in Mesh::Initialize?
+#define DBG_EARLY_INIT_CONSTOPRIM
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

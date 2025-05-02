@@ -112,7 +112,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
-    nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
+    nreal_user_mesh_data_(), nint_user_mesh_data_(),
     four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
@@ -357,13 +357,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
 #endif
 
-    // AHF (0 is restart flag for restart)
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
-    pah_finder.reserve(nhorizon);
-    for (int n = 0; n < nhorizon; ++n) {
-      pah_finder.push_back(new AHF(this, pin, n));
-    }
-
 #ifdef EJECTA_ENABLED
     const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
     pej_extract.reserve(nejecta);
@@ -395,6 +388,16 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 0);
+
+  if (Z4C_ENABLED)
+  {
+    // AHF (0 is restart flag for restart)
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+  }
 
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
@@ -634,6 +637,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   M_info.x_max.NewAthenaArray(ndim);
   M_info.dx_min.NewAthenaArray(ndim);
   M_info.dx_max.NewAthenaArray(ndim);
+  M_info.max_level = 0;
 
   // Surface init needs to come after MeshBlocks have been initialized
   gra::mesh::surfaces::InitSurfaces(this, pin);
@@ -682,7 +686,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
-    nreal_user_mesh_data_(), nint_user_mesh_data_(), nuser_history_output_(),
+    nreal_user_mesh_data_(), nint_user_mesh_data_(),
     four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
@@ -844,12 +848,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       pcce.push_back(new CCE(this, pin, "alp",n));
     }
 #endif
-    // BD: By default do not add any horizon searching
-    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
-    pah_finder.reserve(nhorizon);
-    for (int n = 0; n < nhorizon; ++n) {
-      pah_finder.push_back(new AHF(this, pin, n));
-    }
 
 #ifdef EJECTA_ENABLED
     const int nejecta = pin->GetOrAddInteger("ejecta", "num_rad", 0);
@@ -881,6 +879,16 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 1);
 
+  if (Z4C_ENABLED)
+  {
+    // BD: By default do not add any horizon searching
+    int nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",0);
+    pah_finder.reserve(nhorizon);
+    for (int n = 0; n < nhorizon; ++n) {
+      pah_finder.push_back(new AHF(this, pin, n));
+    }
+  }
+
   if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
   // read user Mesh data
@@ -892,10 +900,13 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   udsize += 2*NDIM*sizeof(Real)*pz4c_tracker.size();
 
-  // c_x1, c_x2, c_x3
-  udsize += ptracker_extrema->c_x1.GetSizeInBytes();
-  udsize += ptracker_extrema->c_x2.GetSizeInBytes();
-  udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+  if (!ptracker_extrema->use_new_style)
+  {
+    // c_x1, c_x2, c_x3
+    udsize += ptracker_extrema->c_x1.GetSizeInBytes();
+    udsize += ptracker_extrema->c_x2.GetSizeInBytes();
+    udsize += ptracker_extrema->c_x3.GetSizeInBytes();
+  }
 
   if (udsize != 0) {
     char *userdata = new char[udsize];
@@ -929,20 +940,23 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       udoffset += 3*sizeof(Real);
     }
 
-    std::memcpy(ptracker_extrema->c_x1.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x1.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
+    if (!ptracker_extrema->use_new_style)
+    {
+      std::memcpy(ptracker_extrema->c_x1.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x1.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x1.GetSizeInBytes();
 
-    std::memcpy(ptracker_extrema->c_x2.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x2.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
+      std::memcpy(ptracker_extrema->c_x2.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x2.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x2.GetSizeInBytes();
 
-    std::memcpy(ptracker_extrema->c_x3.data(),
-                &(userdata[udoffset]),
-                ptracker_extrema->c_x3.GetSizeInBytes());
-    udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+      std::memcpy(ptracker_extrema->c_x3.data(),
+                  &(userdata[udoffset]),
+                  ptracker_extrema->c_x3.GetSizeInBytes());
+      udoffset += ptracker_extrema->c_x3.GetSizeInBytes();
+    }
 
     delete [] userdata;
   }
@@ -1225,11 +1239,6 @@ Mesh::~Mesh() {
   }
   // delete user Mesh data
   if (nreal_user_mesh_data_>0) delete [] ruser_mesh_data;
-  if (nuser_history_output_ > 0) {
-    delete [] user_history_output_names_;
-    delete [] user_history_func_;
-    delete [] user_history_ops_;
-  }
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
   if (EOS_TABLE_ENABLED) delete peos_table;
 
@@ -1545,34 +1554,25 @@ void Mesh::EnrollUserTimeStepFunction(TimeStepFunc my_func) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void Mesh::AllocateUserHistoryOutput(int n)
-//  \brief set the number of user-defined history outputs
-
-void Mesh::AllocateUserHistoryOutput(int n) {
-  nuser_history_output_ = n;
-  user_history_output_names_ = new std::string[n];
-  user_history_func_ = new HistoryOutputFunc[n];
-  user_history_ops_ = new UserHistoryOperation[n];
-  for (int i=0; i<n; i++) user_history_func_[i] = nullptr;
-}
-
-//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func,
 //                                         const char *name, UserHistoryOperation op)
 //  \brief Enroll a user-defined history output function and set its name
 
-void Mesh::EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func, const char *name,
-                                   UserHistoryOperation op) {
-  std::stringstream msg;
-  if (i >= nuser_history_output_) {
-    msg << "### FATAL ERROR in EnrollUserHistoryOutput function" << std::endl
-        << "The number of the user-defined history output (" << i << ") "
-        << "exceeds the declared number (" << nuser_history_output_ << ")." << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  user_history_output_names_[i] = name;
-  user_history_func_[i] = my_func;
-  user_history_ops_[i] = op;
+void Mesh::EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
+                                   UserHistoryOperation op)
+{
+  user_history_output_names_.push_back(std::move(name));
+  user_history_func_.push_back(std::move(my_func));
+  user_history_ops_.push_back(std::move(op));
+}
+
+void Mesh::EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
+                                   const char *name,
+                                   UserHistoryOperation op)
+{
+  user_history_output_names_.push_back(std::move(name));
+  user_history_func_.push_back(my_func);
+  user_history_ops_.push_back(std::move(op));
 }
 
 //----------------------------------------------------------------------------------------
@@ -1610,6 +1610,7 @@ void Mesh::EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func) {
   FieldDiffusivity_ = my_func;
   return;
 }
+
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::AllocateRealUserMeshDataField(int n)
 //  \brief Allocate Real AthenaArrays for user-defned data in Mesh
@@ -1722,8 +1723,25 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       MeshBlock *pmb;
       BoundaryValues *pbval;
 
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
+      {
+        // ADM on physical
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADMPhysical(pmb_array, enforce_alg);
+
+        // reset_floor with PrimitiveSolver adjusts the conserved
+        // Put this here to further polish values after global regridding
+        static const bool interior_only = true;
+        PreparePrimitives(pmb_array, interior_only);
+      }
+#endif // DBG_EARLY_INIT_CONSTOPRIM
+
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         CommunicateConserved(pmb_array);
       }
@@ -1735,18 +1753,27 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Apply BC [CC,CX,VC]
       // Enforce alg. constraints
       // Prepare ADM variables
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
-        FinalizeZ4cADM(pmb_array);
+
+#ifdef DBG_EARLY_INIT_CONSTOPRIM
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADMGhosts(pmb_array, enforce_alg);
+#else
+        const bool enforce_alg = init_style != initialize_style::restart;
+        FinalizeZ4cADM(pmb_array, enforce_alg);
+#endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
 
 #if WAVE_ENABLED
       // Prolongate wave
       // Apply BC
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeWave(pmb_array);
       }
@@ -1756,8 +1783,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // ----------------------------------------------------------------------
       // Deal with retention of old prim state of fluid in case of rootfinder
 #if FLUID_ENABLED
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydro_pgen(pmb_array);
       }
@@ -1771,8 +1799,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // - communication of primitives
 #if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         const bool interior_only = true;
         PreparePrimitives(pmb_array, interior_only);
@@ -1784,28 +1813,34 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Deal with matter prol. & BC ------------------------------------------
 #if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydroPrimRP(pmb_array);
       }
 #elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
       if (multilevel)
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid))
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
       {
         FinalizeHydroConsRP(pmb_array);
 
+#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
+        PreparePrimitivesGhosts(pmb_array);
+#else
         const bool interior_only = false;
         PreparePrimitives(pmb_array, interior_only);
+#endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
       // ----------------------------------------------------------------------
 
       // Initial diffusion coefficients ---------------------------------------
-#if FLUID_ENABLED
-      FinalizeDiffusion(pmb_array);
-#endif
+// #if FLUID_ENABLED
+//       FinalizeDiffusion(pmb_array);
+// #endif
       // ----------------------------------------------------------------------
 
       // M1 needs to slice into hydro, hence after that R/P -------------------
@@ -1813,12 +1848,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       // Prolongate m1
       // Apply BC
       // Not all registers are reloaded from rst, do this on all init calls
-      FinalizeM1(pmb_array);
+      if ((init_style == initialize_style::pgen)   ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
+      {
+        FinalizeM1(pmb_array);
+      }
 #endif
       // ----------------------------------------------------------------------
 
 #if FLUID_ENABLED && Z4C_ENABLED
-      if ((init_style == initialize_style::pgen) ||
+      if ((init_style == initialize_style::pgen)   ||
           (init_style == initialize_style::regrid) ||
           (init_style == initialize_style::restart))
       {
@@ -1841,6 +1881,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
         }
       }
     } // omp parallel
+
+    // Prepare various derived field quantities -------------------------------
+#if FLUID_ENABLED
+    if ((init_style == initialize_style::pgen)   ||
+        (init_style == initialize_style::regrid) ||
+        (init_style == initialize_style::restart))
+    {
+      CalculateHydroFieldDerived();
+    }
+#endif // FLUID_ENABLED
+    // ------------------------------------------------------------------------
 
     // Further re-gridding as required ----------------------------------------
     if (adaptive)
@@ -1908,7 +1959,8 @@ void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
 #endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
-                                         M_info.dx_min, M_info.dx_max);
+                                         M_info.dx_min, M_info.dx_max,
+                                         M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
@@ -1921,7 +1973,8 @@ void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 #endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
-                                         M_info.dx_min, M_info.dx_max);
+                                         M_info.dx_min, M_info.dx_max,
+                                         M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
 }
@@ -2164,6 +2217,8 @@ void Mesh::OutputCycleDiagnostics() {
             std::cout << "\ndx_min(" << n << "); " << M_info.dx_min(n);
             std::cout << "\ndx_max(" << n << "); " << M_info.dx_max(n);
           }
+
+          std::cout << "\nmax_level: " << M_info.max_level;
           diagnostic_grid_updated = false;
         }
       }
@@ -2232,7 +2287,8 @@ void Mesh::CalculateStoreMetricDerivatives()
 bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                                  AthenaArray<Real> & x_max,
                                  AthenaArray<Real> & dx_min,
-                                 AthenaArray<Real> & dx_max)
+                                 AthenaArray<Real> & dx_max,
+                                 int & max_level)
 {
   int nmb = -1;
   std::vector<MeshBlock*> pmb_array;
@@ -2244,6 +2300,10 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
   AthenaArray<Real> dx_min_old(ndim);
   AthenaArray<Real> dx_max_old(ndim);
+  int max_level_old = max_level;
+
+  AA dx;
+  dx.NewAthenaArray(2*ndim);
 
   for (int n=0; n<ndim; ++n)
   {
@@ -2251,11 +2311,7 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     dx_max_old(n) = dx_max(n);
   }
 
-  for (int n=0; n<ndim; ++n)
-  {
-    dx_min(n) = std::numeric_limits<Real>::infinity();
-    dx_max(n) = -dx_min(n);
-  }
+  dx.Fill(std::numeric_limits<Real>::infinity());
 
   switch (ndim)
   {
@@ -2270,8 +2326,8 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells3-1; ++ix)
         {
-          dx_min(2) = std::min(dx_min(2), pmb->pcoord->dx3v(ix));
-          dx_max(2) = std::max(dx_max(2), pmb->pcoord->dx3v(ix));
+          dx(2)      = std::min(dx(2),       pmb->pcoord->dx3v(ix));
+          dx(ndim+2) = std::min(dx(ndim+2), -pmb->pcoord->dx3v(ix));
         }
       }
     }
@@ -2286,8 +2342,8 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells2-1; ++ix)
         {
-          dx_min(1) = std::min(dx_min(1), pmb->pcoord->dx2v(ix));
-          dx_max(1) = std::max(dx_max(1), pmb->pcoord->dx2v(ix));
+          dx(1)      = std::min(dx(1),       pmb->pcoord->dx2v(ix));
+          dx(ndim+1) = std::min(dx(ndim+1), -pmb->pcoord->dx2v(ix));
         }
       }
 
@@ -2303,8 +2359,8 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
         for (int ix=0; ix<pmb->ncells1-1; ++ix)
         {
-          dx_min(0) = std::min(dx_min(0), pmb->pcoord->dx1v(ix));
-          dx_max(0) = std::max(dx_max(0), pmb->pcoord->dx1v(ix));
+          dx(0)      = std::min(dx(0),       pmb->pcoord->dx1v(ix));
+          dx(ndim+0) = std::min(dx(ndim+0), -pmb->pcoord->dx1v(ix));
         }
       }
 
@@ -2316,26 +2372,29 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     }
   }
 
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    MeshBlock *pmb = pmb_array[nix];
+    max_level = pmb->loc.level - root_level;
+  }
+
+
 #ifdef MPI_PARALLEL
   int rank;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Allreduce(MPI_IN_PLACE, dx.data(), 2*ndim,
+                MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &max_level, 1,
+                MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-  if (Globals::my_rank == 0)
-  {
-    MPI_Reduce(MPI_IN_PLACE, dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE, dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
-  else
-  {
-    MPI_Reduce(dx_min.data(), dx_min.data(), ndim, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-    MPI_Reduce(dx_max.data(), dx_max.data(), ndim, MPI_ATHENA_REAL, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
 #endif
+
+  for (int n=0; n<ndim; ++n)
+  {
+    dx_min(n) =  dx(n);
+    dx_max(n) = -dx(ndim+n);
+  }
 
   for (int n=0; n<ndim; ++n)
   {
@@ -2343,5 +2402,135 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     grid_updated = grid_updated || (dx_max(n) != dx_max_old(n));
   }
 
-  return grid_updated;
+  return grid_updated || (max_level != max_level_old);
+}
+
+
+void Mesh::CalculateExcisionMask()
+{
+#if FLUID_ENABLED && Z4C_ENABLED
+  if (pblock->phydro->opt_excision.use_taper)
+  {
+    int inb = nbtotal;
+    int nthreads = GetNumMeshThreads();
+    (void)nthreads;
+    int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+    std::vector<MeshBlock*> pmb_array(nmb);
+
+    if (static_cast<unsigned int>(nmb) != pmb_array.size())
+      pmb_array.resize(nmb);
+
+    MeshBlock *pmbl = pblock;
+    for (int i=0; i<nmb; ++i)
+    {
+      pmb_array[i] = pmbl;
+      pmbl = pmbl->next;
+    }
+
+    #pragma omp parallel num_threads(nthreads)
+    {
+      MeshBlock *pmb = nullptr;
+      Hydro *ph = nullptr;
+      EquationOfState * peos = nullptr;
+      Z4c * pz4c = nullptr;
+
+      #pragma omp for private(pmb,ph,peos,pz4c)
+      for (int nix=0; nix<nmb; ++nix)
+      {
+        pmb = pmb_array[nix];
+        ph = pmb->phydro;
+        peos = pmb->peos;
+        pz4c = pmb->pz4c;
+
+        AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
+
+        CC_GLOOP3(k, j, i)
+        {
+          Real excision_factor;
+          const bool can_excise = peos->CanExcisePoint(
+            excision_factor,
+            false, adm_alpha,
+            pmb->pcoord->x1v,
+            pmb->pcoord->x2v,
+            pmb->pcoord->x3v, i, j, k);
+          ph->excision_mask(k,j,i) = excision_factor;
+        }
+      }
+    }
+
+  }
+#endif
+}
+
+void Mesh::CalculateHydroFieldDerived()
+{
+#if FLUID_ENABLED && Z4C_ENABLED
+
+  int inb = nbtotal;
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::vector<MeshBlock*> pmb_array(nmb);
+
+  if (static_cast<unsigned int>(nmb) != pmb_array.size())
+    pmb_array.resize(nmb);
+
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i)
+  {
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
+
+  #pragma omp parallel num_threads(nthreads)
+  {
+    #pragma omp for
+    for (int nix=0; nix<nmb; ++nix)
+    {
+      MeshBlock *pmb = pmb_array[nix];
+      Hydro *ph = pmb->phydro;
+      Field *pf = pmb->pfield;
+      PassiveScalars *ps = pmb->pscalars;
+      Z4c * pz4c = pmb->pz4c;
+
+      EquationOfState * peos = pmb->peos;
+
+      EquationOfState::geom_sliced_cc gsc;
+
+      AT_N_sca & alpha_    = gsc.alpha_;
+      AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
+      AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+      AT_N_sca & sqrt_det_gamma_  = gsc.sqrt_det_gamma_;
+      AT_N_sca & det_gamma_   = gsc.det_gamma_;
+
+      // sanitize loop limits (coarse / fine auto-switched)
+      int IL = 0; int IU = pmb->ncells1-1;
+      int JL = 0; int JU = pmb->ncells2-1;
+      int KL = 0; int KU = pmb->ncells3-1;
+
+      const bool coarse_flag = false;
+      const bool skip_physical = false;
+
+      peos->SanitizeLoopLimits(IL, IU, JL, JU, KL, KU,
+                               coarse_flag, pmb->pcoord);
+
+      for (int k = KL; k <= KU; ++k)
+      for (int j = JL; j <= JU; ++j)
+      {
+        peos->GeometryToSlicedCC(gsc, k, j, IL, IU,
+                                 coarse_flag, pmb->pcoord);
+        peos->DerivedQuantities(
+          ph->derived_ms, ph->derived_int, pf->derived_ms,
+          ph->u, ps->s,
+          ph->w, ps->r,
+          pf->bcc, gsc,
+          pmb->pcoord,
+          k, j, IL, IU,
+          coarse_flag, skip_physical
+        );
+      }
+    }
+  }
+
+#endif
 }

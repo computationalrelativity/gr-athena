@@ -69,6 +69,10 @@ public:
   //! n surface uses the punctures' mass-weighted center
   //bool use_puncture_massweighted_center[NHORIZON];
   bool use_puncture_massweighted_center;
+
+  //! n surface follows the extrema tracker if use_extrema[n] > 0
+  int use_extrema;
+
   //! Distance in M at which BHs are considered as merged
   Real merger_distance;
 

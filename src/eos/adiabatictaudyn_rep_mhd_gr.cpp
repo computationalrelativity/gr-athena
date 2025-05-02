@@ -103,6 +103,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -447,8 +451,23 @@ void EquationOfState::ConservedToPrimitive(
         }
 
       }
+
+      ph->derived_ms(IX_LOR,k,j,i) = w_lor;
     }
   }
+
+#if defined(Z4C_VC_ENABLED)
+  assert(false); // DerivedQuantities assumes adm variables are cell centered
+#endif
+  AA derived_gs;
+  DerivedQuantities(
+    ph->derived_ms, derived_gs, ph->derived_int,
+    cons, cons_scalar,
+    prim, prim_scalar,
+    pmb->pz4c->storage.adm, bb_cc,
+    pmb->pcoord,
+    IL, IU, JL, JU, KL, KU,
+    coarse_flag, skip_physical);
 }
 
 //----------------------------------------------------------------------------------------
@@ -543,6 +562,12 @@ void EquationOfState::FastMagnetosonicSpeedsGR(
   Real g11 = gammaii - betai*betai/(alpha*alpha);
   // Calculate comoving fast magnetosonic speed
   Real cs_sq = gamma_adi * pgas / rho_h;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    cs_sq = std::min(std::max(cs_sq, 0.0), 1.0);
+  }
+
   Real va_sq = b_sq / (b_sq + rho_h);
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 

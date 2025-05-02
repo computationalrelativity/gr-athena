@@ -2,6 +2,7 @@
 
 // C++ headers
 #include <iostream>
+#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -48,7 +49,99 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
   }
 }
 
-void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
+void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
+                                  const bool enforce_alg)
+{
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Z4c *pz = nullptr;
+
+  #pragma omp for private(pmb, pbval, pz)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    pz = pmb->pz4c;
+
+    const bool skip_physical = false;
+
+    // Enforce the algebraic constraints
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u,
+                    pz->mbi.il, pz->mbi.iu,
+                    pz->mbi.jl, pz->mbi.ju,
+                    pz->mbi.kl, pz->mbi.ku,
+                    skip_physical);
+    }
+
+    // Need ADM variables for con2prim
+    pz->Z4cToADM(pz->storage.u,
+                 pz->storage.adm,
+                 pz->mbi.il, pz->mbi.iu,
+                 pz->mbi.jl, pz->mbi.ju,
+                 pz->mbi.kl, pz->mbi.ku,
+                 skip_physical);
+  }
+}
+
+void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
+                                const bool enforce_alg)
+{
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Z4c *pz = nullptr;
+
+  #pragma omp for private(pmb, pbval, pz)
+  for (int i = 0; i < nmb; ++i) {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    pz = pmb->pz4c;
+
+    if (multilevel)
+    {
+      pbval->ProlongateBoundariesZ4c(time, 0.0);
+    }
+
+    pbval->ApplyPhysicalBoundaries(
+      time, 0.0,
+      pbval->GetBvarsZ4c(),
+      pz->mbi.il, pz->mbi.iu,
+      pz->mbi.jl, pz->mbi.ju,
+      pz->mbi.kl, pz->mbi.ku,
+      pz->mbi.ng);
+
+    const bool skip_physical = true;
+
+    // Enforce the algebraic constraints
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u,
+        0, pz->mbi.nn1-1,
+        0, pz->mbi.nn2-1,
+        0, pz->mbi.nn3-1,
+        skip_physical);
+    }
+
+    // Need ADM variables for con2prim
+    pz->Z4cToADM(pz->storage.u,
+      pz->storage.adm,
+      0, pz->mbi.nn1-1,
+      0, pz->mbi.nn2-1,
+      0, pz->mbi.nn3-1,
+      skip_physical);
+  }
+}
+
+void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
+                          const bool enforce_alg)
 {
   MeshBlock *pmb;
   BoundaryValues *pbval;
@@ -78,7 +171,11 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array)
       pz->mbi.ng);
 
     // Enforce the algebraic constraints
-    pz->AlgConstr(pz->storage.u);
+    if (enforce_alg)
+    {
+      pz->AlgConstr(pz->storage.u);
+    }
+
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u, pz->storage.adm);
   }
@@ -351,6 +448,47 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                                     pf->bcc, pmb->pcoord,
                                     il, iu, jl, ju, kl, ku,
                                     coarseflag);
+
+    // Update w1 to have the state of w
+    ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+  }
+
+#endif // FLUID_ENABLED
+}
+
+void Mesh::PreparePrimitivesGhosts(std::vector<MeshBlock*> & pmb_array)
+{
+#if FLUID_ENABLED
+  MeshBlock *pmb;
+  BoundaryValues *pbval;
+
+  const int nmb = pmb_array.size();
+
+  Field *pf = nullptr;
+  Hydro *ph = nullptr;
+  PassiveScalars *ps = nullptr;
+
+  #pragma omp for private(pmb, pbval, pf, ph, ps)
+  for (int i = 0; i < nmb; ++i)
+  {
+    pmb = pmb_array[i];
+    pbval = pmb->pbval;
+
+    ph = pmb->phydro;
+    pf = pmb->pfield;
+    ps = pmb->pscalars;
+
+    int il = 0, iu = pmb->ncells1 - 1,
+        jl = 0, ju = pmb->ncells2 - 1,
+        kl = 0, ku = pmb->ncells3 - 1;
+
+    static const int coarseflag = 0;
+    static const bool skip_physical = true;
+    pmb->peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
+                                    ps->s, ps->r,
+                                    pf->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku,
+                                    coarseflag, skip_physical);
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
@@ -895,6 +1033,136 @@ void Mesh::ScatterMatter(std::vector<MeshBlock*> & pmb_array)
   } // omp parallel
 
 
+}
+
+// Compute global minima of various quantities
+void Mesh::GlobalExtrema()
+{
+  enum vars_min {
+    IX_min_adm_alpha,
+    IX_min_hydro_cons_D,
+    N_vars_min
+  };
+
+  enum vars_max {
+    IX_max_adm_alpha=N_vars_min,
+    IX_max_hydro_cons_D,
+    N_vars
+  };
+
+  AA res_V;
+  res_V.NewAthenaArray(N_vars);
+  res_V.Fill(std::numeric_limits<Real>::infinity());
+
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  // minima-per-MeshBlock and then reduce
+  AA res_V_mb;
+  res_V_mb.NewAthenaArray(N_vars, nmb);
+  res_V_mb.Fill(std::numeric_limits<Real>::infinity());
+
+  // Per-MeshBlock parallism
+  #pragma omp parallel for num_threads(nthreads)
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    MeshBlock *pmb = pmb_array[nix];
+    Hydro * ph = pmb->phydro;
+
+    Z4c * pz4c = pmb->pz4c;
+
+#if Z4C_ENABLED
+    AA adm_alpha;
+    adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha, 1);
+#endif // Z4C_ENABLED
+
+#if FLUID_ENABLED && Z4C_ENABLED
+    AA ms_adm_sqrt_det_gamma;
+    ms_adm_sqrt_det_gamma.InitWithShallowSlice(
+      pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma, 1
+    );
+
+    AA hydro_cons_D;
+    hydro_cons_D.InitWithShallowSlice(
+      ph->u, IDN, 1
+    );
+#endif // FLUID_ENABLED
+
+#if Z4C_ENABLED
+    ILOOP2(k, j)
+    for (int i=pz4c->mbi.il; i<=pz4c->mbi.iu; ++i)
+    {
+      res_V_mb(vars_min::IX_min_adm_alpha, nix) = std::min(
+        res_V_mb(vars_min::IX_min_adm_alpha, nix),
+        adm_alpha(k,j,i)
+      );
+
+      res_V_mb(vars_max::IX_max_adm_alpha, nix) = std::min(
+        res_V_mb(vars_max::IX_max_adm_alpha, nix),
+        -adm_alpha(k,j,i)
+      );
+    }
+#endif // Z4C_ENABLED
+
+#if FLUID_ENABLED && Z4C_ENABLED
+    CC_ILOOP2(k, j)
+    for (int i=pmb->is; i<=pmb->ie; ++i)
+    {
+      const Real oo_sqrt_detgamma = OO(
+        ms_adm_sqrt_det_gamma(k,j,i)
+      );
+      const Real hydro_cons_D__ = hydro_cons_D(k,j,i) * oo_sqrt_detgamma;
+
+      res_V_mb(vars_min::IX_min_hydro_cons_D, nix) = std::min(
+        res_V_mb(vars_min::IX_min_hydro_cons_D, nix),
+        hydro_cons_D__
+      );
+
+      res_V_mb(vars_max::IX_max_hydro_cons_D, nix) = std::min(
+        res_V_mb(vars_max::IX_max_hydro_cons_D, nix),
+        -hydro_cons_D__
+      );
+    }
+#endif // FLUID_ENABLED && Z4C_ENABLED
+
+  }
+
+  // reduce over MeshBlock
+  for (int vix = 0; vix < N_vars; ++vix)
+  for (int nix = 0; nix < nmb; ++nix)
+  {
+    res_V(vix) = std::min(
+      res_V(vix), res_V_mb(vix, nix)
+    );
+  }
+
+#ifdef MPI_PARALLEL
+  int rank;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  MPI_Allreduce(MPI_IN_PLACE, res_V.data(),
+    N_vars,
+    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+#endif
+
+  // flip sign to get max for salient variables
+  for (int vix=0; vix < N_vars-N_vars_min; ++vix)
+  {
+    res_V(vix+N_vars_min) = -res_V(vix+N_vars_min);
+  }
+
+  global_extrema.min_adm_alpha = res_V(vars_min::IX_min_adm_alpha);
+  global_extrema.max_adm_alpha = res_V(vars_max::IX_max_adm_alpha);
+
+  global_extrema.min_hydro_cons_D = res_V(vars_min::IX_min_hydro_cons_D);
+  global_extrema.max_hydro_cons_D = res_V(vars_max::IX_max_hydro_cons_D);
 }
 
 //

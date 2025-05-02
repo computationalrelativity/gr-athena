@@ -56,7 +56,7 @@ void SetEquilibrium(
 
   Real const nb = w_rho / (peos->GetEOS().GetBaryonMass());
 
-  const Real w_T = peos->GetEOS().GetTemperatureFromP(nb, w_p, Y);
+  const Real w_T = pm1.hydro.sc_T(k,j,i);
 
   // Short-circuit at low density
   // Convert from code units to CGS for this comparison?

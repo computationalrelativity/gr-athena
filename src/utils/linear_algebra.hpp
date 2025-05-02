@@ -252,6 +252,22 @@ inline Real InnerProductVecMetric(
   );
 }
 
+// For a vector represented in AA form
+inline Real InnerProductVecMetric(
+  AA & u,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
+  int const k, int const j, int const i)
+{
+  return (
+    u(0,k,j,i)*u(0,k,j,i)*g(0,0,k,j,i) +
+    u(1,k,j,i)*u(1,k,j,i)*g(1,1,k,j,i) +
+    u(2,k,j,i)*u(2,k,j,i)*g(2,2,k,j,i) +
+    2.0*(u(0,k,j,i)*u(1,k,j,i)*g(0,1,k,j,i) +
+         u(0,k,j,i)*u(2,k,j,i)*g(0,2,k,j,i) +
+         u(1,k,j,i)*u(2,k,j,i)*g(1,2,k,j,i))
+  );
+}
+
 // inner product of dense vec, SYM2
 inline Real InnerProductVecSym2(
   AthenaTensor<Real, TensorSymm::NONE, 3, 1> const & u,
@@ -336,6 +352,20 @@ inline void InnerProductSlicedVec3Metric(
   }
 }
 
+inline Real InnerProductVecSlicedMetric(
+  AA & u_,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_,
+  int const k, int const j, int const i)
+{
+  return (
+    u_(0,k,j,i)*u_(0,k,j,i)*g_(0,0,i) +
+    u_(1,k,j,i)*u_(1,k,j,i)*g_(1,1,i) +
+    u_(2,k,j,i)*u_(2,k,j,i)*g_(2,2,i) +
+    2.0*(u_(0,k,j,i)*u_(1,k,j,i)*g_(0,1,i) +
+         u_(0,k,j,i)*u_(2,k,j,i)*g_(0,2,i) +
+         u_(1,k,j,i)*u_(2,k,j,i)*g_(1,2,i))
+  );
+}
 
 // indicial manipulations
 template<typename T, int D>

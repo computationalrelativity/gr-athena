@@ -87,7 +87,7 @@ public:
       Real Y[MAX_SPECIES] = {0.0};
       Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
 
-      Real T = pmy_block->peos->GetEOS().GetTemperatureFromP(nb, press, Y);
+      Real T = pm1->hydro.sc_T(k,j,i);
       Real Y_e = Y[0];
 
       Real eta_n_nue;
@@ -135,8 +135,22 @@ public:
                                                          kap_s_e_nua,
                                                          kap_s_e_nux);
 
-      for (int r = 0; r < NUM_COEFF; ++r) {
-        assert(!ierr[r]);
+      bool is_failing_opacity = false;
+
+      for (int r = 0; r < NUM_COEFF; ++r)
+      {
+        // assert(!ierr[r]);
+        is_failing_opacity = is_failing_opacity || ierr[r];
+      }
+
+      // Dump some information when opacity calculation fails
+      if (is_failing_opacity)
+      {
+        std::ostringstream msg;
+        msg << "CalculateOpacityWeakRates failure: ";
+        pm1->StatePrintPoint(msg.str(), 0, 0, k, j, i, false);
+        pm1->StatePrintPoint(msg.str(), 0, 1, k, j, i, false);
+        pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true);  // assert(false)
       }
 
       // Equilibrium logic ----------------------------------------------------

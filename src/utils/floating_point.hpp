@@ -89,5 +89,30 @@ namespace FloatingPoint {
     return sum;
   }
 
+  template<typename T>
+  inline T regularize_near_zero(T value, T value_eps)
+  {
+    return (value >= 0)
+    ? ((value < value_eps)  ?  value_eps : value)
+    : ((value > -value_eps) ? -value_eps : value);
+  }
+
+  // Compute: value ^ (1/npow)
+  // It is assumed that we regularized about value_reg
+  template<typename T>
+  inline T regularize_nth_root(T value,
+                               T value_reg,
+                               T eps_floor, T npow)
+  {
+    const Real eps = value - value_reg;
+
+    return (
+      (eps < eps_floor)
+        ? (1.0 + eps_floor / npow)
+        : std::pow(value, 1.0 / npow)
+    );
+  }
+
+
 } // namespace FloatingPoint
 #endif // FLOATING_POINT_HPP_

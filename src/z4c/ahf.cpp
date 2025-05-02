@@ -33,6 +33,7 @@ enum{
 #include "../utils/tensor.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "puncture_tracker.hpp"
+#include "../trackers/extrema_tracker.hpp"
 
 using namespace utils::tensor;
 
@@ -125,6 +126,20 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname = "use_puncture_massweighted_center_";
   parname += n_str;
   use_puncture_massweighted_center = pin->GetOrAddBoolean("ahf", parname, 0);
+
+  parname = "use_extrema_";
+  parname += n_str;
+  use_extrema = pin->GetOrAddInteger("ahf", parname, -1);
+
+  if (use_extrema>=0) {
+    const int N_tracker = pmesh->ptracker_extrema->N_tracker;
+    if (use_extrema >= N_tracker) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in AHF constructor" << std::endl;
+        msg << " : extrema = " << use_extrema << " > N_tracker = " << N_tracker;
+        throw std::runtime_error(msg.str().c_str());
+    }
+  }
 
   parname = "start_time_";
   parname += n_str;
@@ -1487,6 +1502,13 @@ void AHF::InitialGuess()
       a0(0) *= std::sqrt(4.0*PI);
     }
     return;
+  }
+
+  if (use_extrema>=0) {
+    // Update the center to the extrema
+    center[0] = pmesh->ptracker_extrema->c_x1(use_extrema);
+    center[1] = pmesh->ptracker_extrema->c_x2(use_extrema);
+    center[2] = pmesh->ptracker_extrema->c_x3(use_extrema);
   }
 
   if (use_puncture_massweighted_center) {

@@ -21,6 +21,7 @@
 
 // Athena++ headers
 #include "athena.hpp"
+#include "athena_arrays.hpp"
 #include "defs.hpp"
 #include "outputs/io_wrapper.hpp"
 
@@ -95,6 +96,8 @@ class ParameterInput {
   std::string GetString(std::string block, std::string name);
   std::string GetOrAddString(std::string block, std::string name, std::string value);
   std::string SetString(std::string block, std::string name, std::string value);
+
+  void SetRealArray(std::string block, std::string name, AthenaArray<Real> & arr);
 
   // Overwrite a parameter; useful if some state is achieve and a toggle in
   // behaviour needs to be set thereafter (including with restarts)

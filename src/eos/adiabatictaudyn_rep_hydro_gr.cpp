@@ -102,6 +102,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin)
   fatm = pin -> GetReal("problem","fatm");
   k_adi = pin -> GetReal("hydro","k_adi");
   gamma_adi = pin -> GetReal("hydro","gamma");
+  restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
+  warn_unrestricted_cs2 = pin->GetOrAddBoolean(
+    "hydro", "warn_unrestricted_cs2", false
+  );
 
   // Reprimand
   using namespace EOS_Toolkit;
@@ -216,6 +220,9 @@ void EquationOfState::ConservedToPrimitive(
     z4c_chi.InitWithShallowSlice(     pz4c->coarse_u_, Z4c::I_Z4c_chi);
   }
 
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
+
   // sanitize loop limits (coarse / fine auto-switched)
   const bool coarse_flag = false;
   int IL = il; int IU = iu;
@@ -289,7 +296,7 @@ void EquationOfState::ConservedToPrimitive(
       Real dummy  = 0.0;
 
       // cons->prim requires atmosphere reset
-      ph->mask_reset_u(k,j,i) = (
+      bool need_reset = (
         (alpha(i) <= ph->opt_excision.alpha_threshold) ||
         std::isnan(Dg)   ||
         std::isnan(taug) ||
@@ -300,7 +307,7 @@ void EquationOfState::ConservedToPrimitive(
         (Dg < 0.)
       );
 
-      if (~ph->mask_reset_u(k,j,i))
+      if (!need_reset)
       {
         sm_tensor1<real_t, 3, false>  S_dg(S_1g,
                                            S_2g,
@@ -323,11 +330,11 @@ void EquationOfState::ConservedToPrimitive(
         //recover
         cv2pv(primitives, evolved, g_eos, rep);
 
-        ph->mask_reset_u(k,j,i) = (
-          ph->mask_reset_u(k,j,i)  || rep.failed()
+        need_reset = (
+          need_reset  || rep.failed()
         );
 
-        if (~ph->mask_reset_u(k,j,i))
+        if (!need_reset)
         {
           primitives.scatter(w_rho, eps, dummy, w_p,
                              uu1, uu2, uu3, W,
@@ -350,8 +357,8 @@ void EquationOfState::ConservedToPrimitive(
           uu3 *= W;
 
           // check recovered do not need cut
-          ph->mask_reset_u(k,j,i) = (
-            ph->mask_reset_u(k,j,i)  ||
+          need_reset = (
+            need_reset  ||
             (w_rho < atmo_cut) ||
             // // Below are additional checks (Use with PTCS disabled below)
             (w_p < atmo_cut_p)   ||
@@ -361,7 +368,7 @@ void EquationOfState::ConservedToPrimitive(
       }
 
       // check if atmo. reset required
-      if (ph->mask_reset_u(k,j,i))
+      if (need_reset)
       {
         w_p   = atmo_p;
         w_rho = atmo_rho;
@@ -388,13 +395,28 @@ void EquationOfState::ConservedToPrimitive(
                                 w_p);
         */
 
-        ph->c2p_status(k,j,i) = static_cast<int>(ph->mask_reset_u(k,j,i));
+        c2p_status(k,j,i) = need_reset;
 
       }
+
+      ph->derived_ms(IX_LOR,k,j,i) = W;
 
     }
   }
 
+  // BD: TODO - probably better to move outside this
+#if defined(Z4C_VC_ENABLED)
+  assert(false); // DerivedQuantities assumes adm variables are cell centered
+#endif
+  AA derived_gs;
+  DerivedQuantities(
+    ph->derived_ms, derived_gs, ph->derived_int,
+    cons, cons_scalar,
+    prim, prim_scalar,
+    pmb->pz4c->storage.adm, bb_cc,
+    pmb->pcoord,
+    IL, IU, JL, JU, KL, KU,
+    coarse_flag, skip_physical);
 }
 
 //----------------------------------------------------------------------------------------
@@ -476,6 +498,17 @@ void EquationOfState::SoundSpeedsGR(
 
   // Calculate comoving sound speed
   const Real cs_sq = (pgas > 0) ? gamma_adi * pgas / rho_h : 0;
+
+  if ((cs_sq > 1.0) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq unphysical!");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_sq = std::min(std::max(cs_sq, 0.0), 1.0);
+  }
+
   const Real cs = std::sqrt(cs_sq);
 
   const Real fac_sqrt = cs * std::sqrt(

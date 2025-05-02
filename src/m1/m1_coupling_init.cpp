@@ -271,8 +271,6 @@ void M1::InitializeHydro(vars_Hydro & hydro,
                          vars_Scratch & scratch)
 {
   // Allocate dense storage ---------------------------------------------------
-  hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
   if (FLUID_ENABLED)
   {
     Hydro * phydro = pmy_block->phydro;
@@ -286,6 +284,16 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
     hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
+    hydro.sc_T.InitWithShallowSlice(phydro->derived_ms, IX_T);
+
+    if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
+    {
+      hydro.sc_W.InitWithShallowSlice(phydro->derived_ms, IX_LOR);
+    }
+    else
+    {
+      hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    }
   }
   else
   {
@@ -294,6 +302,9 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sc_w_Ye.NewAthenaTensor(    mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
+
+    hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_T.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     // set constant Gamma=2 EoS with K=1 for debug
     const Real K = 1;
@@ -338,9 +349,11 @@ void M1::DerivedHydro(vars_Hydro & hydro,
   using namespace LinearAlgebra;
 
   // Lorentz factor
-  M1_GLOOP2(k,j)
+
+  if (!((opt.fiducial_velocity == opt_fiducial_velocity::fluid) &&
+        FLUID_ENABLED))
   {
-    M1_GLOOP1(i)
+    M1_GLOOP3(k,j,i)
     {
       const Real norm2_util = InnerProductVecMetric(
         hydro.sp_w_util_u, geom.sp_g_dd,
@@ -349,6 +362,28 @@ void M1::DerivedHydro(vars_Hydro & hydro,
       hydro.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
     }
   }
+
+#if !FLUID_ENABLED
+  M1_GLOOP2(k,j)
+  {
+    M1_GLOOP1(i)
+    {
+#if USETM
+      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      const Real nb = hydro.sc_w_rho(k,j,i) / mb;
+      const Real w_p = hydro.sc_w_p(k,j,i);
+      Real Y[MAX_SPECIES] = {0.0};
+      Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
+
+      hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(
+        nb, w_p, Y
+      );
+#endif // USETM
+
+    }
+  }
+
+#endif // !FLUID_ENABLED
 
 }
 

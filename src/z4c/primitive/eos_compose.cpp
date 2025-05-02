@@ -230,7 +230,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
 
       ierr = H5LTread_dataset_double(file_id, "t", scratch);
         MYH5CHECK(ierr);
-      min_T = scratch[1];
+      min_T = scratch[0];
       max_T = scratch[m_nt-1];
       for (int it = 0; it < m_nt; ++it) {
         m_log_t[it] = log(scratch[it]);

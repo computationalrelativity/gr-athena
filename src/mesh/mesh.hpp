@@ -15,6 +15,7 @@
 // C++ headers
 #include <cstdint>     // int64_t
 #include <functional>  // reference_wrapper
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -528,7 +529,8 @@ class Mesh {
   bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                              AthenaArray<Real> & x_max,
                              AthenaArray<Real> & dx_min,
-                             AthenaArray<Real> & dx_max);
+                             AthenaArray<Real> & dx_max,
+                             int & max_level);
 
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
   void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
@@ -537,7 +539,13 @@ class Mesh {
 
   void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
 
-  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
+                              const bool enforce_alg);
+  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
+                            const bool enforce_alg);
+
+  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
+                      const bool enforce_alg);
   void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
 
   void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
@@ -552,6 +560,8 @@ class Mesh {
 
   void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                          const bool interior_only);
+
+  void PreparePrimitivesGhosts(std::vector<MeshBlock*> & pmb_array);
 
   // Dedicated function to communicate matter-fields
   void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
@@ -572,13 +582,30 @@ class Mesh {
     AthenaArray<Real> x_max;
     AthenaArray<Real> dx_min;
     AthenaArray<Real> dx_max;
+    int max_level;
   } M_info;
   bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
 
   void DebugMesh(
     const Real x3__, const Real x2__, const Real x1__);
 
- private:
+  struct {
+    Real min_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
+    Real max_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
+    Real min_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
+    Real max_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
+  } global_extrema;
+
+  // compute entries of the global_extrema struct
+  void GlobalExtrema();
+
+  // compute masks as required
+  void CalculateExcisionMask();
+
+  // compute all hydro/field derived quantities
+  void CalculateHydroFieldDerived();
+
+private:
   // data
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
   int root_level, max_level, current_level;
@@ -604,9 +631,8 @@ class Mesh {
   bool use_uniform_meshgen_fn_[3];
   int nreal_user_mesh_data_, nint_user_mesh_data_;
 
-  int nuser_history_output_;
-  std::string *user_history_output_names_;
-  UserHistoryOperation *user_history_ops_;
+  std::vector<std::string> user_history_output_names_;
+  std::vector<UserHistoryOperation> user_history_ops_;
 
   // global constants
   Real four_pi_G_, grav_eps_, grav_mean_rho_;
@@ -622,7 +648,7 @@ class Mesh {
   AMRFlagFunc AMRFlag_;
   SrcTermFunc UserSourceTerm_;
   TimeStepFunc UserTimeStep_;
-  HistoryOutputFunc *user_history_func_;
+  std::vector<std::function<Real(MeshBlock*, int)>> user_history_func_;
   MetricFunc UserMetric_;
   ViscosityCoeffFunc ViscosityCoeff_;
   ConductionCoeffFunc ConductionCoeff_;
@@ -667,10 +693,18 @@ class Mesh {
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
   void EnrollUserExplicitSourceFunction(SrcTermFunc my_func);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
-  void AllocateUserHistoryOutput(int n);
-  void EnrollUserHistoryOutput(int i, HistoryOutputFunc my_func, const char *name,
+  void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
+                               UserHistoryOperation op=UserHistoryOperation::sum);
+  void EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
+                               const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserMetric(MetricFunc my_func);
+
+  void EnrollUserStandardHydro(ParameterInput * pin);
+  void EnrollUserStandardField(ParameterInput * pin);
+  void EnrollUserStandardZ4c(ParameterInput * pin);
+  void EnrollUserStandardM1(ParameterInput * pin);
+
   void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
   void EnrollConductionCoefficient(ConductionCoeffFunc my_func);
   void EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func);

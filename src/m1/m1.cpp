@@ -442,6 +442,7 @@ void M1::StatePrintPoint(
     std::cout << "hydro fields============================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
     hydro.sc_W.PrintPoint("hydro.sc_W", k,j,i);
+    hydro.sc_T.PrintPoint("hydro.sc_T", k,j,i);
     hydro.sc_w_p.PrintPoint("hydro.sc_w_p", k,j,i);
     hydro.sc_w_rho.PrintPoint("hydro.sc_w_rho", k,j,i);
     hydro.sc_w_Ye.PrintPoint("hydro.sc_w_Ye", k,j,i);

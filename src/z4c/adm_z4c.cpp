@@ -12,6 +12,7 @@
 #include <fstream>
 
 // Athena++ headers
+#include "../coordinates/coordinates.hpp"
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 #include "../mesh/mesh.hpp"
@@ -151,6 +152,9 @@ void Z4c::ADMToZ4c(AthenaArray<Real> & u_adm, AthenaArray<Real> & u) {
   // Algebraic constraints enforcement
   //
   AlgConstr(u);
+
+  // compute derived ADM
+  PrepareAuxExtended(storage.aux_extended, u, u_adm);
 }
 
 //----------------------------------------------------------------------------------------
@@ -197,10 +201,94 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
     }
   }
 
-  if (opt.extended_aux_adm)
+  PrepareAuxExtended(storage.aux_extended, u, u_adm);
+}
+
+
+void Z4c::Z4cToADM(AA & u, AA & u_adm,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
   {
-    PrepareAuxExtended(storage.aux_extended, u_adm);
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.alpha(k,j,i) = z4c.alpha(k,j,i);
+    }
+
+    for(int a = 0; a < NDIM; ++a)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.beta_u(a,k,j,i) = z4c.beta_u(a,k,j,i);
+    }
+
+    // psi4
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+      adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+    }
+
+    // g_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      adm.g_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.g_dd(a,b,k,j,i);
+    }
+    // K_ab
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      adm.K_dd(a,b,k,j,i) = adm.psi4(k,j,i) * z4c.A_dd(a,b,k,j,i) +
+          (1./3.) * (z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i)) * adm.g_dd(a,b,k,j,i);
+    }
   }
+
+  PrepareAuxExtended(storage.aux_extended,
+                     u, u_adm,
+                     il, iu, jl, ju, kl, ku, skip_physical);
 }
 
 //----------------------------------------------------------------------------------------
@@ -621,14 +709,77 @@ void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, Athen
 }
 
 
-void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
+void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm)
 {
-#if !(defined(Z4C_CC_ENABLED) || defined(Z4C_CX_ENABLED))
-  // Interp from VC to CC not implemented
-  assert(false);
+  using namespace LinearAlgebra;
+
+  MeshBlock * pmb = pmy_block;
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  ADM_vars adm;
+  SetADMAliases(u_adm, adm);
+
+  Aux_extended_vars aux_extended;
+  SetAuxExtendedAliases(u_aux_extended, aux_extended);
+
+  // direct method
+  /*
+  GLOOP3(k, j, i)
+  {
+    aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
+      Det3Metric(adm.g_dd,k,j,i)
+    );
+  }
+  */
+  // conformal factor based
+  const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+  GLOOP3(k, j, i)
+  {
+    const Real chi = std::abs(z4c.chi(k,j,i));
+    const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+    aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                    chi_pow / 2.0);
+  }
+
+#if FLUID_ENABLED
+
+#if defined(Z4C_VC_ENABLED)
+  ILOOP2(k,j)
+  {
+    pco_gr->GetMatterField(ms_detgamma_, aux_extended.gs_sqrt_detgamma, k, j);
+    ILOOP1(i)
+    {
+      aux_extended.ms_sqrt_detgamma(k,j,i) = std::abs(ms_detgamma_(i));
+    }
+  }
+#else
+
+  GLOOP3(k, j, i)
+  {
+    aux_extended.ms_sqrt_detgamma(k,j,i) = (
+      aux_extended.gs_sqrt_detgamma(k,j,i)
+    );
+  }
 #endif
 
+#endif // FLUID_ENABLED
+
+}
+
+void Z4c::PrepareAuxExtended(
+  AA &u_aux_extended, AA & u, AA & u_adm,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
   using namespace LinearAlgebra;
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
 
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
@@ -638,10 +789,87 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA &u_adm)
 
   MeshBlock * pmb = pmy_block;
 
-  GLOOP3(k, j, i)
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
   {
-    aux_extended.cc_sqrt_detgamma(k,j,i) = std::sqrt(
-      Det3Metric(adm.g_dd,k,j,i)
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
     );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      // direct method
+      /*
+      aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
+        Det3Metric(adm.g_dd,k,j,i)
+      );
+      */
+      // conformal factor based
+      const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+      const Real chi = std::abs(z4c.chi(k,j,i));
+      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                      chi_pow / 2.0);
+
+    }
   }
+
+#if FLUID_ENABLED
+
+#if defined(Z4C_VC_ENABLED)
+  ILOOP2(k,j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    pco_gr->GetMatterField(ms_detgamma_, aux_extended.gs_sqrt_detgamma, k, j);
+
+    ILOOP1(i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      aux_extended.ms_sqrt_detgamma(k,j,i) = std::abs(ms_detgamma_(i));
+    }
+  }
+#else
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      aux_extended.ms_sqrt_detgamma(k,j,i) = (
+        aux_extended.gs_sqrt_detgamma(k,j,i)
+      );
+    }
+  }
+
+#endif
+
+#endif // FLUID_ENABLED
 }

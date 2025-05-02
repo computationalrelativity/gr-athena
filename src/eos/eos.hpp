@@ -42,6 +42,11 @@ class EquationOfState {
   EquationOfState(MeshBlock *pmb, ParameterInput *pin);
 
   bool verbose = true;
+  bool restrict_cs2 = false;
+  Real max_cs_W = 10;  // 0.99c
+  Real max_cs2  = 1.0 - SQR(1.0 / SQR(max_cs_W));
+  bool warn_unrestricted_cs2 = false;
+  bool recompute_temperature = true;
 
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
@@ -177,6 +182,23 @@ class EquationOfState {
     const AT_N_sca & adm_detgamma_,
     const int k, const int j, const int i);
 
+  bool CanExcisePoint(
+    const bool is_slice,
+    AT_N_sca & alpha,
+    AA & x1,
+    AA & x2,
+    AA & x3,
+    const int i, const int j, const int k);
+
+  bool CanExcisePoint(
+    Real & excision_factor,
+    const bool is_slice,
+    AT_N_sca & alpha,
+    AA & x1,
+    AA & x2,
+    AA & x3,
+    const int i, const int j, const int k);
+
   void SanitizeLoopLimits(
     int & il, int & iu,
     int & jl, int & ju,
@@ -190,12 +212,16 @@ class EquationOfState {
     AT_N_sym sl_adm_gamma_dd;
     AT_N_sca sl_alpha;
     AT_N_sca sl_chi;
+    AT_N_sca sl_adm_sqrt_detgamma;
+    AT_N_vec sl_beta_u;
     // interpolated to CC
     AT_N_sca alpha_;
     AT_N_sca rchi_;
+    AT_N_vec beta_u_;
     AT_N_sym gamma_dd_;
     // derived on CC
     AT_N_sym gamma_uu_;
+    AT_N_sca sqrt_det_gamma_;
     AT_N_sca det_gamma_;
     AT_N_sca oo_det_gamma_;
     // start false to get first alloc. then it prevents later realloc
@@ -210,7 +236,44 @@ class EquationOfState {
   );
 
   // To handle excision / collapse
-  void SetEuclideanCC(AT_N_sym & gamma_dd_, const int i);
+  void SetEuclideanCC(geom_sliced_cc & gsc, const int i);
+
+  // Various derived quantities -----------------------------------------------
+  void DerivedQuantities(
+    AA &hyd_der_ms,
+    AA &hyd_der_int,
+    AA &fld_der_ms,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, geom_sliced_cc & gsc,
+    Coordinates *pco,
+    int k,
+    int j,
+    int il, int iu,
+    int coarseflag,
+    bool skip_physical);
+
+  void DerivedQuantities(
+    AA &hyd_der_ms,
+    AA &hyd_der_int,
+    AA &fld_der_ms,
+    AA &cons, AA &cons_scalar,
+    AA &prim, AA &prim_scalar,
+    AA &bcc, geom_sliced_cc & gsc,
+    Coordinates *pco,
+    int k,
+    int j,
+    int il, int iu,
+    int coarseflag)
+  {
+    DerivedQuantities(hyd_der_ms,
+                      hyd_der_int,
+                      fld_der_ms,
+                      cons, cons_scalar,
+                      prim, prim_scalar,
+                      bcc, gsc, pco,
+                      k, j, il, iu, coarseflag, false);
+  }
 
   // BD: TODO - clean up this mess ---v
 
@@ -290,6 +353,123 @@ class EquationOfState {
 
     return is_physical;
   }
+
+#if USETM
+  void SetPrimAtmo(
+    AA &prim,
+    AA &prim_scalar,
+    const int k, const int j, const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim(IVX, k, j, i) = prim_pt[IVX];
+    prim(IVY, k, j, i) = prim_pt[IVY];
+    prim(IVZ, k, j, i) = prim_pt[IVZ];
+    prim(IPR, k, j, i) = prim_pt[IPR];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+    }
+  }
+
+  void SetPrimAtmo(
+    AA &temperature,
+    AA &prim,
+    AA &prim_scalar,
+    const int k, const int j, const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim(IVX, k, j, i) = prim_pt[IVX];
+    prim(IVY, k, j, i) = prim_pt[IVY];
+    prim(IVZ, k, j, i) = prim_pt[IVZ];
+    prim(IPR, k, j, i) = prim_pt[IPR];
+    temperature(k,j,i) = prim_pt[ITM];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar(n, k, j, i) = prim_pt[IYF + n];
+    }
+  }
+
+  void SetPrimAtmo(
+    AA &prim_,
+    AA &prim_scalar_,
+    const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim_(IVX, i) = prim_pt[IVX];
+    prim_(IVY, i) = prim_pt[IVY];
+    prim_(IVZ, i) = prim_pt[IVZ];
+    prim_(IPR, i) = prim_pt[IPR];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar_(n, i) = prim_pt[IYF + n];
+    }
+  }
+
+  void SetPrimAtmo(
+    AA &temperature_,
+    AA &prim_,
+    AA &prim_scalar_,
+    const int i)
+  {
+    Real prim_pt[NPRIM] = {0.0};
+    ps.GetEOS()->DoFailureResponse(prim_pt);
+
+    // Update the primitive variables.
+    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
+    prim_(IVX, i) = prim_pt[IVX];
+    prim_(IVY, i) = prim_pt[IVY];
+    prim_(IVZ, i) = prim_pt[IVZ];
+    prim_(IPR, i) = prim_pt[IPR];
+    temperature_(i) = prim_pt[ITM];
+    for(int n=0; n<NSCALARS; n++){
+      prim_scalar_(n, i) = prim_pt[IYF + n];
+    }
+  }
+#else
+  void SetPrimAtmo(
+    AA &temperature,
+    AA &prim,
+    AA &prim_scalar,
+    const int k, const int j, const int i)
+  {
+    assert(false);
+  }
+
+  void SetPrimAtmo(
+    AA &prim,
+    AA &prim_scalar,
+    const int k, const int j, const int i)
+  {
+    assert(false);
+  }
+
+  void SetPrimAtmo(
+    AA &temperature,
+    AA &prim,
+    AA &prim_scalar,
+    const int i)
+  {
+    assert(false);
+  }
+
+  void SetPrimAtmo(
+    AA &prim,
+    AA &prim_scalar,
+    const int i)
+  {
+    assert(false);
+  }
+#endif // USETM
+
 
 // BD: TODO - many functions don't do what their names suggest.
 //            Sound speed != eigenvalue..
@@ -387,6 +567,10 @@ class EquationOfState {
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
                      Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+
+  void SoundSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1,
+                     Real g00, Real g01, Real g11,
+                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
 #else
   void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
                      Real g00, Real g01, Real g11,
@@ -405,6 +589,9 @@ class EquationOfState {
 #if USETM
 #pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
   void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
+                                Real g00, Real g01, Real g11,
+                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
+  void FastMagnetosonicSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
                                 Real g00, Real g01, Real g11,
                                 Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
 #else

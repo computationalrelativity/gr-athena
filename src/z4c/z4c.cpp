@@ -239,9 +239,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.communicate_aux_adm =
       pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
-  opt.extended_aux_adm =
-      pin->GetOrAddBoolean("z4c", "extended_aux_adm", false);
-
   // Matter parameters
   opt.cowling = pin->GetOrAddInteger("z4c", "cowling_true", 0);
   opt.bssn = pin->GetOrAddInteger("z4c", "bssn", 0);
@@ -339,16 +336,26 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     }
   }
 
-  if (opt.extended_aux_adm)
-  {
-    storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
-                                        mbi.nn3, mbi.nn2, mbi.nn1);
-    SetAuxExtendedAliases(storage.aux_extended, aux_extended);
-  }
+
+  storage.aux_extended.NewAthenaArray(N_AUX_EXTENDED,
+                                      mbi.nn3, mbi.nn2, mbi.nn1);
+  SetAuxExtendedAliases(storage.aux_extended, aux_extended);
 
   // For debug
   opt.use_tp_trackers_extrema = pin->GetOrAddBoolean(
     "z4c", "use_tp_trackers_extrema", false);
+
+  opt.force_regularization = pin->GetOrAddBoolean(
+    "z4c", "force_regularization", false);
+
+  opt.excise_z4c_freeze_evo = pin->GetOrAddBoolean(
+    "excision", "excise_z4c_freeze_evo", false);
+
+  opt.excise_z4c_freeze_evo_rat = pin->GetOrAddReal(
+    "excision", "excise_z4c_freeze_evo_rat", -1);
+
+  opt.excise_z4c_matter_sources = pin->GetOrAddBoolean(
+    "excision", "excise_z4c_matter_sources", false);
 
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
@@ -425,6 +432,8 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
   {
+    ms_detgamma_.NewAthenaTensor(mbi.nn1);
+
     w_rho.NewAthenaTensor(     mbi.nn1);
     w_p.NewAthenaTensor(       mbi.nn1);
     w_utilde_u.NewAthenaTensor(mbi.nn1);
@@ -532,12 +541,17 @@ void Z4c::SetAuxAliases(AthenaArray<Real> & u, Z4c::Aux_vars & aux)
   aux.dg_ddd.InitWithShallowSlice(u, I_AUX_dgxx_x);
 }
 
-void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
+void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_aux_extended,
                                 Z4c::Aux_extended_vars & aux_extended)
 {
-  aux_extended.cc_sqrt_detgamma.InitWithShallowSlice(
-    u_adm, I_AUX_EXTENDED_cc_sqrt_detgamma
+  aux_extended.gs_sqrt_detgamma.InitWithShallowSlice(
+    u_aux_extended, I_AUX_EXTENDED_gs_sqrt_detgamma
   );
+#if FLUID_ENABLED
+  aux_extended.ms_sqrt_detgamma.InitWithShallowSlice(
+    u_aux_extended, I_AUX_EXTENDED_ms_sqrt_detgamma
+  );
+#endif
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
@@ -547,6 +561,7 @@ void Z4c::SetAuxExtendedAliases(AthenaArray<Real> & u_adm,
 
 void Z4c::AlgConstr(AthenaArray<Real> & u)
 {
+  using namespace FloatingPoint;
   using namespace LinearAlgebra;
 
   Z4c_vars z4c;
@@ -556,12 +571,18 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
 
     // compute determinant and "conformal conformal factor"
     GLOOP1(i) {
-      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
-      detg(i) = detg(i) > 0. ? detg(i) : 1.;
-      Real eps = detg(i) - 1.;
+      // detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      // detg(i) = detg(i) > 0. ? detg(i) : 1.;
+      // Real eps = detg(i) - 1.;
       // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
-      oopsi4(i) = std::cbrt(1./detg(i));
+      // oopsi4(i) = std::cbrt(1./detg(i));
+
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      oopsi4(i) = regularize_nth_root(
+        detg(i), 1.0, opt.eps_floor, -3.0
+      );
     }
+
     // enforce unitary determinant for conformal metric
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
@@ -586,5 +607,120 @@ void Z4c::AlgConstr(AthenaArray<Real> & u)
         z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
       }
     }
+
+
+    // regularization of quantities
+    if (opt.force_regularization)
+    GLOOP1(i)
+    {
+      // strictly non-negative
+      z4c.chi(k,j,i)   = std::max(z4c.chi(k,j,i), opt.eps_floor);
+      // keep away from zero
+      z4c.alpha(k,j,i) = regularize_near_zero(z4c.alpha(k,j,i), opt.eps_floor);
+    }
   }
+}
+
+void Z4c::AlgConstr(AA & u,
+  const int il, const int iu,
+  const int jl, const int ju,
+  const int kl, const int ku,
+  bool skip_physical)
+{
+  using namespace FloatingPoint;
+  using namespace LinearAlgebra;
+
+  Z4c_vars z4c;
+  SetZ4cAliases(u, z4c);
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+    const bool sp_kj = (
+      skip_physical &&
+      (mbi.jl <= j) && (j <= mbi.ju) &&
+      (mbi.kl <= k) && (k <= mbi.ku)
+    );
+
+    // compute determinant and "conformal conformal factor"
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      detg(i) = Det3Metric(z4c.g_dd,k,j,i);
+      // // oopsi4(i) = std::cbrt(1./detg(i));
+      // detg(i) = detg(i) > 0. ? detg(i) : 1.;
+      // Real eps = detg(i) - 1.;
+      // oopsi4(i) = (eps < opt.eps_floor) ? (1. - opt.eps_floor/3.) : (pow(1./detg(i), 1./3.));
+      oopsi4(i) = regularize_nth_root(
+        detg(i), 1.0, opt.eps_floor, -3.0
+      );
+    }
+
+    // enforce unitary determinant for conformal metric
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      z4c.g_dd(a,b,k,j,i) *= oopsi4(i);
+    }
+
+    // compute trace of A
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      // note: here we are assuming that det g = 1, which we enforced above
+      A(i) = TraceRank2(1.0,
+          z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
+          z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
+          z4c.A_dd(0,0,k,j,i), z4c.A_dd(0,1,k,j,i), z4c.A_dd(0,2,k,j,i),
+          z4c.A_dd(1,1,k,j,i), z4c.A_dd(1,2,k,j,i), z4c.A_dd(2,2,k,j,i));
+    }
+
+    // enforce trace of A to be zero
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      z4c.A_dd(a,b,k,j,i) -= (1.0/3.0) * A(i) * z4c.g_dd(a,b,k,j,i);
+    }
+
+    // regularization of quantities
+    if (opt.force_regularization)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+      {
+        continue;
+      }
+
+      // strictly non-negative
+      z4c.chi(k,j,i)   = std::max(z4c.chi(k,j,i), opt.eps_floor);
+      // keep away from zero
+      z4c.alpha(k,j,i) = regularize_near_zero(z4c.alpha(k,j,i), opt.eps_floor);
+    }
+  }
+
 }

@@ -33,6 +33,35 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
 {
   N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
 
+  // New-style specification
+  use_new_style = pin->GetOrAddBoolean(
+    "trackers_extrema", "use_new_style",
+    false);
+
+  AthenaArray<std::string> ns_control_fields;
+
+  if (use_new_style || (N_tracker == 0))
+  {
+    ns_control_fields = pin->GetOrAddStringArray(
+      "trackers_extrema", "control_field", "", 0
+    );
+    if (ns_control_fields.GetSize() > 0)
+    {
+      use_new_style = true;
+      N_tracker = ns_control_fields.GetSize();
+
+      pin->SetInteger("trackers_extrema", "N_tracker", N_tracker);
+      pin->SetBoolean("trackers_extrema", "use_new_style", true);
+    }
+  }
+
+  // bool use_ns = false;
+  // if ((N_tracker == 0) && (ns_control_fields.GetSize() > 0))
+  // {
+  //   use_ns = true;
+  //   N_tracker = ns_control_fields.GetSize();
+  // }
+
   if (N_tracker > 0)
   {
 #ifdef MPI_PARALLEL
@@ -41,37 +70,55 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
 #else
     is_io_process = true;
 #endif
-    output_filename = pin->GetOrAddString("trackers_extrema",
-                                          "filename",
-                                          "trackers_extrema");
 
-    control_field_name = pin->GetOrAddString("trackers_extrema",
-                                             "control_field",
-                                             "none");
+    control_field.NewAthenaArray(N_tracker);
 
-    if (control_field_name == "wave.auxiliary_ref_field")
+    for (int n=0; n<N_tracker; ++n)
     {
-      control_field = control_fields::wave_auxiliary_ref;
-    }
-    else if (control_field_name == "Z4c.alpha")
-    {
-      control_field = control_fields::Z4c_alpha;
-    }
-    else if (control_field_name == "Z4c.chi")
-    {
-      control_field = control_fields::Z4c_chi;
-    }
+
+      output_filename = pin->GetOrAddString("trackers_extrema",
+                                            "filename",
+                                            "trackers_extrema");
+
+      if (use_new_style)
+      {
+        control_field_name = ns_control_fields(n);
+      }
+      else
+      {
+        control_field_name = pin->GetOrAddString("trackers_extrema",
+                                                 "control_field",
+                                                 "none");
+      }
+
+      if (control_field_name == "none")
+      {
+        control_field(n) = control_fields::none;
+      }
+      else if (control_field_name == "wave.auxiliary_ref_field")
+      {
+        control_field(n) = control_fields::wave_auxiliary_ref;
+      }
+      else if (control_field_name == "Z4c.alpha")
+      {
+        control_field(n) = control_fields::Z4c_alpha;
+      }
+      else if (control_field_name == "Z4c.chi")
+      {
+        control_field(n) = control_fields::Z4c_chi;
+      }
 #if M1_ENABLED
-    else if (control_field_name == "M1.lab.sc_E_00")
-    {
-      control_field = control_fields::M1_lab_sc_E_00;
-    }
+      else if (control_field_name == "M1.lab.sc_E_00")
+      {
+        control_field(n) = control_fields::M1_lab_sc_E_00;
+      }
 #endif // M1_ENABLED
-    else
-    {
-      std::cout << "tracker_extrema unknown control_field" << std::endl;
-      assert(false); // you shouldn't be here
-      abort();
+      else
+      {
+        std::cout << "tracker_extrema unknown control_field" << std::endl;
+        assert(false); // you shouldn't be here
+        abort();
+      }
     }
 
     ref_level.NewAthenaArray(N_tracker);
@@ -109,26 +156,7 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
   }
 }
 
-ExtremaTracker::~ExtremaTracker()
-{
-  if (N_tracker > 0)
-  {
-    ref_level.DeleteAthenaArray();
-    ref_type.DeleteAthenaArray();
-    ref_zone_radius.DeleteAthenaArray();
-
-    minima.DeleteAthenaArray();
-    c_x1.DeleteAthenaArray();
-    c_x2.DeleteAthenaArray();
-    c_x3.DeleteAthenaArray();
-
-    multiplicity_update.DeleteAthenaArray();
-    c_dx1.DeleteAthenaArray();
-    c_dx2.DeleteAthenaArray();
-    c_dx3.DeleteAthenaArray();
-
-  }
-}
+ExtremaTracker::~ExtremaTracker() { }
 
 void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
 {
@@ -138,47 +166,147 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
   update_strategy = pin->GetOrAddInteger("trackers_extrema",
                                          "update_strategy", 0);
 
-  for(int n=1; n<=N_tracker; ++n)
+
+  if (use_new_style)
   {
+    bool param_well_formed = true;
 
-    std::string n_str = std::to_string(n);
-
-    ref_level(n-1) = pin->GetOrAddInteger(
-      "trackers_extrema", "ref_level_" + n_str, 1
+    AthenaArray<int> ref_level_ = pin->GetOrAddIntegerArray(
+      "trackers_extrema", "ref_level", 1
+    );
+    AthenaArray<int> ref_type_ = pin->GetOrAddIntegerArray(
+      "trackers_extrema", "ref_type", 0
+    );
+    AthenaArray<Real> ref_zone_radius_ = pin->GetOrAddRealArray(
+      "trackers_extrema", "ref_zone_radius", 1
+    );
+    AthenaArray<Real> minima_ = pin->GetOrAddRealArray(
+      "trackers_extrema", "ref_zone_radius", 1
     );
 
-    ref_type(n-1) = pin->GetOrAddInteger(
-      "trackers_extrema", "ref_type_" + n_str, 0
-    );
+    AthenaArray<Real> c_x3_;
+    AthenaArray<Real> c_x2_;
+    AthenaArray<Real> c_x1_;
 
-    if (ref_type(n-1) == 1)
+    if ((ref_level_.GetSize() != N_tracker) ||
+        (ref_type_.GetSize() != N_tracker)  ||
+        (ref_zone_radius_.GetSize() != N_tracker)  ||
+        (minima_.GetSize() != N_tracker))
     {
-      ref_zone_radius(n-1) = pin->GetOrAddReal(
-        "trackers_extrema", "ref_zone_radius_" + n_str, 1
-      );
+      param_well_formed = false;
     }
-
-    // minima / maxima? by default min.
-    minima(n-1) = pin->GetOrAddBoolean(
-      "trackers_extrema", "minima_" + n_str, true);
 
     switch (pmesh->ndim)
     {
       case 3:
-        c_x3(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x3", 0
+      {
+        c_x3_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x3", 0
         );
+        param_well_formed = param_well_formed && (
+          c_x3_.GetSize() == N_tracker
+        );
+      }
       case 2:
-        c_x2(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x2", 0
+      {
+        c_x2_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x2", 0
         );
+        param_well_formed = param_well_formed && (
+          c_x2_.GetSize() == N_tracker
+        );
+      }
       case 1:
-        c_x1(n-1) = pin->GetOrAddReal(
-          "trackers_extrema", "ini_" + n_str + "_x1", 0
+      {
+        c_x1_ = pin->GetOrAddRealArray(
+          "trackers_extrema", "ini_x1", 0
+        );
+        param_well_formed = param_well_formed && (
+          c_x1_.GetSize() == N_tracker
         );
         break;
+      }
       default:
-        std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3" << std::endl;
+      {
+        std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
+                  << std::endl;
+      }
+    }
+
+    if (!param_well_formed)
+    {
+      std::ostringstream err;
+      err << "Malformed parameters in trackers_extrema";
+      ATHENA_ERROR(err);
+    }
+
+    for(int n=1; n<=N_tracker; ++n)
+    {
+      ref_level(n-1) = ref_level_(n-1);
+      ref_type(n-1) = ref_type_(n-1);
+      ref_zone_radius(n-1) = ref_zone_radius_(n-1);
+      minima(n-1) = minima_(n-1);
+
+      switch (pmesh->ndim)
+      {
+        case 3:
+          c_x3(n-1) = c_x3_(n-1);
+        case 2:
+          c_x2(n-1) = c_x2_(n-1);
+        case 1:
+          c_x1(n-1) = c_x1_(n-1);
+          break;
+        default:
+          assert(false);
+      }
+    }
+  }
+  else
+  {
+    for(int n=1; n<=N_tracker; ++n)
+    {
+
+      std::string n_str = std::to_string(n);
+
+      ref_level(n-1) = pin->GetOrAddInteger(
+        "trackers_extrema", "ref_level_" + n_str, 1
+      );
+
+      ref_type(n-1) = pin->GetOrAddInteger(
+        "trackers_extrema", "ref_type_" + n_str, 0
+      );
+
+      // 0: to the point; values larger take radii
+      if (ref_type(n-1) >= 1)
+      {
+        ref_zone_radius(n-1) = pin->GetOrAddReal(
+          "trackers_extrema", "ref_zone_radius_" + n_str, 1
+        );
+      }
+
+      // minima / maxima? by default min.
+      minima(n-1) = pin->GetOrAddBoolean(
+        "trackers_extrema", "minima_" + n_str, true);
+
+      switch (pmesh->ndim)
+      {
+        case 3:
+          c_x3(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x3", 0
+          );
+        case 2:
+          c_x2(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x2", 0
+          );
+        case 1:
+          c_x1(n-1) = pin->GetOrAddReal(
+            "trackers_extrema", "ini_" + n_str + "_x1", 0
+          );
+          break;
+        default:
+          std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
+                    << std::endl;
+      }
     }
   }
 }
@@ -395,7 +523,7 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
   ),
   ndim(pmy_block->pmy_mesh->ndim)
 {
-  N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
+  N_tracker = ptracker_extrema->N_tracker;
   iter_max = pin->GetOrAddInteger("trackers_extrema", "iter_max", 100);
   tol_ds = pin->GetOrAddReal("trackers_extrema", "tol_ds", 1e-12);
   interp_ds_fac = pin->GetOrAddReal("trackers_extrema", "interp_ds_fac", 10.);
@@ -414,65 +542,69 @@ ExtremaTrackerLocal::ExtremaTrackerLocal(
     loc_c_dx2.NewAthenaArray(N_tracker);
     loc_c_dx3.NewAthenaArray(N_tracker);
 
-    // register control field
-    switch (ptracker_extrema->control_field)
+    // register control fields
+    control_fields.reserve(N_tracker);
+
+    for (int n=0; n<N_tracker; ++n)
     {
-      case ExtremaTracker::control_fields::wave_auxiliary_ref:
+      AA control_field_slicer;
+
+      switch (ptracker_extrema->control_field(n))
       {
-        // need to slice and point
-        mbi = &pmb->pwave->mbi;
+        case ExtremaTracker::control_fields::none:
+        {
+          break;
+        }
+        case ExtremaTracker::control_fields::wave_auxiliary_ref:
+        {
+          // need to slice and point
+          mbi = &pmb->pwave->mbi;
 
-        control_field_slicer.InitWithShallowSlice(pmb->pwave->ref_tra);
-
-        control_field = &(control_field_slicer);
-        // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
-        break;
-      }
-      case ExtremaTracker::control_fields::Z4c_alpha:
-      {
-        mbi = &pmb->pz4c->mbi;
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1
-        );
-
-        control_field = &(control_field_slicer);
-
-        break;
-      }
-      case ExtremaTracker::control_fields::Z4c_chi:
-      {
-        mbi = &pmb->pz4c->mbi;
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pz4c->storage.u, Z4c::I_Z4c_chi, 1
-        );
-
-        control_field = &(control_field_slicer);
-
-        break;
-      }
+          // control_field = &(pmb->pwave->aux_ref.auxiliary_ref_field);
+          control_field_slicer.InitWithShallowSlice(pmb->pwave->ref_tra);
+          control_fields.push_back(std::move(control_field_slicer));
+          break;
+        }
+        case ExtremaTracker::control_fields::Z4c_alpha:
+        {
+          mbi = &pmb->pz4c->mbi;
+          control_field_slicer.InitWithShallowSlice(
+            pmb->pz4c->storage.u, Z4c::I_Z4c_alpha, 1
+          );
+          control_fields.push_back(std::move(control_field_slicer));
+          break;
+        }
+        case ExtremaTracker::control_fields::Z4c_chi:
+        {
+          mbi = &pmb->pz4c->mbi;
+          control_field_slicer.InitWithShallowSlice(
+            pmb->pz4c->storage.u, Z4c::I_Z4c_chi, 1
+          );
+          control_fields.push_back(std::move(control_field_slicer));
+          break;
+        }
 #if M1_ENABLED
-      case ExtremaTracker::control_fields::M1_lab_sc_E_00:
-      {
-        mbi = &pmb->pm1->mbi;
+        case ExtremaTracker::control_fields::M1_lab_sc_E_00:
+        {
+          mbi = &pmb->pm1->mbi;
 
-        const int ix_g = 0;
-        const int ix_s = 0;
+          const int ix_g = 0;
+          const int ix_s = 0;
 
-        control_field_slicer.InitWithShallowSlice(
-          pmb->pm1->lab.sc_E(ix_g, ix_s).array(), 0, 1
-        );
-
-        control_field = &(control_field_slicer);
-
-        break;
+          control_field_slicer.InitWithShallowSlice(
+            pmb->pm1->lab.sc_E(ix_g, ix_s).array(), 0, 1
+          );
+          control_fields.push_back(std::move(control_field_slicer));
+          break;
+        }
+#endif
+        default:
+        {
+          assert(false);
+        }
       }
-#endif 
-      default:
-      {
-        assert(false);
-      }
+
     }
-
   }
 
 }
@@ -484,6 +616,12 @@ void ExtremaTrackerLocal::TreatCentreIfLocalMember()
   // check if current MeshBlock contains a centre
   for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
   {
+    if (ptracker_extrema->control_field(n-1) ==
+        ExtremaTracker::control_fields::none)
+    {
+      continue;
+    }
+
     const bool is_contained = pmy_block->PointContained(
       ptracker_extrema->c_x1(n-1),
       ptracker_extrema->c_x2(n-1),
@@ -558,23 +696,23 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
 
       offset_ix_x1 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x3, ix_c_x2, ix_c_x1-1),
-        (*control_field)(ix_c_x3, ix_c_x2, ix_c_x1),
-        (*control_field)(ix_c_x3, ix_c_x2, ix_c_x1+1)
+        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1-1),
+        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1),
+        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1+1)
       );
 
       offset_ix_x2 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x3, ix_c_x2-1, ix_c_x1),
-        (*control_field)(ix_c_x3, ix_c_x2,   ix_c_x1),
-        (*control_field)(ix_c_x3, ix_c_x2+1, ix_c_x1)
+        (control_fields[n-1])(ix_c_x3, ix_c_x2-1, ix_c_x1),
+        (control_fields[n-1])(ix_c_x3, ix_c_x2,   ix_c_x1),
+        (control_fields[n-1])(ix_c_x3, ix_c_x2+1, ix_c_x1)
       );
 
       offset_ix_x3 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x3-1, ix_c_x2, ix_c_x1),
-        (*control_field)(ix_c_x3,   ix_c_x2, ix_c_x1),
-        (*control_field)(ix_c_x3+1, ix_c_x2, ix_c_x1)
+        (control_fields[n-1])(ix_c_x3-1, ix_c_x2, ix_c_x1),
+        (control_fields[n-1])(ix_c_x3,   ix_c_x2, ix_c_x1),
+        (control_fields[n-1])(ix_c_x3+1, ix_c_x2, ix_c_x1)
       );
 
       loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
@@ -592,16 +730,16 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
 
       offset_ix_x1 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x2, ix_c_x1-1),
-        (*control_field)(ix_c_x2, ix_c_x1),
-        (*control_field)(ix_c_x2, ix_c_x1+1)
+        (control_fields[n-1])(ix_c_x2, ix_c_x1-1),
+        (control_fields[n-1])(ix_c_x2, ix_c_x1),
+        (control_fields[n-1])(ix_c_x2, ix_c_x1+1)
       );
 
       offset_ix_x2 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x2-1, ix_c_x1),
-        (*control_field)(ix_c_x2,   ix_c_x1),
-        (*control_field)(ix_c_x2+1, ix_c_x1)
+        (control_fields[n-1])(ix_c_x2-1, ix_c_x1),
+        (control_fields[n-1])(ix_c_x2,   ix_c_x1),
+        (control_fields[n-1])(ix_c_x2+1, ix_c_x1)
       );
 
       loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
@@ -617,9 +755,9 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
 
       offset_ix_x1 = IxExtremaOffset(
         n,
-        (*control_field)(ix_c_x1-1),
-        (*control_field)(ix_c_x1),
-        (*control_field)(ix_c_x1+1)
+        (control_fields[n-1])(ix_c_x1-1),
+        (control_fields[n-1])(ix_c_x1),
+        (control_fields[n-1])(ix_c_x1+1)
       );
 
       loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
@@ -904,15 +1042,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_R[2] = coord_new[2];
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         // candidate step for update
@@ -971,15 +1109,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_R[2] = coord_new[2];
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         // candidate step for update
@@ -1038,15 +1176,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_R[2] = coord_new[2] + ds_i;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&((*control_field)(0,0,0)));
+        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
         delete pinterp3;
 
         // candidate step for update
@@ -1153,15 +1291,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_R[1] = coord_new[1];
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_L);
-        f_0 = pinterp2->eval(&((*control_field)(0,0)));
+        f_0 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_M);
-        f_1 = pinterp2->eval(&((*control_field)(0,0)));
+        f_1 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_R);
-        f_2 = pinterp2->eval(&((*control_field)(0,0)));
+        f_2 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         // candidate step for update
@@ -1216,15 +1354,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_R[1] = coord_new[1] + ds_i;
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_L);
-        f_0 = pinterp2->eval(&((*control_field)(0,0)));
+        f_0 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_M);
-        f_1 = pinterp2->eval(&((*control_field)(0,0)));
+        f_1 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         pinterp2 = new Interp_Lag2(origin, ds, sz, coord_R);
-        f_2 = pinterp2->eval(&((*control_field)(0,0)));
+        f_2 = pinterp2->eval(&(control_fields[n-1](0,0)));
         delete pinterp2;
 
         // candidate step for update
@@ -1312,15 +1450,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         const Real coord_R[1] = {coord_new[0] + ds_i};
 
         pinterp1 = new Interp_Lag1(origin, ds, sz, coord_L);
-        f_0 = pinterp1->eval(&((*control_field)(0)));
+        f_0 = pinterp1->eval(&(control_fields[n-1](0)));
         delete pinterp1;
 
         pinterp1 = new Interp_Lag1(origin, ds, sz, coord_M);
-        f_1 = pinterp1->eval(&((*control_field)(0)));
+        f_1 = pinterp1->eval(&(control_fields[n-1](0)));
         delete pinterp1;
 
         pinterp1 = new Interp_Lag1(origin, ds, sz, coord_R);
-        f_2 = pinterp1->eval(&((*control_field)(0)));
+        f_2 = pinterp1->eval(&(control_fields[n-1](0)));
         delete pinterp1;
 
         // candidate step for update

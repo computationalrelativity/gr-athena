@@ -155,7 +155,7 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
 
       // BD: TODO- fixme; this is energy density, not tot?
       Real E_tot = peos->GetEOS().GetEnergy(sc_w_rho(k,j,i) / mb,
-                                            ph->temperature(k,j,i),
+                                            pm1->hydro.sc_T(k,j,i),
                                             Y);
 
       sc_z_sum(k,j,i) += E_tot;
