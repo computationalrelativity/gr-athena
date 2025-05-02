@@ -718,7 +718,7 @@ Real Rescaling::GlobalMaximum(const variety_cs v_cs,
       if (use_densitized)
       {
         const Real oo_sqrt_detgamma = OO(
-          aux_extended.cc_sqrt_detgamma(k,j,i)
+          aux_extended.ms_sqrt_detgamma(k,j,i)
         );
         V = oo_sqrt_detgamma * arr(k,j,i);
       }
@@ -748,9 +748,9 @@ Real Rescaling::GlobalMaximum(const variety_cs v_cs,
     max_V = -std::numeric_limits<Real>::infinity();
   }
 
-  Real max_all_V;
-  MPI_Allreduce(&max_V, &max_all_V, 1,
-                MPI_ATHENA_REAL, MPI_MAX, MPI_COMM_WORLD);
+  // Real max_all_V;
+  // MPI_Allreduce(&max_V, &max_all_V, 1,
+  //               MPI_ATHENA_REAL, MPI_MAX, MPI_COMM_WORLD);
   // if (Globals::my_rank == 0)
   // {
   //   MPI_Reduce(MPI_IN_PLACE, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
@@ -761,9 +761,12 @@ Real Rescaling::GlobalMaximum(const variety_cs v_cs,
   //   MPI_Reduce(&max_V, &max_V, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
   //              MPI_COMM_WORLD);
   // }
+  MPI_Allreduce(MPI_IN_PLACE, &max_V, 1,
+    MPI_ATHENA_REAL, MPI_MAX, MPI_COMM_WORLD);
 #endif
 
-  return max_all_V;
+  // return max_all_V;
+  return max_V;
 
 }
 
