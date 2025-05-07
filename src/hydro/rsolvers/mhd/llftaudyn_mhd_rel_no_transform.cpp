@@ -420,13 +420,16 @@ void Hydro::RiemannSolver(
     oo_alpha_(i) = OO(alpha__);
   }
 
+  b0_l_.ZeroClear();
+  b0_r_.ZeroClear();
+
   for (int a = 0; a < NDIM; ++a)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      b0_l_(i) = oo_alpha_(i) * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
-      b0_r_(i) = oo_alpha_(i) * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
+      b0_l_(i) += oo_alpha_(i) * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
+      b0_r_(i) += oo_alpha_(i) * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
     }
   }
 
