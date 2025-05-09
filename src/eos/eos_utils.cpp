@@ -550,17 +550,17 @@ void EquationOfState::DerivedQuantities(
     fld_der_ms(IX_b_U_1,k,j,i) = (
       oo_sqrt_det_gamma * pf->bcc(IB1,k,j,i) +
       alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_x
-    ) / SQR(W);
+    ) / W;
 
     fld_der_ms(IX_b_U_2,k,j,i) = (
       oo_sqrt_det_gamma * pf->bcc(IB2,k,j,i) +
       alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_y
-    ) / SQR(W);
+    ) / W;
 
     fld_der_ms(IX_b_U_3,k,j,i) = (
       oo_sqrt_det_gamma * pf->bcc(IB3,k,j,i) +
       alp * fld_der_ms(IX_b0,k,j,i) * W * vtil_u_z
-    ) / SQR(W);
+    ) / W;
 
     fld_der_ms(IX_MAG,k,j,i) = fld_der_ms(IX_B2,k,j,i) / cons(IDN,k,j,i);
     fld_der_ms(IX_BET,k,j,i) = fld_der_ms(IX_b2) / 2.0 * prim(IPR,k,j,i) ;
