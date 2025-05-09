@@ -1209,6 +1209,8 @@ if args["cxx"] == "g++-simd_O2":
     "-O2 -std=c++17 -fwhole-program -flto=auto "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
+    # The following is to avoid linker issue (LRZ)
+    "-ffat-lto-objects "
     # "-ffp-contract=off "  # disables FMA
     # '-finline-limit=2048 '
     # '-Wunknown-pragmas '
