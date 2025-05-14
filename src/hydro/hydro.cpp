@@ -145,6 +145,13 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
       r_ar_.NewAthenaArray(NDRV_HYDRO, nc1);
       r_alb_.NewAthenaArray(NDRV_HYDRO, nc1);
     }
+
+    if (pmy_block->precon->xorder_use_fb_mask)
+    {
+      mask_l_.NewAthenaArray(nc1);
+      mask_lb_.NewAthenaArray(nc1);
+      mask_r_.NewAthenaArray(nc1);
+    }
   }
   else
   {

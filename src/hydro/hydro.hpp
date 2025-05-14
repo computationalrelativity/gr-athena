@@ -786,6 +786,140 @@ public:
 #endif // USETM
   }
 
+
+  inline void FallbackInadmissibleMaskPrimitiveX_(
+    AthenaArray<bool> & mask_l_,
+    AthenaArray<bool> & mask_r_,
+    AA & zl_,
+    AA & zr_,
+    const int il, const int iu, const int ivx)
+  {
+    const int I = (ivx == 1) ? DGB_RECON_X1_OFFSET : 0;
+
+#if USETM
+    EquationOfState * peos = pmy_block->peos;
+    Real mb = peos->GetEOS().GetBaryonMass();
+    const Real dfloor_fac = pmy_block->precon->xorder_fb_dfloor_fac;
+    const Real fl_w_rho = dfloor_fac * mb * peos->GetEOS().GetDensityFloor();
+#else
+    const Real fl_w_rho = 0;
+#endif
+
+    if (!split_lr_fallback)
+    {
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zl_(IDN,i+I) <= fl_w_rho) ||
+                                  (zr_(IDN,i) <= fl_w_rho);
+        mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+        mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+      }
+    }
+    else
+    {
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zl_(IDN,i+I) < fl_w_rho);
+        mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+      }
+
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zr_(IDN,i) < fl_w_rho);
+        mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+      }
+    }
+
+    if (pmy_block->precon->xorder_use_fb_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      if (!split_lr_fallback)
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+
+          const bool inadmissible = (!pl_ || !pr_);
+          mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+          mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+        }
+      }
+      else
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          const bool inadmissible = !pl_;
+          mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+        }
+
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+          const bool inadmissible = !pr_;
+          mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+        }
+      }
+    }
+
+  }
+
+  inline void FallbackInadmissibleMaskX_(
+    AthenaArray<bool> & mask_l_,
+    AthenaArray<bool> & mask_r_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
+    const int nl, const int nu,
+    const int il, const int iu, const int ivx)
+  {
+    const int I = (ivx == 1) ? DGB_RECON_X1_OFFSET : 0;
+
+    if (!split_lr_fallback)
+    {
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_l_(i+I) || !mask_r_(i))
+        {
+          zl_(n,i+I) = f_zl_(n,i+I);
+          zr_(n,i  ) = f_zr_(n,i  );
+        }
+      }
+    }
+    else
+    {
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_l_(i+I))
+        {
+          zl_(n,i+I) = f_zl_(n,i+I);
+        }
+      }
+
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_r_(i))
+        {
+          zr_(n,i  ) = f_zr_(n,i  );
+        }
+      }
+    }
+  }
+
  private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
@@ -798,6 +932,11 @@ public:
   // reconstruction for auxiliaries
   AA al_, ar_, alb_;
   AA r_al_, r_ar_, r_alb_;
+
+  // fall-back mask
+  AthenaArray<bool> mask_l_;
+  AthenaArray<bool> mask_lb_;
+  AthenaArray<bool> mask_r_;
 
   AA dflx_;
 

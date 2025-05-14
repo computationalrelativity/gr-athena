@@ -420,13 +420,16 @@ void Hydro::RiemannSolver(
     oo_alpha_(i) = OO(alpha__);
   }
 
+  b0_l_.ZeroClear();
+  b0_r_.ZeroClear();
+
   for (int a = 0; a < NDIM; ++a)
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      b0_l_(i) = oo_alpha_(i) * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
-      b0_r_(i) = oo_alpha_(i) * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
+      b0_l_(i) += oo_alpha_(i) * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
+      b0_r_(i) += oo_alpha_(i) * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
     }
   }
 
@@ -786,6 +789,26 @@ void Hydro::RiemannSolver(
                                   prim_r(IDN, i), dxw(i), dt);
   }
 
+  if (!pmy_block->precon->xorder_upwind_scalars)
+  {
+
+    AA & s_flux = ps->s_flux[ivx-1];
+
+    for (int n=0; n<NSCALARS; ++n)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      const Real mass_flx = flux(IDN,k,j,i);
+
+      s_flux(n,k,j,i) = 0.5 * (
+        (flux_l_(IDN,i) * pscalars_l(n,i) +
+         flux_r_(IDN,i) * pscalars_r(n,i)) -
+        lambda(i) * (cons_r_(IDN,i) * pscalars_r(n,i) -
+                     cons_l_(IDN,i) * pscalars_l(n,i))
+      );
+    }
+
+  }
 
   /*
   #pragma omp critical

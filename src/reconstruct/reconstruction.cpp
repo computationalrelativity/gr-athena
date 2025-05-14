@@ -135,7 +135,26 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
 
     xorder_use_fb_unphysical = pin->GetOrAddBoolean(
       "time", "xorder_use_fb_unphysical", false);
+
+    xorder_use_fb_mask = pin->GetOrAddBoolean(
+      "time", "xorder_use_fb_mask", false);
   }
+
+  xorder_use_cons_passive = pin->GetOrAddBoolean(
+    "time", "xorder_use_cons_passive", false
+  );
+
+  xorder_limit_species = pin->GetOrAddBoolean(
+    "time", "xorder_limit_species", true
+  );
+
+  xorder_fb_dfloor_fac = pin->GetOrAddReal(
+    "time", "xorder_fb_dfloor_fac", 1.0
+  );
+
+  xorder_upwind_scalars = pin->GetOrAddBoolean(
+    "time", "xorder_upwind_scalars", true
+  );
 
   xorder_use_auxiliaries = pin->GetOrAddBoolean(
     "time", "xorder_use_auxiliaries", false

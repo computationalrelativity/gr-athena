@@ -483,7 +483,7 @@ void EquationOfState::ConservedToPrimitive(
       for (int a=0; a<N; ++a)
       {
         ph->derived_int(IX_TR_V1+a,k,j,i) = (
-          alpha * oo_W * prim(IVX+a,k,j,i) + gsc.beta_u_(a,i)
+          alpha * oo_W * prim(IVX+a,k,j,i) - gsc.beta_u_(a,i)
         );
       }
     }

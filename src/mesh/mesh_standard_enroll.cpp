@@ -680,7 +680,7 @@ void Mesh::EnrollUserStandardField(ParameterInput * pin)
 
 
   EnrollUserHistoryOutput(DivBface, "div_B",
-                          UserHistoryOperation::max);
+                          UserHistoryOperation::sum);
 
   EnrollUserHistoryOutput(E_B, "E_B",
                           UserHistoryOperation::sum);

@@ -585,28 +585,28 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
 
     AA arr;
 
+    switch (v_cs)
+    {
+      case variety_cs::conserved_hydro:
+      {
+        arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
+        break;
+      }
+      case variety_cs::conserved_scalar:
+      {
+        arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+
     CC_ILOOP2(k, j)
     #pragma omp simd reduction(min:min_V)
     for (int i=pmb->is; i<=pmb->ie; ++i)
     {
-
-      switch (v_cs)
-      {
-        case variety_cs::conserved_hydro:
-        {
-          arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
-          break;
-        }
-        case variety_cs::conserved_scalar:
-        {
-          arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
-          break;
-        }
-        default:
-        {
-          assert(false);
-        }
-      }
 
       const Real oo_sqrt_detgamma = OO(
         aux_extended.ms_sqrt_detgamma(k,j,i)
@@ -630,7 +630,7 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (require_positive && min_V <= 0)
+  if (require_positive && !(min_V > 0.0))
   {
     min_V = std::numeric_limits<Real>::infinity();
   }
@@ -650,7 +650,7 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
   // MPI_Allreduce(&min_V, &min_all_V, 1,
   //   MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &min_V, 1,
-    MPI_ATHENA_REAL, MPI_MAX, MPI_COMM_WORLD);
+    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
 #endif
 
   return min_V;
