@@ -65,9 +65,12 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
 
   {
     static const std::map<std::string, opt_closure_method> opt_var {
-      { "none",       opt_closure_method::none},
-      { "gsl_Brent",  opt_closure_method::gsl_Brent},
-      { "gsl_Newton", opt_closure_method::gsl_Newton}
+      { "none",        opt_closure_method::none},
+      { "gsl_Brent",   opt_closure_method::gsl_Brent},
+      { "gsl_Newton",  opt_closure_method::gsl_Newton},
+      { "custom_NB",   opt_closure_method::custom_NB},
+      { "custom_NAB",  opt_closure_method::custom_NAB},
+      { "custom_ONAB", opt_closure_method::custom_ONAB}
     };
 
     auto itr = opt_var.find(GoA_str("method", "gsl_Brent"));

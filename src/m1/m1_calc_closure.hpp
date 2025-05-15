@@ -95,6 +95,7 @@ enum class status
   success,
   fail_tolerance_not_met,
   fail_bracket,
+  fail_value,
   fail_unknown
 };
 
@@ -134,6 +135,17 @@ status gsl_Newton(M1 & pm1,
                   ClosureMetaVector & C,
                   const int k, const int j, const int i);
 
+status custom_NB(M1 & pm1,
+                 ClosureMetaVector & C,
+                 const int k, const int j, const int i);
+
+status custom_NAB(M1 & pm1,
+                  ClosureMetaVector & C,
+                  const int k, const int j, const int i);
+
+status custom_ONAB(M1 & pm1,
+                   ClosureMetaVector & C,
+                   const int k, const int j, const int i);
 // ============================================================================
 } // namespace M1::Closures::solvers
 // ============================================================================
