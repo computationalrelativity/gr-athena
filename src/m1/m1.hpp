@@ -164,7 +164,7 @@ public:
                                    Kershaw };
 
   enum class opt_closure_method {
-    none, gsl_Brent, gsl_Newton
+    none, gsl_Brent, gsl_Newton, custom_NB, custom_NAB, custom_ONAB
   };
 
   struct
