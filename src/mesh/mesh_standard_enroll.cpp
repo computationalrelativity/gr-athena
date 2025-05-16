@@ -510,6 +510,34 @@ Real DivBface(MeshBlock *pmb, int iout)
   return divB;
 }
 
+Real DivBnorm2(MeshBlock *pmb, int iout)
+{
+  Field *pf = pmb->pfield;
+
+  Real divB_loc = 0.0;
+  Real divB_square = 0.0;
+  Real vol,dx,dy,dz;
+  int is = pmb->is, ie = pmb->ie;
+  int js = pmb->js, je = pmb->je;
+  int ks = pmb->ks, ke = pmb->ke;
+
+  for (int k=ks; k<=ke; k++) {
+    for (int j=js; j<=je; j++) {
+      for (int i=is; i<=ie; i++) {
+        dx = pmb->pcoord->dx1v(i);
+        dy = pmb->pcoord->dx2v(j);
+        dz = pmb->pcoord->dx3v(k);
+        vol = dx*dy*dz;
+        divB_loc += ((pf->b.x1f(k,j,i+1) - pf->b.x1f(k,j,i))/ dx +
+                     (pf->b.x2f(k,j+1,i) - pf->b.x2f(k,j,i))/ dy +
+                     (pf->b.x3f(k+1,j,i) - pf->b.x3f(k,j,i))/ dz);
+        divB_square += divB_loc * divB_loc * vol;
+      }
+    }
+  }
+  return divB_square;
+}
+
 Real max_B2(MeshBlock *pmb, int iout)
 {
   Field *pf = pmb->pfield;
@@ -680,6 +708,9 @@ void Mesh::EnrollUserStandardField(ParameterInput * pin)
 
 
   EnrollUserHistoryOutput(DivBface, "div_B",
+                          UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(DivBnorm2, "div_B_norm2",
                           UserHistoryOperation::sum);
 
   EnrollUserHistoryOutput(E_B, "E_B",
