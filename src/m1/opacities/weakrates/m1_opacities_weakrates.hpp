@@ -57,6 +57,8 @@ public:
     opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);
     opacity_tau_delta = pin->GetOrAddReal("M1_opacities", "tau_delta", 1.0);
     opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
+
+    verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
   };
 
   ~WeakRates() {
@@ -228,7 +230,15 @@ public:
                                                    dens_e_trap[2]);
 
           // TODO THC WeakRates treats this as a warning
-          assert(!ierr[1]);
+          // assert(!ierr[1]);
+          if (verbose_warn_weak)
+          {
+            std::printf("M1: can't get equilibrium @ (i,j,k)=(%d,%d,%d) (%.3e,%.3e,%.3e)\n",
+                        i, j, k,
+                        pmy_block->pcoord->x1v(i),
+                        pmy_block->pcoord->x2v(j),
+                        pmy_block->pcoord->x3v(k));
+          }
         }
 
         assert(isfinite(dens_n_trap[0]));
@@ -361,6 +371,7 @@ private:
   Real opacity_tau_delta;
   Real opacity_corr_fac_max;
 
+  bool verbose_warn_weak;
 };
 
 } // namespace M1::Opacities::WeakRates
