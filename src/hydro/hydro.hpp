@@ -81,6 +81,10 @@ class Hydro {
     bool excise_hydro_freeze_evo;   // use with taper
     bool excise_hydro_taper;        // taper (cons) state-vector
     Real taper_pow;                 // taper(x) ^ taper_pow
+    bool excise_hydro_damping;      // replace hydro evo with exponential decay
+    bool excise_c2p;
+    bool excise_flux;
+    Real hydro_damping_factor;
   } opt_excision;
 
   AA excision_mask;

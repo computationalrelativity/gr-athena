@@ -2409,7 +2409,7 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 void Mesh::CalculateExcisionMask()
 {
 #if FLUID_ENABLED && Z4C_ENABLED
-  if (pblock->phydro->opt_excision.use_taper)
+  if (pblock->phydro->opt_excision.use_taper || pblock->phydro->opt_excision.excise_hydro_damping)
   {
     int inb = nbtotal;
     int nthreads = GetNumMeshThreads();

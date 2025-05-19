@@ -84,7 +84,19 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   opt_excision.use_taper =
       pin->GetOrAddBoolean("excision", "use_taper", false);
 
-  if (opt_excision.use_taper)
+  opt_excision.excise_hydro_damping =
+      pin->GetOrAddBoolean("excision", "excise_hydro_damping", false);
+
+  opt_excision.hydro_damping_factor =
+      pin->GetOrAddReal("excision", "hydro_damping_factor", 0.69);
+
+  opt_excision.excise_flux =
+      pin->GetOrAddBoolean("excision", "excise_flux", true);
+
+  opt_excision.excise_c2p =
+      pin->GetOrAddBoolean("excision", "excise_c2p", true);
+
+  if (opt_excision.use_taper || opt_excision.excise_hydro_damping)
   {
     excision_mask.NewAthenaArray(nc3,nc2,nc1);
     excision_mask.Fill(1);

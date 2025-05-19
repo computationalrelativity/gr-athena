@@ -255,23 +255,26 @@ void Hydro::RiemannSolver(
     }
   }
 
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
+  if (ph->opt_excision.excise_flux)
   {
-    Real excision_factor = 1;
-    const bool can_excise = peos->CanExcisePoint(
-      excision_factor,
-      true, alpha_, *x1, *x2, *x3, i, j, k);
-
-    if (can_excise && !ph->opt_excision.excise_hydro_freeze_evo)
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
     {
-      if (ph->opt_excision.use_taper)
+      Real excision_factor = 1;
+      const bool can_excise = peos->CanExcisePoint(
+        excision_factor,
+        true, alpha_, *x1, *x2, *x3, i, j, k);
+
+      if (can_excise && !ph->opt_excision.excise_hydro_freeze_evo)
       {
-        excise_with_factor(excision_factor,i);
-      }
-      else
-      {
-        excise(i);
+        if (ph->opt_excision.use_taper)
+        {
+          excise_with_factor(excision_factor,i);
+        }
+        else
+        {
+          excise(i);
+        }
       }
     }
   }
