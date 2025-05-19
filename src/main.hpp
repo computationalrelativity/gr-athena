@@ -167,7 +167,7 @@ class Timer
 
   void pause()
   {
-    if (is_paused_)
+    if (!is_paused_)
     {
       time_paused_ = ClockT::now();
       is_paused_ = true;
@@ -202,8 +202,8 @@ class Clocks
   public:
     Clocks(Mesh * pmesh)
     : pmesh(pmesh),
-      wtime()//,
-      // evo_clock_time_start(pmesh->start_time)
+      wtime(),
+      evo_clock_time_start(pmesh->start_time)
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
