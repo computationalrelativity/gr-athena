@@ -50,8 +50,8 @@ public:
 
     // Create instance of WeakRatesNeutrinos::WeakRates
     // Set EoS from PS
-    pmy_weakrates = new WeakRatesNeutrinos::WeakRates();
-    pmy_weakrates->SetEoS(&pmy_block->peos->GetEOS());
+    pmy_weakrates = new WeakRatesNeutrinos::WeakRates(pin,
+                                                      &pmy_block->peos->GetEOS());
 
     // These are the defaults in THC, TODO convert to pin parameters
     opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);

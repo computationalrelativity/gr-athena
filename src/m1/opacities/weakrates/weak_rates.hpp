@@ -23,19 +23,75 @@ namespace M1::Opacities::WeakRates::WeakRatesNeutrinos{
 class WeakRates {
   public:
   // Constructor
-    WeakRates() {
-      initialised = false;
-
+    WeakRates(ParameterInput *pin,
+              Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
+      : pin(pin),
+        PS_EoS(PS_EoS),
+        apply_table_limits_internally(pin->GetOrAddBoolean("M1_opacities", "apply_table_limits_internally", true)),
+        enforced_limits_fail(pin->GetOrAddBoolean("M1_opacities", "enforced_limits_fail", true)),
+        wr_zero_limits(pin->GetOrAddBoolean("M1_opacities", "wr_zero_limits", true)),
+        wr_use_eos_dfloor(pin->GetOrAddBoolean("M1_opacities", "wr_use_eos_dfloor", false)),
+        wr_use_eos_tfloor(pin->GetOrAddBoolean("M1_opacities", "wr_use_eos_tfloor", false)),
+        WR_EoS {apply_table_limits_internally,
+                enforced_limits_fail,
+                wr_use_eos_dfloor,
+                wr_use_eos_tfloor,
+                PS_EoS}
+    {
+      // my_units (of WeakRates) vs code_units (of GR(M)HD)
       my_units   = &WeakRates_Units::WeakRatesUnits;
       code_units = &WeakRates_Units::GeometricSolar;
 
-      // these should be set in parfile?
-      rho_min  = 0.0; // cgs
-      temp_min = 0.0; // MeV
+      // set up internal settings for EOS (unit conversions & limits);
+      // target is cgs, MeV resp.
+      Real conv_rho = PS_EoS->GetBaryonMass()*code_units->MassDensityConversion(*my_units);
+      Real conv_temp = code_units->TemperatureConversion(*my_units);
+
+      if (wr_use_eos_dfloor)
+      {
+        // this returns n_atm, but the conversion takes care of it
+        rho_min = conv_rho * PS_EoS->GetDensityFloor();
+      }
+      else
+      {
+        // not clear that this should be 0
+        if (wr_zero_limits)
+        {
+          rho_min = 0;
+        }
+        else
+        {
+          rho_min = conv_rho * PS_EoS->GetMinimumDensity();
+        }
+      }
+
+      if (wr_use_eos_tfloor)
+      {
+        temp_min = conv_temp * PS_EoS->GetTemperatureFloor();
+      }
+      else
+      {
+        // not clear that this should be 0
+        if (wr_zero_limits)
+        {
+          temp_min = 0;
+        }
+        else
+        {
+          temp_min = conv_temp * PS_EoS->GetMinimumTemperature();
+        }
+      }
 
       WR_Emission.SetBounds(rho_min, temp_min);
       WR_Opacity.SetBounds(rho_min, temp_min);
       WR_Equilibrium.SetBounds(rho_min, temp_min);
+
+      // internal Emission, Opacity, Equilibrium
+      atomic_mass = WR_EoS.AtomicMassImpl();
+
+      WR_Emission.SetEos(&WR_EoS);
+      WR_Opacity.SetEos(&WR_EoS);
+      WR_Equilibrium.SetEos(&WR_EoS);
     }
 
     // Destructor
@@ -59,7 +115,6 @@ class WeakRates {
 
     // Calculate the energy and number emission rates
     int NeutrinoEmission(Real rho, Real temp, Real ye, Real& emi_n_nue, Real& emi_n_nua, Real& emi_n_nux, Real& emi_e_nue, Real& emi_e_nua, Real& emi_e_nux) {
-      assert(initialised);
       int ierr = WR_Emission.NeutrinoEmissionImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units), 
@@ -85,7 +140,6 @@ class WeakRates {
 
     // Calculate the absorption opacities of the neutrinos
     int NeutrinoAbsorptionOpacity(Real rho, Real temp, Real ye, Real& abs_n_nue, Real& abs_n_nua, Real& abs_n_nux, Real& abs_e_nue, Real& abs_e_nua, Real& abs_e_nux) {
-      assert(initialised);
       int ierr = WR_Opacity.NeutrinoAbsorptionOpacityImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units),
@@ -110,7 +164,6 @@ class WeakRates {
 
     // Calculate the scattering opacities of the neutrinos
     int NeutrinoScatteringOpacity(Real rho, Real temp, Real ye, Real& sct_n_nue, Real& sct_n_nua, Real& sct_n_nux, Real& sct_e_nue, Real& sct_e_nua, Real& sct_e_nux) {
-      assert(initialised);
       int ierr = WR_Opacity.NeutrinoScatteringOpacityImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units),
@@ -135,7 +188,6 @@ class WeakRates {
 
     // Calculate the neutrino number and energy densities assuming equilibrium with the fluid (mu_nue = -mu_n + mu_p + mu_e).
     int NeutrinoDensity(Real rho, Real temp, Real ye, Real& n_nue, Real& n_nua, Real& n_nux, Real& e_nue, Real& e_nua, Real& e_nux) {
-      assert(initialised);
       int ierr = WR_Equilibrium.NeutrinoDensityImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units),
@@ -161,7 +213,6 @@ class WeakRates {
 
     // Calculate the equilibrium fluid temperature and electron fraction, and neutrino number and energy densities assuming energy and lepton number conservation.
     int WeakEquilibrium(Real rho, Real temp, Real ye, Real n_nue, Real n_nua, Real n_nux, Real e_nue, Real e_nua, Real e_nux, Real& temp_eq, Real& ye_eq, Real& n_nue_eq, Real& n_nua_eq, Real& n_nux_eq, Real& e_nue_eq, Real& e_nua_eq, Real& e_nux_eq) {
-      assert(initialised);
       Real n_conv = code_units->NumberDensityConversion(*my_units);
       Real e_conv = code_units->EnergyDensityConversion(*my_units);
 
@@ -199,7 +250,6 @@ class WeakRates {
     }
     
     int NucleiAbar(Real rho, Real temp, Real ye, Real& abar) {
-      assert(initialised);
       int ierr = WR_EoS.NucleiAbarImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units),
@@ -211,14 +261,12 @@ class WeakRates {
     }
 
     Real AverageBaryonMass() {
-      assert(initialised);
       Real atomic_mass = WR_EoS.AtomicMassImpl();
       atomic_mass = atomic_mass * my_units->MassConversion(*code_units);
       return atomic_mass;
     }
 
     int NeutrinoOpacity(Real rho, Real temp, Real ye, Real& kappa_0_nue, Real& kappa_0_nua, Real& kappa_0_nux, Real& kappa_1_nue, Real& kappa_1_nua, Real& kappa_1_nux) {
-      assert(initialised);
       int ierr = WR_Opacity.NeutrinoOpacityImpl(
         rho*code_units->MassDensityConversion(*my_units), 
         temp*code_units->TemperatureConversion(*my_units), 
@@ -242,7 +290,6 @@ class WeakRates {
     }
 
     int NeutrinoAbsorptionRate(Real rho, Real temp, Real ye, Real& abs_0_nue, Real& abs_0_nua, Real& abs_0_nux, Real& abs_1_nue, Real& abs_1_nua, Real& abs_1_nux) {
-      assert(initialised);
       int ierr = WR_Opacity.NeutrinoAbsorptionRateImpl(
         rho*code_units->MassDensityConversion(*my_units),
         temp*code_units->TemperatureConversion(*my_units),
@@ -265,18 +312,6 @@ class WeakRates {
       return ierr;
     }
 
-    inline void SetEoS(Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* ptr_to_EoS) {
-      PS_EoS = ptr_to_EoS;
-      initialised = true;
-
-      WR_EoS.SetEoS(ptr_to_EoS);
-      atomic_mass = WR_EoS.AtomicMassImpl();
-
-      WR_Emission.SetEos(&WR_EoS);
-      WR_Opacity.SetEos(&WR_EoS);
-      WR_Equilibrium.SetEos(&WR_EoS);
-    }
-
     inline void SetCodeUnitSystem(WeakRates_Units::UnitSystem* units) {
       code_units = units;
     }
@@ -293,7 +328,12 @@ class WeakRates {
     Real get_temp_min_mev() {return temp_min;}
 
   private:
-    bool initialised = false;
+    ParameterInput *pin;
+    const bool apply_table_limits_internally;
+    const bool enforced_limits_fail;
+    const bool wr_zero_limits;
+    const bool wr_use_eos_dfloor;
+    const bool wr_use_eos_tfloor;
     Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
 
     WeakRates_Units::UnitSystem* my_units;
