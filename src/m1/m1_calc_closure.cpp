@@ -211,10 +211,10 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
     }
 
     // deal with failures / reversion -----------------------------------------
-    // if (ss != status_sol::success)
-    if ((ss == status_sol::fail_unknown) ||
-        (ss == status_sol::fail_bracket) ||
-        (ss == status_sol::fail_value))
+    if (ss != status_sol::success)
+    // if ((ss == status_sol::fail_unknown) ||
+    //     (ss == status_sol::fail_bracket) ||
+    //     (ss == status_sol::fail_value))
     {
       // std::printf("%d\n", static_cast<int>(ss));
       solvers::Fallback_Xi_Chi_Limits(pm1, *this, k, j, i);
@@ -786,8 +786,7 @@ status custom_NB(
 
     if (fa * fb > 0.0)
     {
-      // No sign change; apply hard fallback logic
-      Fallback_Xi_Chi_Limits(pm1, C, k, j, i);
+      // No sign change; cannot bracket
       return status::fail_bracket;
     }
 
@@ -829,7 +828,7 @@ status custom_NB(
 
   if (Enforce_Xi_Limits(xi))
   {
-    Fallback_Xi_Chi_Limits(pm1, C, k, j, i);
+    // Solution outside [0,1]
     return status::fail_value;
   }
 
@@ -884,7 +883,7 @@ status custom_NAB(
 
   if (fa * fb > 0.0)
   {
-    Fallback_Xi_Chi_Limits(pm1, C, k, j, i);
+    // No sign change; cannot bracket
     return status::fail_bracket;
   }
 
@@ -925,7 +924,6 @@ status custom_NAB(
     std::cerr << "gsl_Newton Anderson-Bjorck: max_iter exceeded\n";
   }
 
-  Fallback_Xi_Chi_Limits(pm1, C, k, j, i);
   return status::fail_tolerance_not_met;
 }
 
