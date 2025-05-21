@@ -23,7 +23,17 @@ public:
     pmy_block(pmb),
     pmy_coord(pmy_block->pcoord),
     N_GRPS(pm1->N_GRPS),
-    N_SPCS(pm1->N_SPCS)
+    N_SPCS(pm1->N_SPCS),
+    revert_thick_limit_equilibrium(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "revert_thick_limit_equilibrium",
+                           false)
+    ),
+    propagate_hydro_equilibrium(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "propagate_hydro_equilibrium",
+                           false)
+    )
   {
 
 #if !USETM
@@ -156,7 +166,6 @@ public:
       }
 
       // Equilibrium logic ----------------------------------------------------
-
       Real tau = std::min(
         std::sqrt(kap_a_e_nue * (kap_a_e_nue + kap_s_e_nue)),
         std::sqrt(kap_a_e_nua * (kap_a_e_nua + kap_s_e_nua))
@@ -166,7 +175,9 @@ public:
       Real dens_n_trap[3];
       Real dens_e_trap[3];
 
-      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap)
+      if (opacity_tau_trap >= 0.0 &&
+          tau > opacity_tau_trap &&
+          rho > pm1->opt_solver.eql_rho_min)
       {
         // Ensure evolution method delegated based on here detected equilibrium
         const static int ix_g = 0;
@@ -180,6 +191,17 @@ public:
           sol_r(ix_g,ix_s,k,j,i) = osr_r::equilibrium;
           src_r(ix_g,ix_s,k,j,i) = ost_r::set_zero;
         }
+
+        // set thick limit
+        if (revert_thick_limit_equilibrium)
+        {
+          for (int ix_s=0; ix_s<3; ++ix_s)
+          {
+            pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i) = ONE_3RD;
+            pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i) = 0;
+          }
+        }
+
         // --------------------------------------------------------------------
 
         Real T_star;
@@ -233,12 +255,24 @@ public:
           // assert(!ierr[1]);
           if (verbose_warn_weak)
           {
-            std::printf("M1: can't get equilibrium @ (i,j,k)=(%d,%d,%d) (%.3e,%.3e,%.3e)\n",
+            std::printf("M1: can't get equilibrium @ (i,j,k)=(%d,%d,%d) (%.3e,%.3e,%.3e) (rho, T, Y_e)=(%.3e,%.3e,%.3e), chi: %.3e,%.3e,%.3e dens_n: %.3e,%.3e,%.3e dens_e: %.3e,%.3e,%.3e\n",
                         i, j, k,
                         pmy_block->pcoord->x1v(i),
                         pmy_block->pcoord->x2v(j),
-                        pmy_block->pcoord->x3v(k));
+                        pmy_block->pcoord->x3v(k),
+                        rho, T, Y_e,
+                        pm1->lab_aux.sc_xi(0,0)(k,j,i),
+                        pm1->lab_aux.sc_xi(0,1)(k,j,i),
+                        pm1->lab_aux.sc_xi(0,2)(k,j,i),
+                        dens_n[0], dens_n[1], dens_n[2],
+                        dens_e[0], dens_e[1], dens_e[2]);
           }
+        }
+
+        if (propagate_hydro_equilibrium)
+        {
+          pm1->hydro.sc_w_Ye(k, j, i) = Y_e_star;
+          pm1->hydro.sc_T(k,j,i) = T_star;
         }
 
         assert(isfinite(dens_n_trap[0]));
@@ -365,6 +399,9 @@ private:
 
   const int N_GRPS;
   const int N_SPCS;
+
+  const bool revert_thick_limit_equilibrium;
+  const bool propagate_hydro_equilibrium;
 
   // Options for controlling weakrates opacities
   Real opacity_tau_trap;
