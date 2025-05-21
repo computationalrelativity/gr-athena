@@ -292,11 +292,13 @@ void DispatchIntegrationMethod(
     {
       // switch to different solver based on solution regime ------------------
       M1::opt_integration_strategy opt_is;
+      M1::M1::t_sln_r opt_reg = pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i);
 
-      switch (pm1->ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i))
+      switch (opt_reg)
       {
         case M1::t_sln_r::noop:
         {
+          opt_is = M1::opt_integration_strategy::do_nothing;
           break;
         }
         case M1::t_sln_r::non_stiff:

@@ -188,12 +188,21 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     sources.theta.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   }
 
-  ev_strat.masks.solution_regime.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  if (opt_solver.solver_reduce_to_common)
+  {
+    ev_strat.masks.solution_regime.NewAthenaArray(
+      N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.source_treatment.NewAthenaArray(
+      N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
+  else
+  {
+    ev_strat.masks.solution_regime.NewAthenaArray(
+      N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.source_treatment.NewAthenaArray(
+      N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
   ev_strat.masks.solution_regime.Fill(t_sln_r::noop);
-
-  ev_strat.masks.source_treatment.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.source_treatment.Fill(t_src_t::noop);
 
   ev_strat.masks.excised.NewAthenaArray(
@@ -486,11 +495,11 @@ void M1::StatePrintPoint(
     std::printf("OO(kap_as * dx3) = %.3g\n", OO(kap_as) * mbi.dx3(k));
 
     std::cout << "opt_solution_regime: ";
-    std::cout << static_cast<int>(ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i));
+    std::cout << static_cast<int>(GetMaskSolutionRegime(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
     std::cout << "opt_source_treatment: ";
-    std::cout << static_cast<int>(ev_strat.masks.source_treatment(ix_g,ix_s,k,j,i));
+    std::cout << static_cast<int>(GetMaskSourceTreatment(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
   }

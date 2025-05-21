@@ -817,7 +817,7 @@ void SolveImplicitNeutrinoCurrent(
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
   const bool non_zero_src = !(
-    ost::set_zero ==  pm1.ev_strat.masks.source_treatment(k,j,i)
+    ost::set_zero ==  pm1.GetMaskSourceTreatment(0,0,k,j,i)
   );
   // --------------------------------------------------------------------------
 

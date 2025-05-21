@@ -38,7 +38,7 @@ void PrepareMatterSource_E_F_d(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.ev_strat.masks.source_treatment(k,j,i);
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);;
 
   if (st == ost::set_zero)
   {
@@ -69,7 +69,7 @@ void PrepareMatterSource_nG(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.ev_strat.masks.source_treatment(k,j,i);
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);;
 
   if (st == ost::set_zero)
   {
@@ -177,8 +177,8 @@ void Prepare(
     for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
     {
       // these points have zero sources
-      if (pm1->ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i) ==
-          M1::evolution_strategy::opt_solution_regime::equilibrium)
+      if (pm1->GetMaskSolutionRegime(ix_g,ix_s,k,j,i) ==
+          M1::M1::t_sln_r::equilibrium)
       {
         theta__ = 0;
         continue;

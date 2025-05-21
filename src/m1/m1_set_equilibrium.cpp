@@ -132,9 +132,8 @@ void SetEquilibrium(
     }
 
     // Fix strategy
-    pm1.ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i) = (
-      M1::evolution_strategy::opt_solution_regime::equilibrium
-    );
+    pm1.SetMaskSolutionRegime(M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i);
+    pm1.SetMaskSourceTreatment(M1::M1::t_src_t::noop,ix_g,ix_s,k,j,i);
 
     // Ensure update preserves energy non-negativity
     EnforcePhysical_E_F_d(pm1, C, k, j, i);
@@ -142,6 +141,8 @@ void SetEquilibrium(
   }
 
 #endif // FLUID_ENABLED
+
+
 }
 
 // ============================================================================
