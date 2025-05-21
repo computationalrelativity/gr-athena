@@ -37,6 +37,7 @@
 
 #if M1_ENABLED
 #include "../m1/m1.hpp"
+#include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
 
 // https://lorene.obspm.fr/
@@ -815,13 +816,35 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   // Have geom & primitive hydro
+/*
+  // This logic is now else-where
 #if M1_ENABLED
-  // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines
-  // pm1->UpdateGeometry(pm1->geom, pm1->scratch);
-  // pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-  // pm1->CalcFiducialVelocity();
-#endif  // M1_ENABLED
+  if (pm1->opt_solver.equilibrium_initial)
+  {
+    // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines;
+    // We need it here if we want to equilibriate @ ID
+    pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+    pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+    pm1->CalcFiducialVelocity();
 
+    M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+                          {pm1->N_GRPS,pm1->N_SPCS},
+                          {pm1->N_GRPS,pm1->N_SPCS} };
+
+    pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+    M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS} };
+
+
+    M1_ILOOP3(k, j, i)
+    {
+      M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+    }
+  }
+#endif  // M1_ENABLED
+*/
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(
     "problem", "id_floor_primitives", false);
