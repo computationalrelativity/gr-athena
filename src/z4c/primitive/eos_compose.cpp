@@ -155,6 +155,11 @@ Real EOSCompOSE::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
   return eval_at_nty(ECMUL, n, T, Y[0]);
 }
 
+Real EOSCompOSE::Abar(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECABAR, n, T, Y[0]);
+}
+
 Real EOSCompOSE::MinimumEnthalpy() {
   return m_min_h;
 }
@@ -308,6 +313,9 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
         m_table[index(ECCS, in, iy, it)] = sqrt(scratch[index(0, in, iy, it)]);
       }}}
 
+      ierr = H5LTread_dataset_double(file_id, "Abar", scratch);
+        MYH5CHECK(ierr);
+      copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECABAR, 0, 0, 0)]);
 
       // Mark table as read
       m_initialized = true;

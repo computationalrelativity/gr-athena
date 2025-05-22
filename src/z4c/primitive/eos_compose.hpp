@@ -29,7 +29,8 @@ class EOSCompOSE : public EOSPolicyInterface {
       ECMUL   = 4,  //! lepton chemical potential [MeV]
       ECLOGE  = 5,  //! log (total energy density / 1 MeV fm^-3)
       ECCS    = 6,  //! sound speed [c]
-      ECNVARS = 7
+      ECABAR  = 7,  //! Average mass number
+      ECNVARS = 8
     };
 
   protected:
@@ -74,6 +75,9 @@ class EOSCompOSE : public EOSPolicyInterface {
 
     /// Calculate the electron-lepton chemical potential
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the average mass number
+    Real Abar(Real n, Real T, Real *Y);
 
     /// Get the minimum enthalpy per baryon.
     Real MinimumEnthalpy();
