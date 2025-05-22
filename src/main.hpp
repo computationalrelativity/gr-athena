@@ -167,7 +167,7 @@ class Timer
 
   void pause()
   {
-    if (is_paused_)
+    if (!is_paused_)
     {
       time_paused_ = ClockT::now();
       is_paused_ = true;
@@ -202,8 +202,8 @@ class Clocks
   public:
     Clocks(Mesh * pmesh)
     : pmesh(pmesh),
-      wtime()//,
-      // evo_clock_time_start(pmesh->start_time)
+      wtime(),
+      evo_clock_time_start(pmesh->start_time)
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
@@ -993,9 +993,30 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
       // monolithic send
       // pmesh->ScatterMatter(pmb_array);
 
-      // recycle the matter task-based send
-      static const int stage_dummy = 0; // only a comm. so irrelevant
+      if (!pmesh->use_split_grmhd_z4c)
+      {
+        std::printf("GR(M)HD+M1 requires use_split_grmhd_z4c\n");
+        assert(false);
+      }
+
+      // recycle the matter task-based send -----------------------------------
+
+      // If we set stage 0 then no auxiliary quantities (e.g Weyl/ADM cons.)
+      // are computed and hence we only do communication + ADM matter pop.
+      static const int stage_dummy = 0;
       ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
+      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage_dummy);
+
+#if FLUID_ENABLED
+      // Rescale as required
+      const Real time_end_stage   = pmesh->time+pmesh->dt;
+      const Real ncycle_end_stage = pmesh->ncycle+1;
+
+      pmesh->presc->Apply();
+      pmesh->presc->OutputWrite(ncycle_end_stage,
+                                time_end_stage,
+                                stage);
+#endif
     }
   }
 }

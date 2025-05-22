@@ -61,6 +61,7 @@ class Surfaces
       B,
       // radiation
       M1_lab,
+      M1_geom_sc_sqrt_det_g,
       M1_geom_sc_alpha,
       M1_geom_sp_beta_u,
       M1_geom_sp_g_dd,
@@ -101,6 +102,7 @@ class Surfaces
 #if M1_ENABLED
       // non-contiguous arrays
       {"M1.lab",               variety_data::M1_lab},
+      {"M1.geom.sc_sqrt_det_g",variety_data::M1_geom_sc_sqrt_det_g},
       {"M1.geom.sc_alpha",     variety_data::M1_geom_sc_alpha},
       {"M1.geom.sp_beta_u",    variety_data::M1_geom_sp_beta_u},
       {"M1.geom.sp_g_dd",      variety_data::M1_geom_sp_g_dd},

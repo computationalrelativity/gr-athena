@@ -288,25 +288,28 @@ void EquationOfState::ConservedToPrimitive(
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
 
-      if (ph->opt_excision.use_taper)
+      if (ph->opt_excision.excise_c2p)
       {
-        bool can_excise = CanExcisePoint(true, alpha_,
-                                         pco->x1v, pco->x2v, pco->x3v,
-                                         i, j, k);
-        if (can_excise)
+        if (ph->opt_excision.use_taper)
         {
-          for (int n=0; n<NHYDRO; ++n)
+          bool can_excise = CanExcisePoint(true, alpha_,
+                                           pco->x1v, pco->x2v, pco->x3v,
+                                           i, j, k);
+          if (can_excise)
           {
-            prim(n,k,j,i) *= ph->excision_mask(k,j,i);
+            for (int n=0; n<NHYDRO; ++n)
+            {
+              prim(n,k,j,i) *= ph->excision_mask(k,j,i);
+            }
           }
         }
-      }
-      else
-      {
-        bool can_excise = CanExcisePoint(true, alpha_,
-                                         pco->x1v, pco->x2v, pco->x3v,
-                                         i, j, k);
-        is_admissible = is_admissible && !can_excise;
+        else
+        {
+          bool can_excise = CanExcisePoint(true, alpha_,
+                                           pco->x1v, pco->x2v, pco->x3v,
+                                           i, j, k);
+          is_admissible = is_admissible && !can_excise;
+        }
       }
 
       if (!is_admissible)

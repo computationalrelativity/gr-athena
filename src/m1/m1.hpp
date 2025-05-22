@@ -237,6 +237,7 @@ public:
   struct
   {
     struct {
+      // opt_integration_strategy do_nothing;
       opt_integration_strategy non_stiff;
       opt_integration_strategy stiff;
       opt_integration_strategy scattering;
@@ -718,6 +719,61 @@ public:
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
   typedef evolution_strategy::opt_source_treatment t_src_t;
 
+  inline t_sln_r GetMaskSolutionRegime(const int ix_g, const int ix_s,
+                                       const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      return ev_strat.masks.solution_regime(ix_g, k, j, i);
+    }
+    else
+    {
+      return ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i);
+    }
+  }
+
+  inline t_src_t GetMaskSourceTreatment(const int ix_g, const int ix_s,
+                                        const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      return ev_strat.masks.source_treatment(ix_g, k, j, i);
+    }
+    else
+    {
+      return ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i);
+    }
+
+  }
+
+  inline void SetMaskSolutionRegime(t_sln_r sol_r,
+                                    const int ix_g, const int ix_s,
+                                    const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      ev_strat.masks.solution_regime(ix_g, k, j, i) = sol_r;
+    }
+    else
+    {
+      ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i) = sol_r;
+    }
+  }
+  inline void SetMaskSourceTreatment(t_src_t src_t,
+                                     const int ix_g, const int ix_s,
+                                     const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      ev_strat.masks.source_treatment(ix_g, k, j, i) = src_t;
+    }
+    else
+    {
+      ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i) = src_t;
+    }
+  }
+
+
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks
   // that account for that.
@@ -727,6 +783,7 @@ public:
                                 const Real kap_s,
                                 t_sln_r & mask_sln_r,
                                 t_src_t & mask_src_t);
+  void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);
 
 // additional methods =========================================================

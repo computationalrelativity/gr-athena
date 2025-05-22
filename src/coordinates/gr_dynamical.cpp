@@ -626,6 +626,28 @@ void GRDynamical::AddCoordTermsDivergence(
         cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
       }
     }
+    else if (ph->opt_excision.excise_hydro_damping)
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+        // 1 if not excising, 0 if excising
+        const Real ef = ph->excision_mask(k,j,i);
+
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+
+        const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
+        const Real gam_w_vol = gam * w_vol;
+        cons(IDN,k,j,i) -= gam_w_vol * ph->u(IDN,k,j,i);
+        cons(IM1,k,j,i) -= gam_w_vol * ph->u(IM1,k,j,i);
+        cons(IM2,k,j,i) -= gam_w_vol * ph->u(IM2,k,j,i);
+        cons(IM3,k,j,i) -= gam_w_vol * ph->u(IM3,k,j,i);
+        cons(IEN,k,j,i) -= gam_w_vol * ph->u(IEN,k,j,i);
+      }
+    }
     else
     {
       CC_PCO_ILOOP1(i)

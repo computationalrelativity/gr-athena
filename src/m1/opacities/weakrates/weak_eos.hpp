@@ -10,15 +10,52 @@
 
 #include "units.hpp"
 
+
 namespace M1::Opacities::WeakRates::WeakRates_EoS {
 
 class WeakEoSMod {
   public:
     // Constructor
-    WeakEoSMod() {
-      initialised = false;
+    WeakEoSMod(bool apply_table_limits_internally,
+               bool enforced_limits_fail,
+               bool wr_use_eos_dfloor,
+               bool wr_use_eos_tfloor,
+               Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
+      : apply_table_limits_internally(apply_table_limits_internally),
+        enforced_limits_fail(enforced_limits_fail),
+        wr_use_eos_dfloor(wr_use_eos_dfloor),
+        wr_use_eos_tfloor(wr_use_eos_tfloor),
+        PS_EoS(PS_EoS)
+    {
       my_units = &WeakRates_Units::WeakRatesUnits;
       code_units = &WeakRates_Units::GeometricSolar;
+
+      // set up internal settings for EOS (unit conversions & limits)
+      Real conv_rho = PS_EoS->GetBaryonMass()*code_units->MassDensityConversion(*my_units);
+      Real conv_temp = code_units->TemperatureConversion(*my_units);
+
+      if (wr_use_eos_dfloor)
+      {
+        table_rho_min = conv_rho * PS_EoS->GetDensityFloor();
+      }
+      else
+      {
+        table_rho_min = conv_rho * PS_EoS->GetMinimumDensity();
+      }
+      table_rho_max = PS_EoS->GetMaximumDensity() * conv_rho;
+
+      if (wr_use_eos_tfloor)
+      {
+        table_temp_min = conv_temp * PS_EoS->GetTemperatureFloor();
+      }
+      else
+      {
+        table_temp_min = conv_temp * PS_EoS->GetMinimumTemperature();
+      }
+      table_temp_max = conv_temp * PS_EoS->GetMaximumTemperature();
+
+      table_ye_min = PS_EoS->GetMinimumSpeciesFraction(0);
+      table_ye_max = PS_EoS->GetMaximumSpeciesFraction(0);
     };
 
     // Destructor
@@ -27,14 +64,12 @@ class WeakEoSMod {
     // functions implemented by Weak Rates
     // Average atomic mass of nuclei
     int NucleiAbarImpl(Real rho, Real temp, Real ye, Real& abar) {
-      assert(initialised);
       std::cout<<"NucleiAbarImpl not implemented"<<std::endl;
       return -1;
     }
 
     // Average mass of baryons
     Real AtomicMassImpl() {
-      assert(initialised);
       Real mb_code = PS_EoS->GetRawBaryonMass();
       Real mb_cgs  = mb_code * code_units->MassConversion(*my_units);
       return mb_cgs;
@@ -42,7 +77,6 @@ class WeakEoSMod {
 
     // EoS calls required by Weak Rates and others
     Real GetNeutronChemicalPotential(Real rho, Real temp, Real ye) {
-      assert(initialised);
       Real mb_code = PS_EoS->GetBaryonMass();
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
@@ -54,7 +88,6 @@ class WeakEoSMod {
     }
 
     Real GetProtonChemicalPotential(Real rho, Real temp, Real ye) {
-      assert(initialised);
       Real mb_code = PS_EoS->GetBaryonMass();
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
@@ -67,7 +100,6 @@ class WeakEoSMod {
     }
 
     Real GetElectronChemicalPotential(Real rho, Real temp, Real ye) {
-      assert(initialised);
       Real mb_code = PS_EoS->GetBaryonMass();
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
@@ -80,7 +112,6 @@ class WeakEoSMod {
     }
 
     Real GetEnergyDensity(Real rho, Real temp, Real ye) {
-      assert(initialised);
       Real mb_code = PS_EoS->GetBaryonMass();
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
@@ -91,7 +122,6 @@ class WeakEoSMod {
     }
 
     Real GetMinimumEnergyDensity(Real rho, Real ye) {
-      assert(initialised);
       Real mb_code = PS_EoS->GetBaryonMass();
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = table_temp_min * my_units->TemperatureConversion(*code_units); // TODO: Is this right?
@@ -208,7 +238,6 @@ class WeakEoSMod {
 }
 
     void GetTableLimits(Real& rho_min, Real& rho_max, Real& temp_min, Real& temp_max, Real& ye_min, Real& ye_max) {
-      assert(initialised);
       rho_min = table_rho_min;
       rho_max = table_rho_max;
 
@@ -220,14 +249,18 @@ class WeakEoSMod {
     }
 
     void GetTableLimitsYe(Real& ye_min, Real& ye_max) {
-      assert(initialised);
-
       ye_min = table_ye_min;
       ye_max = table_ye_max;
     }
 
-    bool ApplyTableLimits(Real& rho, Real& temp, Real& ye) {
+    bool ApplyTableLimits(Real& rho, Real& temp, Real& ye)
+    {
       bool limits_applied = false;
+
+      if (!apply_table_limits_internally)
+      {
+        return limits_applied;
+      }
 
       if (rho < table_rho_min) {
         rho = table_rho_min;
@@ -253,29 +286,18 @@ class WeakEoSMod {
         limits_applied = true;
       }
 
+      if (!enforced_limits_fail)
+        limits_applied = false;
+
       return limits_applied;
     }
 
-    inline void SetEoS(Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* ptr_to_EoS) {
-      PS_EoS = ptr_to_EoS;
-      initialised = true;
-
-      // TODO PS currently give the min and max in EoS units, but we 
-      // CURRENTLY use the same unit for temperature for EoS and 'code', 
-      // and we can convert the eos `density` to code density with the 
-      // baryon mass.
-      table_rho_min = PS_EoS->GetMinimumDensity()*PS_EoS->GetBaryonMass()*code_units->MassDensityConversion(*my_units);
-      table_rho_max = PS_EoS->GetMaximumDensity()*PS_EoS->GetBaryonMass()*code_units->MassDensityConversion(*my_units);
-
-      table_temp_min = PS_EoS->GetMinimumTemperature()*code_units->TemperatureConversion(*my_units);
-      table_temp_max = PS_EoS->GetMaximumTemperature()*code_units->TemperatureConversion(*my_units);
-
-      table_ye_min = PS_EoS->GetMinimumSpeciesFraction(0);
-      table_ye_max = PS_EoS->GetMaximumSpeciesFraction(0);
-    }
-
   private:
-    bool initialised;
+    const bool apply_table_limits_internally;
+    const bool enforced_limits_fail;
+    const bool wr_use_eos_dfloor;
+    const bool wr_use_eos_tfloor;
+
     Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
 
     WeakRates_Units::UnitSystem* my_units;

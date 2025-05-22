@@ -290,6 +290,10 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->storage.u;
     }
+    case variety_data::M1_geom_sc_sqrt_det_g:
+    {
+      return &pmb->pm1->geom.sc_sqrt_det_g.array();
+    }
     case variety_data::M1_geom_sc_alpha:
     {
       return &pmb->pm1->geom.sc_alpha.array();
@@ -402,6 +406,10 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
       const int N_SPCS = pm->pblock->pm1->N_SPCS;
       const int N_VARS = M1::M1::ixn_Lab::N;
       return N_VARS * N_GRPS * N_SPCS;
+    }
+    case variety_data::M1_geom_sc_sqrt_det_g:
+    {
+      return 1;
     }
     case variety_data::M1_geom_sc_alpha:
     {
@@ -683,6 +691,11 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       m1_vgs_idx(nix, M1::M1::ixn_Lab::N, v, g, s);
       ret += M1::M1::ixn_Lab::names[v];
       ret += "_" + std::to_string(g) + std::to_string(s);
+      break;
+    }
+    case variety_data::M1_geom_sc_sqrt_det_g:
+    {
+      ret = "M1.geom.sc_sqrt_det_g";
       break;
     }
     case variety_data::M1_geom_sc_alpha:
