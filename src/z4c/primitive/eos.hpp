@@ -330,6 +330,17 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return ElectronLeptonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
+     //! \fn Real GetAbar(Real n, Real T, Real *Y)
+    //  \brief Get the average mass number from the number density, temperature,
+    //         and particle fractions.
+    //
+    //  \param[in] n  The number density
+    //  \param[in] T  The temperature
+    //  \param[in] Y  An array of size n_species of the particle fractions.
+    //  \return The average mass number for the EOS.
+    inline Real GetAbar(Real n, Real T, Real *Y) {
+      return Abar(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
 
     //! \fn int Getn_species() const
     //  \brief Get the number of particle species in this EOS.

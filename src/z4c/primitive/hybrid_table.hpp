@@ -75,6 +75,10 @@ class HybridTable : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
+    /// Calculate the average mass number
+    [[ noreturn ]]
+    Real Abar(Real n, Real T, Real *Y);
+
     /// Calculate the baryon chemical potential
     [[ noreturn ]]
     Real BaryonChemicalPotential(Real n, Real T, Real *Y);

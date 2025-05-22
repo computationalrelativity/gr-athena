@@ -76,6 +76,10 @@ Real IdealGas::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
   throw std::logic_error("IdealGas::ElectronLeptonChemicalPotential not currently implemented.");
 }
 
+Real IdealGas::Abar(Real n, Real T, Real *Y) {
+  throw std::logic_error("IdealGas::Abar not currently implemented.");
+}
+
 Real IdealGas::MinimumEnergy(Real n, Real *Y) {
   return n*mb;
 }

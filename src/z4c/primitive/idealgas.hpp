@@ -67,6 +67,10 @@ class IdealGas : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
+    /// Calculate the average mass number
+    [[ noreturn ]]
+    Real Abar(Real n, Real T, Real *Y);
+
     /// Calculate the minimum pressure at a given density and composition
     inline Real MinimumPressure(Real n, Real *Y) {
       return 0.0;
