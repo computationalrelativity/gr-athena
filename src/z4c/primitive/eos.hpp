@@ -74,6 +74,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::BaryonChemicalPotential;
     using EOSPolicy::ChargeChemicalPotential;
     using EOSPolicy::ElectronLeptonChemicalPotential;
+    using EOSPolicy::Abar;
     using EOSPolicy::MinimumEnthalpy;
     using EOSPolicy::MinimumPressure;
     using EOSPolicy::MaximumPressure;
