@@ -263,6 +263,12 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u_rhs,
                       pm1->storage.u_sources);
 
+      // Update status
+      M1_MLOOP3(k, j, i)
+      {
+        const Real is_lo = pm1->ev_strat.masks.pp(k, j, i) == 0.0;
+        pm1->ev_strat.status.num_lo_reversions += is_lo;
+      }
       // Revert inhomogeneity
       // WARNING: masks have been adjusted within CalcUpdate; to properly
       // compensate flux addition we should not use the hybridization mask

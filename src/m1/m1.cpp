@@ -57,6 +57,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   storage{
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
+    // { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u2
     {   // flux
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
@@ -208,6 +209,8 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   ev_strat.masks.excised.NewAthenaArray(
     mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.excised.Fill(false);
+
+  ev_strat.status.clear();
 
 
   if (opt.flux_limiter_use_mask)

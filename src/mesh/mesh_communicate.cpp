@@ -52,6 +52,7 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*> & pmb_array)
 void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
                                   const bool enforce_alg)
 {
+#if Z4C_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -86,11 +87,13 @@ void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
                  pz->mbi.kl, pz->mbi.ku,
                  skip_physical);
   }
+#endif // Z4C_ENABLED
 }
 
 void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
                                 const bool enforce_alg)
 {
+#if Z4C_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -138,11 +141,13 @@ void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
       0, pz->mbi.nn3-1,
       skip_physical);
   }
+#endif // Z4C_ENABLED
 }
 
 void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
                           const bool enforce_alg)
 {
+#if Z4C_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -179,10 +184,12 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u, pz->storage.adm);
   }
+#endif // Z4C_ENABLED
 }
 
 void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
 {
+#if Z4C_ENABLED
   MeshBlock *pmb = nullptr;
   BoundaryValues *pbval = nullptr;
 
@@ -208,10 +215,12 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@S:Sc\n", "@E:Sc\n");
 
   }
+#endif // Z4C_ENABLED
 }
 
 void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
 {
+#if M1_ENABLED
   MeshBlock *pmb;
   BoundaryValues *pbval;
 
@@ -239,7 +248,6 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
       pm1->mbi.kl, pm1->mbi.ku,
       pm1->mbi.ng);
 
-#if M1_ENABLED
     // Conserved variables are now available globally;
     // Ensure that geometric & hydro terms are available
     pm1->UpdateGeometry(pm1->geom, pm1->scratch);
@@ -247,8 +255,8 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
     // Need the reference velocity & closure
     pm1->CalcFiducialVelocity();
     pm1->CalcClosure(pm1->storage.u);
-#endif // M1_ENABLED
   }
+#endif // M1_ENABLED
 }
 
 void Mesh::FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array)
