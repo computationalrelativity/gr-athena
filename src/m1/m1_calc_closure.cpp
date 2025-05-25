@@ -921,7 +921,7 @@ status custom_NAB(
   if (pm1.opt_closure.verbose)
   {
     #pragma omp critical
-    std::cerr << "gsl_Newton Anderson-Bjorck: max_iter exceeded\n";
+    std::cerr << "custom_Newton Anderson-Bjorck: max_iter exceeded\n";
   }
 
   return status::fail_tolerance_not_met;
@@ -949,24 +949,25 @@ status custom_ONAB(
     if (std::abs(df_x) < 1e-14)
       break;
 
-    // Prevent [later] division by zero or very small f_x
-    if (std::abs(f_x) < 1e-14)
+    Real y = xi - f_x / df_x;
+    Real f_y = Z_xi(y, pm1, C, k, j, i);
+
+    Real den_diff = f_x - 2.0 * f_y;
+
+    if (std::abs(den_diff) < 1e-14)
       break;
 
-    Real y = xi - f_x / df_x;
-    Real f_y = Z_xi(y, pm1, C, k, j, i);     // f(y)
-
-    Real dx = (f_y / f_x) * (f_x / df_x);
+    Real dx = (f_y / df_x) * (f_x / den_diff);
     xi = y - dx;
+
+    if (Enforce_Xi_Limits(xi))
+      break;
 
     if (std::abs(dx) < tol)
     {
       converged = true;
       break;
     }
-
-    if (Enforce_Xi_Limits(xi))
-      break;
 
     ++iter;
   }
