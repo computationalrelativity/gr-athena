@@ -117,6 +117,7 @@ public:
   {
     AA u;          // solution of M1 evolution system
     AA u1;         // solution at intermediate steps
+    // AA u2;         // candidate solution
     AA flux[3];    // flux in the 3 directions
     AA flux_lo[3]; // flux in the 3 directions
     AA u_rhs;      // M1 rhs
@@ -714,6 +715,30 @@ public:
       AA                                flux_limiter;
       AA                                pp;
     } masks;
+
+    struct {
+      int num_lo_reversions;
+      int num_opac_failures;
+      int num_opac_fixes;
+      int num_equi_failures;
+      int num_equi_fixes;
+      int num_equi_ignored;
+      int num_radmat_zero;
+
+      // We retain this cumulatively - cleared during reduction @ output
+      inline void clear()
+      {
+        num_lo_reversions = 0;
+
+        // this is primarily for weakrates
+        num_opac_failures = 0;
+        num_opac_fixes = 0;
+        num_equi_failures = 0;
+        num_equi_fixes = 0;
+        num_equi_ignored = 0;
+        num_radmat_zero = 0;
+      }
+    } status;
   } ev_strat;
 
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
@@ -772,7 +797,6 @@ public:
       ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i) = src_t;
     }
   }
-
 
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks

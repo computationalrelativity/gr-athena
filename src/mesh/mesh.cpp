@@ -2268,6 +2268,7 @@ void Mesh::FinalizePostAMR()
 
 void Mesh::CalculateStoreMetricDerivatives()
 {
+#if Z4C_ENABLED
   if (!(pblock->pz4c->opt.store_metric_drvts)) return;
 
   // Compute and store ADM metric drvts at this iteration
@@ -2281,7 +2282,7 @@ void Mesh::CalculateStoreMetricDerivatives()
                           pz4c->storage.aux);
     pmb = pmb->next;
   }
-
+#endif // Z4C_ENABLED
 }
 
 bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,

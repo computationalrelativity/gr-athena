@@ -960,6 +960,44 @@ Real max_sc_n(const int ix_g, const int ix_s, MeshBlock *pmb, int iout)
   return max_sc_n_;
 }
 
+// Additional diagnostics
+Real m1_num_lo_reversions(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_lo_reversions;
+}
+
+Real m1_num_opac_failures(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_opac_failures;
+}
+
+Real m1_num_opac_fixes(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_opac_fixes;
+}
+
+Real m1_num_equi_failures(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_equi_failures;
+}
+
+Real m1_num_equi_fixes(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_equi_fixes;
+}
+
+Real m1_num_equi_ignored(MeshBlock *pmb, int iout)
+{
+  return pmb->pm1->ev_strat.status.num_equi_ignored;
+}
+
+Real m1_num_radmat_zero_with_clear(MeshBlock *pmb, int iout)
+{
+  const int to_ret = pmb->pm1->ev_strat.status.num_radmat_zero;
+  pmb->pm1->ev_strat.status.clear();
+  return to_ret;
+}
+
 }
 #endif
 
@@ -1016,6 +1054,38 @@ void Mesh::EnrollUserStandardM1(ParameterInput * pin)
       UserHistoryOperation::min
     );
 
+  }
+
+  if (pin->GetOrAddBoolean("M1", "ev_strat_status", false))
+  {
+    EnrollUserHistoryOutput(m1_num_lo_reversions,
+                            "m1_num_lo_reversions",
+                            UserHistoryOperation::sum);
+
+    EnrollUserHistoryOutput(m1_num_opac_failures,
+                            "m1_num_opac_failures",
+                            UserHistoryOperation::sum);
+
+    EnrollUserHistoryOutput(m1_num_opac_fixes,
+                            "m1_num_opac_fixes",
+                            UserHistoryOperation::sum);
+
+    EnrollUserHistoryOutput(m1_num_equi_failures,
+                            "m1_num_equi_failures",
+                            UserHistoryOperation::sum);
+
+    EnrollUserHistoryOutput(m1_num_equi_fixes,
+                            "m1_num_equi_fixes",
+                            UserHistoryOperation::sum);
+
+    EnrollUserHistoryOutput(m1_num_equi_ignored,
+                            "m1_num_equi_ignored",
+                            UserHistoryOperation::sum);
+
+    // This also clears the internal status
+    EnrollUserHistoryOutput(m1_num_radmat_zero_with_clear,
+                            "m1_num_radmat_zero",
+                            UserHistoryOperation::sum);
   }
 
 #endif // M1_ENABLED

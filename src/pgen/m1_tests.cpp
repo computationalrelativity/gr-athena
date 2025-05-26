@@ -31,14 +31,6 @@ static Real Kerr_AMR_sc_E_threshold { 0 };
 static int Kerr_AMR_target_level { 0 };
 
 int RefinementCondition(MeshBlock *pmb);
-#if FLUID_ENABLED
-Real num_c2p_fail(MeshBlock *pmb, int iout);
-#endif
-
-Real min_sc_E_00(MeshBlock *pmb, int iout);
-Real min_sc_J_00(MeshBlock *pmb, int iout);
-
-
 
 void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
 {
@@ -900,14 +892,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 
 #if FLUID_ENABLED
-  EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
-                          UserHistoryOperation::sum);
+  EnrollUserStandardHydro(pin);
 #endif
-
-  EnrollUserHistoryOutput(min_sc_E_00,
-                          "min_sc_E_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(min_sc_J_00,
-                          "min_sc_J_00", UserHistoryOperation::min);
+  EnrollUserStandardM1(pin);
 
   return;
 }
@@ -1167,57 +1154,6 @@ int RefinementCondition(MeshBlock *pmb)
   }
 
   return 0;  // do nothing
-}
-
-#if FLUID_ENABLED
-Real num_c2p_fail(MeshBlock *pmb, int iout)
-{
-  Real sum_ = 0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  // Reset the status
-  AA c2p_status;
-  c2p_status.InitWithShallowSlice(pmb->phydro->derived_ms, IX_C2P, 1);
-
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    if (c2p_status(k,j,i) > 0)
-      sum_++;
-  }
-
-  return sum_;
-}
-#endif
-
-
-Real min_sc_E_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_E_00 = std::min(min_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
-  }
-  return min_sc_E_00;
-}
-
-Real min_sc_J_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_J_00 = std::min(min_sc_J_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
-  }
-  return min_sc_J_00;
 }
 
 // ============================================================================
