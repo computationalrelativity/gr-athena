@@ -79,11 +79,11 @@ namespace M1::Opacities::BNSNuRates {
       }
 #endif
 
-      //TODO there is code in WeakRates units.hpp ... scheiBe
-      // my_units (of BNSNuRates) vs code_units (of GRMHD)
+      //TODO define the two unit systems:
+      // my_units ...... CGS + MeV                 -> used by BNSNuRates and weak equilibiurm
+      // code_units .... Geometric + SOlar masses  -> used by Z4c, GRMHD 
       //my_units   = &WeakRates_Units::WeakRatesUnits;
       //code_units = &WeakRates_Units::GeometricSolar;
-
       
       // BNSNuRates only works for nu_e + nu_ae + nu_x
       assert(N_SPCS==3);
@@ -97,7 +97,7 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.opacity_tau_trap = pin->GetOrAddReal("bns_nurates", "opacity_tau_trap", 1.0);
       nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
       nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
-      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "rho_min_cgs", 0.);
+      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.);
       nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.);
       
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true);
@@ -133,21 +133,29 @@ namespace M1::Opacities::BNSNuRates {
       opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);
       opacity_tau_delta = pin->GetOrAddReal("M1_opacities", "tau_delta", 1.0);
       opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
-      
       verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
 
-      atomic_mass = AverageBaryonMass(); // g
+      atomic_mass = pmy_block->peos->GetRawBaryonMass()
+        * code_units->MassConversion(*my_units); // mb [g]
 
-      //TODO set these from EOS< check THC for defaults!!!
+      //TODO set these from suitable M1/EOS parameters 
+      //     all used by weak equil => CGS + MeV
       //rho_min =    // density below which nothing is done in g cm-3
-      //temp_min =    // temperature below which nothing is done in g cm-3
+      //temp_min =    // temperature below which nothing is done in MeV
       //mass_fact =     // = 9.223158894119980e2;
-      //eos_rhomin = 
-      //eos_rhomax = 
-      //eos_tempmin = 
-      //eos_tempmax = 
-      //eos_yemin = 
-      //eos_yemax = 
+
+      //eos_rho_min = //duplication in weakrates ?! lets use these ...
+      //eos_rho_max = 
+      //eos_temp_min = 
+      //eos_temp_max = 
+      //eos_ye_min = 
+      //eos_ye_max =
+      // table_rho_min =  // ... and not these
+      // table_rho_max = 
+      // table_temp_min = 
+      // table_temp_max = 
+      // table_ye_min = 
+      // table_ye_max = 
 
     };
     
@@ -196,7 +204,7 @@ namespace M1::Opacities::BNSNuRates {
       const int NUM_COEFF = 3;
       int ierr[NUM_COEFF];
 
-      const Real mb_code = pmy_block->peos->GetEOS().GetBaryonMass();
+      const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
       
       M1_FLOOP3(k, j, i)
         if (pm1->MaskGet(k, j, i))
@@ -204,18 +212,15 @@ namespace M1::Opacities::BNSNuRates {
             Real rho = pm1->hydro.sc_w_rho(k, j, i);
             Real press = pm1->hydro.sc_w_p(k, j, i);
             Real const nb = rho / mb_code; // baryon num dens (code units)
+            Real T = pm1->hydro.sc_T(k,j,i); // (code units)
             
             Real Y[MAX_SPECIES] = {0.0};
             Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
             Real Y_e = Y[0];
-            
-            Real T = pm1->hydro.sc_T(k,j,i); // this should be in MeV
-            Real T_code = T * my_units->TemperatureConversion(*code_units);
        
             // Chem potentials (code units)
-            // cf weakrates/weak_eos.hpp
             Real mu_n, mu_p, mu_e;
-            ChemicalPotentials_npe(nb, T_code, Y_e,  mu_n, mu_p, mu_e);
+            ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
 
             Real eta_n_nue;
             Real eta_n_nua;
@@ -268,11 +273,7 @@ namespace M1::Opacities::BNSNuRates {
               }
             
             // Equilibrium logic ----------------------------------------------------
-            
-            //TODO Following is identical to WeakRates, we are duplicating code/mistakes
-            //     there should be a single place where this is done at level
-            //     src/m1/opacity/m1_opacities.hpp
-            //     then we can vary the rates.
+            // Following is identical to WeakRates, we are duplicating code.
             
             Real tau = std::min(
                                 std::sqrt(kap_a_e_nue * (kap_a_e_nue + kap_s_e_nue)),
@@ -370,7 +371,8 @@ namespace M1::Opacities::BNSNuRates {
             // Calculate equilibrium blackbody functions with fixed T, Ye
             Real dens_n_thin[3];
             Real dens_e_thin[3];
-            ierr[0] = NeutrinoDensity(rho, T, Y_e,
+            ierr[0] = NeutrinoDensity(nb, T,
+                                      mu_n, mu_p, mu_e,
                                       dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
                                       dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
             assert(!ierr[0]);
@@ -473,18 +475,20 @@ namespace M1::Opacities::BNSNuRates {
       
       return 0;
     };
-    
-    int NucleiAbar(Real rho, Real temp, Real ye, Real& abar) {
-      //NB apparently also not implemented in WeakRates
-      std::cout<<"NucleiAbar not implemented"<<std::endl;
-      return -1;
-    }
 
-    Real AverageBaryonMass() {
-      Real mb_code = pmy_block->peos->GetRawBaryonMass();
-      Real mb_cgs  = mb_code * code_units->MassConversion(*my_units);
-      return mb_cgs; 
-    }
+    //TODO These things belong to the EOS, remove.
+    // Real NucleiAbar(Real nb, Real T, Real &Ye) {
+    //   //NB apparently also not implemented in WeakRates
+    //   std::cout<<"NucleiAbar not implemented"<<std::endl;
+    //   return -1;
+    //   // in branch ps_abar:
+    //   //return pmy_block->peos->GetAbar(nb, T, Ye);
+    // }
+    // Real AverageBaryonMass() {
+    //   Real mb_code = pmy_block->peos->GetRawBaryonMass();
+    //   Real mb_cgs  = mb_code * code_units->MassConversion(*my_units);
+    //   return mb_cgs; 
+    // }
     
   private:
     
@@ -508,7 +512,7 @@ namespace M1::Opacities::BNSNuRates {
 
     const Real NORMFACT = 1e50;
 
-    // Chem potentials (everything in code units)
+    // Chem potentials (input & output in code units)
     void ChemicalPotentials_npe(Real nb, Real T, Real Ye,
                                 Real &mu_n, Real &mu_p, Real mu_n) {
       Real mu_b = pmy_block->peos->GetEOS().GetBaryonChemicalPotential(nb, T, Y_e);
@@ -520,7 +524,7 @@ namespace M1::Opacities::BNSNuRates {
     }
 
     // Main wrapper to bns_nurates
-    bool bns_nurates(Real &nb, Real &rho, Real &temp, Real &ye, Real &mu_n, Real &mu_p, Real &mu_e,
+    bool bns_nurates(Real &nb, Real &temp, Real &ye, Real &mu_n, Real &mu_p, Real &mu_e,
                      Real &n_nue, Real &j_nue, Real &chi_nue, Real &n_anue, Real &j_anue,
                      Real &chi_anue, Real &n_nux, Real &j_nux, Real &chi_nux, Real &n_anux,
                      Real &j_anux, Real &chi_anux, Real &R_nue, Real &R_anue, Real &R_nux,
@@ -533,25 +537,33 @@ namespace M1::Opacities::BNSNuRates {
                      const NuratesParams nurates_params);
 
     // Computes the neutrino number and energy density
-    void NeutrinoDensity(Real mu_n, Real mu_p, Real mu_e, Real nb, Real temp, Real &n_nue,
-                         Real &n_anue, Real &n_nux, Real &en_nue, Real &en_anue, Real &en_nux);
+    void NeutrinoDensity(Real nb, Real temp,
+                         Real mu_n, Real mu_p, Real mu_e,
+                         Real &n_nue, Real &n_anue, Real &n_nux,
+                         Real &en_nue, Real &en_anue, Real &en_nux);
 
     // Weak equilibrium stuff -----------------------------------------------------------------
 
-    Real rho_min;                // density below which nothing is done in g cm-3
-    Real temp_min;               // temperature below which nothing is done in g cm-3
-    Real atomic_mass;            // atomic mass in g (to convert mass density to number density)
+    Real rho_min;                // density below which nothing is done [g/cm^3]
+    Real temp_min;               // temperature below which nothing is done [MeV]
+    Real atomic_mass;            // atomic mass [g] (to convert mass density to number density)
 
     const Real mass_fact = 9.223158894119980e2; //TODO why this is fixed?
-    Real eos_rhomin;
-    Real eos_rhomax;
-    Real eos_tempmin;
-    Real eos_tempmax;
-    Real eos_yemin;
-    Real eos_yemax;
-    
+    Real eos_rho_min; //TODO lets set these
+    Real eos_rho_max;
+    Real eos_temp_min;
+    Real eos_temp_max;
+    Real eos_ye_min;
+    Real eos_ye_max;
+    Real table_rho_min; //TODO lets not use these
+    Real table_rho_max;
+    Real table_temp_min;
+    Real table_temp_max;
+    Real table_ye_min;
+    Real table_ye_max;
+
     // Some parameters later used in the calculations.
-    const Real eps_lim  = 1.e-7; // standard tollerance in 2D NR
+    const Real eps_lim = 1.e-7; // standard tollerance in 2D NR
     const int n_cut_max = 8;     // number of bisections of dx
     const int n_max = 100;       // Newton-Raphson max number of iterations
     static const int n_at = 16;  // number of independent initial guesses
@@ -560,7 +572,8 @@ namespace M1::Opacities::BNSNuRates {
     const Real delta_ye = 0.005;
     const Real delta_t  = 0.01;
 
-    //const Real clight = 2.99792458e10;
+    // Some constants
+    const Real pi = 3.14159265358979323846; 
     const Real mev_to_erg = 1.60217733e-6;     // conversion from MeV to erg
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
 
@@ -568,8 +581,6 @@ namespace M1::Opacities::BNSNuRates {
 #define WR_CUBE(x) ((x)*(x)*(x))
 #define WR_QUAD(x) ((x)*(x)*(x)*(x))
 
-    // Some constants
-    const Real pi    = 3.14159265358979323846; 
     const Real pi2   = WR_SQR(pi);                          // pi**2 [-]
     const Real pref1 = 4.0/3.0*pi/WR_CUBE(hc_mevcm);        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
     const Real pref2 = 4.0*pi*mev_to_erg/WR_CUBE(hc_mevcm); // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
@@ -585,7 +596,7 @@ namespace M1::Opacities::BNSNuRates {
 #undef WR_QUAD
 
     // Main wrapper
-    int WeakEquilibrium(Real rho, Real temp, Real ye,
+    int WeakEquilibrium(Real nb, Real temp, Real ye,
                         Real n_nue, Real n_nua, Real n_nux,
                         Real e_nue, Real e_nua, Real e_nux,
                         Real& temp_eq, Real& ye_eq,
@@ -610,7 +621,22 @@ namespace M1::Opacities::BNSNuRates {
                                  Real & e_nua_eq, // [erg/cm^3]
                                  Real & e_nux_eq  // [erg/cm^3]
                                  );
-    
+
+    // Wrapper working with CGS + MeV units in input/output
+    // (several calls in equilibration code requires this)
+    void ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
+                                    Real &mu_n, Real &mu_p, Real mu_n) {
+      const Real MeV = code_units->TemperatureConversion(*my_units); 
+      ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
+                              temp / MeV,
+                              Ye,
+                              mu_n, mu_p, mu_n);
+      mu_n *= Mev:
+      mu_p *= MeV;
+      mu_e *= MeV;
+      return
+    }
+
     void weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_in[4],
                         Real& T_eq, Real y_eq[4], Real e_eq[4], int& na, int& ierr);
     void new_raph_2dim(Real rho, Real u, Real yl, Real x0[2],
