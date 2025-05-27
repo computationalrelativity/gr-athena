@@ -12,6 +12,10 @@
 #include "m1_integrators.hpp"
 #include "m1_set_equilibrium.hpp"
 
+#if FLUID_ENABLED
+#include "../eos/eos.hpp"
+#endif
+
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
@@ -374,18 +378,65 @@ void M1::CalcUpdate(const int stage,
   }
 
   // assemble remaining auxiliary quantities ----------------------------------
-  // BD: TODO - shift elsewhere
-  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  // {
-  //   StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+  // BD: TODO: double check / refactor to new task & check nstages there
+  const int nstages = 2;
 
-  //   M1_ILOOP3(k, j, i)
-  //   if (MaskGet(k, j, i))
-  //   {
-  //     // BD: TODO - net.abs, net.heat
-  //   }
-  // }
+  if ((stage==nstages) &&
+      (N_GRPS == 1) && (N_SPCS == 3))
+  {
+    const AT_C_sca & C_sc_E_00 = U_C.sc_E(0,0);
+    const AT_C_sca & C_sc_E_01 = U_C.sc_E(0,1);
+    const AT_C_sca & C_sc_E_02 = U_C.sc_E(0,2);
+
+    const AT_C_sca & P_sc_E_00 = U_P.sc_E(0,0);
+    const AT_C_sca & P_sc_E_01 = U_P.sc_E(0,1);
+    const AT_C_sca & P_sc_E_02 = U_P.sc_E(0,2);
+
+    const AT_C_sca & I_sc_E_00 = U_I.sc_E(0,0);
+    const AT_C_sca & I_sc_E_01 = U_I.sc_E(0,1);
+    const AT_C_sca & I_sc_E_02 = U_I.sc_E(0,2);
+
+#if FLUID_ENABLED && USETM
+    const AT_C_sca & C_sc_nG_00 = U_C.sc_nG(0,0);
+    const AT_C_sca & C_sc_nG_01 = U_C.sc_nG(0,1);
+    // const AT_C_sca & C_sc_nG_02 = U_C.sc_nG(0,2);
+
+    const AT_C_sca & P_sc_nG_00 = U_P.sc_nG(0,0);
+    const AT_C_sca & P_sc_nG_01 = U_P.sc_nG(0,1);
+    // const AT_C_sca & P_sc_nG_02 = U_P.sc_nG(0,2);
+
+    const AT_C_sca & I_sc_nG_00 = U_I.sc_nG(0,0);
+    const AT_C_sca & I_sc_nG_01 = U_I.sc_nG(0,1);
+    // const AT_C_sca & I_sc_nG_02 = U_I.sc_nG(0,2);
+
+    const Real mb = pmy_block->peos->GetEOS().GetRawBaryonMass();
+#endif
+
+    M1_ILOOP3(k, j, i)
+    if (MaskGet(k, j, i))
+    {
+      const Real E_star_00__ = P_sc_E_00(k,j,i) + dt * I_sc_E_00(k,j,i);
+      const Real DE_00 = C_sc_E_00(k,j,i) - E_star_00__;
+      const Real E_star_01__ = P_sc_E_01(k,j,i) + dt * I_sc_E_01(k,j,i);
+      const Real DE_01 = C_sc_E_01(k,j,i) - E_star_01__;
+      const Real E_star_02__ = P_sc_E_02(k,j,i) + dt * I_sc_E_02(k,j,i);
+      const Real DE_02 = C_sc_E_02(k,j,i) - E_star_02__;
+
+      net.heat(k,j,i) = DE_00 + DE_01 + DE_02;
+#if FLUID_ENABLED && USETM
+      const Real nG_star_00__ = P_sc_nG_00(k,j,i) + dt * I_sc_nG_00(k,j,i);
+      const Real DN_00 = C_sc_nG_00(k,j,i) - nG_star_00__;
+      const Real nG_star_01__ = P_sc_nG_01(k,j,i) + dt * I_sc_nG_01(k,j,i);
+      const Real DN_01 = C_sc_nG_01(k,j,i) - nG_star_01__;
+      // const Real nG_star_02__ = P_sc_nG_02(k,j,i) + dt * I_sc_nG_02(k,j,i);
+      // const Real DN_02 = C_sc_nG_02(k,j,i) - nG_star_02__;
+
+      net.abs(k,j,i) = mb * (-DN_00 + DN_01);
+#endif
+    }
+
+  }
+
 }
 
 // ============================================================================
