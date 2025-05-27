@@ -501,18 +501,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
                              0, ncells2-1,
                              0, ncells3-1);
 
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
                   pscalars->r,
                   pfield->bcc);
 
-  /*
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
   */
+  // --------------------------------------------------------------------------
 
   // Cleanup
   delete pstar;
