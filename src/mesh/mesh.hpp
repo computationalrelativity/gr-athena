@@ -488,7 +488,8 @@ class Mesh {
 
   // Additional initialization logic:
   // This is called after "Initialize" in the InitMeshData call
-  void InitializePostFirstInitialize(ParameterInput *pin);
+  void InitializePostFirstInitialize(initialize_style init_style,
+                                     ParameterInput *pin);
   // This is called after LoadBalancingAndAdaptiveMeshRefinement returns true
   // in main integration loop
   void InitializePostMainUpdatedMesh(ParameterInput *pin);
@@ -604,6 +605,9 @@ class Mesh {
 
   // compute all hydro/field derived quantities
   void CalculateHydroFieldDerived();
+
+  // compute initial z4c diagnostics
+  void CalculateZ4cInitDiagnostics();
 
 private:
   // data

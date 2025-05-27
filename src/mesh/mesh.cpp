@@ -1893,6 +1893,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 #endif // FLUID_ENABLED
     // ------------------------------------------------------------------------
 
+    // Prepare z4c diagnostic quantities --------------------------------------
+#if FLUID_ENABLED
+    if ((init_style == initialize_style::pgen)   ||
+        (init_style == initialize_style::regrid) ||
+        (init_style == initialize_style::restart))
+    {
+      CalculateZ4cInitDiagnostics();
+    }
+#endif // FLUID_ENABLED
+    // ------------------------------------------------------------------------
+
     // Further re-gridding as required ----------------------------------------
     if (adaptive)
     if (init_style == initialize_style::pgen)
@@ -1951,7 +1962,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
   return;
 }
 
-void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
+void Mesh::InitializePostFirstInitialize(initialize_style init_style,
+                                         ParameterInput *pin)
 {
   // Initialized any required rescalings
 #if FLUID_ENABLED
@@ -1963,6 +1975,10 @@ void Mesh::InitializePostFirstInitialize(ParameterInput *pin)
                                          M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
+
+  // Compute diagnostic quantities associated with pgen:
+  if (init_style == initialize_style::pgen)
+    CalculateZ4cInitDiagnostics();
 }
 
 void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
@@ -2530,6 +2546,45 @@ void Mesh::CalculateHydroFieldDerived()
           coarse_flag, skip_physical
         );
       }
+    }
+  }
+
+#endif
+}
+
+
+void Mesh::CalculateZ4cInitDiagnostics()
+{
+#if Z4C_ENABLED
+
+  int inb = nbtotal;
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::vector<MeshBlock*> pmb_array(nmb);
+
+  if (static_cast<unsigned int>(nmb) != pmb_array.size())
+    pmb_array.resize(nmb);
+
+  MeshBlock *pmbl = pblock;
+  for (int i=0; i<nmb; ++i)
+  {
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
+
+  #pragma omp parallel num_threads(nthreads)
+  {
+    #pragma omp for
+    for (int nix=0; nix<nmb; ++nix)
+    {
+      MeshBlock *pmb = pmb_array[nix];
+      Z4c * pz4c = pmb->pz4c;
+
+      pz4c->ADMConstraints(pz4c->storage.con,
+                           pz4c->storage.adm,
+                           pz4c->storage.mat,
+                           pz4c->storage.u);
     }
   }
 

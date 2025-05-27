@@ -497,15 +497,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // Initialise matter & ADM constraints
   //TODO(WC) (don't strictly need this here, will be caught in task list before used
 
-  if(verbose)
-    std::cout << "Initializing matter and constraints on current MeshBlock." << std::endl;
+  // if(verbose)
+  //   std::cout << "Initializing matter and constraints on current MeshBlock." << std::endl;
 
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
                   pscalars->r,
                   pfield->bcc);
-  pz4c->ADMConstraints(pz4c->storage.con,pz4c->storage.adm,pz4c->storage.mat,pz4c->storage.u);
+
+  pz4c->ADMConstraints(pz4c->storage.con,
+                       pz4c->storage.adm,
+                       pz4c->storage.mat,
+                       pz4c->storage.u);
+  */
+  // --------------------------------------------------------------------------
 
 #ifdef Z4C_ASSERT_FINITE
   pz4c->assert_is_finite_adm();

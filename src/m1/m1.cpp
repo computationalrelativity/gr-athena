@@ -394,10 +394,9 @@ void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 
 void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 {
-  // net.abs.InitWithShallowSlice(u, I_Intern_netabs);
-  // net.heat.InitWithShallowSlice(u, I_Intern_netheat);
+  net.abs.InitWithShallowSlice( u, ixn_Internal::netabs);
+  net.heat.InitWithShallowSlice(u, ixn_Internal::netheat);
 }
-
 
 void M1::StatePrintPoint(
   const std::string & tag,
@@ -421,6 +420,7 @@ void M1::StatePrintPoint(
 
     std::cout << "geometric fields=========================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
+    geom.sc_oo_sqrt_det_g.PrintPoint("geom.sc_oo_sqrt_det_g", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
     geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
