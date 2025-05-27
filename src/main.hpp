@@ -495,7 +495,7 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
     tinit init_style = (pfl->res == 0) ? tinit::pgen : tinit::restart;
 
     pm->Initialize(init_style, pin);
-    pm->InitializePostFirstInitialize(pin);
+    pm->InitializePostFirstInitialize(init_style, pin);
     pm->DeleteTemporaryUserMeshData();
   }
   catch(std::bad_alloc& ba)

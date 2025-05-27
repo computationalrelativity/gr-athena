@@ -418,12 +418,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells2,
                              0, ncells3);
 
-  //TODO Check if the momentum and velocity are finite.
-
-  // Set up the matter tensor in the Z4c variables.
-  // TODO: BD - this needs to be fixed properly
-  // No magnetic field, pass dummy or fix with overload
-  //  AthenaArray<Real> null_bb_cc;
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
@@ -434,7 +432,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
-
+  */
   // --------------------------------------------------------------------------
   return;
 }

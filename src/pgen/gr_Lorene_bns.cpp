@@ -816,17 +816,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   // Have geom & primitive hydro
-/*
-  // This logic is now else-where
+  /*
 #if M1_ENABLED
+  // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines;
+  // We need it here if we want to equilibriate @ ID
+  //
+  // Note that a call of ConservedToPrimitive should be made prior to this
+  // That is required to populate auxiliary vars. (not currently done)
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+
   if (pm1->opt_solver.equilibrium_initial)
   {
-    // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines;
-    // We need it here if we want to equilibriate @ ID
-    pm1->UpdateGeometry(pm1->geom, pm1->scratch);
-    pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-    pm1->CalcFiducialVelocity();
-
     M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
                           {pm1->N_GRPS,pm1->N_SPCS},
                           {pm1->N_GRPS,pm1->N_SPCS} };
@@ -844,7 +846,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
   }
 #endif  // M1_ENABLED
-*/
+  */
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(
     "problem", "id_floor_primitives", false);
@@ -878,10 +880,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells2-1,
                              0, ncells3-1);
 
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
   // Set up ADM matter variables
-  // TODO: BD - this needs to be fixed properly
-  // No magnetic field, pass dummy or fix with overload
-  //  AthenaArray<Real> null_bb_cc;
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
@@ -892,7 +894,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
-
+  */
   // --------------------------------------------------------------------------
   return;
 }

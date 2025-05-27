@@ -421,6 +421,7 @@ void M1::StatePrintPoint(
 
     std::cout << "geometric fields=========================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
+    geom.sc_oo_sqrt_det_g.PrintPoint("geom.sc_oo_sqrt_det_g", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
     geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
