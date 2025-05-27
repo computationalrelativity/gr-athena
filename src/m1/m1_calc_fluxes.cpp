@@ -321,8 +321,8 @@ void M1::CalcCharacteristicSpeed(const int dir,
     Real B = beta_u(dir,k,j,i);
     const Real lam_thick = AMAX(A+B, A-B);
 
-    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0.0;
-    const Real oo_nF  = (nF2 > 0) ? std::sqrt(oo_nF2) : 0.0;
+    const Real oo_nF2 = (nF2 > pm1->opt.fl_nF2) ? OO(nF2) : 0.0;
+    const Real oo_nF  = (nF2 > pm1->opt.fl_nF2) ? std::sqrt(oo_nF2) : 0.0;
 
     A = alpha(k,j,i) * oo_nF * std::abs(F_u);
     const Real lam_thin = AMAX(A+B, A-B);
@@ -374,8 +374,8 @@ void M1::CalcCharacteristicSpeed(const int dir,
       }
     }
 
-    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0;
-    const Real oo_nF  = std::sqrt(oo_nF2);
+    const Real oo_nF2 = (nF2 > pm1->opt.fl_nF2) ? OO(nF2) : 0;
+    const Real oo_nF  = (nF2 > pm1->opt.fl_nF2) ? std::sqrt(oo_nF2) : 0;
 
     const Real lfac_a = alpha(k,j,i) * F_u * oo_nF;
     const Real lam_a = AMAX(

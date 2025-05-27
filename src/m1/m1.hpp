@@ -186,6 +186,7 @@ public:
     Real fl_E;
     Real fl_J;
     Real fl_nG;
+    Real fl_nF2;
     Real eps_E;
     Real eps_J;
     bool enforce_causality;

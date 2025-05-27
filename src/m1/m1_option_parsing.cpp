@@ -325,9 +325,10 @@ void M1::PopulateOptions(ParameterInput *pin)
   }
 
   { // tol / ad-hoc
-    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",  1e-15);
-    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",  1e-15);
-    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG", 1e-50);
+    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",    1e-15);
+    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",    1e-15);
+    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG",   1e-50);
+    opt.fl_nF2 = pin->GetOrAddReal("M1", "fl_nF2", 1e-80);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(

@@ -389,11 +389,15 @@ public:
 
       corr_fac[s_idx] = pm1->rad.sc_J(0, s_idx)(k, j, i) /
         (pm1->rad.sc_n(0, s_idx)(k, j, i) *
-          pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i));
+         pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i));
 
       if (!std::isfinite(corr_fac[s_idx]))
       {
         corr_fac[s_idx] = 1.0;
+        if (!std::isfinite(pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i)))
+        {
+          pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i) = 0;
+        }
         // should never land here (due to flooring prior to call of opac.)
         // assert(false);
       }

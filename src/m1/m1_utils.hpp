@@ -473,7 +473,7 @@ inline void ToFiducialExpansionCoefficients(
   const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
 
   const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real oo_nF = (nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(nF2)) : 0.0;
   const Real dotFhatv = oo_nF * dotFv;
 
   const Real d_th = Frames::d_th(sc_chi, k, j, i);
@@ -724,7 +724,7 @@ inline Real ToFiducial(
 
   // The following two are equivalent, however, floors will potentially affect
   // results!
-  const Real sc_Gam__ = (J_0 > 0)
+  const Real sc_Gam__ = (J_0 > pm1.opt.fl_J)
     ? W * (1.0 + H_n / (J_0 * W))
     : W;
 
@@ -780,15 +780,15 @@ inline Real sp_f_u__(
   const AT_N_sca & sc_alpha  = pm1.geom.sc_alpha;
   const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
 
-  // return (
-  //   sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
-  //   + ((sc_J(k,j,i) > pm1.opt.fl_J) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
-  // );
-
   return (
     sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
-    + ((sc_J(k,j,i) > 0) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
+    + ((sc_J(k,j,i) > pm1.opt.fl_J) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
   );
+
+  // return (
+  //   sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
+  //   + ((sc_J(k,j,i) > 0) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
+  // );
 
 }
 
@@ -806,8 +806,7 @@ inline void sp_P_th_dd_(
   for (int i=il; i<=iu; ++i)
   {
     const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1.geom.sp_g_uu, k, j, i);
-    const Real fac = (nF2 > 0) ? sc_E(k,j,i) / nF2
-                               : 0.0;
+    const Real fac = (nF2 > pm1.opt.fl_nF2) ? sc_E(k,j,i) / nF2 : 0.0;
 
     for (int a=0; a<N; ++a)
     for (int b=a; b<N; ++b)
@@ -1082,8 +1081,9 @@ inline void Jacobian_sc_E_sp_F_d(
   Assemble::sp_d_to_u_(&pm1, sp_F_u_, sp_F_d, k, j, i, i);
 
   const Real nF2 = Assemble::sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0.0;
-  const Real oo_nF  = (nF2 > 0) ? std::sqrt(oo_nF2) : 0.0;
+
+  const Real oo_nF2 = (nF2 > pm1.opt.fl_nF2) ? OO(nF2) : 0.0;
+  const Real oo_nF  = (nF2 > pm1.opt.fl_nF2) ? std::sqrt(oo_nF2) : 0.0;
   const Real dotFhatv = oo_nF * dotFv;
 
   // derivative terms ---------------------------------------------------------
@@ -1392,7 +1392,7 @@ inline void ToFiducialExpansionCoefficients(
   const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
 
   const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real oo_nF = (nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(nF2)) : 0.0;
   const Real dotFhatv = oo_nF * dotFv;
 
   const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);
