@@ -394,10 +394,9 @@ void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 
 void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 {
-  // net.abs.InitWithShallowSlice(u, I_Intern_netabs);
-  // net.heat.InitWithShallowSlice(u, I_Intern_netheat);
+  net.abs.InitWithShallowSlice( u, ixn_Internal::netabs);
+  net.heat.InitWithShallowSlice(u, ixn_Internal::netheat);
 }
-
 
 void M1::StatePrintPoint(
   const std::string & tag,
