@@ -15,6 +15,11 @@
 
 namespace M1::Opacities::BNSNuRates {
 
+#define ASSERT_OPAC_ISFINITE (0)
+
+  // Wariable to switch between analytic and numerical solutions of Fermi integrals
+#define FERMI_ANALYTIC (1)
+  
   
   //! \fn void bns_nurates(Real &nb, Real Real &temp, Real &ye, Real &mu_n, Real &mu_p,
   //!                      Real &mu_e, Real &n_nue, Real &j_nue, Real &chi_nue,
@@ -231,10 +236,11 @@ namespace M1::Opacities::BNSNuRates {
       my_grey_opacity_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
       
       // convert neutrino energy density to mixed MeV and cgs as requested by bns_nurates
-      my_grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV;
-      my_grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
-      my_grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
-      my_grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
+      // my_grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV;
+      // my_grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
+      // my_grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
+      // my_grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
+      
     }
     
     // compute opacities
@@ -279,32 +285,32 @@ namespace M1::Opacities::BNSNuRates {
     scat_1_anux = opacities.kappa_s[id_anux] * 2.;
     
     // Check for NaNs/Infs
-    /*
-      assert(isfinite(R_nue));
-      assert(isfinite(R_anue));
-      assert(isfinite(R_nux));
-      assert(isfinite(R_anux));
-      assert(isfinite(Q_nue));
-      assert(isfinite(Q_anue));
-      assert(isfinite(Q_nux));
-      assert(isfinite(Q_anux));
-      assert(isfinite(sigma_0_nue));
-      assert(isfinite(sigma_0_anue));
-      assert(isfinite(sigma_0_nux));
-      assert(isfinite(sigma_0_anux));
-      assert(isfinite(sigma_1_nue));
-      assert(isfinite(sigma_1_anue));
-      assert(isfinite(sigma_1_nux));
-      assert(isfinite(sigma_1_anux));
-      assert(isfinite(scat_0_nue));
-      assert(isfinite(scat_0_anue));
-      assert(isfinite(scat_0_nux));
-      assert(isfinite(scat_0_anux));
-      assert(isfinite(scat_1_nue));
-      assert(isfinite(scat_1_anue));
-      assert(isfinite(scat_1_nux));
-      assert(isfinite(scat_1_anux));
-    */
+#if (ASSERT_OPAC_ISFINITE)
+    assert(isfinite(R_nue));
+    assert(isfinite(R_anue));
+    assert(isfinite(R_nux));
+    assert(isfinite(R_anux));
+    assert(isfinite(Q_nue));
+    assert(isfinite(Q_anue));
+    assert(isfinite(Q_nux));
+    assert(isfinite(Q_anux));
+    assert(isfinite(sigma_0_nue));
+    assert(isfinite(sigma_0_anue));
+    assert(isfinite(sigma_0_nux));
+    assert(isfinite(sigma_0_anux));
+    assert(isfinite(sigma_1_nue));
+    assert(isfinite(sigma_1_anue));
+    assert(isfinite(sigma_1_nux));
+    assert(isfinite(sigma_1_anux));
+    assert(isfinite(scat_0_nue));
+    assert(isfinite(scat_0_anue));
+    assert(isfinite(scat_0_nux));
+    assert(isfinite(scat_0_anux));
+    assert(isfinite(scat_1_nue));
+    assert(isfinite(scat_1_anue));
+    assert(isfinite(scat_1_nux));
+    assert(isfinite(scat_1_anux));
+#end
     // Catch these and return ierr code 1...24
     // (returns int for the number of failures.)
     if (isfinite(R_nue)) ierr++; 
@@ -404,41 +410,42 @@ namespace M1::Opacities::BNSNuRates {
       return;
     }
     
-    Real eta_nue = (mu_p + mu_e - mu_n) / temp;
+    Real eta_nue = (mu_p + mu_e - mu_n) / temp; // ratio can use code units
     Real eta_anue = -eta_nue;
     Real eta_nux = 0.0;
+
+    const Real hc_mevcm3 = hc_mevcm * hc_mevcm * hc_mevcm;
+    const Real temp3 = temp_mev * temp_mev * temp_mev;
+    const Real temp4 = temp3 * temp_mev;
+
+    n_nue = 4.0 * M_PI / hc_mevcm3 * temp3 * Fermi::fermi2(eta_nue);    // [cm^-3]
+    n_anue = 4.0 * M_PI / hc_mevcm3 * temp3 * Fermi::fermi2(eta_anue);  // [cm^-3]
+    n_nux = 16.0 * M_PI / hc_mevcm3 * temp3 * Fermi::fermi2(eta_nux);   // [cm^-3]
     
-    n_nue = 4.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 3) *
-      Fermi::fermi2(eta_nue);
-    n_anue = 4.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 3) *
-      Fermi::fermi2(eta_anue);
-    n_nux = 16.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 3) *
-      Fermi::fermi2(eta_nux);
+    en_nue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nue);    // [MeV cm^-3]
+    en_anue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_anue);  // [MeV cm^-3]
+    en_nux = 16.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV cm^-3]
     
-    en_nue = 4.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 4) *
-      Fermi::fermi3(eta_nue);
-    en_anue = 4.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 4) *
-      Fermi::fermi3(eta_anue);
-    en_nux = 16.0 * M_PI / std::pow(HC_MEVCM, 3) * std::pow(temp_mev, 4) *
-      Fermi::fermi3(eta_nux);
-      
     assert(isfinite(n_nue));
     assert(isfinite(n_anue));
     assert(isfinite(n_nux));
     assert(isfinite(en_nue));
     assert(isfinite(en_anue));
     assert(isfinite(en_nux));
+
+    // convert back to code units (adjusting for NORMFACT)
+    const Real n_factor =
+      NORMFACT * units.cgs2code_length * units.cgs2code_length * units.cgs2code_length;
+    n_nue = n_nue / n_factor;
+    n_anue = n_anue / n_factor;
+    n_nux = n_nux / n_factor;
     
-    const Real fact1 = std::pow(units.cgs2code_length, 3) * NORMFACT;
-    n_nue = n_nue / fact1;
-    n_anue = n_anue / fact1;
-    n_nux = n_nux / fact1;
-    
-    const Real fact2 =
-      MEV_TO_ERG * units.cgs2code_energy / std::pow(units.cgs2code_length, 3);
-    en_nue = en_nue / fact2;
-    en_anue = en_anue / fact2;
-    en_nux = en_nux / fact2;
+    const Real en_factor =
+      units.cgs2code_energy /
+      (units.cgs2code_length * units.cgs2code_length * units.cgs2code_length);
+    en_nue = en_nue / en_factor;
+    en_anue = en_anue / en_factor;
+    en_nux = en_nux / en_factor;
     
   }
 
@@ -1265,10 +1272,6 @@ namespace M1::Opacities::BNSNuRates {
       eta[2] = 0.0; // [-]
     } 
   }
-
-  
-  // Wariable to switch between analytic and numerical solutions of Fermi integrals
-#define FERMI_ANALYTIC (1)
 
   
   // dens_nu_trap
