@@ -14,12 +14,13 @@
 #include "bnsnurates.hpp"
 
 namespace M1::Opacities::BNSNuRates {
-
-#define ASSERT_OPAC_ISFINITE (0)
-
-  // Wariable to switch between analytic and numerical solutions of Fermi integrals
-#define FERMI_ANALYTIC (1)
   
+  // Assert opacities?
+#define ASSERT_OPAC_ISFINITE (0)
+  
+  // Variable to switch between analytic and numerical solutions of Fermi integrals
+#define FERMI_ANALYTIC (1)
+
   
   //! \fn void bns_nurates(Real &nb, Real Real &temp, Real &ye, Real &mu_n, Real &mu_p,
   //!                      Real &mu_e, Real &n_nue, Real &j_nue, Real &chi_nue,
@@ -84,45 +85,60 @@ namespace M1::Opacities::BNSNuRates {
   
   int BNSNuRates::bns_nurates(Real &nb, Real &temp, Real &ye,
                               Real &mu_n, Real &mu_p, Real &mu_e,
-                              Real &n_nue, Real &j_nue, Real &chi_nue, Real &n_anue, Real &j_anue,
-                              Real &chi_anue, Real &n_nux, Real &j_nux, Real &chi_nux, Real &n_anux,
-                              Real &j_anux, Real &chi_anux, Real &R_nue, Real &R_anue, Real &R_nux,
-                              Real &R_anux, Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
-                              Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux,
-                              Real &sigma_0_anux, Real &sigma_1_nue, Real &sigma_1_anue,
-                              Real &sigma_1_nux, Real &sigma_1_anux, Real &scat_0_nue,
-                              Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux, Real &scat_1_nue,
-                              Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
+                              Real &n_nue, Real &j_nue, Real &chi_nue,
+                              Real &n_anue, Real &j_anue, Real &chi_anue,
+                              Real &n_nux, Real &j_nux, Real &chi_nux,
+                              Real &n_anux, Real &j_anux, Real &chi_anux,
+                              Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
+                              Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
+                              Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux, Real &sigma_0_anux,
+                              Real &sigma_1_nue, Real &sigma_1_anue, Real &sigma_1_nux, Real &sigma_1_anux,
+                              Real &scat_0_nue, Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
+                              Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
                               const NuratesParams nurates_params)
 
   {
     
     int ierr = 0;
-    
-    //TODO fix unit conversion by using consistently my_units and code_units ...
-    //     we cannot have conversion defined everywhere!
-    
-    // unit conversion factors
-    // from cm^-3 to code
-    const Real n_cgs2code = 1. / std::pow(units.cgs2code_length, 3);
-    // from MeV cm^-3 to code
-    const Real j_cgs2code = units.cgs2code_energy / std::pow(units.cgs2code_length, 3);
-    // from cm^-3 s^-1 to code
-    const Real r_cgs2code =
-      1. / (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
-    // from MeV cm^-3 s^-1 to code
-    const Real q_cgs2code = MEV_TO_ERG * units.cgs2code_energy /
-      (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
-    // from cm^-1 to code
-    const Real kappa_cgs2code = 1. / (units.cgs2code_length);
 
-    const Real MeV = code_units->TemperatureConversion(*my_units); // code unit to MeV 
+    //--
+    //TODO placeholder until debug, then remove
+    // from cm^-3 to code
+    //const Real n_cgs2code = 1. / std::pow(units.cgs2code_length, 3);
+    // from MeV cm^-3 to code
+    //const Real j_cgs2code = units.cgs2code_energy / std::pow(units.cgs2code_length, 3);
+    // from cm^-3 s^-1 to code
+    //const Real r_cgs2code =  1. / (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
+    // from MeV cm^-3 s^-1 to code
+    //const Real q_cgs2code = MEV_TO_ERG * units.cgs2code_energy / (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
+    // from cm^-1 to code
+    //const Real kappa_cgs2code = 1. / (units.cgs2code_length);
+    // ---
     
+    // Some conversions factors from CGS+MeV to code units
+    // from cm^-3 to code units
+    const Real n_cgs2code = my_units->NumberDensityConversion(*code_units);
+    // from cm^-3 s^-1 to code units
+    const Real r_cgs2code = n_cgs2code / my_units->TimeConversion(*code_units);
+    // from MeV cm^-3 to code units
+    const Real j_cgs2code = MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units); 
+    // from MeV cm^-3 s^-1 to code units
+    const Real q_cgs2code = j_cgs2code / my_units->TimeConversion(*code_units);
+    // from cm^-1 to code units
+    const Real kappa_cgs2code = 1.0 / my_units->LengthConversion(*code_units);
+    
+    // code units to MeV 
+    const Real MeV = code_units->TemperatureConversion(*my_units); 
+
+    // Convert input to CGS+MeV
+    //const Real nb_cgs = nb / units.cgs2code_rho * 1e-21; //TODO what is this 1e-21 ? Here and below ...
+    const Real nb_cgs = nb / n_cgs2code; // [baryon/cm^-3]
+
     const Real temp_mev = temp * MeV; 
+
     const Real mu_n_mev = mu_n * MeV;
     const Real mu_p_mev = mu_p * MeV;
     const Real mu_e_mev = mu_e * MeV;
-    const Real nb_cgs = nb / n_cgs2code; // [baryon/cm^-3]
     
     if ( (nb_cgs < nurates_params.nb_min_cgs) ||
          (temp_mev < nurates_params.temp_min_mev) ) {
@@ -153,7 +169,7 @@ namespace M1::Opacities::BNSNuRates {
       return ierr;
     }
     
-    // convert neutrino quantities to cgs
+    // Convert neutrino quantities to CGS
     const Real n_nue_cgs = n_nue / (cgs2code_n / NORMFACT) * 1e-21;
     const Real n_anue_cgs = n_anue / (cgs2code_n / NORMFACT) * 1e-21;
     const Real n_nux_cgs = n_nux / (cgs2code_n / NORMFACT) * 1e-21;
@@ -162,7 +178,6 @@ namespace M1::Opacities::BNSNuRates {
     const Real j_anue_cgs = j_anue / cgs2code_j;
     const Real j_nux_cgs = j_nux / cgs2code_j;
     const Real j_anux_cgs = j_anux / cgs2code_j;
-    //const Real nb_cgs = nb / units.cgs2code_rho * 1e-21;
     
     // opacity params structure
     GreyOpacityParams my_grey_opacity_params{};
@@ -180,7 +195,7 @@ namespace M1::Opacities::BNSNuRates {
     my_grey_opacity_params.opacity_pars = opacity_params_default_none;
     my_grey_opacity_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
     my_grey_opacity_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
-    my_grey_opacity_params.opacity_pars.use_dU = nurates_params.use_dU;
+    my_grey_opacity_params.opacity_pars.use_dU = 0; // nurates_params.use_dU;
     my_grey_opacity_params.opacity_pars.use_dm_eff = nurates_params.use_dm_eff;
     
     //NB logic for nurates_params.use_dU not implemented.
@@ -217,8 +232,7 @@ namespace M1::Opacities::BNSNuRates {
     // reconstruct distribution function
     if (!nurates_params.use_equilibrium_distribution) {
       my_grey_opacity_params.distr_pars =
-        CalculateDistrParamsFromM1(
-                                   &my_grey_opacity_params.m1_pars,
+        CalculateDistrParamsFromM1(&my_grey_opacity_params.m1_pars,
                                    &my_grey_opacity_params.eos_pars);
     } else {
       my_grey_opacity_params.distr_pars =
@@ -236,17 +250,18 @@ namespace M1::Opacities::BNSNuRates {
       my_grey_opacity_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
       
       // convert neutrino energy density to mixed MeV and cgs as requested by bns_nurates
-      // my_grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV;
-      // my_grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
-      // my_grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
-      // my_grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
+      my_grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV; //TODO kBS_MeV = ...
+      my_grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
+      my_grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
+      my_grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
       
     }
     
     // compute opacities
     M1Opacities opacities =
       ComputeM1Opacities(&nurates_params.my_quadrature_1d,
-                         &nurates_params.my_quadrature_1d, &my_grey_opacity_params);
+                         &nurates_params.my_quadrature_2d,
+                         &my_grey_opacity_params);
     
     // Similar to the comment above, the factors of 2 come from the fact that
     // bns_nurates and THC weight the heavy neutrinos differently. THC weights
@@ -393,10 +408,7 @@ namespace M1::Opacities::BNSNuRates {
                                    Real &n_nue, Real &n_anue, Real &n_nux,
                                    Real &en_nue, Real &en_anue, Real &en_nux)
   {
-
-    //TODO do conversion consistently with only 2 sets of unit values...
-    
-    const Real nb_cgs = nb / units.cgs2code_rho;  // [baryon/cm^-3]
+    const Real nb_cgs = nb * code_units->NumberDensityConversion(*my_units); // [baryon/cm^-3]
     const Real temp_mev = temp * code_units->TemperatureConversion(*my_units);  // [MeV]
     
     if ( (nb_cgs < nurates_params.nb_min_cgs) ||
@@ -433,19 +445,32 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(en_anue));
     assert(isfinite(en_nux));
 
-    // convert back to code units (adjusting for NORMFACT)
-    const Real n_factor =
-      NORMFACT * units.cgs2code_length * units.cgs2code_length * units.cgs2code_length;
-    n_nue = n_nue / n_factor;
-    n_anue = n_anue / n_factor;
-    n_nux = n_nux / n_factor;
-    
-    const Real en_factor =
-      units.cgs2code_energy /
-      (units.cgs2code_length * units.cgs2code_length * units.cgs2code_length);
-    en_nue = en_nue / en_factor;
-    en_anue = en_anue / en_factor;
-    en_nux = en_nux / en_factor;
+    // convert back to code units 
+    const Real n_conv = my_units->NumberDensityConversion(*code_units);
+    const Real e_conv = MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units);
+
+    n_nue = n_nue * n_conv;
+    n_anue = n_anue * n_conv;
+    n_nux = n_nux * n_conv;
+
+    en_nue = en_nue * e_conv;
+    en_anue = en_anue * e_conv;
+    en_nux = en_nux * e_conv;
+
+    //--
+    //TODO placeholder until debug, then remove // check this NORMFACT ?!
+    // const Real n_factor =
+    //   NORMFACT * units.cgs2code_length * units.cgs2code_length * units.cgs2code_length;
+    // n_nue = n_nue / n_factor;
+    // n_anue = n_anue / n_factor;
+    // n_nux = n_nux / n_factor;
+    // const Real en_factor =
+    //   units.cgs2code_energy /
+    //   (units.cgs2code_length * units.cgs2code_length * units.cgs2code_length);
+    // en_nue = en_nue / en_factor;
+    // en_anue = en_anue / en_factor;
+    // en_nux = en_nux / en_factor;
+    //--
     
   }
 
@@ -469,9 +494,6 @@ namespace M1::Opacities::BNSNuRates {
                                   Real& n_nue_eq, Real& n_nua_eq, Real& n_nux_eq,
                                   Real& e_nue_eq, Real& e_nua_eq, Real& e_nux_eq)
   {
-
-    //TODO fix unit conv (myunits and code_units do not exist yet)
-
     // conversion factors from code units to CGS + MeV
     Real n_conv = code_units->NumberDensityConversion(*my_units);  // code units to 1/cm^3
     Real e_conv = code_units->EnergyDensityConversion(*my_units);  // code units to erg/cm^3
@@ -495,7 +517,7 @@ namespace M1::Opacities::BNSNuRates {
                                         e_nua_eq,
                                         e_nux_eq);
 
-    // convert back from CGS to code units
+    // convert back from CGS+MeV units to code units
     temp_eq = temp_eq / MeV;
 
     n_conv = my_units->NumberDensityConversion(*code_units);
@@ -532,7 +554,7 @@ namespace M1::Opacities::BNSNuRates {
     {
       int iout = 0;
 
-      // Everything is in CGS + MeV 
+      // Everything is in CGS + MeV (my_units)
       
       // Do not do anything outside of this range
       if ( (rho < rho_min) || (temp < temp_min) ) {
@@ -547,10 +569,6 @@ namespace M1::Opacities::BNSNuRates {
 
       Real nb = rho/atomic_mass;
 
-      // Enforce table bounds
-      //TODO something something EoS, return?
-      // boundsErr = enforceTableBounds(nb_code, T_code, Ye)
-      
       // Compute fractions
       Real y_in[4] = {0.0};
       y_in[0] = ye;
@@ -560,12 +578,14 @@ namespace M1::Opacities::BNSNuRates {
       
       // Compute energy
       // NB EOS calls require I/O unit conversion
-
       Real e_in[4] = {0.0};
-      e_in[0] = pmy_block->peos->GetEOS().GetEnergy(nb * my_units->NumberDensityConversion(*code_units),
-                                                    temp * my_units->TemperatureConversion(*code_units),
+      e_in[0] = pmy_block->peos->GetEOS().GetEnergy(nb
+                                                    * my_units->NumberDensityConversion(*code_units),
+                                                    temp
+                                                    * my_units->TemperatureConversion(*code_units),
                                                     ye)
         * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
+
       e_in[1] = e_nue;
       e_in[2] = e_nua;
       e_in[3] = e_nux;
@@ -713,7 +733,6 @@ namespace M1::Opacities::BNSNuRates {
     
     // Here we want to compute the total energy and fractions in the
     // equilibrated state
-    
     Real mu_n, mu_p, mu_e;
     ChemicalPotentials_npe_cgs(rho, T_eq, y_eq[0],  mu_n, mu_p, mu_e); 
 
@@ -733,8 +752,7 @@ namespace M1::Opacities::BNSNuRates {
     // compute the density of the trapped neutrinos
     dens_nu_trap(T_eq,eta,nu_dens);
     
-    // Compute the baryon number density (mass_fact is given in MeV)
-    // Real mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight);
+    // Compute the baryon number density
     Real nb = rho / atomic_mass; // [#/cm^3]
     
     y_eq[1] = nu_dens[0]/nb;          // electron neutrino
@@ -753,8 +771,10 @@ namespace M1::Opacities::BNSNuRates {
     // Check that the energy is positive
     // EOS calls requires code units
     // For tabulated eos we should check that the energy is above the minimum?
-    Real e_min = pmy_block->peos->GetEOS().GetEnergy(nb * my_units->NumberDensityConversion(*code_units),
-                                                     eos_temp_min * my_units->TemperatureConversion(*code_units),
+    Real e_min = pmy_block->peos->GetEOS().GetEnergy(nb
+                                                     * my_units->NumberDensityConversion(*code_units),
+                                                     eos_temp_min
+                                                     * my_units->TemperatureConversion(*code_units),
                                                      y_eq[0])
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3]                     
     
@@ -769,7 +789,8 @@ namespace M1::Opacities::BNSNuRates {
     } 
     
     // check that Y_e is within the range
-    if (y_eq[0]<eos_ye_min || y_eq[0]>eos_ye_max) {
+    // NB In WeakRates eos_ye_m* are table_ye_m*
+    if (y_eq[0] < eos_ye_min || y_eq[0] > eos_ye_max) {
       ierr = 1;
       T_eq = T;
       for (int i=0;i<4;i++) {
@@ -782,6 +803,39 @@ namespace M1::Opacities::BNSNuRates {
     return;
   }
 
+  
+  // Apply the EOS limit
+  bool apply_table_limits(Real& rho, Real& temp, Real& ye)
+  {
+    bool limits_applied = false;
+
+    if (rho < eos_rho_min) {
+      rho = eos_rho_min;
+      limits_applied = true;
+    } else if (rho > eos_rho_max) {
+      rho = eos_rho_max;
+      limits_applied = true;
+    }
+    
+    if (temp < eos_temp_min) {
+      temp = eos_temp_min;
+      limits_applied = true;
+    } else if (temp > eos_temp_max) {
+      temp = eos_temp_max;
+      limits_applied = true;
+    }
+    
+    if (ye < eos_ye_min) {
+      ye = eos_ye_min;
+      limits_applied = true;
+    } else if (ye > eos_ye_max) {
+      ye = eos_ye_max;
+      limits_applied = true;
+    }
+    
+    return limits_applied;
+  }
+  
 
   // new_raph_2dim
   //
@@ -891,7 +945,6 @@ namespace M1::Opacities::BNSNuRates {
       while (n_cut <= n_cut_max && err >= err_old) {
         // the variation of x1 is divided by an powers of 2 if the
         // error is not decreasing along the gradient direction
-        
         x1_tmp[0] = x1[0] + (dx1[0]*fac_cut);
         x1_tmp[1] = x1[1] + (dx1[1]*fac_cut);
         
@@ -900,8 +953,12 @@ namespace M1::Opacities::BNSNuRates {
           ierr = 1;
           return;
         } 
-        
-        bool tabBoundsFlag = pmy_block->peos->GetEOS().ApplyTableLimits(rho, x1_tmp[0], x1_tmp[1]); //TODO this call is wrapped in weak_eos, substitute with direct EOS call, only need unit converstion here!
+
+        // Here we simple enforce limits with eos_*_min/max values.
+        //TODO this call is called ApplyTableLimits in weakrates/weak_eos
+        //     but it has a bit more logic and options
+        //     ADD OPTIONS/CHECKS?
+        bool tabBoundsFlag = apply_eos_limits(rho, x1_tmp[0], x1_tmp[1]); 
         
         // assign the new point
         x1[0] = x1_tmp[0];
@@ -949,9 +1006,7 @@ namespace M1::Opacities::BNSNuRates {
   
   void BNSNuRates::func_eq_weak(Real rho, Real u, Real yl, Real x[2], Real y[2]) {
     
-    // Compute the baryon number density (mass_fact is given in MeV)
-    // Real mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight);
-    // Real nb = rho / mass_fact_cgs; // [#/cm^3]
+    // Compute the baryon number density
     Real nb = rho / atomic_mass; // [#/cm^3]
     
     // Interpolate the chemical potentials (stored in MeV in the table)
@@ -1046,9 +1101,7 @@ namespace M1::Opacities::BNSNuRates {
       return;
     } 
     
-    // Compute the baryon number density (mass_fact is given in MeV)
-    // Real mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight);
-    // Real nb = rho / mass_fact_cgs; // [#/cm^3]
+    // Compute the baryon number density
     Real nb = rho / atomic_mass; // [#/cm^3]
     
     // compute the Jacobian 
@@ -1117,7 +1170,6 @@ namespace M1::Opacities::BNSNuRates {
     // the goal of this part is to obtain chemical potentials (mus1 and
     // mus2) in two points close to the point we are considering, first
     // varying wrt ye and then wrt T
-  
     // vary the electron fraction............................................
     
     // these are the two calls to the EOS. The goal here is to get
@@ -1125,30 +1177,32 @@ namespace M1::Opacities::BNSNuRates {
     // electrons and the difference between neutron and proton
     // chemical potential (usually called mu_hat) for two points with
     // slightly different ye
-  
+
+    Real nb = rho/atomic_mass;
+    
     //  first, for ye slightly smaller
-    Real ye1 = max(ye - delta_ye, eos_yemin);
+    Real ye1 = max(ye - delta_ye, eos_ye_min);
     Real yev = ye1;
     
     Real mu_n, mu_p, mu_e;
     ChemicalPotentials_npe_cgs(rho, t, yev,  mu_n, mu_p, mu_e);
     Real mus1[2] = {mu_e, mu_n - mu_p};
-    
-    Real e1 = pmy_block->peos->GetEOS().GetEnergy(rho/atomic_mass
+        
+    Real e1 = pmy_block->peos->GetEOS().GetEnergy(nb
                                                   * my_units->NumberDensityConversion(*code_units),
                                                   t
                                                   * my_units->TemperatureConversion(*code_units),
                                                   yev)
-              * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
+      * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
     
     // second, for ye slightly larger
-    Real ye2 = min(ye + delta_ye, eos_yemax);
+    Real ye2 = min(ye + delta_ye, eos_ye_max);
     yev = ye2;
     
     ChemicalPotentials_npe_cgs(rho, t, yev,  mu_n, mu_p, mu_e);
     Real mus2[2] = {mu_e, mu_n - mu_p};
     
-    Real e2 = pmy_block->peos->GetEOS().GetEnergy(rho/atomic_mass
+    Real e2 = pmy_block->peos->GetEOS().GetEnergy(nb
                                                   * my_units->NumberDensityConversion(*code_units),
                                                   t
                                                   * my_units->TemperatureConversion(*code_units),
@@ -1161,8 +1215,8 @@ namespace M1::Opacities::BNSNuRates {
     dedye          = (e2-e1)/(ye2 - ye1);
     
     // vary the temperature.................................................
-    Real t1 = max(t - delta_t, eos_tempmin);
-    Real t2 = min(t + delta_t, eos_tempmax);
+    Real t1 = max(t - delta_t, eos_temp_min);
+    Real t2 = min(t + delta_t, eos_temp_max);
     
     // these are the two other calls to the EOS. The goal here is to get
     // the fluid internal energy and the chemical potential for
@@ -1179,7 +1233,7 @@ namespace M1::Opacities::BNSNuRates {
     ChemicalPotentials_npe_cgs(rho, t1, ye,  mu_n, mu_p, mu_e );
     Real mus1[2] = {mu_e, mu_n - mu_p};
     
-    e1 = pmy_block->peos->GetEOS().GetEnergy(rho/atomic_mass
+    e1 = pmy_block->peos->GetEOS().GetEnergy(nb 
                                              * my_units->NumberDensityConversion(*code_units),
                                              t1
                                              * my_units->TemperatureConversion(*code_units),
@@ -1192,7 +1246,7 @@ namespace M1::Opacities::BNSNuRates {
     ChemicalPotentials_npe_cgs(rho, tv, ye,  mu_n, mu_p, mu_e);
     Real mus1[2] = {mu_e, mu_n - mu_p};
     
-    e2 = pmy_block->peos->GetEOS().GetEnergy(rho/atomic_mass
+    e2 = pmy_block->peos->GetEOS().GetEnergy(nb
                                              * my_units->NumberDensityConversion(*code_units),
                                              tv
                                              * my_units->TemperatureConversion(*code_units),
@@ -1317,7 +1371,7 @@ namespace M1::Opacities::BNSNuRates {
   void BNSNuRates::edens_nu_trap(Real temp_m, Real eta_nu[3], Real enu_dens[3])
   {
     
-    const Real pref=4.0*pi/(hc_mevcm*hc_mevcm*hc_mevcm); // [1/MeV^3/cm^3]
+    const Real pref = 4.0*pi/(hc_mevcm*hc_mevcm*hc_mevcm); // [1/MeV^3/cm^3]
     Real temp_m4 = temp_m*temp_m*temp_m*temp_m;          // [MeV^3]
     
     for (int it=0; it<3; it++) {
