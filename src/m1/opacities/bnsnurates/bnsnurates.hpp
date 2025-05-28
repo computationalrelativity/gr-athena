@@ -21,15 +21,14 @@
 #include "bns_nurates/include/integration.hpp"
 #include "bns_nurates/include/m1_opacities.hpp"
 
+
 namespace M1::Opacities::BNSNuRates {
 
   struct NuratesParams {
-    int nurates_quad_nx;     // no. of quadrature points for 1d integration (bns_nurates)
-    int nurates_quad_ny;     // no. of quadrature points for 2d integration (bns_nurates)
     Real opacity_tau_trap;   // incl. effects of neutrino trapping above this optical depth
     Real opacity_tau_delta;  // range of optical depths over which trapping is introduced
     Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
-    Real rho_min_cgs;
+    Real nb_min_cgs;
     Real temp_min_mev;
     
     bool use_abs_em;
@@ -43,9 +42,36 @@ namespace M1::Opacities::BNSNuRates {
     bool use_dm_eff;
     bool use_equilibrium_distribution;
     bool use_kirchhoff_law;
+    bool use_NN_medium_corr;
+    bool neglect_blocking;
+    bool use_decay;
+    bool use_BRT_brem;
     
-    MyQuadrature my_quadrature_1d;
-    MyQuadrature my_quadrature_2d;
+    int quad_nx;  // no. of quadrature points for 1d integration (bns_nurates)
+    MyQuadrature quadrature;
+
+    //---
+    // int nurates_quad_nx;     // no. of quadrature points for 1d integration (bns_nurates)
+    // int nurates_quad_ny;     // no. of quadrature points for 2d integration (bns_nurates)
+    // Real opacity_tau_trap;   // incl. effects of neutrino trapping above this optical depth
+    // Real opacity_tau_delta;  // range of optical depths over which trapping is introduced
+    // Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
+    // Real rho_min_cgs;
+    // Real temp_min_mev;
+    // bool use_abs_em;
+    // bool use_pair;
+    // bool use_brem;
+    // bool use_iso;
+    // bool use_inelastic_scatt;
+    // bool use_WM_ab;
+    // bool use_WM_sc;
+    // bool use_dU;
+    // bool use_dm_eff;
+    // bool use_equilibrium_distribution;
+    // bool use_kirchhoff_law;
+    // MyQuadrature my_quadrature_1d;
+    // MyQuadrature my_quadrature_2d;
+    //---
   };
   
   class BNSNuRates {
@@ -92,13 +118,14 @@ namespace M1::Opacities::BNSNuRates {
       assert(N_GRPS==1);
       
       // Parameters for bns_nurates
-      nurates_params.nurates_quad_nx = pin->GetOrAddInteger("bns_nurates", "nurates_quad_nx", 10);
-      nurates_params.nurates_quad_ny = pin->GetOrAddInteger("bns_nurates", "nurates_quad_ny", 10);
+      nurates_params.nurates_quad_nx = pin->GetOrAddInteger("bns_nurates", "nurates_quad_nx", 8);
+      nurates_params.nurates_quad_ny = pin->GetOrAddInteger("bns_nurates", "nurates_quad_ny", 8);
       nurates_params.opacity_tau_trap = pin->GetOrAddReal("bns_nurates", "opacity_tau_trap", 1.0);
       nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
       nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
-      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.);
-      nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.);
+
+      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); //TODO default? fix to equilibration_*_min_cgs?
+      nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.); //TODO default?
       
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true);
       nurates_params.use_pair = pin->GetOrAddBoolean("bns_nurates", "use_pair", true);
@@ -111,22 +138,39 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", true);
       nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false);
       nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", false);
-      
-      nurates_params.my_quadrature_1d.nx = nurates_params.nurates_quad_nx;
-      nurates_params.my_quadrature_1d.dim = 1;
-      nurates_params.my_quadrature_1d.type = kGauleg;
-      nurates_params.my_quadrature_1d.x1 = 0.;
-      nurates_params.my_quadrature_1d.x2 = 1.;
-      nurates_params.my_quadrature_2d.nx = nurates_params.nurates_quad_nx;
-      nurates_params.my_quadrature_2d.ny = nurates_params.nurates_quad_ny;
-      nurates_params.my_quadrature_2d.dim = 2;
-      nurates_params.my_quadrature_2d.type = kGauleg;
-      nurates_params.my_quadrature_2d.x1 = 0.;
-      nurates_params.my_quadrature_2d.x2 = 1.;
-      nurates_params.my_quadrature_2d.y1 = 0.;
-      nurates_params.my_quadrature_2d.y2 = 1.;
-      //GaussLegendreMultiD(&nurates_params.my_quadrature_1d);
+      nurates_params.use_NN_medium_corr =
+        pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", true);
+      nurates_params.neglect_blocking =
+        pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
+      nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false);
+      nurates_params.use_BRT_brem =
+        pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false);
 
+
+      nurates_params.quadrature.nx = nurates_params.quad_nx;
+      nurates_params.quadrature.dim = 1;
+      nurates_params.quadrature.type = kGauleg;
+      nurates_params.quadrature.x1 = 0.;
+      nurates_params.quadrature.x2 = 1.;
+      GaussLegendre(&nurates_params.quadrature);
+
+      //---
+      // nurates_params.my_quadrature_1d.nx = nurates_params.nurates_quad_nx;
+      // nurates_params.my_quadrature_1d.dim = 1;
+      // nurates_params.my_quadrature_1d.type = kGauleg; //TODO kGauleg = ?
+      // nurates_params.my_quadrature_1d.x1 = 0.;
+      // nurates_params.my_quadrature_1d.x2 = 1.;
+      // nurates_params.my_quadrature_2d.nx = nurates_params.nurates_quad_nx;
+      // nurates_params.my_quadrature_2d.ny = nurates_params.nurates_quad_ny;
+      // nurates_params.my_quadrature_2d.dim = 2;
+      // nurates_params.my_quadrature_2d.type = kGauleg;
+      // nurates_params.my_quadrature_2d.x1 = 0.;
+      // nurates_params.my_quadrature_2d.x2 = 1.;
+      // nurates_params.my_quadrature_2d.y1 = 0.;
+      // nurates_params.my_quadrature_2d.y2 = 1.;
+      // GaussLegendreMultiD(&nurates_params.my_quadrature_1d);
+      //---
+      
       // Weak equilibrium parameters
 
       verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
@@ -137,9 +181,9 @@ namespace M1::Opacities::BNSNuRates {
       opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
 
       // density below which nothing is done [g/cm^3]
-      rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", -1.0);
+      rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0);
       // temperature below which nothing is done [MeV]
-      temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", -1.0);
+      temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", 0.0);
 
       // EOS limits
       Real infty = std::numeric_limits<Real>::infinity();
