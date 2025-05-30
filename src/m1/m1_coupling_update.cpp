@@ -191,30 +191,33 @@ void M1::CoupleSourcesHydro(AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
-
         if (!std::isfinite(S_sc_E(k,j,i)))
         {
           pm1->StatePrintPoint(
             "CoupleSourcesHydro [S_sc_E] non-finite",
             ix_g, ix_s,
             k, j, i, true);
+          if (pm1->opt.zero_fix_sources)
+            SetZeroSources(k,j,i);
         }
-      }
+        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
+     }
 
       // S_j source -----------------------------------------------------------
       for (int a=0; a<N; ++a)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IM1+a,k,j,i) -= S_sp_F_d(a,k,j,i);
         if (!std::isfinite(S_sp_F_d(k,j,i)))
         {
           pm1->StatePrintPoint(
             "CoupleSourcesHydro [S_sp_F_d] non-finite",
             ix_g, ix_s,
             k, j, i, true);
+          if (pm1->opt.zero_fix_sources)
+            SetZeroSources(k,j,i);
         }
+        cons(IM1+a,k,j,i) -= S_sp_F_d(a,k,j,i);
       }
     }
   }

@@ -92,6 +92,23 @@ public:
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
 
+  void SetZeroSources(const int k, const int j, const int i)
+  {
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
+      AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
+
+      S_sc_E(k,j,i) = 0.0;
+      for (int a=0; a<N; ++a)
+      {
+        S_sp_F_d(a,k,j,i) = 0.0;
+      }
+    }
+
+  }
+
   void PerformAnalysis();
 
 // data =======================================================================
@@ -211,6 +228,9 @@ public:
 
     // debugging:
     bool value_inject;
+
+    // if flooring was too strict, we can still save the source (set zero)
+    bool zero_fix_sources = true;
   } opt;
 
   struct
