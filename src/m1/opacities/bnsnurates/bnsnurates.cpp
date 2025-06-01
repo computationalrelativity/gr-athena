@@ -101,33 +101,6 @@ namespace M1::Opacities::BNSNuRates {
     
     int ierr = 0;
 
-    //--
-    //TODO placeholder until debug, then remove
-    // from cm^-3 to code
-    //const Real cgs2code_n = 1. / std::pow(units.cgs2code_length, 3);
-    // from MeV cm^-3 to code
-    //const Real cgs2code_j = units.cgs2code_energy / std::pow(units.cgs2code_length, 3);
-    // from cm^-3 s^-1 to code
-    //const Real cgs2code_R =  1. / (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
-    // from MeV cm^-3 s^-1 to code
-    //const Real cgs2code_Q = MEV_TO_ERG * units.cgs2code_energy / (units.cgs2code_time * std::pow(units.cgs2code_length, 3));
-    // from cm^-1 to code
-    //const Real cgs2code_kappa = 1. / (units.cgs2code_length);
-    // ---
-    // compute conversion factors (latest K)
-    // const Real cgs2code_length3 =
-    //     units.cgs2code_length * units.cgs2code_length * units.cgs2code_length;
-    // const Real cgs2code_n = 1. / cgs2code_length3;  // cm^-3 --> code units
-    // const Real cgs2code_j =
-    //     units.cgs2code_energy / cgs2code_length3;  // MeV cm^-3 --> code units
-    // const Real cgs2code_R =
-    //     1. / (units.cgs2code_time * cgs2code_length3);  // cm^-3 s^-1 --> code units
-    // const Real cgs2code_Q =
-    //     units.cgs2code_energy /
-    //     (units.cgs2code_time * cgs2code_length3);  // MeV cm^-3 s^-1 --> code units
-    // const Real cgs2code_kappa =
-    //     1. / (units.cgs2code_length);  // cm^-1 --> code units
-    //---
     // Some conversions factors for opacities from CGS+MeV to code units
     // from cm^-3 to code units
     const Real cgs2code_n = my_units->NumberDensityConversion(*code_units);
@@ -179,17 +152,10 @@ namespace M1::Opacities::BNSNuRates {
       return ierr;
     }
 
-    // Convert neutrino quantities to CGS
-    // const Real n_nue_cgs = n_nue / (cgs2code_n / NORMFACT) * 1e-21;
-    // const Real n_anue_cgs = n_anue / (cgs2code_n / NORMFACT) * 1e-21;
-    // const Real n_nux_cgs = n_nux / (cgs2code_n / NORMFACT) * 1e-21;
-    // const Real n_anux_cgs = n_anux / (cgs2code_n / NORMFACT) * 1e-21;
-    // const Real j_nue_cgs = j_nue / cgs2code_j;
-    // const Real j_anue_cgs = j_anue / cgs2code_j;
-    // const Real j_nux_cgs = j_nux / cgs2code_j;
-    // const Real j_anux_cgs = j_anux / cgs2code_j;
+    // bns_nurates requires CGS + MeV + nm units 
+    // this needs a further rescaling from cm to nm
     
-    // convert neutrino quantities from code units to CGS/nm units (adjust for NORMFACT)
+    // convert neutrino quantities from code units to CGS + nm units (and adjust for NORMFACT)
     const Real n_nue_nmunits = n_nue / (cgs2code_n / NORMFACT) * 1e-21;    // [nm^-3]
     const Real n_anue_nmunits = n_anue / (cgs2code_n / NORMFACT) * 1e-21;  // [nm^-3]
     const Real n_nux_nmunits = n_nux / (cgs2code_n / NORMFACT) * 1e-21;    // [nm^-3]
@@ -201,7 +167,7 @@ namespace M1::Opacities::BNSNuRates {
     const Real j_anux_nmunits = j_anux / cgs2code_j * 1e-21 * kBS_MeV;  // [g s^-2 nm^-1]
 
     // convert also baryon density
-    const Real nb_nmunits = nb / my_units->MassDensityConversion(*code_units) * 1e-21;  // [baryon/nm^-3]   //TODO check!!!
+    const Real nb_nmunits = nb / my_units->NumberDensityConversion(*code_units) * 1e-21; // [baryon/nm^-3]
     
     // opacity params structure
     GreyOpacityParams grey_opacity_params{};
@@ -230,15 +196,6 @@ namespace M1::Opacities::BNSNuRates {
     // See THC WeakRates2.
     
     // populate EOS quantities
-    // grey_opacity_params.eos_pars.mu_e = mu_e_mev; 
-    // grey_opacity_params.eos_pars.mu_p = mu_p_mev; 
-    // grey_opacity_params.eos_pars.mu_n = mu_n_mev; 
-    // grey_opacity_params.eos_pars.temp = temp_mev; 
-    // grey_opacity_params.eos_pars.yp = ye;
-    // grey_opacity_params.eos_pars.yn = 1 - ye;
-    // grey_opacity_params.eos_pars.nb = nb_cgs;
-    
-    // populate EOS quantities
     grey_op_params.eos_pars.nb = nb_nmunits;  // [baryon/nm^3]
     grey_op_params.eos_pars.temp = temp_mev;  // [MeV]
     grey_op_params.eos_pars.yp = ye;          // [dimensionless]
@@ -254,20 +211,6 @@ namespace M1::Opacities::BNSNuRates {
     // means "mu OR tau").
     // GR-Athena++ uses same treatment as THC.
     
-    //--- CGS
-    // grey_opacity_params.m1_pars.n[id_nue] = n_nue_cgs;
-    // grey_opacity_params.m1_pars.J[id_nue] = j_nue_cgs;
-    // grey_opacity_params.m1_pars.chi[id_nue] = chi_nue;
-    // grey_opacity_params.m1_pars.n[id_anue] = n_anue_cgs;
-    // grey_opacity_params.m1_pars.J[id_anue] = j_anue_cgs;
-    // grey_opacity_params.m1_pars.chi[id_anue] = chi_anue;
-    // grey_opacity_params.m1_pars.n[id_nux] = n_nux_cgs * 0.5;
-    // grey_opacity_params.m1_pars.J[id_nux] = j_nux_cgs * 0.5;
-    // grey_opacity_params.m1_pars.chi[id_nux] = chi_nux;
-    // grey_opacity_params.m1_pars.n[id_anux] = n_anux_cgs * 0.5;
-    // grey_opacity_params.m1_pars.J[id_anux] = j_anux_cgs * 0.5;
-    // grey_opacity_params.m1_pars.chi[id_anux] = chi_anux;
-    //---
     grey_op_params.m1_pars.n[id_nue] = n_nue_nmunits;  // [nm^-3]
     grey_op_params.m1_pars.J[id_nue] = j_nue_nmunits;  // [g s^-2 nm^-1]
     grey_op_params.m1_pars.chi[id_nue] = chi_nue;
@@ -301,25 +244,17 @@ namespace M1::Opacities::BNSNuRates {
       grey_opacity_params.m1_pars.chi[id_nux] = 0.333333333333333333333333333;
       grey_opacity_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
       
-      // convert neutrino energy density to mixed MeV and cgs as requested by bns_nurates //TODO check!
-      // grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV; //TODO kBS_MeV = ...
-      // grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
-      // grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
-      // grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
-      
+      // convert neutrino energy density to mixed MeV and cgs as requested by bns_nurates
+      grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV; 
+      grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
+      grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
+      grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
     }
     
     // compute opacities
     M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature,
                                                &nurates_params.quadrature,
                                                &grey_op_params);
-
-    //---
-    // M1Opacities opacities =
-    //   ComputeM1Opacities(&nurates_params.my_quadrature_1d,
-    //                      &nurates_params.my_quadrature_2d,
-    //                      &grey_opacity_params);
-    //---
     
     // Similar to the comment above, the factors of 2 come from the fact that
     // bns_nurates and THC weight the heavy neutrinos differently. THC weights
@@ -503,8 +438,8 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(en_anue));
     assert(isfinite(en_nux));
 
-    // convert back to code units 
-    const Real n_conv = my_units->NumberDensityConversion(*code_units);
+    // convert back to code units (adjusting for NORMFACT)
+    const Real n_conv = my_units->NumberDensityConversion(*code_units) / NORMFACT;
     const Real e_conv = MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units);
 
     n_nue = n_nue * n_conv;
@@ -513,23 +448,7 @@ namespace M1::Opacities::BNSNuRates {
 
     en_nue = en_nue * e_conv;
     en_anue = en_anue * e_conv;
-    en_nux = en_nux * e_conv;
-
-    //--
-    //TODO placeholder until debug, then remove // check this NORMFACT ?!
-    // const Real n_factor =
-    //   NORMFACT * units.cgs2code_length * units.cgs2code_length * units.cgs2code_length;
-    // n_nue = n_nue / n_factor;
-    // n_anue = n_anue / n_factor;
-    // n_nux = n_nux / n_factor;
-    // const Real en_factor =
-    //   units.cgs2code_energy /
-    //   (units.cgs2code_length * units.cgs2code_length * units.cgs2code_length);
-    // en_nue = en_nue / en_factor;
-    // en_anue = en_anue / en_factor;
-    // en_nux = en_nux / en_factor;
-    //--
-    
+    en_nux = en_nux * e_conv;    
   }
 
   
@@ -666,9 +585,8 @@ namespace M1::Opacities::BNSNuRates {
       e_nux_eq = e_eq[3];
       
       return iout;
-
     } 
-
+  
   
   // weak_equil_wnu
   //     input:
@@ -1013,9 +931,8 @@ namespace M1::Opacities::BNSNuRates {
         } 
 
         // Here we simple enforce limits with eos_*_min/max values.
-        //TODO this call is called ApplyTableLimits in weakrates/weak_eos
-        //     but it has a bit more logic and options
-        //     ADD OPTIONS/CHECKS?
+        // This call is called ApplyTableLimits in weakrates/weak_eos
+        // but it is with different options
         bool tabBoundsFlag = apply_eos_limits(rho, x1_tmp[0], x1_tmp[1]); 
         
         // assign the new point

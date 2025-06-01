@@ -49,30 +49,7 @@ namespace M1::Opacities::BNSNuRates {
     
     int quad_nx;  // no. of quadrature points for 1d integration (bns_nurates)
     MyQuadrature quadrature;
-
-    //---
-    // int nurates_quad_nx;     // no. of quadrature points for 1d integration (bns_nurates)
-    // int nurates_quad_ny;     // no. of quadrature points for 2d integration (bns_nurates)
-    // Real opacity_tau_trap;   // incl. effects of neutrino trapping above this optical depth
-    // Real opacity_tau_delta;  // range of optical depths over which trapping is introduced
-    // Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
-    // Real rho_min_cgs;
-    // Real temp_min_mev;
-    // bool use_abs_em;
-    // bool use_pair;
-    // bool use_brem;
-    // bool use_iso;
-    // bool use_inelastic_scatt;
-    // bool use_WM_ab;
-    // bool use_WM_sc;
-    // bool use_dU;
-    // bool use_dm_eff;
-    // bool use_equilibrium_distribution;
-    // bool use_kirchhoff_law;
-    // MyQuadrature my_quadrature_1d;
-    // MyQuadrature my_quadrature_2d;
-    //---
-  };
+   };
   
   class BNSNuRates {
 
@@ -153,25 +130,8 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.quadrature.x1 = 0.;
       nurates_params.quadrature.x2 = 1.;
       GaussLegendre(&nurates_params.quadrature);
-
-      //---
-      // nurates_params.my_quadrature_1d.nx = nurates_params.nurates_quad_nx;
-      // nurates_params.my_quadrature_1d.dim = 1;
-      // nurates_params.my_quadrature_1d.type = kGauleg; //TODO kGauleg = ?
-      // nurates_params.my_quadrature_1d.x1 = 0.;
-      // nurates_params.my_quadrature_1d.x2 = 1.;
-      // nurates_params.my_quadrature_2d.nx = nurates_params.nurates_quad_nx;
-      // nurates_params.my_quadrature_2d.ny = nurates_params.nurates_quad_ny;
-      // nurates_params.my_quadrature_2d.dim = 2;
-      // nurates_params.my_quadrature_2d.type = kGauleg;
-      // nurates_params.my_quadrature_2d.x1 = 0.;
-      // nurates_params.my_quadrature_2d.x2 = 1.;
-      // nurates_params.my_quadrature_2d.y1 = 0.;
-      // nurates_params.my_quadrature_2d.y2 = 1.;
-      // GaussLegendreMultiD(&nurates_params.my_quadrature_1d);
-      //---
       
-      // Weak equilibrium parameters
+      // Weak equilibrium parameters ----------------------------------------------
 
       verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
       
@@ -313,7 +273,7 @@ namespace M1::Opacities::BNSNuRates {
             // this is just to avoid to touch the code below.
             //TODO WeakRate code has been updated since this branch started
             //     some varnames have changed, fix this code as well.
-            //     temporarily we copy to old varnames:
+            // Temporarily we copy to old varnames:
             Real eta_n_nue = eta_0_loc[0];
             Real eta_n_nua = eta_0_loc[1];
             Real eta_n_nux = eta_0_loc[2] + eta_0_loc[3]; // sum up anux contrib.
@@ -649,7 +609,7 @@ namespace M1::Opacities::BNSNuRates {
 #undef QUAD
 
     // Factors needed for some unit conversion
-    const Real NORMFACT = 1e50;
+    const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid overflows
     const Real MEV_TO_ERG = 1.6021766339999e-6;
     
     // Main wrapper
