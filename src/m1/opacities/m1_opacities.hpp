@@ -10,8 +10,10 @@
 #include "fake/m1_opacities_fake.hpp"
 #include "photon/m1_opacities_photon.hpp"
 
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
 #include "weakrates/m1_opacities_weakrates.hpp"
+#elif (M1_BNSNURATES)
+#include "bnsnurates/bnsnurates.hpp"
 #endif
 
 // ============================================================================
@@ -39,9 +41,12 @@ public:
     if (popac_photon != nullptr)
       delete popac_photon;
 
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
     if (popac_weakrates != nullptr)
       delete popac_weakrates;
+#elif (M1_BNSNURATES)
+    if (popac_bnsnurates != nullptr)
+      delete popac_bnsnurates;
 #endif
   };
 
@@ -69,10 +74,16 @@ public:
         popac_photon->CalculateOpacityPhoton(dt, u);
         break;
       }
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
       case (opt_opacity_variety::weakrates):
       {
         popac_weakrates->CalculateOpacityWeakRates(dt, u);
+        break;
+      }
+#elif (M1_BNSNURATES)
+    case (opt_opacity_variety::bnsnurates):
+      {
+        popac_bnsnurates->CalculateOpacityBNSNuRates(dt, u);
         break;
       }
 #endif
@@ -104,7 +115,7 @@ public:
         nudens(1, 0) = popac_photon->black_body(w_T);
         break;
       }
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
       case opt_opacity_variety::weakrates:
       {
         // For 4 species neutrino transport we need to divide the nux luminosity
@@ -133,7 +144,37 @@ public:
 
         break;
       }
-#endif  // !(M1_NO_WEAKRATES)
+#elif (M1_BNSNURATES)
+    case opt_opacity_variety::bnsnurates:
+      {
+        // For 4 species neutrino transport we need to divide the nux luminosity
+        // by 2
+        const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
+
+        const int ierr = popac_bnsnurates->pmy_bnsnurates->NeutrinoDensity(
+          w_rho,        // Real rho,
+          w_T,          // Real temp,
+          w_Y_e,        // Real ye,
+          nudens(0, 0), // Real &n_nue,
+          nudens(0, 1), // Real &n_nua,
+          nudens(0, 2), // Real &n_nux,
+          nudens(1, 0), // Real &e_nue,
+          nudens(1, 1), // Real &e_nua,
+          nudens(1, 2)  // Real &e_nux
+        );
+
+        assert(!ierr);
+
+        nudens(0,2) *= nux_weight;
+        nudens(1,2) *= nux_weight;
+
+        nudens(0,3) = nudens(0,2);
+        nudens(1,3) = nudens(1,2);
+
+        break;
+      }
+
+#endif  // (M1_WEAKRATES)
       default:
       {
         assert(false);
@@ -152,8 +193,10 @@ private:
   // some varieties have their own classes ------------------------------------
   Fake::Fake           * popac_fake   = nullptr;
   Photon::Photon       * popac_photon = nullptr;
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
   WeakRates::WeakRates * popac_weakrates = nullptr;
+#elif (M1_BNSNURATES)
+  WeakRates::WeakRates * popac_bnsnurates = nullptr;
 #endif
   // --------------------------------------------------------------------------
 
@@ -182,11 +225,17 @@ private:
         opt.opacity_variety = opt_opacity_variety::photon;
         popac_photon = new Photon::Photon(pmy_block, pm1, pin);
       }
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
       else if (tmp == "weakrates")
       {
         opt.opacity_variety = opt_opacity_variety::weakrates;
         popac_weakrates = new WeakRates::WeakRates(pmy_block, pm1, pin);
+      }
+#elif (M1_BNSNURATES)
+      else if (tmp == "bnsnurates")
+      {
+        opt.opacity_variety = opt_opacity_variety::bsnurates;
+        popac_weakrates = new WeakRates::BNSNuRates(pmy_block, pm1, pin);
       }
 #endif
       else

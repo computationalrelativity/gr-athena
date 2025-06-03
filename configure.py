@@ -424,12 +424,20 @@ parser.add_argument(
   "-m1", action="store_true", default=False, help="enable M1 neutrino transport"
 )
 
-# -m1_no_weakrates argument
+# -m1_weakrates argument
 parser.add_argument(
-  "-m1_no_weakrates",
+  "-m1_weakrates",
   action="store_true",
   default=False,
-  help="disable compilation of M1 weakrates opacities",
+  help="enable compilation of M1 weakrates opacities",
+)
+
+# -m1_bnsnurate argument
+parser.add_argument(
+  "-m1_bnsnurates",
+  action="store_true",
+  default=False,
+  help="enable compilation of M1 bnsnurates opacities",
 )
 
 # -ejecta argument
@@ -1175,11 +1183,16 @@ if args["m1"]:
 else:
   definitions["M1_ENABLED"] = "0"
 
-# -m1 - neutrino transport
-if args["m1_no_weakrates"]:
-  definitions["M1_NO_WEAKRATES"] = "1"
+# -m1 - weak rates 
+if args["m1_weakrates"]:
+  definitions["M1_WEAKRATES"] = "0"
 else:
-  definitions["M1_NO_WEAKRATES"] = "0"
+  definitions["M1_WEAKRATES"] = "1"
+
+if args["m1_bnsnurates"]:
+  definitions["M1_BNSNURATES"] = "1"
+else:
+  definitions["M1_BNSNURATES"] = "0"
 
 # -ejecta
 if args["ejecta"]:
@@ -2029,8 +2042,10 @@ if args["m1"]:
   src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/fake/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/photon/*.cpp)")
-  if not args["m1_no_weakrates"]:
+  if args["m1_weakrates"]:
     src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
+  elif args["m1_bnsnurates"]:
+    src_aux.append("$(wildcard src/m1/opacities/bnsnurates/*.cpp)")
 
 makefile_options["M1_SRC"] = "\\\n".join(src_aux)
 
