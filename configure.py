@@ -94,6 +94,8 @@
 # M1 neutrino transport:
 #
 #   -m1                 enable M1 neutrino transport
+#   -m1_weakrates       enable weak rates  (nu opactities) 
+#   -m1_bnsnurates      enable bns_nurates (nu opactities)
 #
 # Ejecta:
 #

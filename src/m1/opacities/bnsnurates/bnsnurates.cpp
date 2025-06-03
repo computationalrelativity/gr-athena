@@ -1,6 +1,3 @@
-#ifndef M1_OPACITIES_BNSNURATES_HPP
-#define M1_OPACITIES_BNSNURATES_HPP
-
 #include <limits>
 
 // Athena++ classes headers
@@ -9,14 +6,13 @@
 #include "../../../hydro/hydro.hpp"
 #include "../../m1.hpp"
 
-#include "units.hpp"
-#include "fermi.hpp"
 #include "bnsnurates.hpp"
 
 namespace M1::Opacities::BNSNuRates {
   
-  // Assert opacities?
-#define ASSERT_OPAC_ISFINITE (0)
+  // Assert opacities and other stuff?
+#define ASSERT_OPAC_ISFINITE (1)
+#define ASSERT_NDEN_ISFINITE (1)
   
   // Variable to switch between analytic and numerical solutions of Fermi integrals
 #define FERMI_ANALYTIC (1)
@@ -318,7 +314,7 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(scat_1_anue));
     assert(isfinite(scat_1_nux));
     assert(isfinite(scat_1_anux));
-#end
+#endif
     // Catch these and return ierr code 1...24
     // (returns int for the number of failures.)
     if (isfinite(R_nue)) ierr++; 
@@ -430,14 +426,16 @@ namespace M1::Opacities::BNSNuRates {
     en_nue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nue);    // [MeV cm^-3]
     en_anue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_anue);  // [MeV cm^-3]
     en_nux = 16.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV cm^-3]
-    
+
+#if (ASSERT_NDEN_ISFINITE)
     assert(isfinite(n_nue));
     assert(isfinite(n_anue));
     assert(isfinite(n_nux));
     assert(isfinite(en_nue));
     assert(isfinite(en_anue));
     assert(isfinite(en_nux));
-
+#endif
+    
     // convert back to code units (adjusting for NORMFACT)
     const Real n_conv = my_units->NumberDensityConversion(*code_units) / NORMFACT;
     const Real e_conv = MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units);
@@ -555,12 +553,13 @@ namespace M1::Opacities::BNSNuRates {
       
       // Compute energy
       // NB EOS calls require I/O unit conversion
+      Real Y[1] = {ye};
       Real e_in[4] = {0.0};
       e_in[0] = pmy_block->peos->GetEOS().GetEnergy(nb
                                                     * my_units->NumberDensityConversion(*code_units),
                                                     temp
                                                     * my_units->TemperatureConversion(*code_units),
-                                                    ye)
+                                                    Y)
         * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
 
       e_in[1] = e_nue;
@@ -574,7 +573,7 @@ namespace M1::Opacities::BNSNuRates {
       int ierr = 0;
       weak_equil_wnu(rho, temp, y_in, e_in, temp_eq, y_eq, e_eq, na, ierr);
       ye_eq = y_eq[0];
-      iout = (ierr != 0) -1 : 0 ;
+      iout = (ierr != 0) ? -1 : 0 ;
 
       // Split output arrays from weak_equil_wnu
       n_nue_eq  = nb * y_eq[1];
@@ -747,11 +746,12 @@ namespace M1::Opacities::BNSNuRates {
     // Check that the energy is positive
     // EOS calls requires code units
     // For tabulated eos we should check that the energy is above the minimum?
+    Real Y[1] = {y_eq[0]};
     Real e_min = pmy_block->peos->GetEOS().GetEnergy(nb
                                                      * my_units->NumberDensityConversion(*code_units),
                                                      eos_temp_min
                                                      * my_units->TemperatureConversion(*code_units),
-                                                     y_eq[0])
+                                                     Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3]                     
     
     if (e_eq[0] < e_min) {
@@ -861,7 +861,7 @@ namespace M1::Opacities::BNSNuRates {
     
     // loop until a low enough residual is found or until  a too
     // large number of steps has been performed
-    while (err>eps_lim && n_iter<=n_max && !KKT) {
+    while (err>eps_lim && n_iter<=n_max_iter && !KKT) {
       
       // compute the Jacobian
       jacobi_eq_weak(rho,u,yl,x1,J,ierr);
@@ -958,7 +958,7 @@ namespace M1::Opacities::BNSNuRates {
     
     // if equilibrium has been found, set ierr=0 and return
     // if too many attempts have been performed, set ierr=1
-    ierr =  (n_iter <= n_max) ? 0 : 1;
+    ierr =  (n_iter <= n_max_iter) ? 0 : 1;
     
     return;
   }
@@ -990,11 +990,12 @@ namespace M1::Opacities::BNSNuRates {
     Real mus[2] = {mu_e, mu_n - mu_p};
     
     // Call the EOS
+    Real Y[1] = {x[1]};
     Real e = pmy_block->peos->GetEOS().GetEnergy(rho/atomic_mass
                                                  * my_units->NumberDensityConversion(*code_units),
                                                  x[0]
                                                  * my_units->TemperatureConversion(*code_units),
-                                                 x[1])
+                                                 Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3]
     
     // compute the neutrino degeneracy paramater at equilibrium..........
@@ -1056,7 +1057,8 @@ namespace M1::Opacities::BNSNuRates {
     // Interpolate the chemical potentials (stored in MeV in the table)
     Real t = x[0];
     Real ye = x[1];
-    
+
+    Real mu_n, mu_p, mu_e;
     ChemicalPotentials_npe_cgs(rho, t, ye,  mu_n, mu_p, mu_e);
     Real mus[2] = {0.0};
     mus[0] = mu_e;        // electron chemical potential (w rest mass) [MeV]
@@ -1154,34 +1156,36 @@ namespace M1::Opacities::BNSNuRates {
     // slightly different ye
 
     Real nb = rho/atomic_mass;
+    Real mu_n, mu_p, mu_e;
     
     //  first, for ye slightly smaller
-    Real ye1 = max(ye - delta_ye, eos_ye_min);
+    Real ye1 = std::max(ye - delta_ye, eos_ye_min);
     Real yev = ye1;
     
-    Real mu_n, mu_p, mu_e;
     ChemicalPotentials_npe_cgs(rho, t, yev,  mu_n, mu_p, mu_e);
     Real mus1[2] = {mu_e, mu_n - mu_p};
-        
+
+    Real Y[1] = {yev};
     Real e1 = pmy_block->peos->GetEOS().GetEnergy(nb
                                                   * my_units->NumberDensityConversion(*code_units),
                                                   t
                                                   * my_units->TemperatureConversion(*code_units),
-                                                  yev)
+                                                  Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
     
     // second, for ye slightly larger
-    Real ye2 = min(ye + delta_ye, eos_ye_max);
+    Real ye2 = std::min(ye + delta_ye, eos_ye_max);
     yev = ye2;
     
     ChemicalPotentials_npe_cgs(rho, t, yev,  mu_n, mu_p, mu_e);
     Real mus2[2] = {mu_e, mu_n - mu_p};
-    
+
+    Y[1] = {yev};
     Real e2 = pmy_block->peos->GetEOS().GetEnergy(nb
                                                   * my_units->NumberDensityConversion(*code_units),
                                                   t
                                                   * my_units->TemperatureConversion(*code_units),
-                                                  yev)
+                                                  Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
     
     // compute numerical derivaties.........................................
@@ -1190,8 +1194,8 @@ namespace M1::Opacities::BNSNuRates {
     dedye          = (e2-e1)/(ye2 - ye1);
     
     // vary the temperature.................................................
-    Real t1 = max(t - delta_t, eos_temp_min);
-    Real t2 = min(t + delta_t, eos_temp_max);
+    Real t1 = std::max(t - delta_t, eos_temp_min);
+    Real t2 = std::min(t + delta_t, eos_temp_max);
     
     // these are the two other calls to the EOS. The goal here is to get
     // the fluid internal energy and the chemical potential for
@@ -1202,30 +1206,33 @@ namespace M1::Opacities::BNSNuRates {
     // ye is the original one
     
     // first, for t slightly smaller
-    Real tv = t1;
-    
-    Real mu_n, mu_p, mu_e;
-    ChemicalPotentials_npe_cgs(rho, t1, ye,  mu_n, mu_p, mu_e );
-    Real mus1[2] = {mu_e, mu_n - mu_p};
-    
+    Real tv = t1;    
+
+    ChemicalPotentials_npe_cgs(rho, tv, ye,  mu_n, mu_p, mu_e );
+    mus1[0] = mu_e;
+    mus1[1] = mu_n - mu_p;
+
+    Y[0] = ye;
     e1 = pmy_block->peos->GetEOS().GetEnergy(nb 
                                              * my_units->NumberDensityConversion(*code_units),
                                              t1
                                              * my_units->TemperatureConversion(*code_units),
-                                             ye)
+                                             Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
     
     // second, for t slightly larger
     tv = t2;
     
     ChemicalPotentials_npe_cgs(rho, tv, ye,  mu_n, mu_p, mu_e);
-    Real mus1[2] = {mu_e, mu_n - mu_p};
-    
+    mus2[0] = mu_e;
+    mus2[1] = mu_n - mu_p;
+ 
+    Y[0] = ye;
     e2 = pmy_block->peos->GetEOS().GetEnergy(nb
                                              * my_units->NumberDensityConversion(*code_units),
                                              tv
                                              * my_units->TemperatureConversion(*code_units),
-                                             ye)
+                                             Y)
       * code_units->EnergyDensityConversion(*my_units); // [g/cm^3] 
     
     // compute the derivatives wrt temperature..............................
@@ -1238,16 +1245,10 @@ namespace M1::Opacities::BNSNuRates {
     detadye = (dmuedye - dmuhatdye)/t;      // [-]
     
     // check if the derivative has a problem................................
-    if (isnan(detadt)) {
-      ierr = 1;
-      return; 
-    }
-    
-    ierr = 0;
+    ierr = isnan(detadt) ? 1 : 0 ;
     return;
   }
-
-  
+    
   // inv_jacobi
   //
   //     This subroutine inverts the Jacobian matrix, assuming it to be a
@@ -1322,10 +1323,10 @@ namespace M1::Opacities::BNSNuRates {
       
       for (int it=0; it<3; it++) {
 #if (FERMI_ANALYTIC)
-        Real f2 = fermi2(eta_nu[it]);
+        Real f2 = Fermi::fermi2(eta_nu[it]);
 #else
         Real f2 = 0.0;
-        fermiint(2.0,eta_nu[it],f2);
+        Fermi::fermiint(2.0,eta_nu[it],f2);
 #endif
         nu_dens[it] = pref * temp_m3 * f2; // [#/cm^3]
       } 
@@ -1351,10 +1352,10 @@ namespace M1::Opacities::BNSNuRates {
     
     for (int it=0; it<3; it++) {
 #if (FERMI_ANALYTIC)
-      Real f3 = fermi3(eta_nu[it]);
+      Real f3 = Fermi::fermi3(eta_nu[it]);
 #else
       Real f3 = 0.0;
-      fermiint(3.0,eta_nu[it],f3);
+      Fermi::fermiint(3.0,eta_nu[it],f3);
 #endif
       enu_dens[it] = pref * temp_m4 * f3;
     } 
@@ -1363,4 +1364,3 @@ namespace M1::Opacities::BNSNuRates {
   
 } // namespace M1::Opacities::BNSNuRates
 
-#endif //M1_OPACITIES_BNSNURATES_HPP

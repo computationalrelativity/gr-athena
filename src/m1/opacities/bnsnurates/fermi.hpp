@@ -9,7 +9,7 @@
 // Approximates Fermi integrals following
 // Takahashi, K., El Eid, M. F., Hillebrandt, W, A&A 67, 185 (1978)
 
-namespace M1::Opacities::BNSNuRates::BNSNuRatesFermi {
+namespace M1::Opacities::BNSNuRates::Fermi {
 //-----------------------------------------------------------------------
 // FERMI 2
 //-----------------------------------------------------------------------

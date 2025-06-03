@@ -10,10 +10,9 @@
 
 #include "../../../athena.hpp"
 
-#define SQR(x) ((x)*(x))
 #define CUBE(x) ((x)*(x)*(x))
 
-namespace M1::Opacities::BNSNuRates::WeakRates_Units {
+namespace M1::Opacities::BNSNuRates::BNSNuRates_Units {
 
 struct UnitSystem {
   const Real c;    //! Speed of light
@@ -161,7 +160,6 @@ static UnitSystem WeakRatesUnits{
 
 } // namespace
 
-#undef SQR
 #undef CUBE
 
 #endif
