@@ -12,7 +12,7 @@
 #include "units.hpp"
 #include "fermi.hpp"
 
-// bns_nurates headers
+// bns_nurates headers from:
 // https://github.com/RelNucAs/bns_nurates
 #include "bns_nurates/include/bns_nurates.hpp"
 #include "bns_nurates/include/constants.hpp"
@@ -22,8 +22,9 @@
 #include "bns_nurates/include/m1_opacities.hpp"
 
 
-namespace M1::Opacities::BNSNuRates {
+namespace M1::Opacities::BNSNuRatesNeutrinos {
 
+  
   struct NuratesParams {
     Real opacity_tau_trap;   // incl. effects of neutrino trapping above this optical depth
     Real opacity_tau_delta;  // range of optical depths over which trapping is introduced
@@ -122,7 +123,6 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_BRT_brem =
         pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false);
 
-
       nurates_params.quadrature.nx = nurates_params.quad_nx;
       nurates_params.quadrature.dim = 1;
       nurates_params.quadrature.type = kGauleg;
@@ -145,26 +145,21 @@ namespace M1::Opacities::BNSNuRates {
       temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", 0.0);
 
       // EOS limits
+      // NB These values need to be in my_units (CGS+MeV) 
       Real infty = std::numeric_limits<Real>::infinity();
+
+      // Set maximal ranges
       eos_rho_min = pin->GetOrAddReal("M1_opacities", "eos_rho_min_cgs", 0.0);
       eos_rho_max = pin->GetOrAddReal("M1_opacities", "eos_rho_max_cgs", infty);
       eos_temp_min = pin->GetOrAddReal("M1_opacities", "eos_temp_min_mev", 0.0);
       eos_temp_max = pin->GetOrAddReal("M1_opacities", "eos_temp_max_mev", infty);
       eos_ye_min = pin->GetOrAddReal("M1_opacities", "eos_ye_min", 0.0);
       eos_ye_max = pin->GetOrAddReal("M1_opacities", "eos_ye_max", 1.0);
-
-      // Option to override the EOS limits with the table limits
+      
+      // Option to override the EOS limits with the table limits (default)
       bool set_table_limits = pin->GetOrAddReal("M1_opacities", "eos_limits_from_table", true);
 
-      // Options to override rho_min and eos_temp_min with floors
-      bool enforce_rho_floor = pin->GetOrAddReal("M1_opacities", "eos_rho_min_usefloor", false);
-      bool enforce_temp_floor = pin->GetOrAddReal("M1_opacities", "eos_temp_min_usefloor", false);
-
-      // Set some stuff
-
-      // Override EOS limits?
       if (set_table_limits) {
-        // NB These values need to be in my_units (CGS+MeV) 
         eos_rho_min = pmy_block->peos->GetMinimumDensity()
           * code_units->MassDensityConversion(*my_units);
         eos_rho_max = pmy_block->peos->GetMaximumDensity()
@@ -176,9 +171,15 @@ namespace M1::Opacities::BNSNuRates {
         eos_ye_min = pmy_block->peos->GetMinimumSpeciesFraction(0);
         eos_ye_max = pmy_block->peos->GetMaximumSpeciesFraction(0);
       }
+
+      // Options to override rho_min and eos_temp_min with floors
+      bool enforce_rho_floor = pin->GetOrAddReal("M1_opacities", "eos_rho_min_usefloor", false);
+      bool enforce_temp_floor = pin->GetOrAddReal("M1_opacities", "eos_temp_min_usefloor", false);
+
       if (enforce_rho_floor)
         eos_rho_min = pmy_block->peos->GetDensityFloor()
           * code_units->MassDensityConversion(*my_units);
+
       if (enforce_temp_floor)
         eos_temp_min = pmy_block->peos->GetTemperatureFloor()
           * code_units->TemperatureConversion(*my_units);
@@ -243,19 +244,19 @@ namespace M1::Opacities::BNSNuRates {
             // Note: everything sent and received are in code units
 
             int opac_err =
-              bns_nurates(nb, T, Y_e, mu_n, mu_p, mu_e,
-                          dens_n[0], dens_e[0], chi_loc[0], 
-                          dens_n[1], dens_e[1], chi_loc[1],
-                          dens_n[2], dens_e[2], chi_loc[2],
-                          dens_n[3], dens_e[3], chi_loc[3],
-                          eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3],
-                          eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3],
-                          abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3],
-                          abs_1_loc[0], abs_1_loc[1], abs_1_loc[2], abs_1_loc[3],
-                          scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3],
-                          scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3],
-                          nurates_params); 
-
+              bns_nurates_wrapper(nb, T, Y_e, mu_n, mu_p, mu_e,
+				  dens_n[0], dens_e[0], chi_loc[0], 
+				  dens_n[1], dens_e[1], chi_loc[1],
+				  dens_n[2], dens_e[2], chi_loc[2],
+				  dens_n[3], dens_e[3], chi_loc[3],
+				  eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3],
+				  eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3],
+				  abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3],
+				  abs_1_loc[0], abs_1_loc[1], abs_1_loc[2], abs_1_loc[3],
+				  scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3],
+				  scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3],
+				  nurates_params); 
+	    
             bool is_failing_opacity = (opac_err)? true : false;
             
             // Dump some information when opacity calculation fails
@@ -327,23 +328,7 @@ namespace M1::Opacities::BNSNuRates {
                 
                 Real T_star;
                 Real Y_e_star;
-
-                /*
-                Real dens_n[3];
-                Real dens_e[3];
-                Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
-                
-                // FF number density
-                dens_n[0] = pm1->rad.sc_n(0, 0)(k, j, i) * invsdetg;
-                dens_n[1] = pm1->rad.sc_n(0, 1)(k, j, i) * invsdetg;
-                dens_n[2] = pm1->rad.sc_n(0, 2)(k, j, i) * invsdetg;
-                
-                // FF energy density
-                dens_e[0] = pm1->rad.sc_J(0, 0)(k, j, i) * invsdetg;
-                dens_e[1] = pm1->rad.sc_J(0, 1)(k, j, i) * invsdetg;
-                dens_e[2] = pm1->rad.sc_J(0, 2)(k, j, i) * invsdetg;
-                */
-                
+		
                 // Calculate equilibrated state
                 ierr[0] = WeakEquilibrium(rho, T, Y_e,
                                           dens_n[0],
@@ -531,19 +516,19 @@ namespace M1::Opacities::BNSNuRates {
     }
 
     // Main wrapper to bns_nurates
-    bool bns_nurates(Real &nb, Real &temp, Real &ye, Real &mu_n, Real &mu_p, Real &mu_e,
-                     Real &n_nue, Real &j_nue, Real &chi_nue,
-                     Real &n_anue, Real &j_anue, Real &chi_anue,
-                     Real &n_nux, Real &j_nux, Real &chi_nux,
-                     Real &n_anux, Real &j_anux, Real &chi_anux,
-                     Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
-                     Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
-                     Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux,
-                     Real &sigma_0_anux, Real &sigma_1_nue, Real &sigma_1_anue,
-                     Real &sigma_1_nux, Real &sigma_1_anux, Real &scat_0_nue,
-                     Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
-                     Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
-                     const NuratesParams nurates_params);
+    bool bns_nurates_wrapper(Real &nb, Real &temp, Real &ye, Real &mu_n, Real &mu_p, Real &mu_e,
+			     Real &n_nue, Real &j_nue, Real &chi_nue,
+			     Real &n_anue, Real &j_anue, Real &chi_anue,
+			     Real &n_nux, Real &j_nux, Real &chi_nux,
+			     Real &n_anux, Real &j_anux, Real &chi_anux,
+			     Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
+			     Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
+			     Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux,
+			     Real &sigma_0_anux, Real &sigma_1_nue, Real &sigma_1_anue,
+			     Real &sigma_1_nux, Real &sigma_1_anux, Real &scat_0_nue,
+			     Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
+			     Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
+			     const NuratesParams nurates_params);
 
     // Computes the neutrino number and energy density
     void NeutrinoDensity(Real nb, Real temp,
@@ -587,21 +572,15 @@ namespace M1::Opacities::BNSNuRates {
     const Real mev_to_erg = 1.60217733e-6;     // conversion from MeV to erg
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
 
-#define CUBE(x) ((x)*(x)*(x))
-#define QUAD(x) ((x)*(x)*(x)*(x))
-
     const Real pi2   = SQR(pi);                          // pi**2 [-]
-    const Real pref1 = 4.0/3.0*pi/CUBE(hc_mevcm);        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
-    const Real pref2 = 4.0*pi*mev_to_erg/CUBE(hc_mevcm); // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
-    const Real cnst1 = 7.0*QUAD(pi)/20.0;                // 7*pi**4/20 [-]
-    const Real cnst5 = 7.0*QUAD(pi)/60.0;                // 7*pi**4/60 [-]
-    const Real cnst6 = 7.0*QUAD(pi)/30.0;                // 7*pi**4/30 [-]
-    const Real cnst2 = 7.0*QUAD(pi)/5.0;                 // 7*pi**4/5 [-]
-    const Real cnst3 = 7.0*QUAD(pi)/15.0;                // 7*pi**4/15 [-]
-    const Real cnst4 = 14.0*QUAD(pi)/15.0;               // 14*pi**4/15 [-]
-
-#undef CUBE
-#undef QUAD
+    const Real pref1 = 4.0/3.0 *pi/POW3(hc_mevcm);        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
+    const Real pref2 = 4.0 *pi*mev_to_erg/POW3(hc_mevcm); // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
+    const Real cnst1 = 7.0 *POW4(pi)/20.0;                // 7*pi**4/20 [-]
+    const Real cnst5 = 7.0 *POW4(pi)/60.0;                // 7*pi**4/60 [-]
+    const Real cnst6 = 7.0 *POW4(pi)/30.0;                // 7*pi**4/30 [-]
+    const Real cnst2 = 7.0 *POW4(pi)/5.0;                 // 7*pi**4/5 [-]
+    const Real cnst3 = 7.0 *POW4(pi)/15.0;                // 7*pi**4/15 [-]
+    const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
 
     // Factors needed for some unit conversion
     const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid overflows
@@ -650,7 +629,7 @@ namespace M1::Opacities::BNSNuRates {
 
     void weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_in[4],
                         Real& T_eq, Real y_eq[4], Real e_eq[4], int& na, int& ierr);
-    bool apply_table_limits(Real& rho, Real& temp, Real& ye);
+    bool apply_eos_limits(Real& rho, Real& temp, Real& ye);
     void new_raph_2dim(Real rho, Real u, Real yl, Real x0[2],
                        Real x1[2], int& ierr);
     void func_eq_weak(Real rho, Real u, Real yl, Real x[2], Real y[2]);
