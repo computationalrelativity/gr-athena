@@ -10,9 +10,7 @@
 
 #include "../../../athena.hpp"
 
-#define CUBE(x) ((x)*(x)*(x))
-
-namespace M1::Opacities::BNSNuRates::BNSNuRates_Units {
+namespace M1::Opacities::BNSNuRatesNeutrinos::BNSNuRates_Units {
 
 struct UnitSystem {
   const Real c;    //! Speed of light
@@ -56,11 +54,11 @@ inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per len
   }
 
   inline constexpr Real MassDensityConversion(UnitSystem& b) const {
-    return (b.mass*CUBE(length))/(mass*CUBE(b.length));
+    return (b.mass*POW3(length))/(mass*POW3(b.length));
   }
 
   inline constexpr Real NumberDensityConversion(UnitSystem& b) const { // number per unit volume
-    return CUBE(length)/CUBE(b.length);
+    return POW3(length)/POW3(b.length);
   }
 
   inline constexpr Real EnergyConversion(UnitSystem& b) const {
@@ -68,7 +66,7 @@ inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per len
   }
 
   inline constexpr Real EnergyDensityConversion(UnitSystem& b) const { // energy per unit volume
-    return (b.energy*CUBE(length))/(energy*CUBE(b.length));
+    return (b.energy*POW3(length))/(energy*POW3(b.length));
   }
 
   inline constexpr Real EntropyConversion(UnitSystem& b) const {
@@ -88,11 +86,11 @@ inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per len
   }
 
   inline constexpr Real NumberRateConversion(UnitSystem& b) const { // number per unit time per unit volume
-    return (time*CUBE(length))/(b.time*CUBE(b.length));
+    return (time*POW3(length))/(b.time*POW3(b.length));
   }
 
   inline constexpr Real EnergyRateConversion(UnitSystem& b) const { // energy per unit time per unit volume
-    return (b.energy*time*CUBE(length))/(energy*b.time*CUBE(b.length));
+    return (b.energy*time*POW3(length))/(energy*b.time*POW3(b.length));
   }
   //! \}
 };
@@ -131,11 +129,11 @@ static UnitSystem GeometricSolar{
   CGS.MeV / (CGS.c*CGS.c), // MeV, Msun
 
   (CGS.c*CGS.c)/(CGS.G * CGS.Msun), // length, Msun
-  CUBE( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
-  CUBE( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
+  POW3( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
+  POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
-  CUBE( CGS.G/(CGS.c*CGS.c) ) * SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
+  POW3( CGS.G/(CGS.c*CGS.c) ) * SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
   CGS.kb/CGS.MeV, // temperature, MeV
   CGS.kb/CGS.MeV, // chemical potential, MeV
 };
@@ -160,6 +158,5 @@ static UnitSystem WeakRatesUnits{
 
 } // namespace
 
-#undef CUBE
 
 #endif
