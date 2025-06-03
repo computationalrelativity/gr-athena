@@ -8,14 +8,15 @@
 
 #include "bnsnurates.hpp"
 
-namespace M1::Opacities::BNSNuRates {
-  
-  // Assert opacities and other stuff?
+// Assert isfinite for opacities and other stuff?
 #define ASSERT_OPAC_ISFINITE (1)
 #define ASSERT_NDEN_ISFINITE (1)
-  
-  // Variable to switch between analytic and numerical solutions of Fermi integrals
+
+// Variable to switch between analytic and numerical solutions of Fermi integrals
 #define FERMI_ANALYTIC (1)
+
+
+namespace M1::Opacities::BNSNuRatesNeutrinos {
 
   
   //! \fn void bns_nurates(Real &nb, Real Real &temp, Real &ye, Real &mu_n, Real &mu_p,
@@ -78,21 +79,21 @@ namespace M1::Opacities::BNSNuRates {
   //   \param[out] scat_1_nux     energy scatt coeff mu/tau neutrinos
   //   \param[out] scat_1_anux    energy scatt coeff mu/tau anti-neutrinos
   //   \param[in]  nurates_params params for nurates
-  
-  int BNSNuRates::bns_nurates(Real &nb, Real &temp, Real &ye,
-                              Real &mu_n, Real &mu_p, Real &mu_e,
-                              Real &n_nue, Real &j_nue, Real &chi_nue,
-                              Real &n_anue, Real &j_anue, Real &chi_anue,
-                              Real &n_nux, Real &j_nux, Real &chi_nux,
-                              Real &n_anux, Real &j_anux, Real &chi_anux,
-                              Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
-                              Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
-                              Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux, Real &sigma_0_anux,
-                              Real &sigma_1_nue, Real &sigma_1_anue, Real &sigma_1_nux, Real &sigma_1_anux,
-                              Real &scat_0_nue, Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
-                              Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
-                              const NuratesParams nurates_params)
 
+  int BNSNuRates::bns_nurates_wrapper(Real &nb, Real &temp, Real &ye,
+				      Real &mu_n, Real &mu_p, Real &mu_e,
+				      Real &n_nue, Real &j_nue, Real &chi_nue,
+				      Real &n_anue, Real &j_anue, Real &chi_anue,
+				      Real &n_nux, Real &j_nux, Real &chi_nux,
+				      Real &n_anux, Real &j_anux, Real &chi_anux,
+				      Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
+				      Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
+				      Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux, Real &sigma_0_anux,
+				      Real &sigma_1_nue, Real &sigma_1_anue, Real &sigma_1_nux, Real &sigma_1_anux,
+				      Real &scat_0_nue, Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
+				      Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
+				      const NuratesParams nurates_params)
+  
   {
     
     int ierr = 0;
@@ -315,6 +316,7 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(scat_1_nux));
     assert(isfinite(scat_1_anux));
 #endif
+
     // Catch these and return ierr code 1...24
     // (returns int for the number of failures.)
     if (isfinite(R_nue)) ierr++; 
@@ -781,7 +783,7 @@ namespace M1::Opacities::BNSNuRates {
 
   
   // Apply the EOS limit
-  bool apply_table_limits(Real& rho, Real& temp, Real& ye)
+  bool BNSNuRates::apply_eos_limits(Real& rho, Real& temp, Real& ye)
   {
     bool limits_applied = false;
 
