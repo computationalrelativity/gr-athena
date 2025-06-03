@@ -5,8 +5,10 @@
 
 #include "m1.hpp"
 
-#if !(M1_NO_WEAKRATES)
+#if (M1_WEAKRATES)
 #include "opacities/weakrates/m1_opacities_weakrates.hpp"
+#elif (M1_BNSNURATES)
+#include "opacities/weakrates/bnsnurates.hpp"
 #endif
 #include "opacities/m1_opacities.hpp"
 
