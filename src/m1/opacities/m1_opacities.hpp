@@ -122,7 +122,7 @@ public:
         // by 2
         const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
 
-        const int ierr = popac_weakrates->pmy_weakrates->NeutrinoDensity(
+        const int ierr = popac_weakrates->pmy_weakrates->NeutrinoDensity( 
           w_rho,        // Real rho,
           w_T,          // Real temp,
           w_Y_e,        // Real ye,
@@ -151,7 +151,7 @@ public:
         // by 2
         const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
 
-        const int ierr = popac_bnsnurates->pmy_bnsnurates->NeutrinoDensity(
+        const int ierr = popac_bnsnurates->pmy_bnsnurates->NeutrinoDensity( //TODO fix
           w_rho,        // Real rho,
           w_T,          // Real temp,
           w_Y_e,        // Real ye,
@@ -196,7 +196,7 @@ private:
 #if (M1_WEAKRATES)
   WeakRates::WeakRates * popac_weakrates = nullptr;
 #elif (M1_BNSNURATES)
-  WeakRates::WeakRates * popac_bnsnurates = nullptr;
+  BNSNuRates::BNSNuRates * popac_bnsnurates = nullptr;
 #endif
   // --------------------------------------------------------------------------
 
@@ -234,13 +234,13 @@ private:
 #elif (M1_BNSNURATES)
       else if (tmp == "bnsnurates")
       {
-        opt.opacity_variety = opt_opacity_variety::bsnurates;
-        popac_weakrates = new BNSNuRates::BNSNuRates(pmy_block, pm1, pin);
+        opt.opacity_variety = opt_opacity_variety::bnsnurates;
+        popac_bnsnurates = new BNSNuRates::BNSNuRates(pmy_block, pm1, pin);
       }
 #endif
       else
       {
-        msg << "M1_opacities/variety unknown" << std::endl;
+        msg << "M1_opacities/variety unknown " << std::endl;
         ATHENA_ERROR(msg);
       }
     }
@@ -264,7 +264,7 @@ private:
 
 // configuration ==============================================================
 public:
-  enum class opt_opacity_variety { none, zero, fake, photon, weakrates };
+  enum class opt_opacity_variety { none, zero, fake, photon, weakrates, bnsnurates };
 
   struct
   {
