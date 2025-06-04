@@ -374,7 +374,7 @@ namespace M1::Opacities::BNSNuRates {
   }
 
   
-  //! \fn void NeutrinoDensity_ChemPot(Real rho, Real temp,
+  //! \fn void NeutrinoDensity_ChemPot(Real nb, Real temp,
   //!                                  Real mu_n, Real mu_p, Real mu_e, 
   //!                                  Real &n_nue, Real &n_anue, Real &n_nux,
   //!                                  Real &en_nue, Real &en_anue, Real &en_nux, 
@@ -396,12 +396,12 @@ namespace M1::Opacities::BNSNuRates {
   //   \param[out] en_anue         energy density electron anti-neutrinos
   //   \param[out] en_nux          energy density mu/tau neutrinos
   
-  void BNSNuRates::NeutrinoDensity_ChemPot(Real rho, Real temp,
+  void BNSNuRates::NeutrinoDensity_ChemPot(Real nb, Real temp,
 					   Real mu_n, Real mu_p, Real mu_e,
 					   Real &n_nue, Real &n_anue, Real &n_nux,
 					   Real &en_nue, Real &en_anue, Real &en_nux)
   {
-    const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // nb code units
+    //const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // nb code units
     const Real nb_cgs = nb * code_units->NumberDensityConversion(*my_units); // [baryon/cm^-3]
     const Real temp_mev = temp * code_units->TemperatureConversion(*my_units);  // [MeV]
     
