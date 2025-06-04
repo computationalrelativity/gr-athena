@@ -22,7 +22,7 @@
 #include "bns_nurates/include/m1_opacities.hpp"
 
 
-namespace M1::Opacities::BNSNuRatesNeutrinos {
+namespace M1::Opacities::BNSNuRates {
 
   
   struct NuratesParams {
@@ -160,16 +160,16 @@ namespace M1::Opacities::BNSNuRatesNeutrinos {
       bool set_table_limits = pin->GetOrAddReal("M1_opacities", "eos_limits_from_table", true);
 
       if (set_table_limits) {
-        eos_rho_min = pmy_block->peos->GetMinimumDensity()
+        eos_rho_min = pmy_block->peos->GetEOS().GetMinimumDensity()
           * code_units->MassDensityConversion(*my_units);
-        eos_rho_max = pmy_block->peos->GetMaximumDensity()
+        eos_rho_max = pmy_block->peos->GetEOS().GetMaximumDensity()
           * code_units->MassDensityConversion(*my_units);
-        eos_temp_min = pmy_block->peos->GetMinimumTemperature()
+        eos_temp_min = pmy_block->peos->GetEOS().GetMinimumTemperature()
           * code_units->TemperatureConversion(*my_units);
-        eos_temp_max = pmy_block->peos->GetMaximumTemperature()
+        eos_temp_max = pmy_block->peos->GetEOS().GetMaximumTemperature()
           * code_units->TemperatureConversion(*my_units);
-        eos_ye_min = pmy_block->peos->GetMinimumSpeciesFraction(0);
-        eos_ye_max = pmy_block->peos->GetMaximumSpeciesFraction(0);
+        eos_ye_min = pmy_block->peos->GetEOS().GetMinimumSpeciesFraction(0);
+        eos_ye_max = pmy_block->peos->GetEOS().GetMaximumSpeciesFraction(0);
       }
 
       // Options to override rho_min and eos_temp_min with floors
@@ -185,7 +185,7 @@ namespace M1::Opacities::BNSNuRatesNeutrinos {
           * code_units->TemperatureConversion(*my_units);
       
       // mb [g] 
-      atomic_mass = pmy_block->peos->GetRawBaryonMass()
+      atomic_mass = pmy_block->peos->GetEOS().GetRawBaryonMass()
         * code_units->MassConversion(*my_units); 
 
     };
@@ -516,19 +516,20 @@ namespace M1::Opacities::BNSNuRatesNeutrinos {
     }
 
     // Main wrapper to bns_nurates
-    bool bns_nurates_wrapper(Real &nb, Real &temp, Real &ye, Real &mu_n, Real &mu_p, Real &mu_e,
-			     Real &n_nue, Real &j_nue, Real &chi_nue,
-			     Real &n_anue, Real &j_anue, Real &chi_anue,
-			     Real &n_nux, Real &j_nux, Real &chi_nux,
-			     Real &n_anux, Real &j_anux, Real &chi_anux,
-			     Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
-			     Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
-			     Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux,
-			     Real &sigma_0_anux, Real &sigma_1_nue, Real &sigma_1_anue,
-			     Real &sigma_1_nux, Real &sigma_1_anux, Real &scat_0_nue,
-			     Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
-			     Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
-			     const NuratesParams nurates_params);
+    int bns_nurates_wrapper(Real &nb, Real &temp, Real &ye,
+			    Real &mu_n, Real &mu_p, Real &mu_e,
+			    Real &n_nue, Real &j_nue, Real &chi_nue,
+			    Real &n_anue, Real &j_anue, Real &chi_anue,
+			    Real &n_nux, Real &j_nux, Real &chi_nux,
+			    Real &n_anux, Real &j_anux, Real &chi_anux,
+			    Real &R_nue, Real &R_anue, Real &R_nux, Real &R_anux,
+			    Real &Q_nue, Real &Q_anue, Real &Q_nux, Real &Q_anux,
+			    Real &sigma_0_nue, Real &sigma_0_anue, Real &sigma_0_nux,
+			    Real &sigma_0_anux, Real &sigma_1_nue, Real &sigma_1_anue,
+			    Real &sigma_1_nux, Real &sigma_1_anux, Real &scat_0_nue,
+			    Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
+			    Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
+			    const NuratesParams nurates_params);
 
     // Computes the neutrino number and energy density
     void NeutrinoDensity(Real nb, Real temp,
