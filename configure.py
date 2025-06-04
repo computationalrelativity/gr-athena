@@ -94,7 +94,7 @@
 # M1 neutrino transport:
 #
 #   -m1                 enable M1 neutrino transport
-#   -m1_weakrates       enable weak rates  (nu opactities) 
+#   -m1_weakrates       enable weakrates   (nu opactities) 
 #   -m1_bnsnurates      enable bns_nurates (nu opactities)
 #
 # Ejecta:
@@ -413,7 +413,10 @@ parser.add_argument(
 
 # -m1 argument
 parser.add_argument(
-  "-m1", action="store_true", default=False, help="enable M1 neutrino transport"
+  "-m1",
+  action="store_true",
+  default=False,
+  help="enable M1 neutrino transport"
 )
 
 # -m1_weakrates argument
@@ -1177,9 +1180,9 @@ else:
 
 # -m1 - weak rates 
 if args["m1_weakrates"]:
-  definitions["M1_WEAKRATES"] = "0"
-else:
   definitions["M1_WEAKRATES"] = "1"
+else:
+  definitions["M1_WEAKRATES"] = "0"
 
 if args["m1_bnsnurates"]:
   definitions["M1_BNSNURATES"] = "1"
@@ -2123,6 +2126,9 @@ if args["z"]:
     print("  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF"))
 
 print("  M1 neutrino transport:        " + ("ON" if args["m1"] else "OFF"))
+if args["m1"]:
+  print("  M1 neutrino weakrates:        " + ("ON" if args["m1_weakrates"] else "OFF"))
+  print("  M1 neutrino bnsnurates:       " + ("ON" if args["m1_bnsnurates"] else "OFF"))
 
 print("  Wave equation:                " + ("ON" if args["w"] else "OFF"))
 if args["w"]:
