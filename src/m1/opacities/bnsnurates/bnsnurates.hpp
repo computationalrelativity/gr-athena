@@ -54,7 +54,7 @@ namespace M1::Opacities::BNSNuRates {
   
   class BNSNuRates {
 
-    //friend class ::M1::Opacities::Opacities; //TODO needed?
+    friend class ::M1::Opacities::Opacities; 
     
   public:
     
@@ -385,11 +385,11 @@ namespace M1::Opacities::BNSNuRates {
             // Calculate equilibrium blackbody functions with fixed T, Ye
             Real dens_n_thin[3];
             Real dens_e_thin[3];
-	    NeutrinoDensity(rho, T,
-			    mu_n, mu_p, mu_e,
-			    dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
-			    dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
-                        
+	    NeutrinoDensity_ChemPot(rho, T,
+				    mu_n, mu_p, mu_e,
+				    dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
+				    dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
+	    
             // Set the black body function
             if (opacity_tau_trap < 0 || tau <= opacity_tau_trap)
               {
@@ -486,6 +486,28 @@ namespace M1::Opacities::BNSNuRates {
       
       return 0;
     };
+
+
+    // Computes the neutrino number and energy density at equilibrium
+    // Wraps the chem pot calculation
+    // This is needed by M1 in this form, all I/O in code units
+    //TODO There is not error check ATM
+    int NeutrinoDensity(Real rho, Real T, Real Y_e, 
+			Real &n_nue, Real &n_anue, Real &n_nux,
+			Real &e_nue, Real &e_anue, Real &e_nux)
+    {
+      int iout = 0;
+      Real mu_n, mu_p, mu_e;
+      const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // [code units]
+      ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
+      NeutrinoDensity_ChemPot(rho, T,
+			      mu_n, mu_p, mu_e,
+			      n_nue, n_anue, n_nux, 
+			      e_nue, e_anue, e_nux);
+
+      return iout;
+    }
+
     
   private:
     
@@ -531,12 +553,14 @@ namespace M1::Opacities::BNSNuRates {
 			    Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
 			    const NuratesParams nurates_params);
 
-    // Computes the neutrino number and energy density
-    void NeutrinoDensity(Real rho, Real temp,
-                         Real mu_n, Real mu_p, Real mu_e,
-                         Real &n_nue, Real &n_anue, Real &n_nux,
-                         Real &e_nue, Real &e_anue, Real &e_nux);
+    // Computes the neutrino number and energy density at equilibrium
+    // Main computation, given the chemical potentials
+    void NeutrinoDensity_ChemPot(Real rho, Real temp,
+				 Real mu_n, Real mu_p, Real mu_e,
+				 Real &n_nue, Real &n_anue, Real &n_nux,
+				 Real &e_nue, Real &e_anue, Real &e_nux);
 
+    
     // Weak equilibrium stuff -----------------------------------------------------------------
 
     // Options for controlling weakrates opacities

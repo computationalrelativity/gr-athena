@@ -151,7 +151,7 @@ public:
         // by 2
         const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
 
-        const int ierr = popac_bnsnurates->NeutrinoDensity( //TODO fix
+        const int ierr = popac_bnsnurates->NeutrinoDensity(
           w_rho,        // Real rho,
           w_T,          // Real temp,
           w_Y_e,        // Real ye,
