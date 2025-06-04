@@ -79,7 +79,6 @@ namespace M1::Opacities::BNSNuRates {
   //   \param[out] scat_1_nux     energy scatt coeff mu/tau neutrinos
   //   \param[out] scat_1_anux    energy scatt coeff mu/tau anti-neutrinos
   //   \param[in]  nurates_params params for nurates
-
   int BNSNuRates::bns_nurates_wrapper(Real &nb, Real &temp, Real &ye,
 				      Real &mu_n, Real &mu_p, Real &mu_e,
 				      Real &n_nue, Real &j_nue, Real &chi_nue,
@@ -380,7 +379,7 @@ namespace M1::Opacities::BNSNuRates {
   //!                                  Real &en_nue, Real &en_anue, Real &en_nux, 
   //!                                  NuratesParams nurates_params)
   //
-  //   \brief Computes the neutrino number and energy density
+  //   \brief Computes the neutrino number and energy density, given chem potentials
   //
   //   \note  All input and output quantities are in code units
   //
@@ -395,13 +394,11 @@ namespace M1::Opacities::BNSNuRates {
   //   \param[out] en_nue          energy density electron neutrinos
   //   \param[out] en_anue         energy density electron anti-neutrinos
   //   \param[out] en_nux          energy density mu/tau neutrinos
-  
   void BNSNuRates::NeutrinoDensity_ChemPot(Real nb, Real temp,
 					   Real mu_n, Real mu_p, Real mu_e,
 					   Real &n_nue, Real &n_anue, Real &n_nux,
 					   Real &en_nue, Real &en_anue, Real &en_nux)
   {
-    //const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // nb code units
     const Real nb_cgs = nb * code_units->NumberDensityConversion(*my_units); // [baryon/cm^-3]
     const Real temp_mev = temp * code_units->TemperatureConversion(*my_units);  // [MeV]
     
@@ -466,7 +463,6 @@ namespace M1::Opacities::BNSNuRates {
   //   and neutrino number and energy densities assuming energy and lepton number conservation.
   //
   //  \note  All input and output quantities are in code units
-  
   int BNSNuRates::WeakEquilibrium(Real rho, Real temp, Real ye,
                                   Real n_nue, Real n_nua, Real n_nux,
                                   Real e_nue, Real e_nua, Real e_nux,
@@ -634,7 +630,6 @@ namespace M1::Opacities::BNSNuRates {
   //     ierr ... 0 success in Newton-Raphson
   //              1 failure in Newton-Raphson
   //
-  
   void BNSNuRates::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_in[4],
                                   Real& T_eq, Real y_eq[4], Real e_eq[4], int& na, int& ierr)
   {
@@ -834,7 +829,6 @@ namespace M1::Opacities::BNSNuRates {
   //        x1(2) ... ye              [#/baryon]
   //     ierr  ...
   //
-
   void BNSNuRates::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2],
                                  Real x1[2], int& ierr) {
     
@@ -983,7 +977,6 @@ namespace M1::Opacities::BNSNuRates {
   //
   //     y ... array with the function whose zeros we are searching for
   //
-  
   void BNSNuRates::func_eq_weak(Real rho, Real u, Real yl, Real x[2], Real y[2]) {
     
     // Compute the baryon number density
@@ -1035,7 +1028,6 @@ namespace M1::Opacities::BNSNuRates {
   // since the first equation is has yl as constant, we normalized the error to it.
   // since the second equation was normalized wrt u, we divide it by 1.
   // the modulus of the two contributions are then summed
-  
   void BNSNuRates::error_func_eq_weak(Real yl, Real u, Real y[2], Real &err) {
     err = abs(y[0]/yl) + abs(y[1]/1.0);
     return;
@@ -1056,7 +1048,6 @@ namespace M1::Opacities::BNSNuRates {
   //     Output:
   //
   //     J ... Jacobian for the 2D Newton-Raphson
-    
   void BNSNuRates::jacobi_eq_weak(Real rho, Real u, Real yl, Real x[2], Real J[2][2], int &ierr)
   {
     // Interpolate the chemical potentials (stored in MeV in the table)
@@ -1139,7 +1130,6 @@ namespace M1::Opacities::BNSNuRates {
   //     dedt  ... derivative of internal energy wrt T (for ye and rho fixed) [erg/cm^3/MeV]
   //     dedye ... derivative of internal energy wrt ye (for T and rho fixed) [erg/cm^3]
   //
-  
   void BNSNuRates::eta_e_gradient(Real rho, Real t, Real ye, Real eta,
                                   Real& detadt, Real& detadye, Real& dedt, Real& dedye, int& ierr)
   {
@@ -1266,7 +1256,6 @@ namespace M1::Opacities::BNSNuRates {
   //
   //     Output:
   //     invJ ... inverse of the Jacobian matrix
-    
   void BNSNuRates::inv_jacobi(Real det, Real J[2][2], Real invJ[2][2]) {
     Real inv_det = 1.0/det;
     invJ[0][0] =  J[1][1]*inv_det;
@@ -1294,7 +1283,6 @@ namespace M1::Opacities::BNSNuRates {
   //                    eta(2): electron antineutrino
   //                    eta(3): mu and tau neutrinos
   //
-  
   void BNSNuRates::nu_deg_param_trap(Real temp_m, Real chem_pot[2], Real eta[3])
   {
     if (temp_m>0.0) {
@@ -1320,7 +1308,6 @@ namespace M1::Opacities::BNSNuRates {
   //     Output:
   //     nu_dens ----> neutrino density [particles/cm^3]
   //
-  
   void BNSNuRates::dens_nu_trap(Real temp_m, Real eta_nu[3], Real nu_dens[3])
     {
       const Real pref=4.0*pi/(hc_mevcm*hc_mevcm*hc_mevcm); // [1/MeV^3/cm^3]
@@ -1348,7 +1335,6 @@ namespace M1::Opacities::BNSNuRates {
   //
   //     Output:
   //     enu_dens ----> neutrino density [MeV/cm^3]
-  
   void BNSNuRates::edens_nu_trap(Real temp_m, Real eta_nu[3], Real enu_dens[3])
   {
     
