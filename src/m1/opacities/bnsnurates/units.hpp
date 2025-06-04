@@ -10,7 +10,7 @@
 
 #include "../../../athena.hpp"
 
-namespace M1::Opacities::BNSNuRatesNeutrinos::BNSNuRates_Units {
+namespace M1::Opacities::BNSNuRates::BNSNuRates_Units {
 
 struct UnitSystem {
   const Real c;    //! Speed of light

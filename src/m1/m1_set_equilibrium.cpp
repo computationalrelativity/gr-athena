@@ -12,7 +12,7 @@
 #if (M1_WEAKRATES)
 #include "opacities/weakrates/m1_opacities_weakrates.hpp"
 #elif (M1_BNSNURATES)
-#include "opacities/weakrates/bnsnurates.hpp"
+#include "opacities/bnsnurates/bnsnurates.hpp"
 #endif
 #include "opacities/m1_opacities.hpp"
 
