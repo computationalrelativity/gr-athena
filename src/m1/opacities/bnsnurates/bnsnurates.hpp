@@ -31,7 +31,7 @@ namespace M1::Opacities::BNSNuRates {
     Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
     Real nb_min_cgs;
     Real temp_min_mev;
-    
+
     bool use_abs_em;
     bool use_pair;
     bool use_brem;
@@ -141,6 +141,7 @@ namespace M1::Opacities::BNSNuRates {
 
       // density below which nothing is done [g/cm^3]
       rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0);
+
       // temperature below which nothing is done [MeV]
       temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", 0.0);
 
@@ -193,6 +194,7 @@ namespace M1::Opacities::BNSNuRates {
     ~BNSNuRates() {
     };
 
+    // Main opacity computation needed by M1
     // N.B
     // In general it will be faster to slice a fixed
     // choice of ix_g, ix_s and then loop over k,j,i
@@ -271,8 +273,8 @@ namespace M1::Opacities::BNSNuRates {
 
             // unpack to variables used below.
             // this is just to avoid to touch the code below.
-            //TODO WeakRate code has been updated since this branch started
-            //     some varnames have changed, fix this code as well.
+            //TODO WeakRate code has been updated since this branch started.
+            // Some varnames have changed. This code needs to be fixed as well.
             // Temporarily we copy to old varnames:
             Real eta_n_nue = eta_0_loc[0];
             Real eta_n_nua = eta_0_loc[1];
@@ -491,7 +493,7 @@ namespace M1::Opacities::BNSNuRates {
     // Computes the neutrino number and energy density at equilibrium
     // Wraps the chem pot calculation
     // This is needed by M1 in this form, all I/O in code units
-    //TODO There is not error check ATM
+    //TODO There is no error check ATM
     int NeutrinoDensity(Real rho, Real T, Real Y_e, 
 			Real &n_nue, Real &n_anue, Real &n_nux,
 			Real &e_nue, Real &e_anue, Real &e_nux)
@@ -525,7 +527,7 @@ namespace M1::Opacities::BNSNuRates {
     // pars for nurates (choice of reactions, quadratures)
     NuratesParams nurates_params;  
     
-    // Chem potentials (input & output in code units)
+    // Chem potentials calculation (input & output in code units)
     void ChemicalPotentials_npe(Real nb, Real T, Real Ye,
                                 Real &mu_n, Real &mu_p, Real &mu_e) {
       Real Y[1] = {Ye};
@@ -537,7 +539,16 @@ namespace M1::Opacities::BNSNuRates {
       mu_e = mu_l - mu_q;
     }
 
-    // Main wrapper to bns_nurates
+    // Computes the neutrino number and energy density at equilibrium
+    // Implements the computation, given the chemical potentials
+    // (input & output in code units)
+    void NeutrinoDensity_ChemPot(Real nb, Real temp,
+				 Real mu_n, Real mu_p, Real mu_e,
+				 Real &n_nue, Real &n_anue, Real &n_nux,
+				 Real &e_nue, Real &e_anue, Real &e_nux);
+    
+    // Main driver for bns_nurates
+    // (input & output in code units)
     int bns_nurates_wrapper(Real &nb, Real &temp, Real &ye,
 			    Real &mu_n, Real &mu_p, Real &mu_e,
 			    Real &n_nue, Real &j_nue, Real &chi_nue,
@@ -553,12 +564,6 @@ namespace M1::Opacities::BNSNuRates {
 			    Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
 			    const NuratesParams nurates_params);
 
-    // Computes the neutrino number and energy density at equilibrium
-    // Main computation, given the chemical potentials
-    void NeutrinoDensity_ChemPot(Real nb, Real temp,
-				 Real mu_n, Real mu_p, Real mu_e,
-				 Real &n_nue, Real &n_anue, Real &n_nux,
-				 Real &e_nue, Real &e_anue, Real &e_nux);
 
     
     // Weak equilibrium stuff -----------------------------------------------------------------
@@ -608,16 +613,31 @@ namespace M1::Opacities::BNSNuRates {
     const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
 
     // Factors needed for some unit conversion
-    const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid overflows
+    const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid nu_n overflows
     const Real MEV_TO_ERG = 1.6021766339999e-6;
     
-    // Main wrapper
+    // Wrapper for weak equilibrium computation
     int WeakEquilibrium(Real rho, Real temp, Real ye,
                         Real n_nue, Real n_nua, Real n_nux,
                         Real e_nue, Real e_nua, Real e_nux,
                         Real& temp_eq, Real& ye_eq,
                         Real& n_nue_eq, Real& n_nua_eq, Real& n_nux_eq,
                         Real& e_nue_eq, Real& e_nua_eq, Real& e_nux_eq);
+
+    // Wrapper for chem potential calculation
+    // working with CGS + MeV units in input/output
+    // (several calls in equilibration code requires this)
+    void ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
+                                    Real &mu_n, Real &mu_p, Real &mu_e) {
+      const Real MeV = code_units->TemperatureConversion(*my_units); 
+      ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
+                              temp / MeV,
+                              Ye,
+                              mu_n, mu_p, mu_n);
+      mu_n *= MeV;
+      mu_p *= MeV;
+      mu_e *= MeV;
+    }
 
     int compute_weak_equilibrium(Real rho,        // [g/cm^3]
                                  Real temp,       // [MeV]
@@ -637,20 +657,6 @@ namespace M1::Opacities::BNSNuRates {
                                  Real & e_nua_eq, // [erg/cm^3]
                                  Real & e_nux_eq  // [erg/cm^3]
                                  );
-
-    // Wrapper working with CGS + MeV units in input/output
-    // (several calls in equilibration code requires this)
-    void ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
-                                    Real &mu_n, Real &mu_p, Real &mu_e) {
-      const Real MeV = code_units->TemperatureConversion(*my_units); 
-      ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
-                              temp / MeV,
-                              Ye,
-                              mu_n, mu_p, mu_n);
-      mu_n *= MeV;
-      mu_p *= MeV;
-      mu_e *= MeV;
-    }
 
     void weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_in[4],
                         Real& T_eq, Real y_eq[4], Real e_eq[4], int& na, int& ierr);
