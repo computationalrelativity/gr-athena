@@ -11,7 +11,7 @@
 #define ETA0 (1.0e-3)
 
 
-namespace M1::Opacities::BNSNuRatesNeutrinos::Fermi {
+namespace M1::Opacities::BNSNuRates::Fermi {
 
 
   //-----------------------------------------------------------------------

@@ -235,7 +235,7 @@ private:
       else if (tmp == "bnsnurates")
       {
         opt.opacity_variety = opt_opacity_variety::bsnurates;
-        popac_weakrates = new WeakRates::BNSNuRates(pmy_block, pm1, pin);
+        popac_weakrates = new BNSNuRates::BNSNuRates(pmy_block, pm1, pin);
       }
 #endif
       else
