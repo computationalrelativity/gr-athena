@@ -182,7 +182,9 @@
 // M1 neutrino transport
 #define M1_ENABLED @M1_ENABLED@
 
-#define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
+// M1 neutrino rates to enable
+#define M1_WEAKRATES @M1_WEAKRATES@
+#define M1_BNSNURATES @M1_BNSNURATES@
 
 // ejecta
 #define @EJECTA_ENABLED@
