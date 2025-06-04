@@ -385,7 +385,7 @@ namespace M1::Opacities::BNSNuRates {
             // Calculate equilibrium blackbody functions with fixed T, Ye
             Real dens_n_thin[3];
             Real dens_e_thin[3];
-	    NeutrinoDensity_ChemPot(rho, T,
+	    NeutrinoDensity_ChemPot(nb, T,
 				    mu_n, mu_p, mu_e,
 				    dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
 				    dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
@@ -500,7 +500,7 @@ namespace M1::Opacities::BNSNuRates {
       Real mu_n, mu_p, mu_e;
       const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // [code units]
       ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
-      NeutrinoDensity_ChemPot(rho, T,
+      NeutrinoDensity_ChemPot(nb, T,
 			      mu_n, mu_p, mu_e,
 			      n_nue, n_anue, n_nux, 
 			      e_nue, e_anue, e_nux);
@@ -555,7 +555,7 @@ namespace M1::Opacities::BNSNuRates {
 
     // Computes the neutrino number and energy density at equilibrium
     // Main computation, given the chemical potentials
-    void NeutrinoDensity_ChemPot(Real rho, Real temp,
+    void NeutrinoDensity_ChemPot(Real nb, Real temp,
 				 Real mu_n, Real mu_p, Real mu_e,
 				 Real &n_nue, Real &n_anue, Real &n_nux,
 				 Real &e_nue, Real &e_anue, Real &e_nux);
