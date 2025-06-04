@@ -16,7 +16,7 @@
 #define FERMI_ANALYTIC (1)
 
 
-namespace M1::Opacities::BNSNuRatesNeutrinos {
+namespace M1::Opacities::BNSNuRates {
 
   
   //! \fn void bns_nurates(Real &nb, Real Real &temp, Real &ye, Real &mu_n, Real &mu_p,
@@ -167,23 +167,23 @@ namespace M1::Opacities::BNSNuRatesNeutrinos {
     const Real nb_nmunits = nb / my_units->NumberDensityConversion(*code_units) * 1e-21; // [baryon/nm^-3]
     
     // opacity params structure
-    GreyOpacityParams grey_opacity_params{};
+    GreyOpacityParams grey_op_params{};
     
     // reaction flags
-    //grey_opacity_params.opacity_flags = opacity_flags_default_none; //TODO  opacity_flags_default_none = ?
-    grey_opacity_params.opacity_flags.use_abs_em = nurates_params.use_abs_em;
-    grey_opacity_params.opacity_flags.use_brem = nurates_params.use_brem;
-    grey_opacity_params.opacity_flags.use_pair = nurates_params.use_pair;
-    grey_opacity_params.opacity_flags.use_iso = nurates_params.use_iso;
-    grey_opacity_params.opacity_flags.use_inelastic_scatt =
+    //grey_op_params.opacity_flags = opacity_flags_default_none; //TODO  opacity_flags_default_none = ?
+    grey_op_params.opacity_flags.use_abs_em = nurates_params.use_abs_em;
+    grey_op_params.opacity_flags.use_brem = nurates_params.use_brem;
+    grey_op_params.opacity_flags.use_pair = nurates_params.use_pair;
+    grey_op_params.opacity_flags.use_iso = nurates_params.use_iso;
+    grey_op_params.opacity_flags.use_inelastic_scatt =
       nurates_params.use_inelastic_scatt;
     
     // other flags
-    //grey_opacity_params.opacity_pars = opacity_params_default_none; //TODO
-    grey_opacity_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
-    grey_opacity_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
-    grey_opacity_params.opacity_pars.use_dU = 0; // nurates_params.use_dU;
-    grey_opacity_params.opacity_pars.use_dm_eff = nurates_params.use_dm_eff;
+    //grey_op_params.opacity_pars = opacity_params_default_none; //TODO
+    grey_op_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
+    grey_op_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
+    grey_op_params.opacity_pars.use_dU = 0; // nurates_params.use_dU;
+    grey_op_params.opacity_pars.use_dm_eff = nurates_params.use_dm_eff;
     grey_op_params.opacity_pars.use_NN_medium_corr = nurates_params.use_NN_medium_corr;
     grey_op_params.opacity_pars.neglect_blocking = nurates_params.neglect_blocking;
     grey_op_params.opacity_pars.use_decay = nurates_params.use_decay;
@@ -223,29 +223,29 @@ namespace M1::Opacities::BNSNuRatesNeutrinos {
     
     // reconstruct distribution function
     if (!nurates_params.use_equilibrium_distribution) {
-      grey_opacity_params.distr_pars =
-        CalculateDistrParamsFromM1(&grey_opacity_params.m1_pars,
-                                   &grey_opacity_params.eos_pars);
+      grey_op_params.distr_pars =
+        CalculateDistrParamsFromM1(&grey_op_params.m1_pars,
+                                   &grey_op_params.eos_pars);
     } else {
-      grey_opacity_params.distr_pars =
-        NuEquilibriumParams(&grey_opacity_params.eos_pars);
+      grey_op_params.distr_pars =
+        NuEquilibriumParams(&grey_op_params.eos_pars);
       
       // compute neutrino number and energy densities
-      ComputeM1DensitiesEq(&grey_opacity_params.eos_pars,
-                           &grey_opacity_params.distr_pars,
-                           &grey_opacity_params.m1_pars);
+      ComputeM1DensitiesEq(&grey_op_params.eos_pars,
+                           &grey_op_params.distr_pars,
+                           &grey_op_params.m1_pars);
       
       // populate M1 quantities
-      grey_opacity_params.m1_pars.chi[id_nue] = 0.333333333333333333333333333;
-      grey_opacity_params.m1_pars.chi[id_anue] = 0.333333333333333333333333333;
-      grey_opacity_params.m1_pars.chi[id_nux] = 0.333333333333333333333333333;
-      grey_opacity_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
+      grey_op_params.m1_pars.chi[id_nue] = 0.333333333333333333333333333;
+      grey_op_params.m1_pars.chi[id_anue] = 0.333333333333333333333333333;
+      grey_op_params.m1_pars.chi[id_nux] = 0.333333333333333333333333333;
+      grey_op_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
       
       // convert neutrino energy density to mixed MeV and cgs as requested by bns_nurates
-      grey_opacity_params.m1_pars.J[id_nue] *= kBS_MeV; 
-      grey_opacity_params.m1_pars.J[id_anue] *= kBS_MeV;
-      grey_opacity_params.m1_pars.J[id_nux] *= kBS_MeV;
-      grey_opacity_params.m1_pars.J[id_anux] *= kBS_MeV;
+      grey_op_params.m1_pars.J[id_nue] *= kBS_MeV; 
+      grey_op_params.m1_pars.J[id_anue] *= kBS_MeV;
+      grey_op_params.m1_pars.J[id_nux] *= kBS_MeV;
+      grey_op_params.m1_pars.J[id_anux] *= kBS_MeV;
     }
     
     // compute opacities
