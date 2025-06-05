@@ -391,6 +391,11 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 
   if (stage == nstages)
   {
+    if (pm1->opt.zero_fix_sources)
+    {
+      pm1->EnforceSourcesFinite();
+    }
+
     if (pm1->opt.couple_sources_hydro)
     {
       pm1->CoupleSourcesHydro(pmb->phydro->u);

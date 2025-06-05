@@ -383,6 +383,9 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
+
+  // fix issues
+  opt.zero_fix_sources = pin->GetOrAddBoolean("M1", "zero_fix_sources", true);
 }
 
 // ============================================================================
