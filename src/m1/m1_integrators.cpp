@@ -323,6 +323,7 @@ void DispatchIntegrationMethod(
           break;
         }
         case M1::t_sln_r::equilibrium:
+        case M1::t_sln_r::equilibrium_wr:
         {
           // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
           //             ix_g, ix_s, k, j, i);

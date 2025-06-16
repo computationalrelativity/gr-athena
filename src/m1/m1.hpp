@@ -284,7 +284,14 @@ public:
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;
+    bool equilibrium_sources;
     Real eql_rho_min;
+    Real tra_rho_min;
+
+    // fallback parameters for checking matter coupling
+    Real flux_lo_fallback_tau_min;
+    Real flux_lo_fallback_Ye_min;
+    Real flux_lo_fallback_Ye_max;
 
     bool verbose;
   } opt_solver;
@@ -712,6 +719,7 @@ public:
                                     stiff,
                                     scattering,
                                     equilibrium,
+                                    equilibrium_wr,
                                     N};
     enum class opt_source_treatment {noop,
                                      full,
@@ -814,6 +822,7 @@ public:
   void PrepareEvolutionStrategy(const Real dt,
                                 const Real kap_a,
                                 const Real kap_s,
+                                const Real rho,
                                 t_sln_r & mask_sln_r,
                                 t_src_t & mask_src_t);
   void PrepareEvolutionStrategyCommon(const Real dt);

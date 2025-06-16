@@ -1,4 +1,5 @@
 // C++ standard headers
+#include <cmath>
 #include <iostream>
 
 // Athena++ headers
@@ -38,7 +39,7 @@ void PrepareMatterSource_E_F_d(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);;
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
 
   if (st == ost::set_zero)
   {
@@ -69,7 +70,7 @@ void PrepareMatterSource_nG(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);;
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
 
   if (st == ost::set_zero)
   {
@@ -139,7 +140,7 @@ void Prepare(
   // parameters & aliases------------------------------------------------------
   MeshBlock * pmb = pm1->pmy_block;
 #if FLUID_ENABLED
-  const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+  const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
 #endif
 
   const Real par_src_lim = pm1->opt_solver.src_lim;
@@ -225,7 +226,7 @@ void Prepare(
       // Cf. CoupleSourcesHydro, CoupleSourcesYe
       Dtau_sum -= DE;
       if (pm1->N_SPCS == 3)
-        DDxp_sum += mb * DN * ( (ix_s == 1) - (ix_s == 0) );
+        DDxp_sum += mb_raw * DN * ( (ix_s == 1) - (ix_s == 0) );
 #endif // FLUID_ENABLED
     }
 
@@ -358,11 +359,110 @@ void Apply(
 
 }
 
+void CheckPhysicalFallback(
+  M1 * pm1,
+  const Real dt,
+  const M1::vars_Source & U_S)
+{
+#if FLUID_ENABLED
+  // parameters & aliases------------------------------------------------------
+  MeshBlock * pmb = pm1->pmy_block;
+  const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
+
+  const Real par_tau_min = pm1->opt_solver.flux_lo_fallback_tau_min;
+  const Real par_Ye_min  = pm1->opt_solver.flux_lo_fallback_Ye_min;
+  const Real par_Ye_max  = pm1->opt_solver.flux_lo_fallback_Ye_max;
+
+  const bool check_tau = (
+    pm1->opt.flux_lo_fallback_E &&
+    (pm1->opt_solver.flux_lo_fallback_tau_min > -1)
+  );
+
+  const bool check_Ye = (
+    pm1->opt.flux_lo_fallback_nG &&
+    (pm1->opt_solver.flux_lo_fallback_Ye_min > -1) &&
+    (pm1->opt_solver.flux_lo_fallback_Ye_max > -1)
+  );
+
+  M1::vars_Source & S = const_cast<M1::vars_Source &>(U_S);
+  // --------------------------------------------------------------------------
+
+  M1_MLOOP3(k, j, i)
+  if (pm1->MaskGet(k, j, i))
+  {
+    const Real D = (
+      pm1->hydro.sc_W(k,j,i) *
+      pm1->hydro.sc_w_rho(k,j,i) *
+      pm1->geom.sc_sqrt_det_g(k,j,i)
+    );
+
+    Real cons_IEN = pmb->phydro->u(IEN,k,j,i);
+    Real s_Y_e    = pmb->pscalars->s(0,k,j,i);
+
+    bool is_finite = true;
+    bool need_fallback = false;
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    {
+
+      if (check_tau)
+      {
+        for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+        {
+          AT_C_sca & S_sc_E   = S.sc_E(ix_g,ix_s);
+          AT_N_vec & S_sp_F_d = S.sp_F_d(ix_g,ix_s);
+
+          cons_IEN -= dt * S_sc_E(k,j,i);
+
+          for (int a=0; a<N; ++a)
+          {
+            is_finite = is_finite && std::isfinite(
+              S_sp_F_d(a,k,j,i)
+            );
+          }
+        }
+
+        is_finite = is_finite && std::isfinite(cons_IEN);
+
+        if (!is_finite || (cons_IEN < par_tau_min))
+        {
+          need_fallback = true;
+        }
+      }
+
+      if (check_Ye)
+      {
+        AT_C_sca & S_sc_nG_nue = S.sc_nG(ix_g,0);
+        AT_C_sca & S_sc_nG_nua = S.sc_nG(ix_g,1);
+
+        s_Y_e += dt * mb_raw * (
+          S_sc_nG_nua(k,j,i) - S_sc_nG_nue(k,j,i)
+        );
+
+        is_finite = is_finite && std::isfinite(s_Y_e);
+
+        const Real w_Y_e = (D != 0.0) ? (s_Y_e / D) : 0.0;
+
+        if (!is_finite ||
+            (w_Y_e < par_Ye_min) ||
+            (w_Y_e > par_Ye_max))
+        {
+          need_fallback = true;
+        }
+      }
+    }
+
+    // Update flux hybridization mask -----------------------------------------
+    if (need_fallback)
+    {
+      pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+    }
+  }
+#endif
+}
+
 } // namespace M1::Sources::Limiter
 // ============================================================================
-
-// ============================================================================
-
 
 // ============================================================================
 } // namespace M1::Sources

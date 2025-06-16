@@ -73,7 +73,7 @@ void SetEquilibrium(
   AA nudens(N_nu, N_nu_spcs);
   nudens.Fill(0.0);
 
-  // Opticall thick weak equilibrium
+  // Optically thick weak equilibrium
   popac->CalculateEquilbriumDensity(w_rho, w_T, w_Y_e, nudens);
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
@@ -131,9 +131,20 @@ void SetEquilibrium(
       sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
     }
 
-    // Fix strategy
+    // Fix strategy / sources -------------------------------------------------
     pm1.SetMaskSolutionRegime(M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i);
-    pm1.SetMaskSourceTreatment(M1::M1::t_src_t::noop,ix_g,ix_s,k,j,i);
+    if (pm1.opt_solver.equilibrium_sources)
+    {
+      pm1.SetMaskSourceTreatment(M1::M1::t_src_t::full,ix_g,ix_s,k,j,i);
+    }
+    else
+    {
+      pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
+    }
+
+    // source terms (entering coupling) ---------------------------------------
+    ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
 
     // Ensure update preserves energy non-negativity
     EnforcePhysical_E_F_d(pm1, C, k, j, i);
