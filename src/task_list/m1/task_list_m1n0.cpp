@@ -115,6 +115,8 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 
   if (stage == 1)
   {
+    pm1->ResetEvolutionStrategy();
+
     // u1 stores the solution at the beginning of the timestep
     pm1->storage.u1 = pm1->storage.u;
     // pm1->storage.u1.DeepCopy(pm1->storage.u);
@@ -130,6 +132,9 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 //! Functions to end MPI communication
 TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
+  ::M1::M1 * pm1 = pmb->pm1;
+
   pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
   return TaskStatus::success;
 }
@@ -372,10 +377,10 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 
     // pm1->opt.flux_lo_fallback = true;
 
-    if (stage == 2)
-    {
-      pm1->ResetEvolutionStrategy();
-    }
+    // if (stage == 2)
+    // {
+    //   pm1->ResetEvolutionStrategy();
+    // }
 
     return TaskStatus::next;
   }
