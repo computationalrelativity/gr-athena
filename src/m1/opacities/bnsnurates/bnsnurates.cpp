@@ -433,11 +433,11 @@ namespace M1::Opacities::BNSNuRates {
     en_nux = 16.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV cm^-3]
 
 #if (ASSERT_NDEN_ISFINITE)
-    assert(isfinte(n_nue));
-    assert(isfinte(n_anue));
-    assert(isfinte(n_nux));
-    assert(isfinte(en_nue));
-    assert(isfinte(en_anue));
+    assert(isfinite(n_nue));
+    assert(isfinite(n_anue));
+    assert(isfinite(n_nux));
+    assert(isfinite(en_nue));
+    assert(isfinite(en_anue));
     assert(isfinite(en_nux));
 #endif
     
