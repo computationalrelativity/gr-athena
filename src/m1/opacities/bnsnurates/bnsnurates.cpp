@@ -181,7 +181,7 @@ namespace M1::Opacities::BNSNuRates {
     //grey_op_params.opacity_pars = opacity_params_default_none; //TODO
     grey_op_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
     grey_op_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
-    grey_op_params.opacity_pars.use_dU = 0; // nurates_params.use_dU;
+    grey_op_params.opacity_pars.use_dU = nurates_params.use_dU;
     grey_op_params.opacity_pars.use_dm_eff = nurates_params.use_dm_eff;
     grey_op_params.opacity_pars.use_NN_medium_corr = nurates_params.use_NN_medium_corr;
     grey_op_params.opacity_pars.neglect_blocking = nurates_params.neglect_blocking;
@@ -199,6 +199,9 @@ namespace M1::Opacities::BNSNuRates {
     grey_op_params.eos_pars.mu_e = mu_e_mev;  // [MeV]
     grey_op_params.eos_pars.mu_p = mu_p_mev;  // [MeV]
     grey_op_params.eos_pars.mu_n = mu_n_mev;  // [MeV]
+
+    grey_op_params.eos_pars.dU = nurates_params.dU;
+    grey_op_params.eos_pars.dm_eff = nurates_params.dm_eff;
     
     // populate M1 quantities
     // The factors of 1/2 come from the fact that bns_nurates and THC weight the
@@ -318,30 +321,30 @@ namespace M1::Opacities::BNSNuRates {
 
     // Catch these and return ierr code 1...24
     // (returns int for the number of failures.)
-    if (isfinite(R_nue)) ierr++; 
-    if (isfinite(R_anue)) ierr++;
-    if (isfinite(R_nux)) ierr++;
-    if (isfinite(R_anux)) ierr++;
-    if (isfinite(Q_nue)) ierr++;
-    if (isfinite(Q_anue)) ierr++;
-    if (isfinite(Q_nux)) ierr++;
-    if (isfinite(Q_anux)) ierr++;
-    if (isfinite(sigma_0_nue)) ierr++;
-    if (isfinite(sigma_0_anue)) ierr++;
-    if (isfinite(sigma_0_nux)) ierr++;
-    if (isfinite(sigma_0_anux)) ierr++;
-    if (isfinite(sigma_1_nue)) ierr++;
-    if (isfinite(sigma_1_anue)) ierr++;
-    if (isfinite(sigma_1_nux)) ierr++;
-    if (isfinite(sigma_1_anux)) ierr++;
-    if (isfinite(scat_0_nue)) ierr++;
-    if (isfinite(scat_0_anue)) ierr++;
-    if (isfinite(scat_0_nux)) ierr++;
-    if (isfinite(scat_0_anux)) ierr++;
-    if (isfinite(scat_1_nue)) ierr++;
-    if (isfinite(scat_1_anue)) ierr++;
-    if (isfinite(scat_1_nux)) ierr++;
-    if (isfinite(scat_1_anux)) ierr++;
+    if (!isfinite(R_nue)) ierr++; 
+    if (!isfinite(R_anue)) ierr++;
+    if (!isfinite(R_nux)) ierr++;
+    if (!isfinite(R_anux)) ierr++;
+    if (!isfinite(Q_nue)) ierr++;
+    if (!isfinite(Q_anue)) ierr++;
+    if (!isfinite(Q_nux)) ierr++;
+    if (!isfinite(Q_anux)) ierr++;
+    if (!isfinite(sigma_0_nue)) ierr++;
+    if (!isfinite(sigma_0_anue)) ierr++;
+    if (!isfinite(sigma_0_nux)) ierr++;
+    if (!isfinite(sigma_0_anux)) ierr++;
+    if (!isfinite(sigma_1_nue)) ierr++;
+    if (!isfinite(sigma_1_anue)) ierr++;
+    if (!isfinite(sigma_1_nux)) ierr++;
+    if (!isfinite(sigma_1_anux)) ierr++;
+    if (!isfinite(scat_0_nue)) ierr++;
+    if (!isfinite(scat_0_anue)) ierr++;
+    if (!isfinite(scat_0_nux)) ierr++;
+    if (!isfinite(scat_0_anux)) ierr++;
+    if (!isfinite(scat_1_nue)) ierr++;
+    if (!isfinite(scat_1_anue)) ierr++;
+    if (!isfinite(scat_1_nux)) ierr++;
+    if (!isfinite(scat_1_anux)) ierr++;
     
     // convert back to code units
     R_nue = R_nue * (cgs2code_R / NORMFACT) * 1e21;
@@ -430,11 +433,11 @@ namespace M1::Opacities::BNSNuRates {
     en_nux = 16.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV cm^-3]
 
 #if (ASSERT_NDEN_ISFINITE)
-    assert(isfinite(n_nue));
-    assert(isfinite(n_anue));
-    assert(isfinite(n_nux));
-    assert(isfinite(en_nue));
-    assert(isfinite(en_anue));
+    assert(isfinte(n_nue));
+    assert(isfinte(n_anue));
+    assert(isfinte(n_nux));
+    assert(isfinte(en_nue));
+    assert(isfinte(en_anue));
     assert(isfinite(en_nux));
 #endif
     
