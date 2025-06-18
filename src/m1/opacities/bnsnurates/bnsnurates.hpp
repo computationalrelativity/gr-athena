@@ -22,6 +22,9 @@
 #include "bns_nurates/include/m1_opacities.hpp"
 
 
+#define DEBUG (1) // extra debug, works only serially !!!
+
+
 namespace M1::Opacities::BNSNuRates {
 
   
@@ -31,7 +34,9 @@ namespace M1::Opacities::BNSNuRates {
     Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
     Real nb_min_cgs;
     Real temp_min_mev;
-
+    Real dm_eff;
+    Real dU;
+    
     bool use_abs_em;
     bool use_pair;
     bool use_brem;
@@ -94,6 +99,11 @@ namespace M1::Opacities::BNSNuRates {
       
       // BNSNuRates only works for 1 group
       assert(N_GRPS==1);
+
+      //TODO these are set in the example MWE. Are they needed here? Defaults in bns_nurates? Get from parfile?
+      const double mp_eff = 278.87162217;       // Proton effective mass [MeV]
+      const double mn_eff = 280.16495513;       // Neutron effective mass [MeV]
+      const double dm = mn_eff - mp_eff;        // Nucleon effective mass difference [MeV]
       
       // Parameters for bns_nurates
       nurates_params.quad_nx = pin->GetOrAddInteger("bns_nurates", "nurates_quad_nx", 8);
@@ -101,9 +111,6 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
       nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
 
-      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); //TODO default? fix to equilibration_*_min_cgs?
-      nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.); //TODO default?
-      
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true);
       nurates_params.use_pair = pin->GetOrAddBoolean("bns_nurates", "use_pair", true);
       nurates_params.use_brem = pin->GetOrAddBoolean("bns_nurates", "use_brem", true);
@@ -111,18 +118,23 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_inelastic_scatt = pin->GetOrAddBoolean("bns_nurates", "use_inelastic_scatt", true);
       nurates_params.use_WM_ab = pin->GetOrAddBoolean("bns_nurates", "use_WM_ab", true);
       nurates_params.use_WM_sc = pin->GetOrAddBoolean("bns_nurates", "use_WM_sc", true);
-      nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false);
-      nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", true);
+      nurates_params.use_NN_medium_corr = pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", true);
+      nurates_params.neglect_blocking = pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
+      nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false);
+      nurates_params.use_BRT_brem = pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false);
+
       nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false);
       nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", false);
-      nurates_params.use_NN_medium_corr =
-        pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", true);
-      nurates_params.neglect_blocking =
-        pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
-      nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false);
-      nurates_params.use_BRT_brem =
-        pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false);
+      
+      nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false); //TODO not implemented!
+      nurates_params.dU = pin->GetOrAddReal("bns_nurates", "dU", 0.); // Set effective potential difference (in MeV)
 
+      nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", true);
+      nurates_params.dm_eff = pin->GetOrAddReal("bns_nurates", "effective_mass_diff", dm); // Set effective mass difference (in MeV)
+
+      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); 
+      nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.); 
+            
       nurates_params.quadrature.nx = nurates_params.quad_nx;
       nurates_params.quadrature.dim = 1;
       nurates_params.quadrature.type = kGauleg;
@@ -243,6 +255,8 @@ namespace M1::Opacities::BNSNuRates {
             Real abs_0_loc[4]{}, abs_1_loc[4]{};
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
 
+
+	    
             // Note: everything sent and received are in code units
 
             int opac_err =
@@ -260,15 +274,27 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params); 
 	    
             bool is_failing_opacity = (opac_err)? true : false;
-            
+
+
             // Dump some information when opacity calculation fails
             if (is_failing_opacity)
               {
-                std::ostringstream msg;
-                msg << "CalculateOpacityBNSNuRates failure: " << ierr;
+
+#if (DEBUG)
+		std::cout << "DEBUG T-conv-fact " << code_units->TemperatureConversion(*my_units) << std::endl;
+		std::cout << "DEBUG nb " << nb << std::endl;
+		std::cout << "DEBUG T " << T << std::endl;
+		std::cout << "DEBUG Ye " << Y_e << std::endl;
+		std::cout << "DEBUG mun " << mu_n << std::endl;
+		std::cout << "DEBUG mup " << mu_p << std::endl;
+		std::cout << "DEBUG mue " << mu_e << std::endl;
+#endif
+	    
+		std::ostringstream msg;
+                msg << "CalculateOpacityBNSNuRates failure: " << opac_err;
                 pm1->StatePrintPoint(msg.str(), 0, 0, k, j, i, false);
                 pm1->StatePrintPoint(msg.str(), 0, 1, k, j, i, false);
-                pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true);
+                pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true); // assert(false)
               }
 
             // unpack to variables used below.
