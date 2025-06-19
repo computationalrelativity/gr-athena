@@ -29,8 +29,8 @@ namespace M1::Opacities::BNSNuRates {
 
   
   struct NuratesParams {
-    Real opacity_tau_trap;   // incl. effects of neutrino trapping above this optical depth
-    Real opacity_tau_delta;  // range of optical depths over which trapping is introduced
+    Real opacity_tau_trap;      // incl. effects of neutrino trapping above this optical depth
+    Real opacity_tau_delta;     // range of optical depths over which trapping is introduced
     Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
     Real nb_min_cgs;
     Real temp_min_mev;
@@ -107,9 +107,10 @@ namespace M1::Opacities::BNSNuRates {
       
       // Parameters for bns_nurates
       nurates_params.quad_nx = pin->GetOrAddInteger("bns_nurates", "nurates_quad_nx", 8);
-      nurates_params.opacity_tau_trap = pin->GetOrAddReal("bns_nurates", "opacity_tau_trap", 1.0);
-      nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
-      nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
+
+      //nurates_params.opacity_tau_trap = pin->GetOrAddReal("bns_nurates", "opacity_tau_trap", 1.0); // Duplicated parameters, see below
+      //nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
+      //nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
 
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true);
       nurates_params.use_pair = pin->GetOrAddBoolean("bns_nurates", "use_pair", true);
@@ -126,10 +127,10 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false);
       nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", false);
       
-      nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false); //TODO not implemented!
+      nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false); //TODO Not implemented!
       nurates_params.dU = pin->GetOrAddReal("bns_nurates", "dU", 0.); // Set effective potential difference (in MeV)
 
-      nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", true);
+      nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", false);
       nurates_params.dm_eff = pin->GetOrAddReal("bns_nurates", "effective_mass_diff", dm); // Set effective mass difference (in MeV)
 
       nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); 
@@ -161,7 +162,7 @@ namespace M1::Opacities::BNSNuRates {
       // NB These values need to be in my_units (CGS+MeV) 
       Real infty = std::numeric_limits<Real>::infinity();
 
-      // Set maximal ranges
+      // Set maximal ranges (default)
       eos_rho_min = pin->GetOrAddReal("M1_opacities", "eos_rho_min_cgs", 0.0);
       eos_rho_max = pin->GetOrAddReal("M1_opacities", "eos_rho_max_cgs", infty);
       eos_temp_min = pin->GetOrAddReal("M1_opacities", "eos_temp_min_mev", 0.0);
@@ -169,10 +170,10 @@ namespace M1::Opacities::BNSNuRates {
       eos_ye_min = pin->GetOrAddReal("M1_opacities", "eos_ye_min", 0.0);
       eos_ye_max = pin->GetOrAddReal("M1_opacities", "eos_ye_max", 1.0);
       
-      // Option to override the EOS limits with the table limits (default)
-      bool set_table_limits = pin->GetOrAddReal("M1_opacities", "eos_limits_from_table", true);
+      // Option to override the EOS limits with the table limits 
+      bool enforce_table_limits = pin->GetOrAddReal("M1_opacities", "eos_limits_from_table", false);
 
-      if (set_table_limits) {
+      if (enforce_table_limits) {
         eos_rho_min = pmy_block->peos->GetEOS().GetMinimumDensity()
           * code_units->MassDensityConversion(*my_units);
         eos_rho_max = pmy_block->peos->GetEOS().GetMaximumDensity()
