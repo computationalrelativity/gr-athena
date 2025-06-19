@@ -44,10 +44,11 @@ void SetEquilibrium(
   typedef Opacities::Opacities::opt_opacity_variety oov;
 
   assert((pm1.N_GRPS == 1) && (pm1.N_SPCS <= 4));
-  assert(((popac->opt.opacity_variety == oov::weakrates) &&
-          (pm1.N_SPCS > 1)) ||
-         ((popac->opt.opacity_variety == oov::photon) &&
-          (pm1.N_SPCS == 1)) );
+  assert(
+	 ((popac->opt.opacity_variety == oov::bnsnurates) && (pm1.N_SPCS > 1)) ||
+	 ((popac->opt.opacity_variety == oov::weakrates) && (pm1.N_SPCS > 1)) ||
+         ((popac->opt.opacity_variety == oov::photon) && (pm1.N_SPCS == 1))
+	 );
 
   // Compute the optically thick weak equilibrium -----------------------------
   MeshBlock * pmb       = pm1.pmy_block;
