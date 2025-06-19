@@ -171,7 +171,7 @@ namespace M1::Opacities::BNSNuRates {
       eos_ye_max = pin->GetOrAddReal("M1_opacities", "eos_ye_max", 1.0);
       
       // Option to override the EOS limits with the table limits 
-      bool enforce_table_limits = pin->GetOrAddReal("M1_opacities", "eos_limits_from_table", false);
+      bool enforce_table_limits = pin->GetOrAddBoolean("M1_opacities", "eos_limits_from_table", false);
 
       if (enforce_table_limits) {
         eos_rho_min = pmy_block->peos->GetEOS().GetMinimumDensity()
@@ -187,8 +187,8 @@ namespace M1::Opacities::BNSNuRates {
       }
 
       // Options to override rho_min and eos_temp_min with floors
-      bool enforce_rho_floor = pin->GetOrAddReal("M1_opacities", "eos_rho_min_usefloor", false);
-      bool enforce_temp_floor = pin->GetOrAddReal("M1_opacities", "eos_temp_min_usefloor", false);
+      bool enforce_rho_floor = pin->GetOrAddBoolean("M1_opacities", "eos_rho_min_usefloor", false);
+      bool enforce_temp_floor = pin->GetOrAddBoolean("M1_opacities", "eos_temp_min_usefloor", false);
 
       if (enforce_rho_floor)
         eos_rho_min = pmy_block->peos->GetDensityFloor()
