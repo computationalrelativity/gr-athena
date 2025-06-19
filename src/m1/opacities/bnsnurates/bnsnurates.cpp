@@ -714,7 +714,7 @@ namespace M1::Opacities::BNSNuRates {
     Real mu_n, mu_p, mu_e;
     ChemicalPotentials_npe_cgs(rho, T_eq, y_eq[0],  mu_n, mu_p, mu_e); 
 
-    // in the original verison of this function mus has size 3, whereas 
+    // in the original version of this function mus has size 3, whereas 
     // later it is 2, and in nu_deg_param_trap/dens_nu_trap/edens_nu_trap 
     // it is also 2, so we go with 2
     Real mus[2]     = {0.0}; // Chemical potentials for calculating etas
