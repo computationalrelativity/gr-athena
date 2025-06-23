@@ -1,6 +1,7 @@
 // See m1.hpp for description / references.
 
 // c++
+#include <limits>
 #include <map>
 #include <codecvt>
 #include <iomanip>
@@ -213,7 +214,27 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
+  opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);
+  opt_solver.equilibrium_n_nG = GoA_bool("equilibrium_n_nG", false);
+  opt_solver.equilibrium_use_thick = GoA_bool("equilibrium_use_thick", false);
+
+  opt_solver.equilibrium_src_nG = GoA_bool("equilibrium_src_nG", false);
+  opt_solver.equilibrium_src_E_F_d = GoA_bool("equilibrium_src_E_F_d", false);
+
   opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
+  opt_solver.tra_rho_min = GoA_Real(
+    "tra_rho_min", opt_solver.eql_rho_min
+  );
+
+  opt_solver.flux_lo_fallback_tau_min = GoA_Real(
+    "flux_lo_fallback_tau_min", -1
+  );
+  opt_solver.flux_lo_fallback_Ye_min = GoA_Real(
+    "flux_lo_fallback_Ye_min", -1
+  );
+  opt_solver.flux_lo_fallback_Ye_max = GoA_Real(
+    "flux_lo_fallback_Ye_max", -1
+  );
 
   opt_solver.verbose = GoA_bool("verbose", false);
 }
@@ -383,6 +404,9 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
+
+  // fix issues
+  opt.zero_fix_sources = pin->GetOrAddBoolean("M1", "zero_fix_sources", true);
 }
 
 // ============================================================================

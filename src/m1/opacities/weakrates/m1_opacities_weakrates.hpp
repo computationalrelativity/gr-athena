@@ -4,7 +4,13 @@
 // Athena++ classes headers
 #include "../../../athena.hpp"
 #include "../../m1.hpp"
+#include "../../m1_sources.hpp"
+#include "../../m1_calc_closure.hpp"
 #include "../../../hydro/hydro.hpp"
+#include "../../../eos/eos.hpp"
+
+#include "../../../coordinates/coordinates.hpp"
+#include "../../../field/field.hpp"
 
 // Weakrates header
 #include "weak_rates.hpp"
@@ -33,6 +39,21 @@ public:
     propagate_hydro_equilibrium(
       pin->GetOrAddBoolean("M1_opacities",
                            "propagate_hydro_equilibrium",
+                           false)
+    ),
+    wr_impose_equilibrium(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_impose_equilibrium",
+                           false)
+    ),
+    wr_flag_equilibrium_corrected(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_corrected",
+                           false)
+    ),
+    correction_adjust_upward(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correction_adjust_upward",
                            false)
     )
   {
@@ -234,90 +255,140 @@ public:
     Real* kap_a_n, Real* kap_a_e,
     Real* kap_s_n, Real* kap_s_e,
     Real* dens_n, Real* dens_e,
-    bool ignore_current_data
+    bool ignore_current_data,
+    bool & TY_adjusted,
+    bool & calculate_trapped
   )
   {
     int ierr_we = 0;
     int ierr_nd = 0;
+
+    TY_adjusted = false;
 
     Real dens_n_trap[3];
     Real dens_e_trap[3];
     Real dens_n_thin[3];
     Real dens_e_thin[3];
 
+    /*
     // Time-scale for equilibrium regime
     tau = std::min(
       std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
       std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
     ) * dt;
+    */
+
+    /*
+    auto min3 = [&](Real a, Real b, Real c)
+    {
+      return std::min(a, std::min(b, c));
+    };
+
+    auto max3 = [&](Real a, Real b, Real c)
+    {
+      return std::max(a, std::max(b, c));
+    };
+
+    const Real tau_fac = 1.0 / max3(
+      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA])),
+      std::sqrt(kap_a_e[NUX] * (kap_a_e[NUX] + kap_s_e[NUX]))
+    );
+    */
+
+    const Real tau_fac = std::min(
+      1 / std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      1 / std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
+    );
+
+    tau = tau_fac;
+
+    calculate_trapped = (
+      (opacity_tau_trap >= 0.0) &&
+      (tau < dt / opacity_tau_trap) &&
+      (rho >= pm1->opt_solver.tra_rho_min)
+    );
 
     // Calculate equilibrium blackbody functions with trapped neutrinos
-    if (opacity_tau_trap >= 0.0 &&
-        tau > opacity_tau_trap)
+    if (calculate_trapped)
     {
       // Ensure evolution method delegated based on here detected equilibrium
       const static int ix_g = 0;
-      typedef M1::evolution_strategy::opt_solution_regime osr_r;
-      typedef M1::evolution_strategy::opt_source_treatment ost_r;
-      AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
-      AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
+      // typedef M1::evolution_strategy::opt_solution_regime osr_r;
+      // typedef M1::evolution_strategy::opt_source_treatment ost_r;
+      // AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
+      // AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
 
       for (int ix_s=0; ix_s<3; ++ix_s)
       {
-        sol_r(ix_g,ix_s,k,j,i) = osr_r::equilibrium;
-        src_r(ix_g,ix_s,k,j,i) = ost_r::set_zero;
+        pm1->SetMaskSolutionRegime(
+          M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i
+        );
       }
 
       // set thick limit
       if (revert_thick_limit_equilibrium)
       {
+
         for (int ix_s=0; ix_s<3; ++ix_s)
         {
-          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i) = ONE_3RD;
-          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i) = 0;
+          Closures::EddingtonFactors::ThickLimit(
+            pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+            pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+          );
         }
       }
 
       // ----------------------------------------------------------------------
-      if (ignore_current_data)
-      {
-        for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
-        {
-          dens_n[s_idx] = 0;
-          dens_e[s_idx] = 0;
-        }
-      }
-      else
-      {
-        Real invsdetg = pm1->geom.sc_oo_sqrt_det_g(k, j, i);
+      Real invsdetg = pm1->geom.sc_oo_sqrt_det_g(k, j, i);
 
-        // FF number density
-        dens_n[0] = pm1->rad.sc_n(0, 0)(k, j, i) * invsdetg;
-        dens_n[1] = pm1->rad.sc_n(0, 1)(k, j, i) * invsdetg;
-        dens_n[2] = pm1->rad.sc_n(0, 2)(k, j, i) * invsdetg;
+      // FF number density
+      dens_n[0] = pm1->rad.sc_n(0, 0)(k, j, i) * invsdetg;
+      dens_n[1] = pm1->rad.sc_n(0, 1)(k, j, i) * invsdetg;
+      dens_n[2] = pm1->rad.sc_n(0, 2)(k, j, i) * invsdetg;
 
-        // FF energy density
-        dens_e[0] = pm1->rad.sc_J(0, 0)(k, j, i) * invsdetg;
-        dens_e[1] = pm1->rad.sc_J(0, 1)(k, j, i) * invsdetg;
-        dens_e[2] = pm1->rad.sc_J(0, 2)(k, j, i) * invsdetg;
-      }
+      // FF energy density
+      dens_e[0] = pm1->rad.sc_J(0, 0)(k, j, i) * invsdetg;
+      dens_e[1] = pm1->rad.sc_J(0, 1)(k, j, i) * invsdetg;
+      dens_e[2] = pm1->rad.sc_J(0, 2)(k, j, i) * invsdetg;
 
       // Calculate equilibriated state
-      ierr_we = pmy_weakrates->WeakEquilibrium(rho, T, Y_e,
-                                               dens_n[0],
-                                               dens_n[1],
-                                               dens_n[2],
-                                               dens_e[0],
-                                               dens_e[1],
-                                               dens_e[2],
-                                               T_star, Y_e_star,
-                                               dens_n_trap[0],
-                                               dens_n_trap[1],
-                                               dens_n_trap[2],
-                                               dens_e_trap[0],
-                                               dens_e_trap[1],
-                                               dens_e_trap[2]);
+      ierr_we = pmy_weakrates->WeakEquilibrium(
+        rho, T, Y_e,
+        (ignore_current_data) ? 0.0 : dens_n[0],
+        (ignore_current_data) ? 0.0 : dens_n[1],
+        (ignore_current_data) ? 0.0 : dens_n[2],
+        (ignore_current_data) ? 0.0 : dens_e[0],
+        (ignore_current_data) ? 0.0 : dens_e[1],
+        (ignore_current_data) ? 0.0 : dens_e[2],
+        T_star, Y_e_star,
+        dens_n_trap[0],
+        dens_n_trap[1],
+        dens_n_trap[2],
+        dens_e_trap[0],
+        dens_e_trap[1],
+        dens_e_trap[2]
+      );
+
+      // immediately break on error or non-finite values ----------------------
+      Real val = 0;
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        val += dens_n_trap[ix_s] + dens_e_trap[ix_s];
+      }
+      if (!std::isfinite(val) || ierr_we)
+      {
+        return 1;
+      }
+
+      TY_adjusted = true;
       // ----------------------------------------------------------------------
+    }
+    else
+    {
+      // No trapped calculation, so leave T,Y_e unmodified if later propagated
+      T_star = T;
+      Y_e_star = Y_e;
     }
 
     ierr_nd = pmy_weakrates->NeutrinoDensity(
@@ -326,58 +397,75 @@ public:
         dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]
     );
 
-    // Set the black body function
-    if (opacity_tau_trap < 0 || tau <= opacity_tau_trap)
+    if (ierr_nd)
     {
-      dens_n[0] = dens_n_thin[0];
-      dens_n[1] = dens_n_thin[1];
-      dens_n[2] = dens_n_thin[2];
-
-      dens_e[0] = dens_e_thin[0];
-      dens_e[1] = dens_e_thin[1];
-      dens_e[2] = dens_e_thin[2];
+      // immediately break on error
+      return 1;
     }
-    else if (tau > opacity_tau_trap + opacity_tau_delta)
-    {
-      dens_n[0] = dens_n_trap[0];
-      dens_n[1] = dens_n_trap[1];
-      dens_n[2] = dens_n_trap[2];
 
-      dens_e[0] = dens_e_trap[0];
-      dens_e[1] = dens_e_trap[1];
-      dens_e[2] = dens_e_trap[2];
+    // Set the black body function
+    if (calculate_trapped)
+    {
+      // proceed further ------------------------------------------------------
+      if (tau < dt / (opacity_tau_trap + opacity_tau_delta))
+      {
+        for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+        {
+          dens_n[s_idx] = dens_n_trap[s_idx];
+          dens_e[s_idx] = dens_e_trap[s_idx];
+        }
+      }
+      else
+      {
+        // tau in dt * [1 / (opacity_tau_trap + opacity_tau_delta),
+        //              1 / opacity_tau_trap)
+
+        // const Real lam = (tau - opacity_tau_trap) / opacity_tau_delta;
+        const Real I_tau_min = dt / (opacity_tau_trap + opacity_tau_delta);
+        const Real I_tau_max = dt / opacity_tau_trap;
+
+        // tau_map in [0, 1]
+        const Real tau_map = (tau - I_tau_min) / (I_tau_max - I_tau_min);
+        const Real lam = 1 - tau_map;
+
+        for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+        {
+          dens_n[s_idx] = (
+            lam * dens_n_trap[s_idx] + (1.0 - lam) * dens_n_thin[s_idx]
+          );
+          dens_e[s_idx] = (
+            lam * dens_e_trap[s_idx] + (1.0 - lam) * dens_e_thin[s_idx]
+          );
+        }
+
+        // Intermediate regime, so linearly interpolate T,Y_e for later propagation
+        T_star = lam * T_star + (1.0 - lam) * T;
+        Y_e_star = lam * Y_e_star + (1.0 - lam) * Y_e;
+      }
     }
     else
     {
-      Real lam = (tau - opacity_tau_trap) / opacity_tau_delta;
-
-      dens_n[0] = lam * dens_n_trap[0] + (1 - lam) * dens_n_thin[0];
-      dens_n[1] = lam * dens_n_trap[1] + (1 - lam) * dens_n_thin[1];
-      dens_n[2] = lam * dens_n_trap[2] + (1 - lam) * dens_n_thin[2];
-
-      dens_e[0] = lam * dens_e_trap[0] + (1 - lam) * dens_e_thin[0];
-      dens_e[1] = lam * dens_e_trap[1] + (1 - lam) * dens_e_thin[1];
-      dens_e[2] = lam * dens_e_trap[2] + (1 - lam) * dens_e_thin[2];
+      // free-streaming
+      for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+      {
+        dens_n[s_idx] = dens_n_thin[s_idx];
+        dens_e[s_idx] = dens_e_thin[s_idx];
+      }
     }
 
-    // ----------------------------------------------------------------------
-    Real val = 0;
-    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-    {
-      val += dens_n_trap[ix_s] + dens_e_trap[ix_s];
-    }
-
-    return (ierr_we || ierr_nd || !std::isfinite(val));
+    return 0;
   }
 
   inline void ApplyOpacityCorrections(
     int k, int j, int i,
+    const Real T, const Real T_star,
     const Real* dens_n,  const Real* dens_e,
     const Real* kap_a_n, const Real* kap_a_e,
     const Real* kap_s_n, const Real* kap_s_e,
     const Real* eta_n,   const Real* eta_e
     )
   {
+    /*
     // Calculate correction factors
     Real corr_fac[3];
     for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
@@ -444,6 +532,257 @@ public:
                         : 0.0);
     pm1->radmat.sc_kap_a(0, 2)(k, j, i) =
         (dens_e[2] > 1e-20 ? pm1->radmat.sc_eta(0, 2)(k, j, i) / dens_e[2] : 0.0);
+    */
+
+    // Do computations, check validity afterwards
+    typedef M1::vars_RadMat RM;
+    typedef M1::vars_Rad R;
+    RM & rm = pm1->radmat;
+    R  & r  = pm1->rad;
+
+    Real corr_fac[3];
+    for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+    {
+      // equilibrium and incoming energies
+      const Real avg_nrg_eql = dens_e[s_idx] / dens_n[s_idx];
+      const Real avg_nrg_inc = (
+        r.sc_J(0, s_idx)(k, j, i) / r.sc_n(0, s_idx)(k, j, i)
+      );
+
+      rm.sc_avg_nrg(0, s_idx)(k, j, i) = avg_nrg_eql;
+      corr_fac[s_idx] = avg_nrg_inc / avg_nrg_eql;
+
+      // T_star should not be used for this.
+      // corr_fac[s_idx] = std::min(
+      //   std::max(1.0, T_star / T), opacity_corr_fac_max
+      // );
+
+      if (correction_adjust_upward)
+      {
+        corr_fac[s_idx] = std::max(
+          std::min(corr_fac[s_idx], opacity_corr_fac_max), 1.0
+        );
+      }
+      else
+      {
+        corr_fac[s_idx] =
+            std::max(1.0 / opacity_corr_fac_max,
+                      std::min(corr_fac[s_idx], opacity_corr_fac_max));
+      }
+
+      corr_fac[s_idx] *= corr_fac[s_idx];
+    }
+
+    // Energy scattering
+    rm.sc_kap_s(0, 0)(k, j, i) = corr_fac[0] * kap_s_e[NUE];
+    rm.sc_kap_s(0, 1)(k, j, i) = corr_fac[1] * kap_s_e[NUA];
+    rm.sc_kap_s(0, 2)(k, j, i) = corr_fac[2] * kap_s_e[NUX];
+
+    // Enforce Kirchhoff's law
+    // For electron lepton neutrinos we change the opacity
+    // For heavy lepton neutrinos we change the emissivity
+
+    // Electron neutrinos
+    rm.sc_kap_a_0(0, 0)(k, j, i) = corr_fac[0] * kap_a_n[NUE];
+    rm.sc_kap_a(0, 0)(k, j, i)   = corr_fac[0] * kap_a_e[NUE];
+
+    rm.sc_eta_0(0, 0)(k, j, i) = rm.sc_kap_a_0(0, 0)(k, j, i) * dens_n[0];
+    rm.sc_eta(0, 0)(k, j, i)   = rm.sc_kap_a(0, 0)(k, j, i) * dens_e[0];
+
+    // Electron anti-neutrinos
+    rm.sc_kap_a_0(0, 1)(k, j, i) = corr_fac[1] * kap_a_n[NUA];
+    rm.sc_kap_a(0, 1)(k, j, i)   = corr_fac[1] * kap_a_e[NUA];
+
+    rm.sc_eta_0(0, 1)(k, j, i) = rm.sc_kap_a_0(0, 1)(k, j, i) * dens_n[1];
+    rm.sc_eta(0, 1)(k, j, i) = rm.sc_kap_a(0, 1)(k, j, i) * dens_e[1];
+
+    // Heavy lepton neutrinos
+    rm.sc_eta_0(0, 2)(k, j, i) = corr_fac[2] * eta_n[NUX];
+    rm.sc_eta(0, 2)(k, j, i)   = corr_fac[2] * eta_e[NUX];
+
+    rm.sc_kap_a_0(0, 2)(k, j, i) = rm.sc_eta_0(0, 2)(k, j, i) / dens_n[2];
+    rm.sc_kap_a(0, 2)(k, j, i) = rm.sc_eta(0, 2)(k, j, i) / dens_e[2];
+
+    // Check validity. Zero quantities if any not valid -----------------------
+    bool valid = true;
+    for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+    {
+      valid = valid && std::isfinite(corr_fac[s_idx]);
+      valid = valid && std::isfinite(rm.sc_avg_nrg(0, s_idx)(k, j, i));
+    }
+    valid = (valid &&
+             std::isfinite(rm.sc_kap_a_0(0, 2)(k, j, i)) &&
+             rm.sc_kap_a(0, 2)(k, j, i));
+
+    if (!valid)
+    {
+      if (verbose_warn_weak)
+      {
+        const Real rho = pm1->hydro.sc_w_rho(k, j, i);
+        const Real Y_e = pm1->hydro.sc_w_Ye(k, j, i);
+
+        const Real tau = 0;
+        const Real Y_e_star = 0;
+
+        PrintOpacityDiagnostics(
+          "ApplyOpacityCorrections failure",
+          k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+          kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
+          dens_n, dens_e
+        );
+      }
+      SetZeroRadMatAtPoint(k,j,i);
+    }
+  }
+
+  // Use the corrected opacities to flag equilibrium treatment
+  inline void FlagEquilibriumCorrected(
+    const Real dt, const Real rho,
+    const int k, const int j, const int i)
+  {
+
+    Real tau_fac = std::numeric_limits<Real>::infinity();
+
+    const int ix_g = 0;
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      // skip over NUX to match what is used in ComputeEquilibriumDensities
+      if (ix_s == NUX)
+        continue;
+
+      const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
+      const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
+      tau_fac = std::min(
+        tau_fac,
+        1 / std::sqrt(kap_a * (kap_a + kap_s))
+      );
+    }
+
+    const Real tau = tau_fac;
+
+    bool flag_eql = (std::isfinite(tau) &&
+                    (opacity_tau_trap >= 0.0) &&
+                    (tau < dt / opacity_tau_trap) &&
+                    (rho >= pm1->opt_solver.eql_rho_min));
+
+    M1::M1::t_sln_r sln_flag = (flag_eql)
+      ? M1::M1::t_sln_r::equilibrium
+      : M1::M1::t_sln_r::noop;
+
+    for (int ix_s=0; ix_s<3; ++ix_s)
+    {
+      pm1->SetMaskSolutionRegime(sln_flag,ix_g,ix_s,k,j,i);
+    }
+  }
+
+  inline void ImposeEquilibriumDensities(
+    const int k, const int j, const int i,
+    Real* dens_n, Real* dens_e
+  )
+  {
+    // Set equilibrium in fiducial frame:
+    // (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
+    // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
+    const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+    const Real W = pm1->fidu.sc_W(k,j,i);
+    const Real W2 = SQR(W);
+
+    const int ix_g = 0;
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      pm1->SetMaskSolutionRegime(
+        M1::M1::t_sln_r::equilibrium_wr,ix_g,ix_s,k,j,i
+      );
+
+      AT_C_sca & sc_J   = pm1->rad.sc_J(ix_g,ix_s);
+      AT_D_vec & st_H_u = pm1->rad.st_H_u(ix_g,ix_s);
+      AT_C_sca & sc_n   = pm1->rad.sc_n(ix_g,ix_s);
+
+      AT_C_sca & sc_E    = pm1->lab.sc_E(ix_g,ix_s);
+      AT_N_vec & sp_F_d  = pm1->lab.sp_F_d(ix_g,ix_s);
+      AT_C_sca & sc_nG   = pm1->lab.sc_nG(ix_g,ix_s);
+
+      AT_C_sca & S_sc_E    = pm1->sources.sc_E(ix_g,ix_s);
+      AT_N_vec & S_sp_F_d  = pm1->sources.sp_F_d(ix_g,ix_s);
+      AT_C_sca & S_sc_nG   = pm1->sources.sc_nG(ix_g,ix_s);
+
+      AT_C_sca & sc_chi  = pm1->lab_aux.sc_chi(ix_g,ix_s);
+      AT_C_sca & sc_xi   = pm1->lab_aux.sc_xi(ix_g,ix_s);
+
+      // sc_J(k,j,i) = nudens(1,ix_s) * sc_sqrt_det_g;
+      sc_J(k,j,i) = dens_e[ix_s] * sc_sqrt_det_g;
+
+      for (int a=0; a<D; ++a)
+      {
+        st_H_u(a,k,j,i) = 0;
+      }
+
+      // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+      sc_E(k,j,i) = W2 * sc_J(k,j,i);
+      for (int a=0; a<N; ++a)
+      {
+        sp_F_d(a,k,j,i) = W2 * pm1->fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+      }
+
+      // Prepare neutrino number density
+      // sc_n(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
+      sc_n(k,j,i) = dens_n[ix_s] * sc_sqrt_det_g;
+
+      // floors (here Gamma = W as H_n is 0)
+      sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1->opt.fl_nG);
+      sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
+
+      // Flooring -----------------------------------------------------------
+      const bool floor_applied = sc_E(k,j,i) < pm1->opt.fl_E;
+      sc_E(k,j,i) = std::max(sc_E(k,j,i), pm1->opt.fl_E);
+
+      if (floor_applied)
+      {
+        for (int a=0; a<N; ++a)
+        {
+          sp_F_d(a,k,j,i) = 0;
+        }
+      }
+
+      sc_nG(k,j,i) = std::max(sc_nG(k,j,i), pm1->opt.fl_nG);
+
+      // Sources --------------------------------------------------------------
+      if (pm1->opt_solver.equilibrium_sources)
+      {
+        Assemble::Frames::sources_sc_E_sp_F_d(
+          *pm1,
+          S_sc_E,
+          S_sp_F_d,
+          sc_chi,
+          sc_E,
+          sp_F_d,
+          pm1->radmat.sc_eta(ix_g, ix_s), // V.sc_eta,
+          pm1->radmat.sc_kap_a(ix_g, ix_s), // V.sc_kap_a,
+          pm1->radmat.sc_kap_s(ix_g, ix_s), // V.sc_kap_s,
+          k, j, i
+        );
+
+        Assemble::Frames::sources_sc_nG(
+          *pm1,
+          S_sc_nG,
+          sc_n,
+          pm1->radmat.sc_eta_0(ix_g, ix_s), // V.sc_eta_0,
+          pm1->radmat.sc_kap_a_0(ix_g, ix_s), // V.sc_kap_a_0,
+          k, j, i
+        );
+      }
+      else
+      {
+        S_sc_E(k,j,i) = 0.0;
+        for (int a=0; a<D; ++a)
+        {
+          S_sp_F_d(a,k,j,i) = 0.0;
+        }
+        S_sc_nG(k,j,i) = 0.0;
+      }
+    }
   }
 
   inline void PrintOpacityDiagnostics(
@@ -559,6 +898,8 @@ public:
       Real Y_e_star;
       Real T_star;
       Real tau;
+      bool TY_adjusted = false;
+      bool calculate_trapped = false;
 
       int ierr_opac = CalculateOpacityCoefficients(
         k, j, i, rho, T, Y_e,
@@ -574,7 +915,7 @@ public:
         if (verbose_warn_weak)
         {
           PrintOpacityDiagnostics(
-            "ComputeEquilibriumDensities failure",
+            "CalculateOpacityCoefficients failure",
             k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e
@@ -627,7 +968,9 @@ public:
         kap_a_n, kap_a_e,
         kap_s_n, kap_s_e,
         dens_n, dens_e,
-        ignore_current_data
+        ignore_current_data,
+        TY_adjusted,
+        calculate_trapped
       );
 
       if (ierr_we)
@@ -648,7 +991,6 @@ public:
           const bool exclude_first_extrema = true;
           GetNearestNeighborAverages(k, j, i, rho, T, Y_e, exclude_first_extrema);
 
-          ignore_current_data = true;
           ierr_we = ComputeEquilibriumDensities(
             k, j, i,
             dt,
@@ -658,7 +1000,9 @@ public:
             kap_a_n, kap_a_e,
             kap_s_n, kap_s_e,
             dens_n, dens_e,
-            ignore_current_data
+            ignore_current_data,
+            TY_adjusted,
+            calculate_trapped
           );
 
           // Now revert the point:
@@ -697,7 +1041,9 @@ public:
           kap_a_n, kap_a_e,
           kap_s_n, kap_s_e,
           dens_n, dens_e,
-          ignore_current_data
+          ignore_current_data,
+          TY_adjusted,
+          calculate_trapped
         );
 
         if (ierr_we)
@@ -717,19 +1063,52 @@ public:
         }
       }
 
-      if (propagate_hydro_equilibrium)
-      {
-        pm1->hydro.sc_w_Ye(k, j, i) = Y_e_star;
-        pm1->hydro.sc_T(k,j,i) = T_star;
-      }
-
       ApplyOpacityCorrections(
         k, j, i,
+        T, T_star,
         dens_n, dens_e,
         kap_a_n, kap_a_e,
         kap_s_n, kap_s_e,
         eta_n, eta_e
       );
+
+      if (wr_flag_equilibrium_corrected)
+      {
+        FlagEquilibriumCorrected(dt, rho, k, j, i);
+      }
+
+      if (propagate_hydro_equilibrium && TY_adjusted)
+      {
+        // N.B.:
+        // pm1->hydro.X slice into phydro
+        // similarly Y_e slices into pscalars->r
+        pm1->hydro.sc_w_Ye(k, j, i) = Y_e_star;
+        pm1->hydro.sc_T(k,j,i) = T_star;
+
+        // update pressure keeping density fixed
+        Real const nb = rho / (pmy_block->peos->GetEOS().GetBaryonMass());
+        Real Y_e_star_vec[MAX_SPECIES] = {Y_e_star};
+        pm1->hydro.sc_w_p(k,j,i) = pmy_block->peos->GetEOS().GetPressure(
+          nb, T_star, Y_e_star_vec
+        );
+
+        pmy_block->peos->PrimitiveToConserved(
+          pmy_block->phydro->w,
+          pmy_block->pscalars->r,
+          pmy_block->pfield->bcc,
+          pmy_block->phydro->u,
+          pmy_block->pscalars->s,
+          pmy_block->pcoord,
+          i, i,
+          j, j,
+          k, k
+        );
+      }
+
+      if (calculate_trapped && wr_impose_equilibrium)
+      {
+        ImposeEquilibriumDensities(k, j, i, dens_n, dens_e);
+      }
 
       if (validate_opacities)
       {
@@ -768,6 +1147,9 @@ private:
 
   const bool revert_thick_limit_equilibrium;
   const bool propagate_hydro_equilibrium;
+  const bool wr_impose_equilibrium;
+  const bool wr_flag_equilibrium_corrected;
+  const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities
   Real opacity_tau_trap;

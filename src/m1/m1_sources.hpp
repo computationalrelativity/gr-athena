@@ -140,6 +140,13 @@ void Apply(
   M1::vars_Source & U_S
 );
 
+// Check whether the current sources / state give rise to a physical solution
+// with respect to the hydro / species sector.
+void CheckPhysicalFallback(
+  M1 * pm1,
+  const Real dt,
+  const M1::vars_Source & U_S);
+
 // ============================================================================
 } // namespace M1::Sources::Limiter
 // ============================================================================

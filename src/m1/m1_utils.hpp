@@ -767,6 +767,29 @@ inline Real ToFiducial(
   return sc_Gam__;
 }
 
+inline Real sc_Gam__(
+  M1 & pm1,
+  AT_C_sca & sc_J,
+  AT_D_vec & st_H_u,
+  const int k, const int j, const int i
+)
+{
+  Real ret_sc_Gam__ = 1.0;
+  const Real alpha = pm1.geom.sc_alpha(k,j,i);
+
+  AT_C_sca & sc_W   = pm1.fidu.sc_W;
+
+  const Real W = sc_W(k,j,i);
+
+  const Real J_0 = sc_J(k,j,i);
+  const Real H_n = st_H_u(0,k,j,i) * alpha;
+
+  ret_sc_Gam__ = (J_0 > pm1.opt.fl_J)
+    ? W * (1.0 + H_n / (J_0 * W))
+    : W;
+  return ret_sc_Gam__;
+}
+
 inline Real sp_f_u__(
   M1 & pm1,
   AT_C_sca & sc_J,

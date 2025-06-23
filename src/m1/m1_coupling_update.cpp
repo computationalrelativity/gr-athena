@@ -148,6 +148,64 @@ void M1::CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd)
   }
 };
 
+bool M1::AreSourcesFinite(const int k, const int j, const int i)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
+    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
+    AT_C_sca & S_sc_nG  = sources.sc_nG(ix_g,ix_s);
+
+    if (!std::isfinite(sources.sc_E(ix_g,ix_s)(k,j,i) ||
+        !std::isfinite(sources.sc_nG(ix_g,ix_s)(k,j,i))))
+    {
+      return false;
+    }
+
+    for (int a=0; a<N; ++a)
+    {
+      if (!std::isfinite(sources.sp_F_d(ix_g,ix_s)(a,k,j,i)))
+      {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+void M1::SetZeroSources(const int k, const int j, const int i)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
+    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
+
+    S_sc_E(k,j,i) = 0.0;
+    for (int a=0; a<N; ++a)
+    {
+      S_sp_F_d(a,k,j,i) = 0.0;
+    }
+
+    sources.sc_nG(ix_g,ix_s)(k,j,i) = 0;
+  }
+}
+
+void M1::EnforceSourcesFinite()
+{
+  Z4c * pz4c = pmy_block->pz4c;
+  ILOOP3(k,j,i)
+  if (MaskGet(k, j, i))
+  {
+    if (!AreSourcesFinite(k, j, i))
+    {
+      SetZeroSources(k,j,i);
+    }
+  }
+
+}
 
 void M1::CoupleSourcesHydro(AA & cons)
 {
@@ -191,8 +249,6 @@ void M1::CoupleSourcesHydro(AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
-
         if (!std::isfinite(S_sc_E(k,j,i)))
         {
           pm1->StatePrintPoint(
@@ -200,14 +256,14 @@ void M1::CoupleSourcesHydro(AA & cons)
             ix_g, ix_s,
             k, j, i, true);
         }
-      }
+        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
+     }
 
       // S_j source -----------------------------------------------------------
       for (int a=0; a<N; ++a)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        cons(IM1+a,k,j,i) -= S_sp_F_d(a,k,j,i);
         if (!std::isfinite(S_sp_F_d(k,j,i)))
         {
           pm1->StatePrintPoint(
@@ -215,6 +271,7 @@ void M1::CoupleSourcesHydro(AA & cons)
             ix_g, ix_s,
             k, j, i, true);
         }
+        cons(IM1+a,k,j,i) -= S_sp_F_d(a,k,j,i);
       }
     }
   }

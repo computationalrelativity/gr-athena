@@ -103,11 +103,19 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
   }
 
   // Collect result of integrations as a final block.
-  TaskID FIN = (SRCTERM_HYD|SEND_HYDFLX);
+  TaskID FIN = SRCTERM_HYD;
+  if (multilevel)
+  {
+    FIN = FIN | SEND_HYDFLX;
+  }
 
   if (NSCALARS > 0)
   {
-    FIN = FIN | INT_SCLR | SEND_SCLRFLX;
+    FIN = FIN | INT_SCLR;
+    if (multilevel)
+    {
+      FIN = FIN | SEND_SCLRFLX;
+    }
   }
 
   if (MAGNETIC_FIELDS_ENABLED)

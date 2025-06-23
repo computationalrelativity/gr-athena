@@ -17,6 +17,7 @@
 //      (2023)
 
 // c++
+#include <cmath>
 #include <iostream>
 
 // Athena++ classes headers
@@ -91,6 +92,10 @@ public:
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
+
+  void EnforceSourcesFinite();
+  bool AreSourcesFinite(const int k, const int j, const int i);
+  void SetZeroSources(const int k, const int j, const int i);
 
   void PerformAnalysis();
 
@@ -211,6 +216,9 @@ public:
 
     // debugging:
     bool value_inject;
+
+    // if flooring was too strict, we can still save the source (set zero)
+    bool zero_fix_sources;
   } opt;
 
   struct
@@ -276,7 +284,20 @@ public:
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;
+    bool equilibrium_sources;  // used during evol.
+
+    bool equilibrium_n_nG;
+    bool equilibrium_use_thick;
+    bool equilibrium_src_nG;
+    bool equilibrium_src_E_F_d;
+
     Real eql_rho_min;
+    Real tra_rho_min;
+
+    // fallback parameters for checking matter coupling
+    Real flux_lo_fallback_tau_min;
+    Real flux_lo_fallback_Ye_min;
+    Real flux_lo_fallback_Ye_max;
 
     bool verbose;
   } opt_solver;
@@ -704,6 +725,7 @@ public:
                                     stiff,
                                     scattering,
                                     equilibrium,
+                                    equilibrium_wr,
                                     N};
     enum class opt_source_treatment {noop,
                                      full,
@@ -806,6 +828,7 @@ public:
   void PrepareEvolutionStrategy(const Real dt,
                                 const Real kap_a,
                                 const Real kap_s,
+                                const Real rho,
                                 t_sln_r & mask_sln_r,
                                 t_src_t & mask_src_t);
   void PrepareEvolutionStrategyCommon(const Real dt);

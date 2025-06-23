@@ -12,6 +12,10 @@
 #include "m1_integrators.hpp"
 #include "m1_set_equilibrium.hpp"
 
+#if FLUID_ENABLED
+#include "../eos/eos.hpp"
+#endif
+
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
@@ -34,23 +38,40 @@ void M1::ResetEvolutionStrategy()
 void M1::PrepareEvolutionStrategy(const Real dt,
                                   const Real kap_a,
                                   const Real kap_s,
+                                  const Real rho,
                                   t_sln_r & mask_sln_r,
                                   t_src_t & mask_src_t)
 {
   // Equilibrium detected in Weak-rates; short-circuit
-  if (mask_sln_r == t_sln_r::equilibrium)
+  if ((mask_sln_r == t_sln_r::equilibrium) ||
+      (mask_sln_r == t_sln_r::equilibrium_wr))
   {
-    mask_src_t = t_src_t::set_zero;
+    if (pm1->opt_solver.equilibrium_sources)
+    {
+      mask_src_t = t_src_t::full;
+    }
+    else
+    {
+      mask_src_t = t_src_t::set_zero;
+    }
     return;
   }
 
   // equilibrium regime (additional thick limiter)
   if((opt_solver.src_lim_thick > 0) &&
      (SQR(dt) * (kap_a * (kap_a + kap_s)) >
-      SQR(opt_solver.src_lim_thick)))
+      SQR(opt_solver.src_lim_thick)) &&
+     (rho >= pm1->opt_solver.eql_rho_min))
   {
     mask_sln_r = t_sln_r::equilibrium;
-    mask_src_t = t_src_t::set_zero;
+    if (pm1->opt_solver.equilibrium_sources)
+    {
+      mask_src_t = t_src_t::full;
+    }
+    else
+    {
+      mask_src_t = t_src_t::set_zero;
+    }
   }
   // scattering regime
   else if((opt_solver.src_lim_scattering > 0) &&
@@ -85,10 +106,17 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
     if (pm1->MaskGet(k, j, i))
     {
       // First check if already in equilibrium from weak rates
-      if (mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium)
+      if ((mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium) ||
+          (mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium_wr))
       {
-        // Already in equilibrium, ensure source treatment is consistent
-        mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        if (pm1->opt_solver.equilibrium_sources)
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::full;
+        }
+        else
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        }
         continue;
       }
 
@@ -97,6 +125,8 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       Real max_kap_s = 0.0;
 
       bool non_stiff = true;
+
+      const Real rho = hydro.sc_w_rho(k,j,i);
 
       // Find maximum opacities across all species
       for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
@@ -119,10 +149,18 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       // Check thick regime
       if ((opt_solver.src_lim_thick > 0) &&
           (SQR(dt) * max_kap_prod >
-           SQR(opt_solver.src_lim_thick)))
+           SQR(opt_solver.src_lim_thick)) &&
+          (rho >= pm1->opt_solver.eql_rho_min))
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::equilibrium;
-        mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        if (pm1->opt_solver.equilibrium_sources)
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::full;
+        }
+        else
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        }
       }
       // Check scattering regime
       else if ((opt_solver.src_lim_scattering > 0) &&
@@ -169,6 +207,7 @@ void M1::PrepareEvolutionStrategy(const Real dt)
     const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
 
     PrepareEvolutionStrategy(dt, kap_a, kap_s,
+                             hydro.sc_w_rho(k,j,i),
                              mask_sln_r(ix_g, ix_s, k, j, i),
                              mask_src_t(ix_g, ix_s, k, j, i));
   }
@@ -309,12 +348,37 @@ void M1::CalcUpdate(const int stage,
   vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesSource(u_src, U_S);
 
+  // local settings -----------------------------------------------------------
+  const bool use_src_limiter = opt_solver.src_lim >= 0;
+  const bool use_fb_lo_matter = (
+    opt_solver.flux_lo_fallback_tau_min > -1 ||
+    ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
+     (opt_solver.flux_lo_fallback_Ye_max > -1))
+  );
+
+  /*
+  const bool fb_lo_E  = opt.flux_lo_fallback_E;
+  const bool fb_lo_nG = opt.flux_lo_fallback_nG;
+
+  if (use_src_limiter)
+  {
+    opt.flux_lo_fallback_E  = false;
+    opt.flux_lo_fallback_nG = false;
+  }
+  */
+
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
 
-  // prepare source limiting mask ---------------------------------------------
-  if (opt_solver.src_lim >= 0)
+  // check whether current solution gives physical matter coupling ------------
+  if (use_fb_lo_matter)
+  {
+    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
+  }
+
+  // prepare source & apply limiting mask -------------------------------------
+  if (use_src_limiter)
   {
     AT_C_sca & theta = sources.theta;
 
@@ -326,7 +390,8 @@ void M1::CalcUpdate(const int stage,
 
   // should we enforce the equilibirum ? --------------------------------------
   if (opt_solver.equilibrium_enforce ||
-      (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)))
+      (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
+      (stage == 1))
   {
     M1_MLOOP3(k, j, i)
     if (MaskGet(k, j, i))
@@ -349,11 +414,11 @@ void M1::CalcUpdate(const int stage,
         Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
 
         // Freeze state of point (handles subsequent CalcUpdate calls)
-        for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-        for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-        {
-          pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k, j, i);
-        }
+        // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+        // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+        // {
+        //   pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k, j, i);
+        // }
       }
     }
   }
@@ -374,18 +439,65 @@ void M1::CalcUpdate(const int stage,
   }
 
   // assemble remaining auxiliary quantities ----------------------------------
-  // BD: TODO - shift elsewhere
-  // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  // {
-  //   StateMetaVector C = ConstructStateMetaVector(*this, U_C, ix_g, ix_s);
+  // BD: TODO: double check / refactor to new task & check nstages there
+  const int nstages = 2;
 
-  //   M1_ILOOP3(k, j, i)
-  //   if (MaskGet(k, j, i))
-  //   {
-  //     // BD: TODO - net.abs, net.heat
-  //   }
-  // }
+  if ((stage==nstages) &&
+      (N_GRPS == 1) && (N_SPCS == 3))
+  {
+    const AT_C_sca & C_sc_E_00 = U_C.sc_E(0,0);
+    const AT_C_sca & C_sc_E_01 = U_C.sc_E(0,1);
+    const AT_C_sca & C_sc_E_02 = U_C.sc_E(0,2);
+
+    const AT_C_sca & P_sc_E_00 = U_P.sc_E(0,0);
+    const AT_C_sca & P_sc_E_01 = U_P.sc_E(0,1);
+    const AT_C_sca & P_sc_E_02 = U_P.sc_E(0,2);
+
+    const AT_C_sca & I_sc_E_00 = U_I.sc_E(0,0);
+    const AT_C_sca & I_sc_E_01 = U_I.sc_E(0,1);
+    const AT_C_sca & I_sc_E_02 = U_I.sc_E(0,2);
+
+#if FLUID_ENABLED && USETM
+    const AT_C_sca & C_sc_nG_00 = U_C.sc_nG(0,0);
+    const AT_C_sca & C_sc_nG_01 = U_C.sc_nG(0,1);
+    // const AT_C_sca & C_sc_nG_02 = U_C.sc_nG(0,2);
+
+    const AT_C_sca & P_sc_nG_00 = U_P.sc_nG(0,0);
+    const AT_C_sca & P_sc_nG_01 = U_P.sc_nG(0,1);
+    // const AT_C_sca & P_sc_nG_02 = U_P.sc_nG(0,2);
+
+    const AT_C_sca & I_sc_nG_00 = U_I.sc_nG(0,0);
+    const AT_C_sca & I_sc_nG_01 = U_I.sc_nG(0,1);
+    // const AT_C_sca & I_sc_nG_02 = U_I.sc_nG(0,2);
+
+    const Real mb = pmy_block->peos->GetEOS().GetRawBaryonMass();
+#endif
+
+    M1_ILOOP3(k, j, i)
+    if (MaskGet(k, j, i))
+    {
+      const Real E_star_00__ = P_sc_E_00(k,j,i) + dt * I_sc_E_00(k,j,i);
+      const Real DE_00 = C_sc_E_00(k,j,i) - E_star_00__;
+      const Real E_star_01__ = P_sc_E_01(k,j,i) + dt * I_sc_E_01(k,j,i);
+      const Real DE_01 = C_sc_E_01(k,j,i) - E_star_01__;
+      const Real E_star_02__ = P_sc_E_02(k,j,i) + dt * I_sc_E_02(k,j,i);
+      const Real DE_02 = C_sc_E_02(k,j,i) - E_star_02__;
+
+      net.heat(k,j,i) = DE_00 + DE_01 + DE_02;
+#if FLUID_ENABLED && USETM
+      const Real nG_star_00__ = P_sc_nG_00(k,j,i) + dt * I_sc_nG_00(k,j,i);
+      const Real DN_00 = C_sc_nG_00(k,j,i) - nG_star_00__;
+      const Real nG_star_01__ = P_sc_nG_01(k,j,i) + dt * I_sc_nG_01(k,j,i);
+      const Real DN_01 = C_sc_nG_01(k,j,i) - nG_star_01__;
+      // const Real nG_star_02__ = P_sc_nG_02(k,j,i) + dt * I_sc_nG_02(k,j,i);
+      // const Real DN_02 = C_sc_nG_02(k,j,i) - nG_star_02__;
+
+      net.abs(k,j,i) = mb * (-DN_00 + DN_01);
+#endif
+    }
+
+  }
+
 }
 
 // ============================================================================
