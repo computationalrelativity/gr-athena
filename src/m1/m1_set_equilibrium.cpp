@@ -4,6 +4,7 @@
 // Athena++ headers
 
 #include "m1.hpp"
+#include "m1_utils.hpp"
 
 #if !(M1_NO_WEAKRATES)
 #include "opacities/weakrates/m1_opacities_weakrates.hpp"
@@ -128,7 +129,7 @@ void SetEquilibrium(
     if (pm1.N_SPCS > 1)
     {
       sc_n(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
-      // floors
+      // floors (here Gamma = W as H_n is 0)
       sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1.opt.fl_nG);
       sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
     }
@@ -136,24 +137,24 @@ void SetEquilibrium(
     // Changes to M1 state vector- propagate back to average energy
     sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
 
+    // Ensure update preserves energy non-negativity
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+    EnforcePhysical_nG(   pm1, C, k, j, i);
+
     // Fix strategy / sources -------------------------------------------------
     pm1.SetMaskSolutionRegime(M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i);
     if (pm1.opt_solver.equilibrium_sources)
     {
+      // source terms (entering coupling)
       pm1.SetMaskSourceTreatment(M1::M1::t_src_t::full,ix_g,ix_s,k,j,i);
+      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+      ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
     }
     else
     {
       pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
     }
 
-    // Ensure update preserves energy non-negativity
-    EnforcePhysical_E_F_d(pm1, C, k, j, i);
-    EnforcePhysical_nG(   pm1, C, k, j, i);
-
-    // source terms (entering coupling) ---------------------------------------
-    ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-    ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
   }
 
 #endif // FLUID_ENABLED
@@ -177,7 +178,6 @@ void SetEquilibrium_n_nG(
   using namespace Sources;
 
   const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
-  const Real W = pm1.fidu.sc_W(k,j,i);
 
   for (int ix_g=0; ix_g<pm1.N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1.N_SPCS; ++ix_s)
@@ -199,10 +199,12 @@ void SetEquilibrium_n_nG(
     // impose thick closure
     Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
 
+    Real sc_Gam__ = 1.0;
+
     if (construct_fiducial)
     {
       // n will be overwitten below and is not required for J, H
-      Assemble::Frames::ToFiducial(
+      sc_Gam__ = Assemble::Frames::ToFiducial(
         pm1,
         sc_J, st_H_u, sc_n,
         sc_chi,
@@ -210,13 +212,21 @@ void SetEquilibrium_n_nG(
         k, j, i
       );
     }
+    else
+    {
+      sc_Gam__ = Assemble::Frames::sc_Gam__(
+        pm1,
+        sc_J,
+        st_H_u,
+        k, j, i);
+    }
 
     // compute from average ---------------------------------------------------
     sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
 
     // floors
-    sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1.opt.fl_nG);
-    sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
+    sc_nG(k,j,i) = std::max(sc_Gam__ * sc_n(k,j,i), pm1.opt.fl_nG);
+    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
 
     // Ensure update preserves energy non-negativity
     EnforcePhysical_nG(pm1, C, k, j, i);

@@ -729,7 +729,8 @@ public:
       // Prepare neutrino number density
       // sc_n(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
       sc_n(k,j,i) = dens_n[ix_s] * sc_sqrt_det_g;
-      // floors
+
+      // floors (here Gamma = W as H_n is 0)
       sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1->opt.fl_nG);
       sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
 
