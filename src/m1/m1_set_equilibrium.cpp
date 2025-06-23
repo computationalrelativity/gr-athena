@@ -100,6 +100,8 @@ void SetEquilibrium(
     AT_C_sca & sc_chi  = C.sc_chi;
     AT_C_sca & sc_xi   = C.sc_xi;
 
+    AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
     // kill sources
     SetMatterSourceZero(S, k, j, i);
     S.sc_nG(k,j,i) = 0;
@@ -131,6 +133,9 @@ void SetEquilibrium(
       sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
     }
 
+    // Changes to M1 state vector- propagate back to average energy
+    sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
+
     // Fix strategy / sources -------------------------------------------------
     pm1.SetMaskSolutionRegime(M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i);
     if (pm1.opt_solver.equilibrium_sources)
@@ -142,18 +147,91 @@ void SetEquilibrium(
       pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
     }
 
-    // source terms (entering coupling) ---------------------------------------
-    ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-    ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
-
     // Ensure update preserves energy non-negativity
     EnforcePhysical_E_F_d(pm1, C, k, j, i);
     EnforcePhysical_nG(   pm1, C, k, j, i);
+
+    // source terms (entering coupling) ---------------------------------------
+    ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
   }
 
 #endif // FLUID_ENABLED
 
 
+}
+
+void SetEquilibrium_n_nG(
+  M1 & pm1,
+  Update::StateMetaVector & C,
+  Update::SourceMetaVector & S,
+  const int k,
+  const int j,
+  const int i,
+  const bool construct_fiducial,
+  const bool construct_src_nG,
+  const bool construct_src_E_F_d
+)
+{
+  using namespace Update;
+  using namespace Sources;
+
+  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+  const Real W = pm1.fidu.sc_W(k,j,i);
+
+  for (int ix_g=0; ix_g<pm1.N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1.N_SPCS; ++ix_s)
+  {
+    // extract field components / prepare frame -------------------------------
+    AT_C_sca & sc_J   = C.sc_J;
+    AT_D_vec & st_H_u = C.st_H_u;
+    AT_C_sca & sc_n   = C.sc_n;
+
+    AT_C_sca & sc_E    = C.sc_E;
+    AT_N_vec & sp_F_d  = C.sp_F_d;
+    AT_C_sca & sc_nG   = C.sc_nG;
+
+    AT_C_sca & sc_chi  = C.sc_chi;
+    AT_C_sca & sc_xi   = C.sc_xi;
+
+    AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
+    // impose thick closure
+    Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
+
+    if (construct_fiducial)
+    {
+      // n will be overwitten below and is not required for J, H
+      Assemble::Frames::ToFiducial(
+        pm1,
+        sc_J, st_H_u, sc_n,
+        sc_chi,
+        sc_E, sp_F_d, sc_nG,
+        k, j, i
+      );
+    }
+
+    // compute from average ---------------------------------------------------
+    sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
+
+    // floors
+    sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1.opt.fl_nG);
+    sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
+
+    // Ensure update preserves energy non-negativity
+    EnforcePhysical_nG(pm1, C, k, j, i);
+
+    // source terms (entering coupling) ---------------------------------------
+    if (construct_src_nG)
+    {
+      ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
+    }
+
+    if (construct_src_E_F_d)
+    {
+      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    }
+  }
 }
 
 // ============================================================================

@@ -294,6 +294,9 @@ void DispatchIntegrationMethod(
       M1::opt_integration_strategy opt_is;
       M1::M1::t_sln_r opt_reg = pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i);
 
+      bool use_eql_n_nG = false;
+      M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
+
       switch (opt_reg)
       {
         case M1::t_sln_r::noop:
@@ -317,8 +320,8 @@ void DispatchIntegrationMethod(
         }
         case M1::t_sln_r::scattering:
         {
-          std::printf("DEBUG: scattering @ (%d, %d; %d, %d, %d)\n",
-                      ix_g, ix_s, k, j, i);
+          // std::printf("DEBUG: scattering @ (%d, %d; %d, %d, %d)\n",
+          //             ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.scattering;
           break;
         }
@@ -327,6 +330,19 @@ void DispatchIntegrationMethod(
         {
           // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
           //             ix_g, ix_s, k, j, i);
+
+          // Optionally flag solution for n directly from equilibrium;
+          // remainder of (E,F_d) state-vector takes prescribed method
+          if (pm1->opt_solver.equilibrium_n_nG)
+          {
+            use_eql_n_nG = true;
+          }
+
+          if (pm1->opt_solver.equilibrium_use_thick)
+          {
+            pm1->opt_closure.variety = M1::opt_closure_variety::thick;
+          }
+
           opt_is = pm1->opt_solver.solvers.equilibrium;
           break;
         }
@@ -341,6 +357,25 @@ void DispatchIntegrationMethod(
         pm1_, dt, opt_is,
         k, j, i,
         C, P, I, S, CL_C);
+
+      // Additional equilibrium logic -----------------------------------------
+      if (use_eql_n_nG)
+      {
+        // over-writes what was computed for (n,nG) in prior step with eql.
+        const bool construct_fiducial = true;
+        Equilibrium::SetEquilibrium_n_nG(
+          *pm1, C, S, k, j, i,
+          construct_fiducial,
+          pm1->opt_solver.equilibrium_src_nG,    // reconstruct sources
+          pm1->opt_solver.equilibrium_src_E_F_d  // for coupling
+        );
+      }
+
+      // revert to originally selected closure for next point -----------------
+      if (pm1->opt_solver.equilibrium_use_thick)
+      {
+        pm1->opt_closure.variety = opt_cl_variety;
+      }
 
     }
   }

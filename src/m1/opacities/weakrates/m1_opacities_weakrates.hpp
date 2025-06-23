@@ -45,6 +45,16 @@ public:
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_impose_equilibrium",
                            false)
+    ),
+    wr_flag_equilibrium_corrected(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_corrected",
+                           false)
+    ),
+    correction_adjust_upward(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correction_adjust_upward",
+                           false)
     )
   {
 
@@ -260,15 +270,42 @@ public:
     Real dens_n_thin[3];
     Real dens_e_thin[3];
 
+    /*
     // Time-scale for equilibrium regime
     tau = std::min(
       std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
       std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
     ) * dt;
+    */
+
+    /*
+    auto min3 = [&](Real a, Real b, Real c)
+    {
+      return std::min(a, std::min(b, c));
+    };
+
+    auto max3 = [&](Real a, Real b, Real c)
+    {
+      return std::max(a, std::max(b, c));
+    };
+
+    const Real tau_fac = 1.0 / max3(
+      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA])),
+      std::sqrt(kap_a_e[NUX] * (kap_a_e[NUX] + kap_s_e[NUX]))
+    );
+    */
+
+    const Real tau_fac = std::min(
+      1 / std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      1 / std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
+    );
+
+    tau = tau_fac;
 
     calculate_trapped = (
       (opacity_tau_trap >= 0.0) &&
-      (tau > opacity_tau_trap) &&
+      (tau < dt / opacity_tau_trap) &&
       (rho >= pm1->opt_solver.tra_rho_min)
     );
 
@@ -287,18 +324,6 @@ public:
         pm1->SetMaskSolutionRegime(
           M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i
         );
-        if (pm1->opt_solver.equilibrium_sources)
-        {
-          pm1->SetMaskSourceTreatment(
-            M1::M1::t_src_t::full,ix_g,ix_s,k,j,i
-          );
-        }
-        else
-        {
-          pm1->SetMaskSourceTreatment(
-            M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i
-          );
-        }
       }
 
       // set thick limit
@@ -382,7 +407,7 @@ public:
     if (calculate_trapped)
     {
       // proceed further ------------------------------------------------------
-      if (tau > opacity_tau_trap + opacity_tau_delta)
+      if (tau < dt / (opacity_tau_trap + opacity_tau_delta))
       {
         for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
         {
@@ -392,7 +417,16 @@ public:
       }
       else
       {
-        const Real lam = (tau - opacity_tau_trap) / opacity_tau_delta;
+        // tau in dt * [1 / (opacity_tau_trap + opacity_tau_delta),
+        //              1 / opacity_tau_trap)
+
+        // const Real lam = (tau - opacity_tau_trap) / opacity_tau_delta;
+        const Real I_tau_min = dt / (opacity_tau_trap + opacity_tau_delta);
+        const Real I_tau_max = dt / opacity_tau_trap;
+
+        // tau_map in [0, 1]
+        const Real tau_map = (tau - I_tau_min) / (I_tau_max - I_tau_min);
+        const Real lam = 1 - tau_map;
 
         for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
         {
@@ -424,12 +458,14 @@ public:
 
   inline void ApplyOpacityCorrections(
     int k, int j, int i,
+    const Real T, const Real T_star,
     const Real* dens_n,  const Real* dens_e,
     const Real* kap_a_n, const Real* kap_a_e,
     const Real* kap_s_n, const Real* kap_s_e,
     const Real* eta_n,   const Real* eta_e
     )
   {
+    /*
     // Calculate correction factors
     Real corr_fac[3];
     for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
@@ -496,6 +532,148 @@ public:
                         : 0.0);
     pm1->radmat.sc_kap_a(0, 2)(k, j, i) =
         (dens_e[2] > 1e-20 ? pm1->radmat.sc_eta(0, 2)(k, j, i) / dens_e[2] : 0.0);
+    */
+
+    // Do computations, check validity afterwards
+    typedef M1::vars_RadMat RM;
+    typedef M1::vars_Rad R;
+    RM & rm = pm1->radmat;
+    R  & r  = pm1->rad;
+
+    Real corr_fac[3];
+    for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+    {
+      // equilibrium and incoming energies
+      const Real avg_nrg_eql = dens_e[s_idx] / dens_n[s_idx];
+      const Real avg_nrg_inc = (
+        r.sc_J(0, s_idx)(k, j, i) / r.sc_n(0, s_idx)(k, j, i)
+      );
+
+      rm.sc_avg_nrg(0, s_idx)(k, j, i) = avg_nrg_eql;
+      corr_fac[s_idx] = avg_nrg_inc / avg_nrg_eql;
+
+      // T_star should not be used for this.
+      // corr_fac[s_idx] = std::min(
+      //   std::max(1.0, T_star / T), opacity_corr_fac_max
+      // );
+
+      if (correction_adjust_upward)
+      {
+        corr_fac[s_idx] = std::max(
+          std::min(corr_fac[s_idx], opacity_corr_fac_max), 1.0
+        );
+      }
+      else
+      {
+        corr_fac[s_idx] =
+            std::max(1.0 / opacity_corr_fac_max,
+                      std::min(corr_fac[s_idx], opacity_corr_fac_max));
+      }
+
+      corr_fac[s_idx] *= corr_fac[s_idx];
+    }
+
+    // Energy scattering
+    rm.sc_kap_s(0, 0)(k, j, i) = corr_fac[0] * kap_s_e[NUE];
+    rm.sc_kap_s(0, 1)(k, j, i) = corr_fac[1] * kap_s_e[NUA];
+    rm.sc_kap_s(0, 2)(k, j, i) = corr_fac[2] * kap_s_e[NUX];
+
+    // Enforce Kirchhoff's law
+    // For electron lepton neutrinos we change the opacity
+    // For heavy lepton neutrinos we change the emissivity
+
+    // Electron neutrinos
+    rm.sc_kap_a_0(0, 0)(k, j, i) = corr_fac[0] * kap_a_n[NUE];
+    rm.sc_kap_a(0, 0)(k, j, i)   = corr_fac[0] * kap_a_e[NUE];
+
+    rm.sc_eta_0(0, 0)(k, j, i) = rm.sc_kap_a_0(0, 0)(k, j, i) * dens_n[0];
+    rm.sc_eta(0, 0)(k, j, i)   = rm.sc_kap_a(0, 0)(k, j, i) * dens_e[0];
+
+    // Electron anti-neutrinos
+    rm.sc_kap_a_0(0, 1)(k, j, i) = corr_fac[1] * kap_a_n[NUA];
+    rm.sc_kap_a(0, 1)(k, j, i)   = corr_fac[1] * kap_a_e[NUA];
+
+    rm.sc_eta_0(0, 1)(k, j, i) = rm.sc_kap_a_0(0, 1)(k, j, i) * dens_n[1];
+    rm.sc_eta(0, 1)(k, j, i) = rm.sc_kap_a(0, 1)(k, j, i) * dens_e[1];
+
+    // Heavy lepton neutrinos
+    rm.sc_eta_0(0, 2)(k, j, i) = corr_fac[2] * eta_n[NUX];
+    rm.sc_eta(0, 2)(k, j, i)   = corr_fac[2] * eta_e[NUX];
+
+    rm.sc_kap_a_0(0, 2)(k, j, i) = rm.sc_eta_0(0, 2)(k, j, i) / dens_n[2];
+    rm.sc_kap_a(0, 2)(k, j, i) = rm.sc_eta(0, 2)(k, j, i) / dens_e[2];
+
+    // Check validity. Zero quantities if any not valid -----------------------
+    bool valid = true;
+    for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
+    {
+      valid = valid && std::isfinite(corr_fac[s_idx]);
+      valid = valid && std::isfinite(rm.sc_avg_nrg(0, s_idx)(k, j, i));
+    }
+    valid = (valid &&
+             std::isfinite(rm.sc_kap_a_0(0, 2)(k, j, i)) &&
+             rm.sc_kap_a(0, 2)(k, j, i));
+
+    if (!valid)
+    {
+      if (verbose_warn_weak)
+      {
+        const Real rho = pm1->hydro.sc_w_rho(k, j, i);
+        const Real Y_e = pm1->hydro.sc_w_Ye(k, j, i);
+
+        const Real tau = 0;
+        const Real Y_e_star = 0;
+
+        PrintOpacityDiagnostics(
+          "ApplyOpacityCorrections failure",
+          k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+          kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
+          dens_n, dens_e
+        );
+      }
+      SetZeroRadMatAtPoint(k,j,i);
+    }
+  }
+
+  // Use the corrected opacities to flag equilibrium treatment
+  inline void FlagEquilibriumCorrected(
+    const Real dt, const Real rho,
+    const int k, const int j, const int i)
+  {
+
+    Real tau_fac = std::numeric_limits<Real>::infinity();
+
+    const int ix_g = 0;
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      // skip over NUX to match what is used in ComputeEquilibriumDensities
+      if (ix_s == NUX)
+        continue;
+
+      const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
+      const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
+      tau_fac = std::min(
+        tau_fac,
+        1 / std::sqrt(kap_a * (kap_a + kap_s))
+      );
+    }
+
+    const Real tau = tau_fac;
+
+    bool flag_eql = (std::isfinite(tau) &&
+                    (opacity_tau_trap >= 0.0) &&
+                    (tau < dt / opacity_tau_trap) &&
+                    (rho >= pm1->opt_solver.eql_rho_min));
+
+    M1::M1::t_sln_r sln_flag = (flag_eql)
+      ? M1::M1::t_sln_r::equilibrium
+      : M1::M1::t_sln_r::noop;
+
+    for (int ix_s=0; ix_s<3; ++ix_s)
+    {
+      pm1->SetMaskSolutionRegime(sln_flag,ix_g,ix_s,k,j,i);
+    }
   }
 
   inline void ImposeEquilibriumDensities(
@@ -886,11 +1064,17 @@ public:
 
       ApplyOpacityCorrections(
         k, j, i,
+        T, T_star,
         dens_n, dens_e,
         kap_a_n, kap_a_e,
         kap_s_n, kap_s_e,
         eta_n, eta_e
       );
+
+      if (wr_flag_equilibrium_corrected)
+      {
+        FlagEquilibriumCorrected(dt, rho, k, j, i);
+      }
 
       if (propagate_hydro_equilibrium && TY_adjusted)
       {
@@ -963,6 +1147,8 @@ private:
   const bool revert_thick_limit_equilibrium;
   const bool propagate_hydro_equilibrium;
   const bool wr_impose_equilibrium;
+  const bool wr_flag_equilibrium_corrected;
+  const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities
   Real opacity_tau_trap;

@@ -24,6 +24,24 @@ void SetEquilibrium(
   const int j,
   const int i);
 
+// Enforce equilibrium only on species using energy averages.
+//
+// - Takes internal sc_avg_nrg (should be populated during opacity calc.)
+// - Takes current J; Optionally fiducial frame is reconstructed at the point
+//   based on current (E, F_d)
+// - Expression: sc_avg_nrg = J / n
+void SetEquilibrium_n_nG(
+  M1 & pm1,
+  Update::StateMetaVector & C,
+  Update::SourceMetaVector & S,
+  const int k,
+  const int j,
+  const int i,
+  const bool construct_fiducial,
+  const bool construct_src_nG,
+  const bool construct_src_E_F_d
+);
+
 // ============================================================================
 } // namespace M1::Equilibrium
 // ============================================================================

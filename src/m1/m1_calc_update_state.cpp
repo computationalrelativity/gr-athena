@@ -46,7 +46,14 @@ void M1::PrepareEvolutionStrategy(const Real dt,
   if ((mask_sln_r == t_sln_r::equilibrium) ||
       (mask_sln_r == t_sln_r::equilibrium_wr))
   {
-    mask_src_t = t_src_t::set_zero;
+    if (pm1->opt_solver.equilibrium_sources)
+    {
+      mask_src_t = t_src_t::full;
+    }
+    else
+    {
+      mask_src_t = t_src_t::set_zero;
+    }
     return;
   }
 
@@ -57,7 +64,14 @@ void M1::PrepareEvolutionStrategy(const Real dt,
      (rho >= pm1->opt_solver.eql_rho_min))
   {
     mask_sln_r = t_sln_r::equilibrium;
-    mask_src_t = t_src_t::set_zero;
+    if (pm1->opt_solver.equilibrium_sources)
+    {
+      mask_src_t = t_src_t::full;
+    }
+    else
+    {
+      mask_src_t = t_src_t::set_zero;
+    }
   }
   // scattering regime
   else if((opt_solver.src_lim_scattering > 0) &&
@@ -95,8 +109,14 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       if ((mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium) ||
           (mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium_wr))
       {
-        // Already in equilibrium, ensure source treatment is consistent
-        mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        if (pm1->opt_solver.equilibrium_sources)
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::full;
+        }
+        else
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        }
         continue;
       }
 
@@ -133,7 +153,14 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
           (rho >= pm1->opt_solver.eql_rho_min))
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::equilibrium;
-        mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        if (pm1->opt_solver.equilibrium_sources)
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::full;
+        }
+        else
+        {
+          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
+        }
       }
       // Check scattering regime
       else if ((opt_solver.src_lim_scattering > 0) &&
@@ -329,6 +356,7 @@ void M1::CalcUpdate(const int stage,
      (opt_solver.flux_lo_fallback_Ye_max > -1))
   );
 
+  /*
   const bool fb_lo_E  = opt.flux_lo_fallback_E;
   const bool fb_lo_nG = opt.flux_lo_fallback_nG;
 
@@ -337,32 +365,27 @@ void M1::CalcUpdate(const int stage,
     opt.flux_lo_fallback_E  = false;
     opt.flux_lo_fallback_nG = false;
   }
+  */
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
 
+  // check whether current solution gives physical matter coupling ------------
+  if (use_fb_lo_matter)
+  {
+    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
+  }
+
   // prepare source & apply limiting mask -------------------------------------
   if (use_src_limiter)
   {
-    // re-enable the LO flagging where relevant; if the src limiter is
-    // unable to handle the state, then we additionally fallback
-
-    opt.flux_lo_fallback_E  = fb_lo_E;
-    opt.flux_lo_fallback_nG = fb_lo_nG;
-
     AT_C_sca & theta = sources.theta;
 
     Sources::Limiter::Prepare(this, dt, theta, U_C, U_P, U_I, U_S);
 
     // adjust matter sources with theta mask and construct limited solution
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
-  }
-
-  // check whether current solution gives physical matter coupling ------------
-  if (use_fb_lo_matter)
-  {
-    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
   }
 
   // should we enforce the equilibirum ? --------------------------------------

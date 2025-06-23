@@ -284,7 +284,13 @@ public:
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;
-    bool equilibrium_sources;
+    bool equilibrium_sources;  // used during evol.
+
+    bool equilibrium_n_nG;
+    bool equilibrium_use_thick;
+    bool equilibrium_src_nG;
+    bool equilibrium_src_E_F_d;
+
     Real eql_rho_min;
     Real tra_rho_min;
 
