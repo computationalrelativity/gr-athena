@@ -165,13 +165,15 @@ void SetEquilibrium(
 void SetEquilibrium_n_nG(
   M1 & pm1,
   Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
   Update::SourceMetaVector & S,
   const int k,
   const int j,
   const int i,
   const bool construct_fiducial,
   const bool construct_src_nG,
-  const bool construct_src_E_F_d
+  const bool construct_src_E_F_d,
+  const bool use_diff_src
 )
 {
   using namespace Update;
@@ -179,65 +181,84 @@ void SetEquilibrium_n_nG(
 
   const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
 
-  for (int ix_g=0; ix_g<pm1.N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1.N_SPCS; ++ix_s)
+  const int ix_g = C.ix_g;
+  const int ix_s = C.ix_s;
+
+  // extract field components / prepare frame ---------------------------------
+  AT_C_sca & sc_J   = C.sc_J;
+  AT_D_vec & st_H_u = C.st_H_u;
+  AT_C_sca & sc_n   = C.sc_n;
+
+  AT_C_sca & sc_E    = C.sc_E;
+  AT_N_vec & sp_F_d  = C.sp_F_d;
+  AT_C_sca & sc_nG   = C.sc_nG;
+
+  AT_C_sca & sc_chi  = C.sc_chi;
+  AT_C_sca & sc_xi   = C.sc_xi;
+
+  AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
+  // impose thick closure
+  Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
+
+  Real sc_Gam__ = 1.0;
+
+  if (construct_fiducial)
   {
-    // extract field components / prepare frame -------------------------------
-    AT_C_sca & sc_J   = C.sc_J;
-    AT_D_vec & st_H_u = C.st_H_u;
-    AT_C_sca & sc_n   = C.sc_n;
+    // n will be overwitten below and is not required for J, H
+    sc_Gam__ = Assemble::Frames::ToFiducial(
+      pm1,
+      sc_J, st_H_u, sc_n,
+      sc_chi,
+      sc_E, sp_F_d, sc_nG,
+      k, j, i
+    );
+  }
+  else
+  {
+    sc_Gam__ = Assemble::Frames::sc_Gam__(
+      pm1,
+      sc_J,
+      st_H_u,
+      k, j, i);
+  }
 
-    AT_C_sca & sc_E    = C.sc_E;
-    AT_N_vec & sp_F_d  = C.sp_F_d;
-    AT_C_sca & sc_nG   = C.sc_nG;
+  // compute from average -----------------------------------------------------
+  sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
 
-    AT_C_sca & sc_chi  = C.sc_chi;
-    AT_C_sca & sc_xi   = C.sc_xi;
+  // floors
+  sc_nG(k,j,i) = std::max(sc_Gam__ * sc_n(k,j,i), pm1.opt.fl_nG);
+  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
 
-    AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+  // Ensure update preserves energy non-negativity
+  EnforcePhysical_nG(pm1, C, k, j, i);
 
-    // impose thick closure
-    Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
-
-    Real sc_Gam__ = 1.0;
-
-    if (construct_fiducial)
+  // source terms (entering coupling) -----------------------------------------
+  if (construct_src_nG)
+  {
+    if (use_diff_src)
     {
-      // n will be overwitten below and is not required for J, H
-      sc_Gam__ = Assemble::Frames::ToFiducial(
-        pm1,
-        sc_J, st_H_u, sc_n,
-        sc_chi,
-        sc_E, sp_F_d, sc_nG,
-        k, j, i
-      );
+      // new - star
+      S.sc_nG(k,j,i) = sc_nG(k,j,i) - P.sc_nG(k,j,i);
     }
     else
     {
-      sc_Gam__ = Assemble::Frames::sc_Gam__(
-        pm1,
-        sc_J,
-        st_H_u,
-        k, j, i);
-    }
-
-    // compute from average ---------------------------------------------------
-    sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
-
-    // floors
-    sc_nG(k,j,i) = std::max(sc_Gam__ * sc_n(k,j,i), pm1.opt.fl_nG);
-    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
-
-    // Ensure update preserves energy non-negativity
-    EnforcePhysical_nG(pm1, C, k, j, i);
-
-    // source terms (entering coupling) ---------------------------------------
-    if (construct_src_nG)
-    {
       ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
     }
+  }
 
-    if (construct_src_E_F_d)
+  if (construct_src_E_F_d)
+  {
+    if (use_diff_src)
+    {
+      // new - star
+      S.sc_E(k,j,i) = sc_E(k,j,i) - P.sc_E(k,j,i);
+      for (int n=0; n<N; ++n)
+      {
+        S.sp_F_d(n,k,j,i) = sp_F_d(n,k,j,i) - P.sp_F_d(n,k,j,i);
+      }
+    }
+    else
     {
       ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
     }

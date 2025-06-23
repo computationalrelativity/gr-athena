@@ -364,10 +364,11 @@ void DispatchIntegrationMethod(
         // over-writes what was computed for (n,nG) in prior step with eql.
         const bool construct_fiducial = true;
         Equilibrium::SetEquilibrium_n_nG(
-          *pm1, C, S, k, j, i,
+          *pm1, C, P, S, k, j, i,
           construct_fiducial,
           pm1->opt_solver.equilibrium_src_nG,    // reconstruct sources
-          pm1->opt_solver.equilibrium_src_E_F_d  // for coupling
+          pm1->opt_solver.equilibrium_src_E_F_d, // for coupling
+          pm1->opt_solver.equilibrium_use_diff_src
         );
       }
 
