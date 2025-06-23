@@ -290,6 +290,7 @@ public:
     bool equilibrium_use_thick;
     bool equilibrium_src_nG;
     bool equilibrium_src_E_F_d;
+    bool equilibrium_use_diff_src;
 
     Real eql_rho_min;
     Real tra_rho_min;

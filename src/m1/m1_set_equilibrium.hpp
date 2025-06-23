@@ -33,13 +33,15 @@ void SetEquilibrium(
 void SetEquilibrium_n_nG(
   M1 & pm1,
   Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
   Update::SourceMetaVector & S,
   const int k,
   const int j,
   const int i,
   const bool construct_fiducial,
   const bool construct_src_nG,
-  const bool construct_src_E_F_d
+  const bool construct_src_E_F_d,
+  const bool use_diff_src
 );
 
 // ============================================================================
