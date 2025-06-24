@@ -41,7 +41,8 @@ using namespace utils::tensor;
 //! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n)
 //  \brief class for apparent horizon finder
 AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
-  pmesh(pmesh)
+  pmesh(pmesh),
+  pin(pin)
 {
   nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
 
@@ -160,6 +161,10 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   // Initialize last & found
   last_a0 = -1;
   ah_found = false;
+
+  parname = "time_first_found_";
+  parname += n_str;
+  time_first_found = pin->GetOrAddReal("ahf", parname, -1.0);
 
   //TODO guess from file
   // * if found, set ah_found to true & store the guess
@@ -354,11 +359,13 @@ void AHF::Write(int iter, Real time)
         ah_prop[hminradius]);
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
-    
-    if (ah_found) {
+
+    if (ah_found)
+    {
       // Shape file (coefficients)
       pofile_shape = fopen(ofname_shape.c_str(), "a");
-      if (NULL == pofile_shape) {
+      if (NULL == pofile_shape)
+      {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
         msg << "Could not open file '" << pofile_shape << "' for writing!";
@@ -378,6 +385,15 @@ void AHF::Write(int iter, Real time)
       fclose(pofile_shape);
     }
   }
+
+  // This is needed on all ranks.
+  if (ah_found && (time_first_found < 0))
+  {
+    std::string parname {"time_first_found_" + std::to_string(nh)};
+    time_first_found = time;
+    pin->SetReal("ahf", parname, time_first_found);
+  }
+
 }
 
 //----------------------------------------------------------------------------------------

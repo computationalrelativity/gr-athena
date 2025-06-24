@@ -46,6 +46,8 @@ public:
   { return ah_prop[hmeanradius];}
   //! Horizon found
   bool ah_found;
+  //! Time horizon _first_ found
+  Real time_first_found;
   //! Initial guess
   Real initial_radius;
   //! Minimum radius
@@ -164,6 +166,7 @@ private:
   void factorial_list(Real * fac, const int maxn);
 
   Mesh const * pmesh;
+  ParameterInput * pin;
 
   int root;
   int ioproc;
