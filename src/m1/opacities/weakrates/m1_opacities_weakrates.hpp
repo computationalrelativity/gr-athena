@@ -544,13 +544,21 @@ public:
     for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
     {
       // equilibrium and incoming energies
-      const Real avg_nrg_eql = dens_e[s_idx] / dens_n[s_idx];
-      const Real avg_nrg_inc = (
-        r.sc_J(0, s_idx)(k, j, i) / r.sc_n(0, s_idx)(k, j, i)
-      );
+      Real avg_nrg_eql = ((dens_n[s_idx] > 0) &&
+                          (dens_e[s_idx] > 0))
+        ? dens_e[s_idx] / dens_n[s_idx]
+        : 0.0;
+      Real avg_nrg_inc = rm.sc_avg_nrg(0, s_idx)(k, j, i);
+
+      corr_fac[s_idx] = avg_nrg_inc / avg_nrg_eql;
+
+      if (!std::isfinite(corr_fac[s_idx]))
+        corr_fac[s_idx] = 1.0;
+
+      if (!std::isfinite(avg_nrg_eql))
+        avg_nrg_eql = 0.0;
 
       rm.sc_avg_nrg(0, s_idx)(k, j, i) = avg_nrg_eql;
-      corr_fac[s_idx] = avg_nrg_inc / avg_nrg_eql;
 
       // T_star should not be used for this.
       // corr_fac[s_idx] = std::min(
@@ -600,8 +608,12 @@ public:
     rm.sc_eta_0(0, 2)(k, j, i) = corr_fac[2] * eta_n[NUX];
     rm.sc_eta(0, 2)(k, j, i)   = corr_fac[2] * eta_e[NUX];
 
-    rm.sc_kap_a_0(0, 2)(k, j, i) = rm.sc_eta_0(0, 2)(k, j, i) / dens_n[2];
-    rm.sc_kap_a(0, 2)(k, j, i) = rm.sc_eta(0, 2)(k, j, i) / dens_e[2];
+    rm.sc_kap_a_0(0, 2)(k, j, i) = (dens_n[2] > 0)
+      ? rm.sc_eta_0(0, 2)(k, j, i) / dens_n[2]
+      : 0.0;
+    rm.sc_kap_a(0, 2)(k, j, i) = (dens_e[2] > 0)
+      ? rm.sc_eta(0, 2)(k, j, i) / dens_e[2]
+      : 0.0;
 
     // Check validity. Zero quantities if any not valid -----------------------
     bool valid = true;
@@ -612,7 +624,7 @@ public:
     }
     valid = (valid &&
              std::isfinite(rm.sc_kap_a_0(0, 2)(k, j, i)) &&
-             rm.sc_kap_a(0, 2)(k, j, i));
+             std::isfinite(rm.sc_kap_a(0, 2)(k, j, i)));
 
     if (!valid)
     {
@@ -880,6 +892,14 @@ public:
     if (pm1->MaskGet(k, j, i))
     {
       Real rho = pm1->hydro.sc_w_rho(k, j, i);
+
+      // check whether we need to do anything
+      if (rho <= pmy_weakrates->rho_min_code_units)
+      {
+        SetZeroRadMatAtPoint(k, j, i);
+        continue;
+      }
+
       Real T = pm1->hydro.sc_T(k,j,i);
       Real Y_e = pm1->hydro.sc_w_Ye(k, j, i);
 

@@ -136,6 +136,8 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
     AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
     AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
 
+    AT_C_sca & sc_avg_nrg = radmat.sc_avg_nrg(ix_g,ix_s);
+
     M1_GLOOP3(k, j, i)
     {
       Assemble::Frames::ToFiducial(
@@ -145,6 +147,10 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
         sc_E, sp_F_d, sc_nG,
         k, j, i
       );
+
+      sc_avg_nrg(k,j,i) = (sc_n(k,j,i) > 0)
+        ? sc_J(k,j,i) / sc_n(k,j,i)
+        : 0.0;
     }
 
   }
