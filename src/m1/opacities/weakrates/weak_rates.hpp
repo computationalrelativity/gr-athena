@@ -65,6 +65,8 @@ class WeakRates {
         }
       }
 
+      rho_min_code_units = rho_min / conv_rho;
+
       if (wr_use_eos_tfloor)
       {
         temp_min = conv_temp * PS_EoS->GetTemperatureFloor();
@@ -327,6 +329,11 @@ class WeakRates {
     Real get_rho_min_cgs() {return rho_min;}
     Real get_temp_min_mev() {return temp_min;}
 
+    Real get_rho_min()
+    {
+      return rho_min_code_units;
+    }
+
   private:
     ParameterInput *pin;
     const bool apply_table_limits_internally;
@@ -343,14 +350,15 @@ class WeakRates {
     WeakRates_Emission::WeakEmissionMod WR_Emission;
     WeakRates_Opacity::WeakOpacityMod WR_Opacity;
     WeakRates_Equilibrium::WeakEquilibriumMod WR_Equilibrium;
-        
+
+  public:
     Real rho_min;
     Real temp_min;
     Real atomic_mass;
 
-    // TODO EoS calls with unit conversions go here?  
+    Real rho_min_code_units;
 };
 
 } // namespace Neutrinos_WeakRates
 
-#endif 
+#endif
