@@ -215,6 +215,7 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
   opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);
+  opt_solver.equilibrium_E_F_d = GoA_bool("equilibrium_E_F_d", false);
   opt_solver.equilibrium_n_nG = GoA_bool("equilibrium_n_nG", false);
   opt_solver.equilibrium_use_thick = GoA_bool("equilibrium_use_thick", false);
 

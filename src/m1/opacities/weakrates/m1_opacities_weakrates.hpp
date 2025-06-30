@@ -248,7 +248,7 @@ public:
 
   inline int ComputeEquilibriumDensities(
     const int k, const int j, const int i,
-    const int dt,
+    const Real dt,
     const Real rho, const Real T, const Real Y_e,
     Real & tau,
     Real & T_star, Real & Y_e_star,
@@ -702,6 +702,10 @@ public:
 
     const int ix_g = 0;
 
+    // access previous state vector
+    M1::M1::vars_Lab U_P { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+    pm1->SetVarAliasesLab(pm1->storage.u1, U_P);
+
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
       pm1->SetMaskSolutionRegime(
@@ -715,6 +719,10 @@ public:
       AT_C_sca & sc_E    = pm1->lab.sc_E(ix_g,ix_s);
       AT_N_vec & sp_F_d  = pm1->lab.sp_F_d(ix_g,ix_s);
       AT_C_sca & sc_nG   = pm1->lab.sc_nG(ix_g,ix_s);
+
+      AT_C_sca & P_sc_E    = U_P.sc_E(ix_g,ix_s);
+      AT_N_vec & P_sp_F_d  = U_P.sp_F_d(ix_g,ix_s);
+      AT_C_sca & P_sc_nG   = U_P.sc_nG(ix_g,ix_s);
 
       AT_C_sca & S_sc_E    = pm1->sources.sc_E(ix_g,ix_s);
       AT_N_vec & S_sp_F_d  = pm1->sources.sp_F_d(ix_g,ix_s);
@@ -732,10 +740,22 @@ public:
       }
 
       // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+
+      /*
       sc_E(k,j,i) = W2 * sc_J(k,j,i);
       for (int a=0; a<N; ++a)
       {
         sp_F_d(a,k,j,i) = W2 * pm1->fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+      }
+      */
+      sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+        4.0 * W2 - 1.0
+      );
+
+      for (int a=0; a<N; ++a)
+      {
+        sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                          pm1->fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
       }
 
       // Prepare neutrino number density
@@ -761,6 +781,7 @@ public:
       sc_nG(k,j,i) = std::max(sc_nG(k,j,i), pm1->opt.fl_nG);
 
       // Sources --------------------------------------------------------------
+      /*
       if (pm1->opt_solver.equilibrium_sources)
       {
         Assemble::Frames::sources_sc_E_sp_F_d(
@@ -792,6 +813,67 @@ public:
         {
           S_sp_F_d(a,k,j,i) = 0.0;
         }
+        S_sc_nG(k,j,i) = 0.0;
+      }
+      */
+
+      if (pm1->opt_solver.equilibrium_src_E_F_d)
+      {
+        if (pm1->opt_solver.equilibrium_use_diff_src)
+        {
+          // new - star
+          S_sc_E(k,j,i) = sc_E(k,j,i) - P_sc_E(k,j,i);
+          for (int n=0; n<N; ++n)
+          {
+            S_sp_F_d(n,k,j,i) = sp_F_d(n,k,j,i) - P_sp_F_d(n,k,j,i);
+          }
+        }
+        else
+        {
+          Assemble::Frames::sources_sc_E_sp_F_d(
+            *pm1,
+            S_sc_E,
+            S_sp_F_d,
+            sc_chi,
+            sc_E,
+            sp_F_d,
+            pm1->radmat.sc_eta(ix_g, ix_s),   // V.sc_eta,
+            pm1->radmat.sc_kap_a(ix_g, ix_s), // V.sc_kap_a,
+            pm1->radmat.sc_kap_s(ix_g, ix_s), // V.sc_kap_s,
+            k, j, i
+          );
+        }
+      }
+      else
+      {
+        S_sc_E(k,j,i) = 0.0;
+        for (int a=0; a<D; ++a)
+        {
+          S_sp_F_d(a,k,j,i) = 0.0;
+        }
+      }
+
+      if (pm1->opt_solver.equilibrium_src_nG)
+      {
+        if (pm1->opt_solver.equilibrium_use_diff_src)
+        {
+          // new - star
+          S_sc_nG(k,j,i) = sc_nG(k,j,i) - P_sc_nG(k,j,i);
+        }
+        else
+        {
+          Assemble::Frames::sources_sc_nG(
+            *pm1,
+            S_sc_nG,
+            sc_n,
+            pm1->radmat.sc_eta_0(ix_g, ix_s),   // V.sc_eta_0,
+            pm1->radmat.sc_kap_a_0(ix_g, ix_s), // V.sc_kap_a_0,
+            k, j, i
+          );
+        }
+      }
+      else
+      {
         S_sc_nG(k,j,i) = 0.0;
       }
     }

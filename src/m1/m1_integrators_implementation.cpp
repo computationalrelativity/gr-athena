@@ -169,10 +169,11 @@ void PrepareApproximateFirstOrder_E_F_d(
     );
   }
 
-  CL_C.sc_chi(k,j,i) = ONE_3RD;
-  CL_C.sc_xi(k,j,i)  = 0.0;
+  Closures::EddingtonFactors::ThickLimit(
+    CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
+  );
 
-  // Impose physical state
+  // Ensure physical state
   EnforcePhysical_E_F_d(pm1, C, k, j, i);
 }
 

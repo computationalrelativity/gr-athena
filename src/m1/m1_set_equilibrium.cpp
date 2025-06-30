@@ -75,7 +75,7 @@ void SetEquilibrium(
   nudens.Fill(0.0);
 
   // Optically thick weak equilibrium
-  popac->CalculateEquilbriumDensity(w_rho, w_T, w_Y_e, nudens);
+  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
   // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
@@ -119,10 +119,23 @@ void SetEquilibrium(
     }
 
     // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+
+    /*
     sc_E(k,j,i) = W2 * sc_J(k,j,i);
     for (int a=0; a<N; ++a)
     {
       sp_F_d(a,k,j,i) = W2 * pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+    }
+    */
+
+    sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+      4.0 * W2 - 1.0
+    );
+
+    for (int a=0; a<N; ++a)
+    {
+      sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                        pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
     }
 
     // Prepare neutrino number density
@@ -154,7 +167,6 @@ void SetEquilibrium(
     {
       pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
     }
-
   }
 
 #endif // FLUID_ENABLED
@@ -232,6 +244,142 @@ void SetEquilibrium_n_nG(
 
   // Ensure update preserves energy non-negativity
   EnforcePhysical_nG(pm1, C, k, j, i);
+
+  // source terms (entering coupling) -----------------------------------------
+  if (construct_src_nG)
+  {
+    if (use_diff_src)
+    {
+      // new - star
+      S.sc_nG(k,j,i) = sc_nG(k,j,i) - P.sc_nG(k,j,i);
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
+    }
+  }
+
+  if (construct_src_E_F_d)
+  {
+    if (use_diff_src)
+    {
+      // new - star
+      S.sc_E(k,j,i) = sc_E(k,j,i) - P.sc_E(k,j,i);
+      for (int n=0; n<N; ++n)
+      {
+        S.sp_F_d(n,k,j,i) = sp_F_d(n,k,j,i) - P.sp_F_d(n,k,j,i);
+      }
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    }
+  }
+}
+
+void SetEquilibrium_E_F_d_n_nG(
+  M1 & pm1,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::SourceMetaVector & S,
+  const int k,
+  const int j,
+  const int i,
+  const bool construct_src_nG,
+  const bool construct_src_E_F_d,
+  const bool use_diff_src
+)
+{
+  using namespace Update;
+  using namespace Sources;
+
+  Opacities::Opacities * popac = pm1.popac;
+  typedef Opacities::Opacities::opt_opacity_variety oov;
+
+  // Compute the optically thick weak equilibrium -----------------------------
+  MeshBlock * pmb       = pm1.pmy_block;
+  Hydro * ph            = pmb->phydro;
+  EquationOfState *peos = pmb->peos;
+
+  const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
+  const Real w_p   = pm1.hydro.sc_w_p(k,j,i);
+  const Real w_Y_e = pm1.hydro.sc_w_Ye(k,j,i);
+  const Real w_T   = pm1.hydro.sc_T(k,j,i);
+
+  // Short-circuit at low density
+  // Convert from code units to CGS for this comparison?
+  if (w_rho < pm1.opt_solver.eql_rho_min)
+  {
+    return;
+  }
+
+  // [[n_nue, n_nua, n_nux, n_nux]
+  //  [e_nue, e_nua, e_nux, e_nux]]
+  static const int N_nu      = 2;
+  static const int N_nu_spcs = 4;
+
+  AA nudens(N_nu, N_nu_spcs);
+  nudens.Fill(0.0);
+
+  // Optically thick weak equilibrium
+  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
+
+  // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
+  // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
+  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  // Fix species and group ----------------------------------------------------
+  const int ix_g = C.ix_g;
+  const int ix_s = C.ix_s;
+
+  // extract field components / prepare frame ---------------------------------
+  AT_C_sca & sc_J   = C.sc_J;
+  AT_D_vec & st_H_u = C.st_H_u;
+  AT_C_sca & sc_n   = C.sc_n;
+
+  AT_C_sca & sc_E    = C.sc_E;
+  AT_N_vec & sp_F_d  = C.sp_F_d;
+  AT_C_sca & sc_nG   = C.sc_nG;
+
+  AT_C_sca & sc_chi  = C.sc_chi;
+  AT_C_sca & sc_xi   = C.sc_xi;
+
+  AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
+  // impose thick closure
+  Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
+
+  // --------------------------------------------------------------------------
+  sc_J(k,j,i) = nudens(1,ix_s) * sc_sqrt_det_g;
+
+  for (int a=0; a<D; ++a)
+  {
+    st_H_u(a,k,j,i) = 0;
+  }
+
+  // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+  sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+    4.0 * W2 - 1.0
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                      pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+  }
+
+  // compute from average -----------------------------------------------------
+  sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
+
+  // here Gamma = W as H_n is 0
+  sc_nG(k,j,i) = W * sc_n(k,j,i);
+
+  // Ensure update preserves energy non-negativity
+  EnforcePhysical_E_F_d(pm1, C, k, j, i);
+  EnforcePhysical_nG(pm1, C, k, j, i);
+  sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
 
   // source terms (entering coupling) -----------------------------------------
   if (construct_src_nG)
