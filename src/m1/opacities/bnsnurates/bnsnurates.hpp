@@ -52,9 +52,13 @@ namespace M1::Opacities::BNSNuRates {
     bool neglect_blocking;
     bool use_decay;
     bool use_BRT_brem;
+
+    // no. of quadrature points in bns_nurates
+    int quad_nx_1;  // beta_nucleon_scat
+    int quad_nx_2;  // pair_bremsstrahlung_lepton_scat
     
-    int quad_nx;  // no. of quadrature points for 1d integration (bns_nurates)
-    MyQuadrature quadrature;
+    MyQuadrature quadrature_1;
+    MyQuadrature quadrature_2;
    };
   
   class BNSNuRates {
@@ -100,48 +104,55 @@ namespace M1::Opacities::BNSNuRates {
       // BNSNuRates only works for 1 group
       assert(N_GRPS==1);
 
-      //TODO these are set in the example MWE. Are they needed here? Defaults in bns_nurates? Get from parfile?
-      const double mp_eff = 278.87162217;       // Proton effective mass [MeV]
-      const double mn_eff = 280.16495513;       // Neutron effective mass [MeV]
-      const double dm = mn_eff - mp_eff;        // Nucleon effective mass difference [MeV]
-      
       // Parameters for bns_nurates
-      nurates_params.quad_nx = pin->GetOrAddInteger("bns_nurates", "nurates_quad_nx", 8);
+      // Defaults should mimic WeakRates
+      nurates_params.quad_nx_1 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_beta_nucleon_scat", 6);
+      nurates_params.quad_nx_2 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_pair_bremsstrahlung_lepton_scat", -1);
 
-      //nurates_params.opacity_tau_trap = pin->GetOrAddReal("bns_nurates", "opacity_tau_trap", 1.0); // Duplicated parameters, see below
-      //nurates_params.opacity_tau_delta = pin->GetOrAddReal("bns_nurate", "opacity_tau_delta", 1.0);
-      //nurates_params.opacity_corr_fac_max = pin->GetOrAddReal("bns_nurates", "opacity_corr_fac_max", 3.0);
-
-      nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true);
-      nurates_params.use_pair = pin->GetOrAddBoolean("bns_nurates", "use_pair", true);
-      nurates_params.use_brem = pin->GetOrAddBoolean("bns_nurates", "use_brem", true);
-      nurates_params.use_iso = pin->GetOrAddBoolean("bns_nurates", "use_iso", true);
-      nurates_params.use_inelastic_scatt = pin->GetOrAddBoolean("bns_nurates", "use_inelastic_scatt", true);
-      nurates_params.use_WM_ab = pin->GetOrAddBoolean("bns_nurates", "use_WM_ab", true);
-      nurates_params.use_WM_sc = pin->GetOrAddBoolean("bns_nurates", "use_WM_sc", true);
-      nurates_params.use_NN_medium_corr = pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", true);
+      nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true); // semilept charge-current proc.
+      nurates_params.use_pair = pin->GetOrAddBoolean("bns_nurates", "use_pair", true); // ep annihil.
+      nurates_params.use_brem = pin->GetOrAddBoolean("bns_nurates", "use_brem", true); // 
+      nurates_params.use_iso = pin->GetOrAddBoolean("bns_nurates", "use_iso", true); // isoenergetics scattering (nucleons)
+      nurates_params.use_inelastic_scatt = pin->GetOrAddBoolean("bns_nurates", "use_inelastic_scatt", false); // e,p
+      nurates_params.use_WM_ab = pin->GetOrAddBoolean("bns_nurates", "use_WM_ab", false); // weak magnetism charge currents
+      nurates_params.use_WM_sc = pin->GetOrAddBoolean("bns_nurates", "use_WM_sc", false); // weak magnetism neutral currents
+      nurates_params.use_NN_medium_corr = pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", false); // correction to bremstralhung
       nurates_params.neglect_blocking = pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
-      nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false);
-      nurates_params.use_BRT_brem = pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false);
-
-      nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false);
-      nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", false);
-      
+      nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false); // inverse beta
+      nurates_params.use_BRT_brem = pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false); // alternative bremstralung
+     
       nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false); //TODO Not implemented!
-      nurates_params.dU = pin->GetOrAddReal("bns_nurates", "dU", 0.); // Set effective potential difference (in MeV)
+      nurates_params.dU = pin->GetOrAddReal("bns_nurates", "dU", 0.0); //TODO Set effective potential difference (in MeV) from EOS
 
       nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", false);
-      nurates_params.dm_eff = pin->GetOrAddReal("bns_nurates", "effective_mass_diff", dm); // Set effective mass difference (in MeV)
+      nurates_params.dm_eff = pin->GetOrAddReal("bns_nurates", "effective_mass_diff", 0.0); //TODO Set effective mass difference (in MeV) from EOS 
 
       nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); 
       nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.); 
-            
-      nurates_params.quadrature.nx = nurates_params.quad_nx;
-      nurates_params.quadrature.dim = 1;
-      nurates_params.quadrature.type = kGauleg;
-      nurates_params.quadrature.x1 = 0.;
-      nurates_params.quadrature.x2 = 1.;
-      GaussLegendre(&nurates_params.quadrature);
+
+      nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false); 
+
+      // This parameter is actually used in the equilibration 
+      nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", true); //TODO implement the switch, for the moment it is always used
+
+      // Set quadratures
+      nurates_params.quadrature_1.nx = nurates_params.quad_nx_1;
+      nurates_params.quadrature_1.dim = 1;
+      nurates_params.quadrature_1.type = kGauleg;
+      nurates_params.quadrature_1.x1 = 0.;
+      nurates_params.quadrature_1.x2 = 1.;
+      GaussLegendre(&nurates_params.quadrature_1);
+     
+      if (nurates_params.quad_nx_2 < 1) {
+	nurates_params.quadrature_2 = nurates_params.quadrature_1;
+      } else {
+	nurates_params.quadrature_2.nx = nurates_params.quad_nx_2;
+	nurates_params.quadrature_2.dim = 1;
+	nurates_params.quadrature_2.type = kGauleg;
+	nurates_params.quadrature_2.x1 = 0.;
+	nurates_params.quadrature_2.x2 = 1.;
+	GaussLegendre(&nurates_params.quadrature_2);
+      }
       
       // Weak equilibrium parameters ----------------------------------------------
 
@@ -152,9 +163,12 @@ namespace M1::Opacities::BNSNuRates {
       opacity_tau_delta = pin->GetOrAddReal("M1_opacities", "tau_delta", 1.0);
       opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
 
+      // These min values are used at the begining of compute_weak_equilibrium()
+      // but should not be needed: the "tau"-logic of the equilibration should
+      // Could experiment with rho(CGS) ~ 1e11 in case.
+      
       // density below which nothing is done [g/cm^3]
-      rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0);
-
+      rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0); 
       // temperature below which nothing is done [MeV]
       temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", 0.0);
 
@@ -248,14 +262,18 @@ namespace M1::Opacities::BNSNuRates {
             for (int nuidx = 0; nuidx < N_SPCS; ++nuidx) {
               dens_n[nuidx] = pm1->rad.sc_n(0, nuidx)(k, j, i) * invsdetg;
               dens_e[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i) * invsdetg;
-              chi_loc[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i); 
+              chi_loc[nuidx] = pm1->lab_aux.sc_chi(0, nuidx)(k, j, i); 
+		//pm1->rad.sc_chi(0, nuidx)(k, j, i); 
             }
+	    // Copy 4th species (assume anux = nux)
+	    dens_n[3] = dens_n[2];
+	    dens_e[3] = dens_e[2];
+	    chi_loc[3] = chi_loc[2];
 
             // get emissivities and opacities
             Real eta_0_loc[4]{}, eta_1_loc[4]{};
             Real abs_0_loc[4]{}, abs_1_loc[4]{};
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
-
 
 	    
             // Note: everything sent and received are in code units
@@ -265,7 +283,7 @@ namespace M1::Opacities::BNSNuRates {
 				  dens_n[0], dens_e[0], chi_loc[0], 
 				  dens_n[1], dens_e[1], chi_loc[1],
 				  dens_n[2], dens_e[2], chi_loc[2],
-				  dens_n[3], dens_e[3], chi_loc[3],
+				  dens_n[3], dens_e[3], chi_loc[3], 
 				  eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3],
 				  eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3],
 				  abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3],
@@ -298,7 +316,7 @@ namespace M1::Opacities::BNSNuRates {
                 pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true); // assert(false)
               }
 
-            // unpack to variables used below.
+            // Unpack to variables used below.
             // this is just to avoid to touch the code below.
             //TODO WeakRate code has been updated since this branch started.
             // Some varnames have changed. This code needs to be fixed as well.
@@ -313,18 +331,18 @@ namespace M1::Opacities::BNSNuRates {
             // nu absorption opacities
             Real kap_a_n_nue = abs_0_loc[0];
             Real kap_a_n_nua = abs_0_loc[1];
-            Real kap_a_n_nux = 0.5*(abs_0_loc[2] + abs_0_loc[3]); // avg nux and anux contrib.
+            Real kap_a_n_nux = 0.5 * (abs_0_loc[2] + abs_0_loc[3]); // avg nux and anux contrib.
             Real kap_a_e_nue = abs_1_loc[0];
-            Real kap_a_e_nua = abs_1_loc[2];
-            Real kap_a_e_nux = 0.5*(abs_1_loc[2] + abs_1_loc[3]);
+            Real kap_a_e_nua = abs_1_loc[1];
+            Real kap_a_e_nux = 0.5 * (abs_1_loc[2] + abs_1_loc[3]);
 
             // nu scattering opacities
             Real kap_s_n_nue = scat_0_loc[0];
             Real kap_s_n_nua = scat_0_loc[1];
-            Real kap_s_n_nux = 0.5*(scat_0_loc[2] + scat_0_loc[3]); // avg nux and anux contrib.
+            Real kap_s_n_nux = 0.5 * (scat_0_loc[2] + scat_0_loc[3]); // avg nux and anux contrib.
             Real kap_s_e_nue = scat_1_loc[0];
             Real kap_s_e_nua = scat_1_loc[1];
-            Real kap_s_e_nux = 0.5*(scat_1_loc[2] + scat_1_loc[3]);
+            Real kap_s_e_nux = 0.5 * (scat_1_loc[2] + scat_1_loc[3]);
             
             
             // Equilibrium logic ----------------------------------------------------
@@ -483,7 +501,10 @@ namespace M1::Opacities::BNSNuRates {
             // Enforce Kirchhoff's law
             // For electron lepton neutrinos we change the opacity
             // For heavy lepton neutrinos we change the emissivity
-            
+	    // NB bns_nurates does not need to impose Kirchoff law
+	    
+	    //TODO if (nurates_params.use_kirchhoff_law) { ...
+	    
             // Electron neutrinos
             pm1->radmat.sc_kap_a_0(0, 0)(k, j, i) = corr_fac[0] * kap_a_n_nue;
             pm1->radmat.sc_kap_a(0, 0)(k, j, i) = corr_fac[0] * kap_a_e_nue;
@@ -511,7 +532,8 @@ namespace M1::Opacities::BNSNuRates {
                : 0.0);
             pm1->radmat.sc_kap_a(0, 2)(k, j, i) =
               (dens_e[2] > 1e-20 ? pm1->radmat.sc_eta(0, 2)(k, j, i) / dens_e[2] : 0.0);
-          }
+
+	  }
       
       return 0;
     };
