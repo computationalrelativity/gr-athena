@@ -251,8 +251,8 @@ namespace M1::Opacities::BNSNuRates {
     }
     
     // compute opacities
-    M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature,
-                                               &nurates_params.quadrature,
+    M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature_1,
+                                               &nurates_params.quadrature_2,
                                                &grey_op_params);
     
     // Similar to the comment above, the factors of 2 come from the fact that
@@ -274,12 +274,12 @@ namespace M1::Opacities::BNSNuRates {
     // extract absorption inverse mean-free path
     sigma_0_nue = opacities.kappa_0_a[id_nue];
     sigma_0_anue = opacities.kappa_0_a[id_anue];
-    sigma_0_nux = opacities.kappa_0_a[id_nux] * 2.;
-    sigma_0_anux = opacities.kappa_0_a[id_anux] * 2.;
+    sigma_0_nux = opacities.kappa_0_a[id_nux];
+    sigma_0_anux = opacities.kappa_0_a[id_anux];
     sigma_1_nue = opacities.kappa_a[id_nue];
     sigma_1_anue = opacities.kappa_a[id_anue];
-    sigma_1_nux = opacities.kappa_a[id_nux] * 2.;
-    sigma_1_anux = opacities.kappa_a[id_anux] * 2.;
+    sigma_1_nux = opacities.kappa_a[id_nux];
+    sigma_1_anux = opacities.kappa_a[id_anux];
     
     // extract scattering inverse mean-free path
     scat_0_nue = 0;
@@ -288,8 +288,8 @@ namespace M1::Opacities::BNSNuRates {
     scat_0_anux = 0;
     scat_1_nue = opacities.kappa_s[id_nue];
     scat_1_anue = opacities.kappa_s[id_anue];
-    scat_1_nux = opacities.kappa_s[id_nux] * 2.;
-    scat_1_anux = opacities.kappa_s[id_anux] * 2.;
+    scat_1_nux = opacities.kappa_s[id_nux];
+    scat_1_anux = opacities.kappa_s[id_anux];
     
     // Check for NaNs/Infs
 #if (ASSERT_OPAC_ISFINITE)
@@ -1340,7 +1340,6 @@ namespace M1::Opacities::BNSNuRates {
   //     enu_dens ----> neutrino density [MeV/cm^3]
   void BNSNuRates::edens_nu_trap(Real temp_m, Real eta_nu[3], Real enu_dens[3])
   {
-    
     const Real pref = 4.0*pi/(hc_mevcm*hc_mevcm*hc_mevcm); // [1/MeV^3/cm^3]
     Real temp_m4 = temp_m*temp_m*temp_m*temp_m;          // [MeV^3]
     
