@@ -23,7 +23,6 @@
 
 
 namespace M1::Opacities::BNSNuRates {
-
   
   struct NuratesParams {
     Real opacity_tau_trap;      // incl. effects of neutrino trapping above this optical depth
@@ -44,11 +43,11 @@ namespace M1::Opacities::BNSNuRates {
     bool use_dU;
     bool use_dm_eff;
     bool use_equilibrium_distribution;
-    bool use_kirchhoff_law;
     bool use_NN_medium_corr;
     bool neglect_blocking;
     bool use_decay;
     bool use_BRT_brem;
+    //bool use_kirchhoff_law;
 
     // no. of quadrature points in bns_nurates
     int quad_nx_1;  // beta_nucleon_scat
@@ -129,9 +128,6 @@ namespace M1::Opacities::BNSNuRates {
 
       nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false); 
 
-      // This parameter is actually used in the equilibration 
-      nurates_params.use_kirchhoff_law = pin->GetOrAddBoolean("bns_nurates", "use_kirchoff_law", true); //TODO implement the switch, for the moment it is always used
-
       // Set quadratures
       nurates_params.quadrature_1.nx = nurates_params.quad_nx_1;
       nurates_params.quadrature_1.dim = 1;
@@ -140,7 +136,7 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.quadrature_1.x2 = 1.;
       GaussLegendre(&nurates_params.quadrature_1);
      
-      if (nurates_params.quad_nx_2 < 1) {
+      if (nurates_params.quad_nx_2 == -1) {
 	nurates_params.quadrature_2 = nurates_params.quadrature_1;
       } else {
 	nurates_params.quadrature_2.nx = nurates_params.quad_nx_2;
@@ -154,6 +150,9 @@ namespace M1::Opacities::BNSNuRates {
       // Weak equilibrium parameters ----------------------------------------------
 
       verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
+
+      // This parameter is actually used in the equilibration 
+      use_kirchhoff_law = pin->GetOrAddBoolean("M1_opacities", "use_kirchoff_law", true); //TODO implement the switch, for the moment it is always used
       
       // These are the defaults in THC
       opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);
@@ -161,8 +160,8 @@ namespace M1::Opacities::BNSNuRates {
       opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
 
       // These min values are used at the begining of compute_weak_equilibrium()
-      // but should not be needed: the "tau"-logic of the equilibration should
-      // Could experiment with rho(CGS) ~ 1e11 in case.      
+      // Deprecated: "tau"-logic of the equilibration should do the job
+      // Alternatively, could experiment with rho(CGS) ~ 1e11 in case.      
       // density below which nothing is done [g/cm^3]
       rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0); 
       // temperature below which nothing is done [MeV]
@@ -493,7 +492,7 @@ namespace M1::Opacities::BNSNuRates {
             // For heavy lepton neutrinos we change the emissivity
 	    // NB bns_nurates does not need to impose Kirchoff law
 	    
-	    //TODO if (nurates_params.use_kirchhoff_law) { ...
+	    //TODO if (use_kirchhoff_law) { ...
 	    
             // Electron neutrinos
             pm1->radmat.sc_kap_a_0(0, 0)(k, j, i) = corr_fac[0] * kap_a_n_nue;
@@ -607,6 +606,8 @@ namespace M1::Opacities::BNSNuRates {
     
     // Weak equilibrium stuff -----------------------------------------------------------------
 
+    bool use_kirchhoff_law;
+    
     // Options for controlling weakrates opacities
     Real opacity_tau_trap;
     Real opacity_tau_delta;
@@ -651,10 +652,6 @@ namespace M1::Opacities::BNSNuRates {
     const Real cnst3 = 7.0 *POW4(pi)/15.0;                // 7*pi**4/15 [-]
     const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
 
-    // Factors needed for some unit conversion
-    //const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid nu_n overflows
-    const Real MEV_TO_ERG = 1.6021766339999e-6;
-    
     // Wrapper for weak equilibrium computation
     int WeakEquilibrium(Real rho, Real temp, Real ye,
                         Real n_nue, Real n_nua, Real n_nux,
