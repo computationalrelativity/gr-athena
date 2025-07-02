@@ -15,6 +15,15 @@
 // Variable to switch between analytic and numerical solutions of Fermi integrals
 #define FERMI_ANALYTIC (1)
 
+// Point-test to compare to bns_nurates/mwe.cpp , works only serially!
+#define MWE_TEST (0)  // 1 = test bns_nurate call, 2 = test bns_nurates + unit conv.
+
+// Dimensionless rescaling factor for mb, to avoid nu_n overflows
+#if (MWE_TEST)
+const Real NORMFACT = 1.0; 
+#else
+const Real NORMFACT = 1e50;
+#endif
 
 namespace M1::Opacities::BNSNuRates {
 
@@ -112,13 +121,132 @@ namespace M1::Opacities::BNSNuRates {
     // code units to MeV 
     const Real MeV = code_units->TemperatureConversion(*my_units); 
 
+    // NB bns_nurates requires CGS + MeV + nm units 
+    // this needs a further rescaling from cm to nm
+    
+#if (MWE_TEST==2)
+    // DEBUG Single point data, compare bns_nurates/mwe.cpp
+    // Here we test also unit conversion
+    
+    // Fix the neutrino energy for computation of spectral rates
+    //const double _nu_energy = 10.; // [MeV]
+    
+    // Input thermodynamic quantities (corresponding to point A in Chiesa+25 PRD)
+    // N.B.: chemical potentials include the rest mass contribution
+    const double _nb = 4.208366627847035e+38;  // Baryon number density [cm-3]           
+    const double _T = 12.406403541564941;      // Temperature [MeV]
+    const double _ye = 0.07158458232879639;    // Electron fraction
+    const double _mu_e = 187.1814489;          // Electron chemical potential [MeV]
+    const double _mu_p = 1011.01797737;        // Proton chemical potential [MeV]
+    const double _mu_n = 1221.59013681;        // Neutron chemical potential [MeV]
+    const double _dU = 18.92714728;            // Nucleon interaction potential difference (Un-Up) [MeV]
+    const double _mp_eff = 278.87162217;       // Proton effective mass [MeV]
+    const double _mn_eff = 280.16495513;       // Neutron effective mass [MeV]
+    const double _dm = _mn_eff - _mp_eff;        // Nucleon effective mass difference [MeV]
+    
+    // Input gray neutrino quantities (library supports 4 neutrino species)
+    // N.B.: These will be used in PART 2 for reconstructing the neutrino distribution functions
+    //       and as normalization factors for energy-averaged opacities
+    const double _n_nue  = 3.739749408027436e+33;   // Electron neutrino number density [cm-3]
+    const double _n_anue = 1.2174961961689319e+35;  // Electron antineutrino number density [cm-3]
+    const double _n_nux  = 2.2438496448164613e+34;  // Heavy-type neutrino number density [cm-3]
+    const double _n_anux = 2.2438496448164613e+34;  // Heavy-type antineutrino number density [cm-3]
+    const double _j_nue  = 1.246583136009145e+35;   // Electron neutrino energy density [MeV cm-3]
+    const double _j_anue = 5.360307484839323e+36;   // Electron antineutrino number density [MeV cm-3]
+    const double _j_nux  = 8.726081952064015e+35;   // Heavy-type neutrino energy density [MeV cm-3]
+    const double _j_anux = 8.726081952064015e+35;   // Heavy-type antineutrino energy density [MeV cm-3]
+    const double _chi_nue   = 1. / 3.;              // Electron neutrino Eddington factor
+    const double _chi_anue  = 1. / 3.;              // Electron antineutrino Eddington factor
+    const double _chi_nux   = 1. / 3.;              // Heavy-type neutrino Eddington factor
+    const double _chi_anux  = 1. / 3.;              // Heavy-type antineutrino Eddington factor
+    
+    // To code units:
+    nb = _nb * my_units->NumberDensityConversion(*code_units);
+    temp = _T * my_units->TemperatureConversion(*code_units); 
+    ye = _ye;
+    mu_e = _mu_e; 
+    mu_p = _mu_p;
+    mu_n = _mu_n;
+    
+    n_nue = _n_nue * my_units->NumberDensityConversion(*code_units);
+    n_anue = _n_anue * my_units->NumberDensityConversion(*code_units);
+    n_nux = _n_nux * my_units->NumberDensityConversion(*code_units);
+    n_anux = _n_anux * my_units->NumberDensityConversion(*code_units);
+    
+    j_nue = _j_nue / (MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units) );
+    j_anue = _j_anue / (MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units) );
+    j_nux = _j_nux / (MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units) );
+    j_anux = _j_anux / (MEV_TO_ERG * my_units->EnergyDensityConversion(*code_units) );
+    
+    chi_nue = _chi_nue;
+    chi_anue = _chi_anue;
+    chi_nux = _chi_nux;
+    chi_anux = _chi_anux;
+    
+#elif (MWE_TEST==1)
+    // DEBUG Single point data, compare bns_nurates/mwe.cpp
+    
+    // Input thermodynamic quantities (corresponding to point A in Chiesa+25 PRD)
+    // N.B.: chemical potentials include the rest mass contribution
+    const Real _nb = 4.208366627847035e+38;  // Baryon number density [cm-3]           
+    const Real _T = 12.406403541564941;      // Temperature [MeV]
+    const Real _ye = 0.07158458232879639;    // Electron fraction
+    const Real _mu_e = 187.1814489;          // Electron chemical potential [MeV]
+    const Real _mu_p = 1011.01797737;        // Proton chemical potential [MeV]
+    const Real _mu_n = 1221.59013681;        // Neutron chemical potential [MeV]
+    const Real _dU = 18.92714728;            // Nucleon interaction potential difference (Un-Up) [MeV]
+    const Real _mp_eff = 278.87162217;       // Proton effective mass [MeV]
+    const Real _mn_eff = 280.16495513;       // Neutron effective mass [MeV]
+    const Real _dm = _mn_eff - _mp_eff;        // Nucleon effective mass difference [MeV]
+    
+    // Input gray neutrino quantities (library supports 4 neutrino species)
+    // N.B.: These will be used in PART 2 for reconstructing the neutrino distribution functions
+    //       and as normalization factors for energy-averaged opacities
+    const Real _n_nue  = 3.739749408027436e+33;   // Electron neutrino number density [cm-3]
+    const Real _n_anue = 1.2174961961689319e+35;  // Electron antineutrino number density [cm-3]
+    const Real _n_nux  = 2.2438496448164613e+34;  // Heavy-type neutrino number density [cm-3]
+    const Real _n_anux = 2.2438496448164613e+34;  // Heavy-type antineutrino number density [cm-3]
+    const Real _j_nue  = 1.246583136009145e+35;   // Electron neutrino energy density [MeV cm-3]
+    const Real _j_anue = 5.360307484839323e+36;   // Electron antineutrino number density [MeV cm-3]
+    const Real _j_nux  = 8.726081952064015e+35;   // Heavy-type neutrino energy density [MeV cm-3]
+    const Real _j_anux = 8.726081952064015e+35;   // Heavy-type antineutrino energy density [MeV cm-3]
+    const Real _chi_nue   = 1. / 3.;              // Electron neutrino Eddington factor
+    const Real _chi_anue  = 1. / 3.;              // Electron antineutrino Eddington factor
+    const Real _chi_nux   = 1. / 3.;              // Heavy-type neutrino Eddington factor
+    const Real _chi_anux  = 1. / 3.;              // Heavy-type antineutrino Eddington factor
+    
+    // Units to nm (CGS + MeV + nm)
+    const Real nb_nmunits = _nb * 1e-21;
+    const Real temp_mev = _T;
+    const Real mu_e_mev = _mu_e; 
+    const Real mu_p_mev = _mu_p;
+    const Real mu_n_mev = _mu_n;
+    ye = _ye;
+    
+    const Real n_nue_nmunits = _n_nue * 1e-21;
+    const Real n_anue_nmunits = _n_anue * 1e-21;
+    const Real n_nux_nmunits = _n_nux * 1e-21;
+    const Real n_anux_nmunits = _n_anux * 1e-21;
+    
+    const Real j_nue_nmunits = _j_nue * 1e-21 * kBS_MeV;
+    const Real j_anue_nmunits = _j_anue * 1e-21 * kBS_MeV;
+    const Real j_nux_nmunits = _j_nux * 1e-21 * kBS_MeV;
+    const Real j_anux_nmunits = _j_anux * 1e-21 * kBS_MeV;
+    
+    chi_nue = _chi_nue;
+    chi_anue = _chi_anue;
+    chi_nux = _chi_nux;
+    chi_anux = _chi_anux;
+
+#else
+
     // Convert input to CGS+MeV
     const Real nb_cgs = nb / cgs2code_n; // [baryon/cm^-3]
     const Real temp_mev = temp * MeV; 
     const Real mu_n_mev = mu_n * MeV;
     const Real mu_p_mev = mu_p * MeV;
     const Real mu_e_mev = mu_e * MeV;
-    
+       
     if ( (nb_cgs < nurates_params.nb_min_cgs) ||
          (temp_mev < nurates_params.temp_min_mev) ) {
       R_nue = 0.;
@@ -147,9 +275,6 @@ namespace M1::Opacities::BNSNuRates {
       scat_1_anux = 0.;
       return ierr;
     }
-
-    // bns_nurates requires CGS + MeV + nm units 
-    // this needs a further rescaling from cm to nm
     
     // convert neutrino quantities from code units to CGS + nm units (and adjust for NORMFACT)
     const Real n_nue_nmunits = n_nue / (cgs2code_n / NORMFACT) * 1e-21;    // [nm^-3]
@@ -164,12 +289,15 @@ namespace M1::Opacities::BNSNuRates {
 
     // convert also baryon density
     const Real nb_nmunits = nb / my_units->NumberDensityConversion(*code_units) * 1e-21; // [baryon/nm^-3]
+
+#endif
     
     // opacity params structure
-    GreyOpacityParams grey_op_params{};
+    GreyOpacityParams grey_op_params = {0};
+    grey_op_params.opacity_flags     = opacity_flags_default_none;
+    grey_op_params.opacity_pars      = opacity_params_default_none;
     
     // reaction flags
-    //grey_op_params.opacity_flags = opacity_flags_default_none; //TODO  opacity_flags_default_none = ?
     grey_op_params.opacity_flags.use_abs_em = nurates_params.use_abs_em;
     grey_op_params.opacity_flags.use_brem = nurates_params.use_brem;
     grey_op_params.opacity_flags.use_pair = nurates_params.use_pair;
@@ -178,7 +306,6 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_inelastic_scatt;
     
     // other flags
-    //grey_op_params.opacity_pars = opacity_params_default_none; //TODO
     grey_op_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
     grey_op_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
     grey_op_params.opacity_pars.use_dU = nurates_params.use_dU;
@@ -254,6 +381,33 @@ namespace M1::Opacities::BNSNuRates {
     M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature_1,
                                                &nurates_params.quadrature_2,
                                                &grey_op_params);
+
+#if (MWE_TEST)
+    // The numerical factors restore usual units (see output)
+    printf("Gray rates (compare mwe.cpp)\n");
+    printf("------------------------------\n");
+    printf("     eta0          eta1          kappa0        kappa1        scat1\n");
+    printf(" nue %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+           opacities.eta_0[id_nue] * 1e21, opacities.eta[id_nue] * 1e21,
+           opacities.kappa_0_a[id_nue] * 1e7 * NORMFACT, opacities.kappa_a[id_nue] * 1e7,
+           opacities.kappa_s[id_nue] * 1e7);
+    printf("anue %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+           opacities.eta_0[id_anue] * 1e21, opacities.eta[id_anue] * 1e21,
+           opacities.kappa_0_a[id_anue] * 1e7 * NORMFACT, opacities.kappa_a[id_anue] * 1e7,
+           opacities.kappa_s[id_anue] * 1e7);
+    printf(" nux %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+           opacities.eta_0[id_nux] * 1e21, opacities.eta[id_nux] * 1e21,
+           opacities.kappa_0_a[id_nux] * 1e7 * NORMFACT, opacities.kappa_a[id_nux] * 1e7,
+           opacities.kappa_s[id_nux] * 1e7);
+    printf("anux %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n\n",
+           opacities.eta_0[id_anux] * 1e21, opacities.eta[id_anux] * 1e21,
+           opacities.kappa_0_a[id_anux] * 1e7 * NORMFACT, opacities.kappa_a[id_anux] * 1e7,
+           opacities.kappa_s[id_anux] * 1e7);
+
+    std::ostringstream msg;
+    msg << "Stop here, DEBUG" << std::endl;	
+    ATHENA_ERROR(msg);	        
+#endif
     
     // Similar to the comment above, the factors of 2 come from the fact that
     // bns_nurates and THC weight the heavy neutrinos differently. THC weights

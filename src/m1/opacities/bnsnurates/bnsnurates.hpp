@@ -22,9 +22,6 @@
 #include "bns_nurates/include/m1_opacities.hpp"
 
 
-#define DEBUG (1) // extra debug, works only serially !!!
-
-
 namespace M1::Opacities::BNSNuRates {
 
   
@@ -165,8 +162,7 @@ namespace M1::Opacities::BNSNuRates {
 
       // These min values are used at the begining of compute_weak_equilibrium()
       // but should not be needed: the "tau"-logic of the equilibration should
-      // Could experiment with rho(CGS) ~ 1e11 in case.
-      
+      // Could experiment with rho(CGS) ~ 1e11 in case.      
       // density below which nothing is done [g/cm^3]
       rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0); 
       // temperature below which nothing is done [MeV]
@@ -263,7 +259,6 @@ namespace M1::Opacities::BNSNuRates {
               dens_n[nuidx] = pm1->rad.sc_n(0, nuidx)(k, j, i) * invsdetg;
               dens_e[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i) * invsdetg;
               chi_loc[nuidx] = pm1->lab_aux.sc_chi(0, nuidx)(k, j, i); 
-		//pm1->rad.sc_chi(0, nuidx)(k, j, i); 
             }
 	    // Copy 4th species (assume anux = nux)
 	    dens_n[3] = dens_n[2];
@@ -274,10 +269,10 @@ namespace M1::Opacities::BNSNuRates {
             Real eta_0_loc[4]{}, eta_1_loc[4]{};
             Real abs_0_loc[4]{}, abs_1_loc[4]{};
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
-
 	    
-            // Note: everything sent and received are in code units
 
+            // Note: everything sent and received are in code units
+		
             int opac_err =
               bns_nurates_wrapper(nb, T, Y_e, mu_n, mu_p, mu_e,
 				  dens_n[0], dens_e[0], chi_loc[0], 
@@ -294,24 +289,19 @@ namespace M1::Opacities::BNSNuRates {
 	    
             bool is_failing_opacity = (opac_err)? true : false;
 
-
-            // Dump some information when opacity calculation fails
-            if (is_failing_opacity)
-              {
-
-#if (DEBUG)
-		std::cout << "DEBUG T-conv-fact " << code_units->TemperatureConversion(*my_units) << std::endl;
-		std::cout << "DEBUG nb " << nb << std::endl;
-		std::cout << "DEBUG T " << T << std::endl;
-		std::cout << "DEBUG Ye " << Y_e << std::endl;
-		std::cout << "DEBUG mun " << mu_n << std::endl;
-		std::cout << "DEBUG mup " << mu_p << std::endl;
-		std::cout << "DEBUG mue " << mu_e << std::endl;
-#endif
 	    
+            // Dump some information when opacity calculation fails
+		if (is_failing_opacity) {
 		std::ostringstream msg;
-                msg << "CalculateOpacityBNSNuRates failure: " << opac_err;
-                pm1->StatePrintPoint(msg.str(), 0, 0, k, j, i, false);
+                msg << "CalculateOpacityBNSNuRates failure: " << opac_err << std::endl;		
+		//msg << "T-conv-fact " << code_units->TemperatureConversion(*my_units) << std::endl;
+		msg << "nb " << nb << std::endl;
+		msg << "T " << T << std::endl;
+		msg << "Ye " << Y_e << std::endl;
+		msg << "mun " << mu_n << std::endl;
+		msg << "mup " << mu_p << std::endl;
+		msg << "mue " << mu_e << std::endl;
+		pm1->StatePrintPoint(msg.str(), 0, 0, k, j, i, false);
                 pm1->StatePrintPoint(msg.str(), 0, 1, k, j, i, false);
                 pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true); // assert(false)
               }
@@ -662,7 +652,7 @@ namespace M1::Opacities::BNSNuRates {
     const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
 
     // Factors needed for some unit conversion
-    const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid nu_n overflows
+    //const Real NORMFACT = 1e50; // dimensionless rescaling factor for mb, to avoid nu_n overflows
     const Real MEV_TO_ERG = 1.6021766339999e-6;
     
     // Wrapper for weak equilibrium computation
