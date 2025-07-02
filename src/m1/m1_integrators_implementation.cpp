@@ -90,8 +90,103 @@ void PrepareApproximateFirstOrder_E_F_d(
 
   // Evolve fiducial frame; prepare (J, H^alpha):
   // We write:
-  // sc_J = J_0
-  // st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+  // sc_J   = J_0
+  // st_H^a = H_n n^a + H_v v^a + H_F F^a
+  const Real W  = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+
+  const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
+  const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
+
+  Real J_0, H_n, H_v, H_F;
+
+  Assemble::Frames::ToFiducialExpansionCoefficients(
+    pm1,
+    J_0, H_n, H_v, H_F,
+    C.sc_chi, C.sc_E, C.sp_F_d,
+    k, j, i
+  );
+
+  // populate spatial projection of fluid frame rad. flux.
+  AT_N_vec & sp_H_d_ = pm1.scratch.sp_vec_A_;
+  for (int a=0; a<N; ++a)
+  {
+    sp_H_d_(a,i) = H_v * sp_v_d(a,k,j,i) + H_F * C.sp_F_d(a,k,j,i);
+  }
+  // --------------------------------------------------------------------------
+
+
+  // Evolve fluid frame quantities
+  const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
+
+  J_0 = (J_0 * W + dt * C.sc_eta(k,j,i)) /
+        (W + dt * C.sc_kap_a(k,j,i));
+
+  for (int a=0; a<N; ++a)
+  {
+    sp_H_d_(a,i) = W * sp_H_d_(a,i) / (W + dt * kap_as);
+  }
+
+  // This follows from the orthogonality relation H_a u^a = 0
+  H_n = 0.0;
+  for (int a=0; a<N; ++a)
+  {
+    H_n += sp_v_u(a,k,j,i) * sp_H_d_(a,i);
+  }
+
+  // Project back assuming thick limit ----------------------------------------
+  Closures::EddingtonFactors::ThickLimit(
+    CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
+  );
+
+  // Use thick regime expressions:
+  C.sc_E(k,j,i) = (
+    ONE_3RD * (4.0 * W2 - 1.0) * J_0 +
+    2.0 * W * H_n
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    C.sp_F_d(a,k,j,i) = (
+      4.0 * ONE_3RD * W2 * J_0 * sp_v_d(a,k,j,i) +
+      W * (H_n * sp_v_d(a,k,j,i) + sp_H_d_(a,i))
+    );
+  }
+
+  // Ensure physical state ----------------------------------------------------
+  EnforcePhysical_E_F_d(pm1, C, k, j, i);
+}
+
+/*
+void PrepareApproximateFirstOrder_E_F_d(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,        // current step
+  const Update::StateMetaVector & P,  // previous step data
+  const Update::StateMetaVector & I,  // inhomogeneity
+  Update::SourceMetaVector & S,       // carry source contribution
+  Closures::ClosureMetaVector & CL_C,
+  const int k, const int j, const int i)
+{
+  using namespace Sources;
+
+  // ------------------------------------------------------------------------
+  // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
+  SetMatterSourceZero(S, k, j, i);
+
+  // Explicit step, no sources; applies floors internally
+  StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+  // Compute closure & construct fiducial frame:
+  CL_C.Closure(k, j, i);
+
+  // Evolve fiducial frame; prepare (J, H^alpha):
+  // We write:
+  // sc_J   = J_0
+  // st_H^a = H_n n^a + H_v v^a + H_F F^a
   const Real W  = pm1.fidu.sc_W(k,j,i);
   const Real W2 = SQR(W);
 
@@ -169,12 +264,14 @@ void PrepareApproximateFirstOrder_E_F_d(
     );
   }
 
-  CL_C.sc_chi(k,j,i) = ONE_3RD;
-  CL_C.sc_xi(k,j,i)  = 0.0;
+  Closures::EddingtonFactors::ThickLimit(
+    CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
+  );
 
-  // Impose physical state
+  // Ensure physical state
   EnforcePhysical_E_F_d(pm1, C, k, j, i);
 }
+*/
 
 // ============================================================================
 } // namespace M1::Integrators::Explicit
@@ -630,8 +727,8 @@ void StepImplicitHybridsJ(
     // solver loop ------------------------------------------------------------
     int iter = 0;
 
-    Real xi_avg = CL_C.sc_xi(k,j,i);
-    Real xi_min = std::numeric_limits<Real>::infinity();
+    // Real xi_avg = CL_C.sc_xi(k,j,i);
+    // Real xi_min = std::numeric_limits<Real>::infinity();
 
     // if (gsl_status!=GSL_SUCCESS)
     do
@@ -682,8 +779,8 @@ void StepImplicitHybridsJ(
                                             pm1.opt_solver.eps_a_tol,
                                             pm1.opt_solver.eps_r_tol);
 
-      xi_avg += CL_C.sc_xi(k,j,i);
-      xi_min = std::min(CL_C.sc_xi(k,j,i), xi_min);
+      // xi_avg += CL_C.sc_xi(k,j,i);
+      // xi_min = std::min(CL_C.sc_xi(k,j,i), xi_min);
       // if ((xi_min < 1e-6) && pm1.opt_closure.variety != M1::opt_closure_variety::thick)
       //   gsl_status = GSL_ENOPROG;
     }

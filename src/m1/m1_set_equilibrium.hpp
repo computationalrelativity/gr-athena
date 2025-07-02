@@ -30,6 +30,7 @@ void SetEquilibrium(
 // - Takes current J; Optionally fiducial frame is reconstructed at the point
 //   based on current (E, F_d)
 // - Expression: sc_avg_nrg = J / n
+/*
 void SetEquilibrium_n_nG(
   M1 & pm1,
   Update::StateMetaVector & C,
@@ -42,6 +43,62 @@ void SetEquilibrium_n_nG(
   const bool construct_src_nG,
   const bool construct_src_E_F_d,
   const bool use_diff_src
+);
+*/
+
+/*
+// Set also (E, F_d)
+void SetEquilibrium_E_F_d_n_nG(
+  M1 & pm1,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::SourceMetaVector & S,
+  const int k,
+  const int j,
+  const int i,
+  const bool construct_src_nG,
+  const bool construct_src_E_F_d,
+  const bool use_diff_src
+);
+*/
+
+// Enforce equilibrium only on species using energy averages.
+// - Suppose we have previous data U:=(N=nG, E, F_d).
+// - Optionally perform initial (E*,F_d*) evolution with or without sources
+// - Optionally constructs current J* based on current (E*, F_d*)
+// - Set n* <- n using sc_avg_nrg = J* / n (computed during opac. calc.)
+// - Set N* <- n* \times Gamma[U*]
+//
+// Optionally:
+// - Construct new sources from state-vector difference S:=U*-U
+// - Take final result as explicit evolution with this S
+
+void SetEquilibrium_n_nG(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::StateMetaVector & I,
+  Update::SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL_C,
+  const int k,
+  const int j,
+  const int i
+);
+
+
+// Set also (E, F_d) based on equilibrium considerations
+void SetEquilibrium_E_F_d_n_nG(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::StateMetaVector & I,
+  Update::SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL_C,
+  const int k,
+  const int j,
+  const int i
 );
 
 // ============================================================================

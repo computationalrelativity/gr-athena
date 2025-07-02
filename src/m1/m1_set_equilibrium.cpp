@@ -1,9 +1,12 @@
 // C++ standard headers
 #include <iostream>
+#include <array>
 
 // Athena++ headers
 
 #include "m1.hpp"
+#include "m1_calc_update.hpp"
+#include "m1_integrators.hpp"
 #include "m1_utils.hpp"
 
 #if !(M1_NO_WEAKRATES)
@@ -14,6 +17,7 @@
 #include "m1_set_equilibrium.hpp"
 #include "m1_sources.hpp"
 #include "m1_calc_closure.hpp"
+#include "m1_integrators.hpp"
 #include "../hydro/hydro.hpp"
 #include "../scalars/scalars.hpp"
 
@@ -75,7 +79,7 @@ void SetEquilibrium(
   nudens.Fill(0.0);
 
   // Optically thick weak equilibrium
-  popac->CalculateEquilbriumDensity(w_rho, w_T, w_Y_e, nudens);
+  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
   // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
@@ -119,10 +123,23 @@ void SetEquilibrium(
     }
 
     // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+
+    /*
     sc_E(k,j,i) = W2 * sc_J(k,j,i);
     for (int a=0; a<N; ++a)
     {
       sp_F_d(a,k,j,i) = W2 * pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+    }
+    */
+
+    sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+      4.0 * W2 - 1.0
+    );
+
+    for (int a=0; a<N; ++a)
+    {
+      sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                        pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
     }
 
     // Prepare neutrino number density
@@ -154,7 +171,6 @@ void SetEquilibrium(
     {
       pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
     }
-
   }
 
 #endif // FLUID_ENABLED
@@ -164,13 +180,162 @@ void SetEquilibrium(
 
 void SetEquilibrium_n_nG(
   M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::StateMetaVector & I,
+  Update::SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL_C,
+  const int k,
+  const int j,
+  const int i
+)
+{
+  using namespace Update;
+  using namespace Sources;
+
+  // Short-circuit at low density
+  // Convert from code units to CGS for this comparison?
+  const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
+  if (w_rho < pm1.opt_solver.eql_rho_min)
+  {
+    return;
+  }
+
+  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+
+  const int ix_g = C.ix_g;
+  const int ix_s = C.ix_s;
+
+  // extract field components / prepare frame ---------------------------------
+  // U_new:
+  AT_C_sca & sc_J   = C.sc_J;
+  AT_D_vec & st_H_u = C.st_H_u;
+  AT_C_sca & sc_n   = C.sc_n;
+
+  AT_C_sca & sc_E    = C.sc_E;
+  AT_N_vec & sp_F_d  = C.sp_F_d;
+  AT_C_sca & sc_nG   = C.sc_nG;
+
+  AT_C_sca & sc_chi  = C.sc_chi;
+  AT_C_sca & sc_xi   = C.sc_xi;
+
+  AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
+
+  // need to retain additional candidate (star) state
+  Real T_E;
+  Real T_nG;
+  std::array<Real, N> T_F_d;
+
+  T_E = sc_E(k,j,i);
+  T_nG = sc_nG(k,j,i);
+  for (int n=0; n<N; ++n)
+  {
+    T_F_d[n] = sp_F_d(n,k,j,i);
+  }
+
+  // --------------------------------------------------------------------------
+
+  // impose thick closure
+  Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
+
+  // If required, evolve (E,F_d) in absence of sources
+  if (pm1.opt_solver.equilibrium_evolve)
+  {
+    if (pm1.opt_solver.equilibrium_evolve_use_euler)
+    {
+      Sources::SetMatterSourceZero(S, k, j, i);
+      Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+      // Ensure resulting state is physical
+      EnforcePhysical_E_F_d(pm1, C, k, j, i);
+    }
+    else
+    {
+      // Internally this computes generic closure but when mapping back the
+      // result imposes thick
+      Integrators::Explicit::PrepareApproximateFirstOrder_E_F_d(
+        pm1, dt, C, P, I, S, CL_C, k, j, i
+      );
+    }
+  }
+
+  // Prepare sources if required
+  if (pm1.opt_solver.equilibrium_src_E_F_d)
+  {
+    if (pm1.opt_solver.equilibrium_use_diff_src)
+    {
+      // new - star
+      S.sc_E(k,j,i) = sc_E(k,j,i) - T_E;
+      for (int n=0; n<N; ++n)
+      {
+        S.sp_F_d(n,k,j,i) = sp_F_d(n,k,j,i) - T_F_d[n];
+      }
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    }
+  }
+  else
+  {
+    Sources::SetMatterSourceZero(S, k, j, i);
+  }
+
+  // Irrespective of the above, we now need the fiducial frame
+  // n will be overwitten below and is not required for J, H
+  Real sc_Gam__ = Assemble::Frames::ToFiducial(
+    pm1,
+    sc_J, st_H_u, sc_n,
+    sc_chi,
+    sc_E, sp_F_d, sc_nG,
+    k, j, i
+  );
+
+  // update in accordance with average energies prepared in opac.
+  sc_n(k,j,i)  = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
+  sc_nG(k,j,i) = sc_Gam__ * sc_n(k,j,i);
+
+  // Flooring
+  EnforcePhysical_nG(pm1, C, k, j, i);
+  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+
+  // prepare eql. adjust sources
+  if (pm1.opt_solver.equilibrium_src_nG)
+  {
+    if (pm1.opt_solver.equilibrium_use_diff_src)
+    {
+      S.sc_nG(k,j,i) = sc_nG(k,j,i) - T_nG;
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
+    }
+  }
+  else
+  {
+    S.sc_nG(k,j,i) = 0;
+  }
+
+  // If required, evolve N explicitly based on eql. adjusted sources
+  if (pm1.opt_solver.equilibrium_evolve)
+  {
+    Integrators::Explicit::StepExplicit_nG(pm1, dt, C, P, I, S, k, j, i);
+    EnforcePhysical_nG(pm1, C, k, j, i);
+    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+  }
+}
+
+/*
+void SetEquilibrium_E_F_d_n_nG(
+  M1 & pm1,
   Update::StateMetaVector & C,
   Update::StateMetaVector & P,
   Update::SourceMetaVector & S,
   const int k,
   const int j,
   const int i,
-  const bool construct_fiducial,
   const bool construct_src_nG,
   const bool construct_src_E_F_d,
   const bool use_diff_src
@@ -179,8 +344,44 @@ void SetEquilibrium_n_nG(
   using namespace Update;
   using namespace Sources;
 
-  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+  Opacities::Opacities * popac = pm1.popac;
+  typedef Opacities::Opacities::opt_opacity_variety oov;
 
+  // Compute the optically thick weak equilibrium -----------------------------
+  MeshBlock * pmb       = pm1.pmy_block;
+  Hydro * ph            = pmb->phydro;
+  EquationOfState *peos = pmb->peos;
+
+  const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
+  const Real w_p   = pm1.hydro.sc_w_p(k,j,i);
+  const Real w_Y_e = pm1.hydro.sc_w_Ye(k,j,i);
+  const Real w_T   = pm1.hydro.sc_T(k,j,i);
+
+  // Short-circuit at low density
+  // Convert from code units to CGS for this comparison?
+  if (w_rho < pm1.opt_solver.eql_rho_min)
+  {
+    return;
+  }
+
+  // [[n_nue, n_nua, n_nux, n_nux]
+  //  [e_nue, e_nua, e_nux, e_nux]]
+  static const int N_nu      = 2;
+  static const int N_nu_spcs = 4;
+
+  AA nudens(N_nu, N_nu_spcs);
+  nudens.Fill(0.0);
+
+  // Optically thick weak equilibrium
+  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
+
+  // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
+  // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
+  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  // Fix species and group ----------------------------------------------------
   const int ix_g = C.ix_g;
   const int ix_s = C.ix_s;
 
@@ -201,37 +402,35 @@ void SetEquilibrium_n_nG(
   // impose thick closure
   Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
 
-  Real sc_Gam__ = 1.0;
+  // --------------------------------------------------------------------------
+  sc_J(k,j,i) = nudens(1,ix_s) * sc_sqrt_det_g;
 
-  if (construct_fiducial)
+  for (int a=0; a<D; ++a)
   {
-    // n will be overwitten below and is not required for J, H
-    sc_Gam__ = Assemble::Frames::ToFiducial(
-      pm1,
-      sc_J, st_H_u, sc_n,
-      sc_chi,
-      sc_E, sp_F_d, sc_nG,
-      k, j, i
-    );
+    st_H_u(a,k,j,i) = 0;
   }
-  else
+
+  // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+  sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+    4.0 * W2 - 1.0
+  );
+
+  for (int a=0; a<N; ++a)
   {
-    sc_Gam__ = Assemble::Frames::sc_Gam__(
-      pm1,
-      sc_J,
-      st_H_u,
-      k, j, i);
+    sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                      pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
   }
 
   // compute from average -----------------------------------------------------
   sc_n(k,j,i) = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
 
-  // floors
-  sc_nG(k,j,i) = std::max(sc_Gam__ * sc_n(k,j,i), pm1.opt.fl_nG);
-  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+  // here Gamma = W as H_n is 0
+  sc_nG(k,j,i) = W * sc_n(k,j,i);
 
   // Ensure update preserves energy non-negativity
+  EnforcePhysical_E_F_d(pm1, C, k, j, i);
   EnforcePhysical_nG(pm1, C, k, j, i);
+  sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
 
   // source terms (entering coupling) -----------------------------------------
   if (construct_src_nG)
@@ -263,6 +462,189 @@ void SetEquilibrium_n_nG(
       ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
     }
   }
+}
+*/
+
+void SetEquilibrium_E_F_d_n_nG(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,
+  Update::StateMetaVector & P,
+  Update::StateMetaVector & I,
+  Update::SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL_C,
+  const int k,
+  const int j,
+  const int i
+)
+{
+  using namespace Update;
+  using namespace Sources;
+
+  Opacities::Opacities * popac = pm1.popac;
+  typedef Opacities::Opacities::opt_opacity_variety oov;
+
+  // Compute the optically thick weak equilibrium -----------------------------
+  MeshBlock * pmb       = pm1.pmy_block;
+  Hydro * ph            = pmb->phydro;
+  EquationOfState *peos = pmb->peos;
+
+  const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
+  const Real w_p   = pm1.hydro.sc_w_p(k,j,i);
+  const Real w_Y_e = pm1.hydro.sc_w_Ye(k,j,i);
+  const Real w_T   = pm1.hydro.sc_T(k,j,i);
+
+  // Short-circuit at low density
+  // Convert from code units to CGS for this comparison?
+  if (w_rho < pm1.opt_solver.eql_rho_min)
+  {
+    return;
+  }
+
+  // [[n_nue, n_nua, n_nux, n_nux]
+  //  [e_nue, e_nua, e_nux, e_nux]]
+  static const int N_nu      = 2;
+  static const int N_nu_spcs = 4;
+
+  AA nudens(N_nu, N_nu_spcs);
+  nudens.Fill(0.0);
+
+  // Optically thick weak equilibrium
+  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
+
+  // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
+  // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
+  const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+  const Real W = pm1.fidu.sc_W(k,j,i);
+  const Real W2 = SQR(W);
+
+  // Fix species and group ----------------------------------------------------
+  const int ix_g = C.ix_g;
+  const int ix_s = C.ix_s;
+
+  // extract field components / prepare frame ---------------------------------
+  AT_C_sca & sc_J   = C.sc_J;
+  AT_D_vec & st_H_u = C.st_H_u;
+  AT_C_sca & sc_n   = C.sc_n;
+
+  AT_C_sca & sc_E    = C.sc_E;
+  AT_N_vec & sp_F_d  = C.sp_F_d;
+  AT_C_sca & sc_nG   = C.sc_nG;
+
+  AT_C_sca & sc_chi  = C.sc_chi;
+  AT_C_sca & sc_xi   = C.sc_xi;
+
+  AT_C_sca & sc_avg_nrg = pm1.radmat.sc_avg_nrg(ix_g, ix_s);
+
+  // need to retain additional candidate (star) state
+  Real T_E;
+  Real T_nG;
+  std::array<Real, N> T_F_d;
+
+  T_E = sc_E(k,j,i);
+  T_nG = sc_nG(k,j,i);
+  for (int n=0; n<N; ++n)
+  {
+    T_F_d[n] = sp_F_d(n,k,j,i);
+  }
+
+  // impose thick closure
+  Closures::EddingtonFactors::ThickLimit(sc_xi(k,j,i), sc_chi(k,j,i));
+
+  // --------------------------------------------------------------------------
+  sc_J(k,j,i) = nudens(1,ix_s) * sc_sqrt_det_g;
+
+  for (int a=0; a<D; ++a)
+  {
+    st_H_u(a,k,j,i) = 0;
+  }
+
+  // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+  sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
+    4.0 * W2 - 1.0
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                      pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
+  }
+
+  // Prepare sources if required ----------------------------------------------
+  if (pm1.opt_solver.equilibrium_src_E_F_d)
+  {
+    if (pm1.opt_solver.equilibrium_use_diff_src)
+    {
+      // new - star
+      S.sc_E(k,j,i) = sc_E(k,j,i) - T_E;
+      for (int n=0; n<N; ++n)
+      {
+        S.sp_F_d(n,k,j,i) = sp_F_d(n,k,j,i) - T_F_d[n];
+      }
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+    }
+  }
+  else
+  {
+    Sources::SetMatterSourceZero(S, k, j, i);
+  }
+
+  // if we evolve then we recompute the fiducial frame
+  Real sc_Gam__ = W;
+
+  // If required, evolve (E,F_d); source treatment based on above -------------
+  if (pm1.opt_solver.equilibrium_evolve)
+  {
+    Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+    // Ensure resulting state is physical
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+    Real sc_Gam__ = Assemble::Frames::ToFiducial(
+      pm1,
+      sc_J, st_H_u, sc_n,
+      sc_chi,
+      sc_E, sp_F_d, sc_nG,
+      k, j, i
+    );
+  }
+
+  // update in accordance with average energies prepared in opac. -------------
+  sc_n(k,j,i)  = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
+  sc_nG(k,j,i) = sc_Gam__ * sc_n(k,j,i);
+
+  // Flooring
+  EnforcePhysical_nG(pm1, C, k, j, i);
+  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+
+  // prepare eql. adjust sources
+  if (pm1.opt_solver.equilibrium_src_nG)
+  {
+    if (pm1.opt_solver.equilibrium_use_diff_src)
+    {
+      S.sc_nG(k,j,i) = sc_nG(k,j,i) - T_nG;
+    }
+    else
+    {
+      ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
+    }
+  }
+  else
+  {
+    S.sc_nG(k,j,i) = 0;
+  }
+
+  // If required, evolve N explicitly based on eql. adjusted sources
+  if (pm1.opt_solver.equilibrium_evolve)
+  {
+    Integrators::Explicit::StepExplicit_nG(pm1, dt, C, P, I, S, k, j, i);
+    EnforcePhysical_nG(pm1, C, k, j, i);
+    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+  }
+
 }
 
 // ============================================================================
