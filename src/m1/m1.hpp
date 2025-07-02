@@ -286,6 +286,8 @@ public:
     bool equilibrium_initial;
     bool equilibrium_sources;  // used during evol.
 
+    bool equilibrium_evolve;
+    bool equilibrium_evolve_use_euler;
     bool equilibrium_E_F_d;
     bool equilibrium_n_nG;
     bool equilibrium_use_thick;

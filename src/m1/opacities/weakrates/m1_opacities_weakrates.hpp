@@ -319,12 +319,13 @@ public:
       // AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
       // AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
 
-      for (int ix_s=0; ix_s<3; ++ix_s)
-      {
-        pm1->SetMaskSolutionRegime(
-          M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i
-        );
-      }
+      // BD: use instead wr_flag_equilibrium_corrected
+      // for (int ix_s=0; ix_s<3; ++ix_s)
+      // {
+      //   pm1->SetMaskSolutionRegime(
+      //     M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i
+      //   );
+      // }
 
       // set thick limit
       if (revert_thick_limit_equilibrium)

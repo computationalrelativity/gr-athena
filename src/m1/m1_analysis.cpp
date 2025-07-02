@@ -89,6 +89,8 @@ void CalcEnergyAverages(MeshBlock *pmb)
       );
     }
 
+    // BD: N.B. could use the Eul. frame for the following instead...
+
     // We have (n, J) on the full MeshBlock; can now assemble averages
     M1_GLOOP3(k, j, i)
     if (pm1->MaskGet(k,j,i))
