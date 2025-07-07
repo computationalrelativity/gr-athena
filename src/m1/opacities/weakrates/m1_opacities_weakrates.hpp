@@ -248,7 +248,8 @@ public:
       kap_s_e[NUE], kap_s_e[NUA], kap_s_e[NUX]
     );
 
-    return iem || iab || isc;
+    int res = iem || iab || isc;
+    return res;
   }
 
   inline int ComputeEquilibriumDensities(
@@ -715,6 +716,8 @@ public:
         AT_D_vec & st_H_u = pm1->rad.st_H_u(ix_g, ix_s);
         AT_C_sca & sc_n   = pm1->rad.sc_n(  ix_g,ix_s);
 
+        AT_C_sca & sc_avg_nrg = pm1->radmat.sc_avg_nrg(ix_g,ix_s);
+
         Closures::EddingtonFactors::ThickLimit(
           pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
           pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
@@ -727,6 +730,15 @@ public:
           sc_E, sp_F_d, sc_nG,
           k, j, i
         );
+
+        // Average energy (Eulerian frame)
+        Real dotFv (0.0);
+        for (int a=0; a<N; ++a)
+        {
+          dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+        }
+        const Real W = pm1->fidu.sc_W(k,j,i);
+        sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
       }
 
     }
