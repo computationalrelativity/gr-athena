@@ -51,6 +51,11 @@ public:
                            "wr_flag_equilibrium_corrected",
                            false)
     ),
+    wr_flag_equilibrium_recompute_fiducial(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_recompute_fiducial",
+                           false)
+    ),
     correction_adjust_upward(
       pin->GetOrAddBoolean("M1_opacities",
                            "correction_adjust_upward",
@@ -683,10 +688,49 @@ public:
       ? M1::M1::t_sln_r::equilibrium
       : M1::M1::t_sln_r::noop;
 
-    for (int ix_s=0; ix_s<3; ++ix_s)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
       pm1->SetMaskSolutionRegime(sln_flag,ix_g,ix_s,k,j,i);
     }
+
+    // optionally assume thick limit and recompute fiducial frame
+    if (wr_flag_equilibrium_recompute_fiducial &&
+        (sln_flag == M1::M1::t_sln_r::equilibrium))
+    {
+
+      // access previous state vector (opacities only computed _once_)
+      M1::M1::vars_Lab U_P { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+      pm1->SetVarAliasesLab(pm1->storage.u1, U_P);
+
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        AT_C_sca & sc_E    = U_P.sc_E(  ix_g,ix_s);
+        AT_N_vec & sp_F_d  = U_P.sp_F_d(ix_g,ix_s);
+        AT_C_sca & sc_xi   = pm1->lab_aux.sc_xi( ix_g,ix_s);
+        AT_C_sca & sc_chi  = pm1->lab_aux.sc_chi(ix_g,ix_s);
+
+        AT_C_sca & sc_nG   = U_P.sc_nG(ix_g,ix_s);
+
+        AT_C_sca & sc_J   = pm1->rad.sc_J(  ix_g,ix_s);
+        AT_D_vec & st_H_u = pm1->rad.st_H_u(ix_g, ix_s);
+        AT_C_sca & sc_n   = pm1->rad.sc_n(  ix_g,ix_s);
+
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+        );
+
+        const Real Gamma__ = Assemble::Frames::ToFiducial(
+          *pm1,
+          sc_J, st_H_u, sc_n,
+          sc_chi,
+          sc_E, sp_F_d, sc_nG,
+          k, j, i
+        );
+      }
+
+    }
+
   }
 
   inline void ImposeEquilibriumDensities(
@@ -1252,6 +1296,7 @@ private:
   const bool propagate_hydro_equilibrium;
   const bool wr_impose_equilibrium;
   const bool wr_flag_equilibrium_corrected;
+  const bool wr_flag_equilibrium_recompute_fiducial;
   const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities

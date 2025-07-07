@@ -275,7 +275,18 @@ void SetEquilibrium_n_nG(
     }
     else
     {
-      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
+      Assemble::Frames::sources_sc_E_sp_F_d(
+        pm1,
+        S.sc_E,
+        S.sp_F_d,
+        C.sc_chi,
+        C.sc_E,
+        C.sp_F_d,
+        C.sc_eta,
+        C.sc_kap_a,
+        C.sc_kap_s,
+        k, j, i
+      );
     }
   }
   else
@@ -310,7 +321,11 @@ void SetEquilibrium_n_nG(
     }
     else
     {
-      ::M1::Sources::PrepareMatterSource_nG(pm1, C, S, k, j, i);
+      Assemble::Frames::sources_sc_nG(
+        pm1,
+        S.sc_nG,
+        C.sc_n, C.sc_eta_0, C.sc_kap_a_0, k, j, i
+      );
     }
   }
   else
