@@ -505,6 +505,7 @@ inline void ToFiducialExpansionCoefficients(
 
   // now propagate back
   J_0 = J_c + d_t * J_t + d_T * J_T;
+  J_0 = std::max(J_0, pm1.opt.fl_J);
 
   // H_n = Hn_c + d_t * Hn_t + d_T * Hn_T;
   H_v = Hv_c + d_t * Hv_t + d_T * Hv_T;
@@ -801,10 +802,8 @@ inline Real ToFiducial(
     k, j, i
   );
 
-  /*
   AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
   sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
-  */
   sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
 
   return sc_Gam__;
