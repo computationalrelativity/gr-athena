@@ -281,6 +281,9 @@ public:
     Real src_lim_thick;
     Real src_lim_scattering;
 
+    bool limit_full_radiation;
+    Real full_lim;
+
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;

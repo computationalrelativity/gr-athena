@@ -46,10 +46,15 @@ public:
                            "wr_impose_equilibrium",
                            false)
     ),
-    wr_flag_equilibrium_corrected(
+    wr_flag_equilibrium(
       pin->GetOrAddBoolean("M1_opacities",
-                           "wr_flag_equilibrium_corrected",
+                           "wr_flag_equilibrium",
                            false)
+    ),
+    wr_flag_equilibrium_dt_factor(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_flag_equilibrium_dt_factor",
+                        1.0)
     ),
     wr_flag_equilibrium_recompute_fiducial(
       pin->GetOrAddBoolean("M1_opacities",
@@ -252,6 +257,53 @@ public:
     return res;
   }
 
+  // Time-scale for equilibrium regime
+  inline Real CalculateTau(Real * kap_a_e, Real* kap_s_e)
+  {
+    /*
+    tau = std::min(
+      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
+    ) * dt;
+    */
+    /*
+    auto min3 = [&](Real a, Real b, Real c)
+    {
+      return std::min(a, std::min(b, c));
+    };
+
+    auto max3 = [&](Real a, Real b, Real c)
+    {
+      return std::max(a, std::max(b, c));
+    };
+
+    const Real tau_fac = 1.0 / max3(
+      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
+      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA])),
+      std::sqrt(kap_a_e[NUX] * (kap_a_e[NUX] + kap_s_e[NUX]))
+    );
+    */
+
+    Real tau_fac = std::numeric_limits<Real>::infinity();
+
+    const int ix_g = 0;
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      // if (ix_s == NUX)
+      //   continue;
+
+      const Real rat = 1.0 / std::sqrt(
+        kap_a_e[ix_s] * (kap_a_e[ix_s] + kap_s_e[ix_s])
+      );
+
+      tau_fac = (std::isfinite(rat))
+        ? std::min(tau_fac, rat)
+        : tau_fac;
+    }
+    return tau_fac;
+  }
+
   inline int ComputeEquilibriumDensities(
     const int k, const int j, const int i,
     const Real dt,
@@ -275,39 +327,6 @@ public:
     Real dens_e_trap[3];
     Real dens_n_thin[3];
     Real dens_e_thin[3];
-
-    /*
-    // Time-scale for equilibrium regime
-    tau = std::min(
-      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
-      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
-    ) * dt;
-    */
-
-    /*
-    auto min3 = [&](Real a, Real b, Real c)
-    {
-      return std::min(a, std::min(b, c));
-    };
-
-    auto max3 = [&](Real a, Real b, Real c)
-    {
-      return std::max(a, std::max(b, c));
-    };
-
-    const Real tau_fac = 1.0 / max3(
-      std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
-      std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA])),
-      std::sqrt(kap_a_e[NUX] * (kap_a_e[NUX] + kap_s_e[NUX]))
-    );
-    */
-
-    const Real tau_fac = std::min(
-      1 / std::sqrt(kap_a_e[NUE] * (kap_a_e[NUE] + kap_s_e[NUE])),
-      1 / std::sqrt(kap_a_e[NUA] * (kap_a_e[NUA] + kap_s_e[NUA]))
-    );
-
-    tau = tau_fac;
 
     calculate_trapped = (
       (opacity_tau_trap >= 0.0) &&
@@ -398,16 +417,25 @@ public:
       Y_e_star = Y_e;
     }
 
-    ierr_nd = pmy_weakrates->NeutrinoDensity(
-        rho, T, Y_e,
-        dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
-        dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]
+    const bool need_thin = !(
+      calculate_trapped &&
+      (tau < dt / (opacity_tau_trap + opacity_tau_delta))
     );
 
-    if (ierr_nd)
+    // only calculate if actually needed
+    if (need_thin)
     {
-      // immediately break on error
-      return 1;
+      ierr_nd = pmy_weakrates->NeutrinoDensity(
+          rho, T, Y_e,
+          dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
+          dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]
+      );
+
+      if (ierr_nd)
+      {
+        // immediately break on error
+        return 1;
+      }
     }
 
     // Set the black body function
@@ -655,35 +683,18 @@ public:
   }
 
   // Use the corrected opacities to flag equilibrium treatment
-  inline void FlagEquilibriumCorrected(
-    const Real dt, const Real rho,
+  inline void FlagEquilibrium(
+    const Real dt,
+    const Real tau,
+    const Real rho,
     const int k, const int j, const int i)
   {
-
-    Real tau_fac = std::numeric_limits<Real>::infinity();
-
     const int ix_g = 0;
+    const Real dt_fac = dt * wr_flag_equilibrium_dt_factor;
 
-    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-    {
-      // skip over NUX to match what is used in ComputeEquilibriumDensities
-      if (ix_s == NUX)
-        continue;
-
-      const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
-      const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
-      tau_fac = std::min(
-        tau_fac,
-        1 / std::sqrt(kap_a * (kap_a + kap_s))
-      );
-    }
-
-    const Real tau = tau_fac;
-
-    bool flag_eql = (std::isfinite(tau) &&
-                    (opacity_tau_trap >= 0.0) &&
-                    (tau < dt / opacity_tau_trap) &&
-                    (rho >= pm1->opt_solver.eql_rho_min));
+    bool flag_eql = ((opacity_tau_trap >= 0.0) &&
+                     (tau < dt_fac / opacity_tau_trap) &&
+                     (rho >= pm1->opt_solver.eql_rho_min));
 
     M1::M1::t_sln_r sln_flag = (flag_eql)
       ? M1::M1::t_sln_r::equilibrium
@@ -797,14 +808,6 @@ public:
       }
 
       // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
-
-      /*
-      sc_E(k,j,i) = W2 * sc_J(k,j,i);
-      for (int a=0; a<N; ++a)
-      {
-        sp_F_d(a,k,j,i) = W2 * pm1->fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
-      }
-      */
       sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
         4.0 * W2 - 1.0
       );
@@ -815,13 +818,21 @@ public:
                           pm1->fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
       }
 
+      Real dotFv__ (0.0);
+      for (int a=0; a<N; ++a)
+      {
+        dotFv__ += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+      }
+      const Real Gamma__ = W / sc_J(k,j,i) * (
+        sc_E(k,j,i) - dotFv__
+      );
+
       // Prepare neutrino number density
       // sc_n(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
       sc_n(k,j,i) = dens_n[ix_s] * sc_sqrt_det_g;
 
-      // floors (here Gamma = W as H_n is 0)
-      sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1->opt.fl_nG);
-      sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
+      sc_nG(k,j,i) = std::max(Gamma__ * sc_n(k,j,i), pm1->opt.fl_nG);
+      sc_n(k,j,i) = sc_nG(k,j,i) / Gamma__;  // propagate back
 
       // Flooring -----------------------------------------------------------
       const bool floor_applied = sc_E(k,j,i) < pm1->opt.fl_E;
@@ -1117,6 +1128,9 @@ public:
         }
       }
 
+      // Compute characteristic equilibrium time-scale
+      tau = CalculateTau(kap_a_e, kap_s_e);
+
       bool ignore_current_data = false;
       int ierr_we = ComputeEquilibriumDensities(
         k, j, i,
@@ -1222,6 +1236,11 @@ public:
         }
       }
 
+      if (wr_flag_equilibrium)
+      {
+        FlagEquilibrium(dt, tau, rho, k, j, i);
+      }
+
       ApplyOpacityCorrections(
         k, j, i,
         T, T_star,
@@ -1230,11 +1249,6 @@ public:
         kap_s_n, kap_s_e,
         eta_n, eta_e
       );
-
-      if (wr_flag_equilibrium_corrected)
-      {
-        FlagEquilibriumCorrected(dt, rho, k, j, i);
-      }
 
       if (propagate_hydro_equilibrium && TY_adjusted)
       {
@@ -1307,7 +1321,8 @@ private:
   const bool revert_thick_limit_equilibrium;
   const bool propagate_hydro_equilibrium;
   const bool wr_impose_equilibrium;
-  const bool wr_flag_equilibrium_corrected;
+  const bool wr_flag_equilibrium;
+  const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_recompute_fiducial;
   const bool correction_adjust_upward;
 

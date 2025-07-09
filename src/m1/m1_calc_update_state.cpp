@@ -349,6 +349,7 @@ void M1::CalcUpdate(const int stage,
   SetVarAliasesSource(u_src, U_S);
 
   // local settings -----------------------------------------------------------
+  const bool use_full_limiter = opt_solver.full_lim >= 0;
   const bool use_src_limiter = opt_solver.src_lim >= 0;
   const bool use_fb_lo_matter = (
     opt_solver.flux_lo_fallback_tau_min > -1 ||
@@ -371,13 +372,20 @@ void M1::CalcUpdate(const int stage,
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
 
-  // check whether current solution gives physical matter coupling ------------
+  // check whether current sources give physical matter coupling --------------
   if (use_fb_lo_matter)
   {
     Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
   }
 
   // prepare source & apply limiting mask -------------------------------------
+  if (use_full_limiter)
+  {
+    AT_C_sca & theta = sources.theta;
+    Sources::Limiter::PrepareFull(this, dt, theta, U_C, U_P, U_I, U_S);
+    Sources::Limiter::ApplyFull(this, dt, theta, U_C, U_P, U_I, U_S);
+  }
+
   if (use_src_limiter)
   {
     AT_C_sca & theta = sources.theta;
@@ -388,7 +396,7 @@ void M1::CalcUpdate(const int stage,
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
   }
 
-  // should we enforce the equilibirum ? --------------------------------------
+  // should we enforce the equilibrium ? --------------------------------------
   if (opt_solver.equilibrium_enforce ||
       (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
       (stage == 1))

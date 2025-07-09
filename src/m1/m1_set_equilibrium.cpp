@@ -123,15 +123,6 @@ void SetEquilibrium(
     }
 
     // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
-
-    /*
-    sc_E(k,j,i) = W2 * sc_J(k,j,i);
-    for (int a=0; a<N; ++a)
-    {
-      sp_F_d(a,k,j,i) = W2 * pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
-    }
-    */
-
     sc_E(k,j,i) = ONE_3RD * sc_J(k,j,i) * (
       4.0 * W2 - 1.0
     );
@@ -142,13 +133,22 @@ void SetEquilibrium(
                         pm1.fidu.sp_v_d(a,k,j,i) * sc_J(k,j,i);
     }
 
+    Real dotFv__ (0.0);
+    for (int a=0; a<N; ++a)
+    {
+      dotFv__ += sp_F_d(a,k,j,i) * pm1.fidu.sp_v_u(a,k,j,i);
+    }
+    const Real Gamma__ = W / sc_J(k,j,i) * (
+      sc_E(k,j,i) - dotFv__
+    );
+
     // Prepare neutrino number density
     if (pm1.N_SPCS > 1)
     {
       sc_n(k,j,i) = nudens(0, ix_s) * sc_sqrt_det_g;
       // floors (here Gamma = W as H_n is 0)
-      sc_nG(k,j,i) = std::max(W * sc_n(k,j,i), pm1.opt.fl_nG);
-      sc_n(k,j,i) = sc_nG(k,j,i) / W;  // propagate back
+      sc_nG(k,j,i) = std::max(Gamma__ * sc_n(k,j,i), pm1.opt.fl_nG);
+      sc_n(k,j,i) = sc_nG(k,j,i) / Gamma__;  // propagate back
     }
 
     // Changes to M1 state vector- propagate back to average energy
@@ -259,6 +259,107 @@ void SetEquilibrium_n_nG(
         pm1, dt, C, P, I, S, CL_C, k, j, i
       );
     }
+
+    /*
+    Sources::SetMatterSourceZero(S, k, j, i);
+    Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+    // Ensure resulting state is physical
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+    if (!pm1.opt_solver.equilibrium_evolve_use_euler)
+    {
+      // Retain advected
+      T_E = sc_E(k,j,i);
+
+      for (int n=0; n<N; ++n)
+      {
+        T_F_d[n] = sp_F_d(n,k,j,i);
+      }
+
+      // Internally this computes generic closure but when mapping back the
+      // result imposes thick
+      Integrators::Explicit::PrepareApproximateFirstOrder_E_F_d(
+        pm1, dt, C, P, I, S, CL_C, k, j, i
+      );
+    }
+
+    */
+
+    /*
+    if (pm1.opt_solver.equilibrium_evolve_use_euler)
+    {
+      Sources::SetMatterSourceZero(S, k, j, i);
+      Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+      // Ensure resulting state is physical
+      EnforcePhysical_E_F_d(pm1, C, k, j, i);
+    }
+    else
+    {
+      Sources::SetMatterSourceZero(S, k, j, i);
+      Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+
+      CL_C.Closure(k, j, i);
+
+      // Evolve fiducial frame; prepare (J, H^alpha):
+      // We write:
+      // sc_J   = J_0
+      // st_H^a = H_n n^a + H_v v^a + H_F F^a
+      const Real W  = pm1.fidu.sc_W(k,j,i);
+      const Real W2 = SQR(W);
+
+      const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+      const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+
+      const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
+      const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
+
+      Real J_0, H_n, H_v, H_F;
+
+      Assemble::Frames::ToFiducialExpansionCoefficients(
+        pm1,
+        J_0, H_n, H_v, H_F,
+        C.sc_chi, C.sc_E, C.sp_F_d,
+        k, j, i
+      );
+
+      // populate spatial projection of fluid frame rad. flux.
+      AT_N_vec & sp_H_d_ = pm1.scratch.sp_vec_A_;
+      for (int a=0; a<N; ++a)
+      {
+        sp_H_d_(a,i) = H_v * sp_v_d(a,k,j,i) + H_F * C.sp_F_d(a,k,j,i);
+      }
+      // ----------------------------------------------------------------------
+
+
+      // Evolve fluid frame quantities
+      const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
+
+      J_0 = (J_0 * W + dt * C.sc_eta(k,j,i)) /
+            (W + dt * C.sc_kap_a(k,j,i));
+
+      for (int a=0; a<N; ++a)
+      {
+        sp_H_d_(a,i) = W * sp_H_d_(a,i) / (W + dt * kap_as);
+      }
+
+      // Project back assuming thick limit ------------------------------------
+      Closures::EddingtonFactors::ThickLimit(
+        CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
+      );
+
+      // Yup, like this (Cf. THC)
+      C.sc_E(k,j,i) = J_0;
+
+      for (int a=0; a<N; ++a)
+      {
+        C.sp_F_d(a,k,j,i) = sp_H_d_(a,i);
+      }
+
+    }
+    */
+
   }
 
   // Prepare sources if required
@@ -294,6 +395,15 @@ void SetEquilibrium_n_nG(
     Sources::SetMatterSourceZero(S, k, j, i);
   }
 
+  // Add the new source contribution
+  if (pm1.opt_solver.equilibrium_src_E_F_d &&
+      pm1.opt_solver.equilibrium_use_diff_src)
+  {
+    Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+  }
+
+  // now handle species -------------------------------------------------------
+
   // Irrespective of the above, we now need the fiducial frame
   // n will be overwitten below and is not required for J, H
   Real sc_Gam__ = Assemble::Frames::ToFiducial(
@@ -304,11 +414,29 @@ void SetEquilibrium_n_nG(
     k, j, i
   );
 
+  /*
+  // Fiducial frame calculation: ----------------------------------------------
+
   // update in accordance with average energies prepared in opac.
   sc_n(k,j,i)  = sc_J(k,j,i) / sc_avg_nrg(k,j,i);
   sc_nG(k,j,i) = sc_Gam__ * sc_n(k,j,i);
 
   // Flooring
+  EnforcePhysical_nG(pm1, C, k, j, i);
+  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+  */
+
+  // Eulerian frame calculation (use advanced E, F_d) -------------------------
+  Real dotFv (0.0);
+  for (int a=0; a<N; ++a)
+  {
+    dotFv += sp_F_d(a,k,j,i) * pm1.fidu.sp_v_u(a,k,j,i);
+  }
+  const Real W = pm1.fidu.sc_W(k,j,i);
+
+  // Original expression for seeding average energy
+  // sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
+  sc_nG(k,j,i) = W / sc_avg_nrg(k,j,i) * (sc_E(k,j,i) - dotFv);
   EnforcePhysical_nG(pm1, C, k, j, i);
   sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
 
@@ -618,7 +746,7 @@ void SetEquilibrium_E_F_d_n_nG(
     // Ensure resulting state is physical
     EnforcePhysical_E_F_d(pm1, C, k, j, i);
 
-    Real sc_Gam__ = Assemble::Frames::ToFiducial(
+    sc_Gam__ = Assemble::Frames::ToFiducial(
       pm1,
       sc_J, st_H_u, sc_n,
       sc_chi,

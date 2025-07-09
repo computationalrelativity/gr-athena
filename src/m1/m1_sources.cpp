@@ -359,6 +359,132 @@ void Apply(
 
 }
 
+void PrepareFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  const M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  const M1::vars_Source & U_S)
+{
+  // parameters & aliases------------------------------------------------------
+  MeshBlock * pmb = pm1->pmy_block;
+  const Real par_full_lim = pm1->opt_solver.full_lim;
+
+  M1::vars_Lab & C = const_cast<M1::vars_Lab &>(U_C);
+  M1::vars_Lab & P = const_cast<M1::vars_Lab &>(U_P);
+  M1::vars_Lab & I = const_cast<M1::vars_Lab &>(U_I);
+
+  theta.Fill(1.0);
+  // --------------------------------------------------------------------------
+
+  M1_MLOOP3(k, j, i)
+  if (pm1->MaskGet(k, j, i))
+  // if (pm1->MaskGetHybridize(k,j,i))
+  {
+    Real & theta__ = theta(k,j,i);
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      // C = P + dt (I + S[C])
+      // => C - P = dt (I + S[C])
+      const Real DE = C.sc_E(ix_g,ix_s)(k,j,i)  - P.sc_E(ix_g,ix_s)(k,j,i);
+      const Real DN = C.sc_nG(ix_g,ix_s)(k,j,i) - P.sc_nG(ix_g,ix_s)(k,j,i);
+
+      if (pm1->opt_solver.limit_full_radiation)
+      {
+        if (DE < 0)
+        {
+          theta__ = std::min(
+            -par_full_lim * std::max(
+              P.sc_E(ix_g,ix_s)(k,j,i), 0.0
+            ) / DE, theta__
+          );
+        }
+
+        if (DN < 0)
+        {
+          theta__ = std::min(
+            -par_full_lim * std::max(
+              P.sc_nG(ix_g,ix_s)(k,j,i), 0.0
+            ) / DN, theta__
+          );
+        }
+      }
+    }
+  }
+
+  // Finally enforce mask to be non-negative ----------------------------------
+  M1_MLOOP3(k, j, i)
+  if (pm1->MaskGet(k, j, i))
+  // if (pm1->MaskGetHybridize(k,j,i))
+  {
+    theta(k, j, i) = std::max(0.0, theta(k, j, i));
+  }
+}
+
+void ApplyFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  M1::vars_Source & U_S)
+{
+  using namespace Update;
+  using namespace Closures;
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    StateMetaVector C = ConstructStateMetaVector(*pm1, U_C, ix_g, ix_s);
+    StateMetaVector P = ConstructStateMetaVector(
+      *pm1, const_cast<M1::vars_Lab&>(U_P), ix_g, ix_s
+    );
+    StateMetaVector I = ConstructStateMetaVector(
+      *pm1, const_cast<M1::vars_Lab&>(U_I), ix_g, ix_s
+    );
+
+    SourceMetaVector S = ConstructSourceMetaVector(*pm1, U_S, ix_g, ix_s);
+
+    ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
+
+    M1_MLOOP3(k, j, i)
+    if (pm1->MaskGet(k, j, i))
+    // if (pm1->MaskGetHybridize(k,j,i))
+    {
+      // Subtract off unlimited sources: C <- C - dt * S
+      InPlaceScalarMulAdd_nG_E_F_d(-dt, C, S, k, j, i);
+
+      // Subtract off unlimited inhomogeneity: C <- C - dt * I
+      InPlaceScalarMulAdd_nG_E_F_d(-dt, C, I, k, j, i);
+
+      // Limit: S <- theta * S for (nG, ) & (E, F_d) components
+      InPlaceScalarMul_nG_E_F_d(theta(k, j, i), S, k, j, i);
+      // Same for I
+      InPlaceScalarMul_nG_E_F_d(theta(k, j, i), I, k, j, i);
+
+      // Updated state with limited sources [C <- C + dt * theta * S]
+      InPlaceScalarMulAdd_nG_E_F_d(dt, C, S, k, j, i);
+      InPlaceScalarMulAdd_nG_E_F_d(dt, C, I, k, j, i);
+
+      // Require states to be physical
+      EnforcePhysical_E_F_d(*pm1, C, k, j, i);
+      EnforcePhysical_nG(*pm1, C, k, j, i);
+
+      // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
+      CL_C.Closure(k, j, i);
+
+      // We now have nG*, it is useful to immediately construct n*
+      Prepare_n_from_nG(*pm1, C, k, j, i);
+    }
+  }
+
+}
+
 void CheckPhysicalFallback(
   M1 * pm1,
   const Real dt,
@@ -390,6 +516,12 @@ void CheckPhysicalFallback(
   M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
+    if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+    {
+      // already flagged
+      continue;
+    }
+
     const Real D = (
       pm1->hydro.sc_W(k,j,i) *
       pm1->hydro.sc_w_rho(k,j,i) *
