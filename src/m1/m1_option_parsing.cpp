@@ -231,6 +231,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.equilibrium_use_diff_src = GoA_bool("equilibrium_use_diff_src",
                                                  false);
 
+  opt_solver.equilibrium_zeta = GoA_Real("equilibrium_zeta", 0.0);
+
   opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
   opt_solver.tra_rho_min = GoA_Real(
     "tra_rho_min", opt_solver.eql_rho_min
@@ -411,6 +413,10 @@ void M1::PopulateOptions(ParameterInput *pin)
                                                   false);
 
   }
+
+  opt.retain_equilibrium = pin->GetOrAddBoolean("M1",
+                                                "retain_equilibrium",
+                                                false);
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);

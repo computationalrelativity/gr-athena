@@ -423,7 +423,7 @@ public:
     );
 
     // only calculate if actually needed
-    if (need_thin)
+    if (need_thin || pm1->opt.retain_equilibrium)
     {
       ierr_nd = pmy_weakrates->NeutrinoDensity(
           rho, T, Y_e,
@@ -486,6 +486,20 @@ public:
         dens_n[s_idx] = dens_n_thin[s_idx];
         dens_e[s_idx] = dens_e_thin[s_idx];
       }
+    }
+
+    // finally, it may be useful to retain the equilibrium --------------------
+    if (pm1->opt.retain_equilibrium)
+    {
+      const int ix_g = 0;
+      const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+
+      for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+      {
+        pm1->eql.sc_J(ix_g,ix_s)(k,j,i) = sc_sqrt_det_g * dens_e[ix_s];
+        pm1->eql.sc_n(ix_g,ix_s)(k,j,i) = sc_sqrt_det_g * dens_n[ix_s];
+      }
+
     }
 
     return 0;

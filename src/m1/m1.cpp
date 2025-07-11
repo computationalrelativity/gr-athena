@@ -115,6 +115,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
+  eql{
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
   sources{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
@@ -183,8 +187,16 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesFidu(  storage.intern, fidu);
   SetVarAliasesNet(   storage.intern, net);
 
+  if (opt.retain_equilibrium)
+  {
+    storage_eql.NewAthenaArray(ixn_Eql::N*N_GS,
+                               mbi.nn3, mbi.nn2, mbi.nn1);
+    SetVarAliasesEql(storage_eql, eql);
+  }
+
   // storage for misc. quantities ---------------------------------------------
-  if (opt_solver.src_lim >= 0)
+  if ((opt_solver.src_lim >= 0) ||
+      (opt_solver.full_lim >= 0))
   {
     sources.theta.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   }
@@ -365,6 +377,16 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
 
     SetVarAlias(radmat.sc_avg_nrg, u, ix_g, ix_s,
                 ixn_RaM::avg_nrg,  ixn_RaM::N);
+  }
+}
+
+void M1::SetVarAliasesEql(AthenaArray<Real> & u, vars_Eql & eq)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(eql.sc_J, u, ix_g, ix_s, ixn_Eql::sc_J, ixn_Eql::N);
+    SetVarAlias(eql.sc_n, u, ix_g, ix_s, ixn_Eql::sc_n, ixn_Eql::N);
   }
 }
 

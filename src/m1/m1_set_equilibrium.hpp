@@ -101,6 +101,16 @@ void SetEquilibrium_E_F_d_n_nG(
   const int i
 );
 
+// Map reference eq (J,n) to state-vector; map also to Euler frame
+void MapReferenceEquilibrium(
+  M1 & pm1,
+  M1::vars_Eql & eq,
+  Update::StateMetaVector & C,
+  const int k,
+  const int j,
+  const int i
+);
+
 // ============================================================================
 } // namespace M1::Equilibrium
 // ============================================================================

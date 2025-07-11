@@ -178,12 +178,14 @@ void Prepare(
     for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
     {
       // these points have zero sources
+      /*
       if (pm1->GetMaskSolutionRegime(ix_g,ix_s,k,j,i) ==
           M1::M1::t_sln_r::equilibrium)
       {
         theta__ = 0;
         continue;
       }
+      */
 
       // C = P + dt (I + S[C])
       // => dt S[C] = C - (P + dt I)
