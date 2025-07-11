@@ -295,6 +295,7 @@ void DispatchIntegrationMethod(
       M1::M1::t_sln_r opt_reg = pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i);
 
       bool use_eql_n_nG = false;
+      bool use_eql_E_F_d = false;
       M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
 
       switch (opt_reg)
@@ -326,10 +327,14 @@ void DispatchIntegrationMethod(
           break;
         }
         case M1::t_sln_r::equilibrium:
-        case M1::t_sln_r::equilibrium_wr:
         {
           // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
           //             ix_g, ix_s, k, j, i);
+
+          if (pm1->opt_solver.equilibrium_E_F_d)
+          {
+            use_eql_E_F_d = true;
+          }
 
           // Optionally flag solution for n directly from equilibrium;
           // remainder of (E,F_d) state-vector takes prescribed method
@@ -346,6 +351,11 @@ void DispatchIntegrationMethod(
           opt_is = pm1->opt_solver.solvers.equilibrium;
           break;
         }
+        case M1::t_sln_r::equilibrium_wr:
+        {
+          opt_is = M1::opt_integration_strategy::do_nothing;
+          break;
+        }
         default:
         {
           assert(false);
@@ -359,17 +369,25 @@ void DispatchIntegrationMethod(
         C, P, I, S, CL_C);
 
       // Additional equilibrium logic -----------------------------------------
-      if (use_eql_n_nG)
+
+      // Overall algorithm:
+      // - Zero all sources
+      // - Need: S ~ U^new-U^* so retain previous contribution S <- -U^*
+      // - Explicit evolution of (E,F_d) in absence of sources
+      // - Set U: nG at equilibrium based on updated (E,F_d) fid. & avg eps
+      // - Finalize sources: S = U_New - U^*
+      // - Evolve (N,E,F_d) explicitly
+
+      if (use_eql_E_F_d &&
+          use_eql_n_nG)
       {
-        // over-writes what was computed for (n,nG) in prior step with eql.
-        const bool construct_fiducial = true;
-        Equilibrium::SetEquilibrium_n_nG(
-          *pm1, C, P, S, k, j, i,
-          construct_fiducial,
-          pm1->opt_solver.equilibrium_src_nG,    // reconstruct sources
-          pm1->opt_solver.equilibrium_src_E_F_d, // for coupling
-          pm1->opt_solver.equilibrium_use_diff_src
-        );
+        // N.B: will over-write what was computed for (n,nG,E,F_d) in C
+        SetEquilibrium_E_F_d_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
+      }
+      else if (use_eql_n_nG)
+      {
+        // N.B: will over-write what was computed for (n,nG,E,F_d) in C
+        SetEquilibrium_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
       }
 
       // revert to originally selected closure for next point -----------------

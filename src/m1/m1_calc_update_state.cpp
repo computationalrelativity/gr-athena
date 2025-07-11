@@ -349,8 +349,9 @@ void M1::CalcUpdate(const int stage,
   SetVarAliasesSource(u_src, U_S);
 
   // local settings -----------------------------------------------------------
+  const bool use_full_limiter = opt_solver.full_lim >= 0;
   const bool use_src_limiter = opt_solver.src_lim >= 0;
-  const bool use_fb_lo_matter = (
+  const bool use_fb_lo_matter = opt.flux_lo_fallback && (
     opt_solver.flux_lo_fallback_tau_min > -1 ||
     ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
      (opt_solver.flux_lo_fallback_Ye_max > -1))
@@ -371,13 +372,20 @@ void M1::CalcUpdate(const int stage,
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
 
-  // check whether current solution gives physical matter coupling ------------
+  // check whether current sources give physical matter coupling --------------
   if (use_fb_lo_matter)
   {
     Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
   }
 
   // prepare source & apply limiting mask -------------------------------------
+  if (use_full_limiter)
+  {
+    AT_C_sca & theta = sources.theta;
+    Sources::Limiter::PrepareFull(this, dt, theta, U_C, U_P, U_I, U_S);
+    Sources::Limiter::ApplyFull(this, dt, theta, U_C, U_P, U_I, U_S);
+  }
+
   if (use_src_limiter)
   {
     AT_C_sca & theta = sources.theta;
@@ -388,7 +396,7 @@ void M1::CalcUpdate(const int stage,
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
   }
 
-  // should we enforce the equilibirum ? --------------------------------------
+  // should we enforce the equilibrium ? --------------------------------------
   if (opt_solver.equilibrium_enforce ||
       (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
       (stage == 1))
@@ -411,14 +419,50 @@ void M1::CalcUpdate(const int stage,
 
       if (equilibriate)
       {
-        Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
+        if (pm1->opt.retain_equilibrium)
+        {
+          for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+          for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+          {
+            StateMetaVector C = ConstructStateMetaVector(*pm1, U_C, ix_g, ix_s);
+            StateMetaVector P = ConstructStateMetaVector(*pm1, U_P, ix_g, ix_s);
+            StateMetaVector I = ConstructStateMetaVector(*pm1, U_I, ix_g, ix_s);
 
-        // Freeze state of point (handles subsequent CalcUpdate calls)
-        // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-        // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-        // {
-        //   pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k, j, i);
-        // }
+            SourceMetaVector S = ConstructSourceMetaVector(*pm1, U_S, ix_g, ix_s);
+
+            Equilibrium::MapReferenceEquilibrium(*pm1, pm1->eql, C, k, j, i);
+
+            S.sc_E(k,j,i) = C.sc_E(k,j,i) - (
+              P.sc_E(k,j,i) + dt * I.sc_E(k,j,i)
+            );
+            S.sc_E(k,j,i) /= dt;
+
+            S.sc_nG(k,j,i) = C.sc_nG(k,j,i) - (
+              P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i)
+            );
+            S.sc_nG(k,j,i) /= dt;
+
+            for (int a=0; a<N; ++a)
+            {
+              S.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) - (
+                P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i)
+              );
+
+              S.sp_F_d(a,k,j,i) /= dt;
+            }
+          }
+        }
+        else
+        {
+          Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
+
+          // Freeze state of point (handles subsequent CalcUpdate calls)
+          // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+          // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+          // {
+          //   pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k, j, i);
+          // }
+        }
       }
     }
   }

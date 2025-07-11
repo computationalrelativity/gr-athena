@@ -563,9 +563,9 @@ void EquationOfState::DerivedQuantities(
     ) / W;
 
     fld_der_ms(IX_MAG,k,j,i) = fld_der_ms(IX_B2,k,j,i) / cons(IDN,k,j,i);
-    fld_der_ms(IX_BET,k,j,i) = fld_der_ms(IX_b2) / 2.0 * prim(IPR,k,j,i) ;
-    fld_der_ms(IX_MRI,k,j,i) = fld_der_ms(IX_b_U_3) / (std::sqrt(prim(IDN,k,j,i)) * hyd_der_ms(IX_OM,k,j,i)); 
-    fld_der_ms(IX_ALF,k,j,i) = std::sqrt(fld_der_ms(IX_B2,k,j,i) / (4.0 * M_PI * rho));  
+    fld_der_ms(IX_BET,k,j,i) = fld_der_ms(IX_b2,k,j,i) / 2.0 * prim(IPR,k,j,i) ;
+    fld_der_ms(IX_MRI,k,j,i) = fld_der_ms(IX_b_U_3,k,j,i) / (std::sqrt(rho) * hyd_der_ms(IX_OM,k,j,i));
+    fld_der_ms(IX_ALF,k,j,i) = std::sqrt(fld_der_ms(IX_B2,k,j,i) / (4.0 * M_PI * rho));
 
 
 #endif // MAGNETIC_FIELDS_ENABLED

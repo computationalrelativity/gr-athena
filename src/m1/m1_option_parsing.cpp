@@ -212,9 +212,17 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.src_lim_thick      = GoA_Real("src_lim_thick",      -1.0);
   opt_solver.src_lim_scattering = GoA_Real("src_lim_scattering", -1.0);
 
+  opt_solver.limit_full_radiation = GoA_bool("limit_full_radiation", false);
+  opt_solver.full_lim = GoA_Real("full_lim", -1.0);
+
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
   opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);
+  opt_solver.equilibrium_evolve = GoA_bool("equilibrium_evolve", false);
+  opt_solver.equilibrium_evolve_use_euler = GoA_bool(
+    "equilibrium_evolve_use_euler", false
+  );
+  opt_solver.equilibrium_E_F_d = GoA_bool("equilibrium_E_F_d", false);
   opt_solver.equilibrium_n_nG = GoA_bool("equilibrium_n_nG", false);
   opt_solver.equilibrium_use_thick = GoA_bool("equilibrium_use_thick", false);
 
@@ -222,6 +230,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.equilibrium_src_E_F_d = GoA_bool("equilibrium_src_E_F_d", false);
   opt_solver.equilibrium_use_diff_src = GoA_bool("equilibrium_use_diff_src",
                                                  false);
+
+  opt_solver.equilibrium_zeta = GoA_Real("equilibrium_zeta", 0.0);
 
   opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
   opt_solver.tra_rho_min = GoA_Real(
@@ -403,6 +413,10 @@ void M1::PopulateOptions(ParameterInput *pin)
                                                   false);
 
   }
+
+  opt.retain_equilibrium = pin->GetOrAddBoolean("M1",
+                                                "retain_equilibrium",
+                                                false);
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);

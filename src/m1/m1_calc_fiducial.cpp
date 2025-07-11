@@ -148,9 +148,19 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
         k, j, i
       );
 
-      sc_avg_nrg(k,j,i) = (sc_n(k,j,i) > 0)
-        ? sc_J(k,j,i) / sc_n(k,j,i)
-        : 0.0;
+      // Fiducial frame expression
+      // sc_avg_nrg(k,j,i) = (sc_n(k,j,i) > 0)
+      //   ? sc_J(k,j,i) / sc_n(k,j,i)
+      //   : 0.0;
+
+      // Eulerian expression
+      // Real dotFv (0.0);
+      // for (int a=0; a<N; ++a)
+      // {
+      //   dotFv += sp_F_d(a,k,j,i) * fidu.sp_v_u(a,k,j,i);
+      // }
+      // const Real W = pm1->fidu.sc_W(k,j,i);
+      // sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
     }
 
   }

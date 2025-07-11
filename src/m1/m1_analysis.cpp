@@ -89,12 +89,23 @@ void CalcEnergyAverages(MeshBlock *pmb)
       );
     }
 
-    // We have (n, J) on the full MeshBlock; can now assemble averages
+    // Deal with average energy
     M1_GLOOP3(k, j, i)
     if (pm1->MaskGet(k,j,i))
     {
-      sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
+      // Average energy
+      Real dotFv (0.0);
+      for (int a=0; a<N; ++a)
+      {
+        dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+      }
+      const Real W = pm1->fidu.sc_W(k,j,i);
+      sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
+
+      // Alternatively could use fiducial frame form:
+      // sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
     }
+
 
   }
 }

@@ -195,8 +195,7 @@ void M1::SetZeroSources(const int k, const int j, const int i)
 
 void M1::EnforceSourcesFinite()
 {
-  Z4c * pz4c = pmy_block->pz4c;
-  ILOOP3(k,j,i)
+  M1_ILOOP3(k,j,i)
   if (MaskGet(k, j, i))
   {
     if (!AreSourcesFinite(k, j, i))

@@ -136,6 +136,9 @@ public:
     AA intern;
   } storage;
 
+  // BD: shift here temporarily to avoid storage write clash
+  AA storage_eql;  // retain equilibrium vars
+
   // Variables to deal with refinement
   AthenaArray<Real> coarse_u_;
   CellCenteredBoundaryVariable ubvar;
@@ -214,6 +217,11 @@ public:
     bool couple_sources_hydro;
     bool couple_sources_Y_e;
 
+    // retain equilibrium during opacity calculations?
+    bool retain_equilibrium;
+    // use eql term in coupling?
+    bool retain_equilibrium_src = false;
+
     // debugging:
     bool value_inject;
 
@@ -281,16 +289,24 @@ public:
     Real src_lim_thick;
     Real src_lim_scattering;
 
+    bool limit_full_radiation;
+    Real full_lim;
+
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;
     bool equilibrium_sources;  // used during evol.
 
+    bool equilibrium_evolve;
+    bool equilibrium_evolve_use_euler;
+    bool equilibrium_E_F_d;
     bool equilibrium_n_nG;
     bool equilibrium_use_thick;
     bool equilibrium_src_nG;
     bool equilibrium_src_E_F_d;
     bool equilibrium_use_diff_src;
+
+    Real equilibrium_zeta;
 
     Real eql_rho_min;
     Real tra_rho_min;
@@ -373,6 +389,14 @@ public:
     // AT_C_sca nueave;
   };
   vars_RadMat radmat;
+
+  // retain equilibrium vars
+  struct vars_Eql
+  {
+    GroupSpeciesContainer<AT_C_sca> sc_J;
+    GroupSpeciesContainer<AT_C_sca> sc_n;
+  };
+  vars_Eql eql;
 
   struct vars_Source
   {
@@ -647,6 +671,20 @@ public:
     };
   };
 
+  // Equilibrium
+  struct ixn_Eql
+  {
+    enum
+    {
+      sc_J,
+      sc_n,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "M1.eql.sc_J",
+      "M1.eql.sc_n",
+    };
+  };
 
   // Diagnostic variables
   struct ixn_Diag
@@ -955,6 +993,7 @@ public:
   void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
+  void SetVarAliasesEql(   AA  &eql,                vars_Eql    & eq);
   void SetVarAliasesDiag(  AA  &diagno,             vars_Diag   & rdia);
   void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
   void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
