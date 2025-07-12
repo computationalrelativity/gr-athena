@@ -162,7 +162,7 @@ void Prepare(
 
 #if FLUID_ENABLED
     const Real & tau = pmb->phydro->u(IEN, k, j, i);
-    const Real & Y_e = pm1->hydro.sc_w_Ye(0,k,j,i);
+    const Real & w_Y_e = pm1->hydro.sc_w_Ye(0,k,j,i);
 
     const Real D = (
       pm1->hydro.sc_W(k,j,i) *
@@ -171,7 +171,7 @@ void Prepare(
     );
 
     Real Dtau_sum (0);
-    Real DDxp_sum (0);
+    Real DDYe (0);
 #endif // FLUID_ENABLED
 
     for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
@@ -228,7 +228,7 @@ void Prepare(
       // Cf. CoupleSourcesHydro, CoupleSourcesYe
       Dtau_sum -= DE;
       if (pm1->N_SPCS == 3)
-        DDxp_sum += mb_raw * DN * ( (ix_s == 1) - (ix_s == 0) );
+        DDYe += mb_raw * DN * ( (ix_s == 1) - (ix_s == 0) );
 #endif // FLUID_ENABLED
     }
 
@@ -250,25 +250,25 @@ void Prepare(
       );
     }
 
-    const Real DYe = DDxp_sum / D;
-    if (DYe > 0)
+    if (DDYe > 0)
     {
       theta__ = std::min(
         par_src_lim * std::max(
-          par_src_Ye_max - Y_e, 0.0
-        ) / DYe,
+          D * (par_src_Ye_max - w_Y_e), 0.0
+        ) / DDYe,
         theta__
       );
     }
-    else if (DYe < 0)
+    else if (DDYe < 0)
     {
       theta__ = std::min(
         par_src_lim * std::min(
-          par_src_Ye_min - Y_e, 0.0
-        ) / DYe,
+          D * (par_src_Ye_min - w_Y_e), 0.0
+        ) / DDYe,
         theta__
       );
     }
+
 #endif // FLUID_ENABLED
 
   }

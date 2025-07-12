@@ -976,12 +976,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     InitM1ValueInject(this, pin);
   }
 
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
 #if M1_ENABLED
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcFiducialVelocity();
 #endif  // M1_ENABLED
-
+  */
+  // --------------------------------------------------------------------------
 #if FLUID_ENABLED
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w,
@@ -996,7 +1000,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #endif // FLUID_ENABLED
 
 #if Z4C_ENABLED
-  // Initialise matter (also taken care of in task-list)
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
@@ -1007,6 +1014,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
+  */
+  // --------------------------------------------------------------------------
 #endif // Z4C_ENABLED
 
 }
