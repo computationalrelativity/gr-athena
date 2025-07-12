@@ -34,15 +34,34 @@ void M1::CalcFiducialVelocity()
   {
     case opt_fiducial_velocity::fluid:
     {
+      M1_GLOOP3(k,j,i)
+      {
+        fidu.sc_W(k,j,i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+      }
+
       M1_GLOOP2(k,j)
       for (int a=0; a<M1_NDIM; ++a)
       {
         M1_GLOOP1(i)
         {
-          fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i);
+          fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i) / fidu.sc_W(k,j,i);
         }
       }
-      break;
+
+      // map to form
+      fidu.sp_v_d.ZeroClear();
+
+      M1_GLOOP2(k,j)
+      {
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        M1_GLOOP1(i)
+        {
+          fidu.sp_v_d(a,k,j,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
+        }
+      }
+
+      return;
     }
     case opt_fiducial_velocity::mixed:
     {

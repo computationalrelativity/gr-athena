@@ -768,18 +768,18 @@ inline Real ToFiducial(
 
   // The following two are equivalent, however, floors will potentially affect
   // results!
-  const Real sc_Gam__ = (J_0 > pm1.opt.fl_J)
-    ? W * (1.0 + H_n / (J_0 * W))
-    : W;
-
-  // const Real sc_Gam__ = (
-  //   (sc_E(k,j,i) > pm1.opt.fl_E) &&
-  //   (J_0 > pm1.opt.fl_J)
-  // ) ? W * (sc_E(k,j,i) / J_0) * std::min(
-  //       1.0 - sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i),
-  //       1.0 - pm1.opt.eps_E
-  //     )
+  // const Real sc_Gam__ = (J_0 > pm1.opt.fl_J)
+  //   ? W * (1.0 + H_n / (J_0 * W))
   //   : W;
+
+  const Real sc_Gam__ = (
+    (sc_E(k,j,i) > pm1.opt.fl_E) &&
+    (J_0 > pm1.opt.fl_J)
+  ) ? W * (sc_E(k,j,i) / J_0) * std::min(
+        1.0 - sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i) / sc_E(k,j,i),
+        1.0 - pm1.opt.eps_E
+      )
+    : W;
 
   return sc_Gam__;
 }
@@ -802,9 +802,9 @@ inline Real ToFiducial(
     k, j, i
   );
 
-  AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
-  sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
-  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
+  // AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
+  // sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
+  // sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
 
   return sc_Gam__;
 }
