@@ -47,6 +47,7 @@ class EquationOfState {
   Real max_cs2  = 1.0 - SQR(1.0 / SQR(max_cs_W));
   bool warn_unrestricted_cs2 = false;
   bool recompute_temperature = true;
+  bool smooth_temperature = false;
 
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
@@ -274,6 +275,14 @@ class EquationOfState {
                       bcc, gsc, pco,
                       k, j, il, iu, coarseflag, false);
   }
+
+  void NearestNeighborSmooth(
+    AA &tar,
+    const AA &src,
+    const int kl, const int ku,
+    const int jl, const int ju,
+    const int il, const int iu,
+    bool exclude_first_extrema);
 
   // BD: TODO - clean up this mess ---v
 

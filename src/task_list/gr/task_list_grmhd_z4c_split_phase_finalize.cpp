@@ -115,8 +115,29 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
                                il, iu, jl, ju, kl, ku,
                                coarseflag, skip_physical);
 
+    // Try to smooth temperature with nn avg:
+    if (peos->smooth_temperature)
+    {
+      const bool exclude_first_extrema = true;
+
+      AA src;
+      AA tar;
+
+      src.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+      tar.InitWithShallowSlice(ph->w1, 0, 1);
+
+      peos->NearestNeighborSmooth(tar, src, il, iu, jl, ju, kl, ku,
+                                  exclude_first_extrema);
+
+      CC_GLOOP3(k,j,i)
+      {
+        ph->derived_ms(IX_T,k,j,i) = tar(k,j,i);
+      }
+    }
+
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+
     return TaskStatus::success;
   }
 
