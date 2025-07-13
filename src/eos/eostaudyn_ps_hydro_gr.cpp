@@ -83,6 +83,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   recompute_temperature = pin->GetOrAddBoolean(
     "hydro", "recompute_temperature", true
   );
+  smooth_temperature = pin->GetOrAddBoolean(
+    "hydro", "smooth_temperature", false
+  );
 
   // control PrimitiveSolver tolerances / iterates
   ps.SetRootfinderTol(pin->GetOrAddReal("hydro", "c2p_acc", 1e-15));

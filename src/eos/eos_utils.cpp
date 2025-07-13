@@ -575,6 +575,81 @@ void EquationOfState::DerivedQuantities(
 
 }
 
+void EquationOfState::NearestNeighborSmooth(
+  AA &tar,
+  const AA &src,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu,
+  bool exclude_first_extrema)
+{
+  MeshBlock* pmb = pmy_block_;
+  Hydro * ph     = pmb->phydro;
+  Field * pf     = pmb->pfield;
+
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  {
+
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      // Calculate average of nearest neighbor vals
+      Real avg_val = 0.0;
+      int count = 0;
+
+      Real min_val = std::numeric_limits<Real>::max();
+      Real max_val = -std::numeric_limits<Real>::max();
+
+      for (int kk = -1; kk <= 1; ++kk)
+      for (int jj = -1; jj <= 1; ++jj)
+      for (int ii = -1; ii <= 1; ++ii)
+      {
+        if (ii == 0 && jj == 0 && kk == 0) continue;
+
+        const int i_ix = i + ii;
+        const int j_ix = j + jj;
+        const int k_ix = k + kk;
+
+        if ((i_ix < 0) || (i_ix > pmb->ncells1-1))
+          continue;
+
+        if ((j_ix < 0) || (j_ix > pmb->ncells2-1))
+          continue;
+
+        if ((k_ix < 0) || (k_ix > pmb->ncells2-1))
+          continue;
+
+        const Real val = src(k_ix,j_ix,i_ix);
+
+        avg_val += val;
+
+        if (exclude_first_extrema)
+        {
+          // Track min/max values
+          min_val = std::min(min_val, val);
+          max_val = std::max(max_val, val);
+        }
+
+        count++;
+      }
+
+      if (exclude_first_extrema)
+      {
+        avg_val -= min_val;
+        avg_val -= max_val;
+
+        count -= 2;
+      }
+
+      avg_val /= count;
+
+      tar(k,j,i) = std::pow(10.0, avg_val);
+    }
+  }
+
+}
+
 //
 // :D
 //
