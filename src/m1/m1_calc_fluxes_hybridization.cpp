@@ -20,6 +20,18 @@ void M1::HybridizeLOFlux(AA & u_cur)
   // hybridize (into ho) pp corrected fluxes
   AA & mask_pp = pm1->ev_strat.masks.pp;
 
+  // no fallback if @ equilibrium (get unlimited fluxes)
+  if (pm1->opt.flux_lo_fallback_eql_ho)
+  {
+    M1_GLOOP3(k, j, i)
+    {
+      if (pm1->IsEquilibrium(k,j,i))
+      {
+        mask_pp(k,j,i) = 0.0;
+      }
+    }
+  }
+
   for (int ix_d=0; ix_d<N; ++ix_d)
   {
     const int IO = ix_d == 0;

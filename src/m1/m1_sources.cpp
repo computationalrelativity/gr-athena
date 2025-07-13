@@ -326,8 +326,20 @@ void Apply(
       EnforcePhysical_E_F_d(*pm1, C, k, j, i);
       EnforcePhysical_nG(*pm1, C, k, j, i);
 
-      // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
-      CL_C.Closure(k, j, i);
+      // Compute closure based on limited (sc_E, sp_F_d)
+      if (pm1->opt_solver.equilibrium_use_thick &&
+          pm1->IsEquilibrium(k,j,i))
+      {
+        // set directly, only 1 rep of closures
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+        );
+      }
+      else
+      {
+        CL_C.Closure(k, j, i);
+      }
 
       // We now have nG*, it is useful to immediately construct n*
       Prepare_n_from_nG(*pm1, C, k, j, i);
@@ -477,8 +489,20 @@ void ApplyFull(
       EnforcePhysical_E_F_d(*pm1, C, k, j, i);
       EnforcePhysical_nG(*pm1, C, k, j, i);
 
-      // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
-      CL_C.Closure(k, j, i);
+      // Compute closure based on limited (sc_E, sp_F_d)
+      if (pm1->opt_solver.equilibrium_use_thick &&
+          pm1->IsEquilibrium(k,j,i))
+      {
+        // set directly, only 1 rep of closures
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+        );
+      }
+      else
+      {
+        CL_C.Closure(k, j, i);
+      }
 
       // We now have nG*, it is useful to immediately construct n*
       Prepare_n_from_nG(*pm1, C, k, j, i);

@@ -689,11 +689,14 @@ void SetEquilibrium_E_F_d_n_nG(
 
 
   // evolved state without collisional term: ----------------------------------
-  T_E = P.sc_E(k,j,i) + dt * I.sc_E(k,j,i);
-  T_nG = P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i);
+  const bool use_inh = true;
+  const Real dt_fac = use_inh * dt;
+
+  T_E = P.sc_E(k,j,i) + dt_fac * I.sc_E(k,j,i);
+  T_nG = P.sc_nG(k,j,i) + dt_fac * I.sc_nG(k,j,i);
   for (int n=0; n<N; ++n)
   {
-    T_F_d[n] = P.sp_F_d(n,k,j,i) + dt * I.sp_F_d(n,k,j,i);
+    T_F_d[n] = P.sp_F_d(n,k,j,i) + dt_fac * I.sp_F_d(n,k,j,i);
   }
 
   // impose thick closure
