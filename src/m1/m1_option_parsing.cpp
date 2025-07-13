@@ -322,6 +322,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModD;
     }
+    else if (tmp == "HybridizeMinModE")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModE;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -397,6 +401,9 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "flux_lo_fallback_nG", false);
 
     opt.flux_lo_fallback = (opt.flux_lo_fallback_E || opt.flux_lo_fallback_nG);
+
+    opt.flux_lo_fallback_eql_ho = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_eql_ho", false);
   }
 
   { // coupling

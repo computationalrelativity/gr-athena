@@ -106,6 +106,8 @@ public:
         pin->GetOrAddBoolean("M1_opacities", "validate_opacities", false);
     zero_invalid_radmat =
         pin->GetOrAddBoolean("M1_opacities", "zero_invalid_radmat", false);
+    use_averages =
+        pin->GetOrAddBoolean("M1_opacities", "use_averages", false);
     use_averaging_fix =
         pin->GetOrAddBoolean("M1_opacities", "use_averaging_fix", false);
   };
@@ -1085,6 +1087,15 @@ public:
       bool TY_adjusted = false;
       bool calculate_trapped = false;
 
+      if (use_averages)
+      {
+        // Smoothed data (nn avg) for the opacity calculation
+        //
+        // Probably not a great idea...
+        const bool exclude_first_extrema = true;
+        GetNearestNeighborAverages(k, j, i, rho, T, Y_e, exclude_first_extrema);
+      }
+
       int ierr_opac = CalculateOpacityCoefficients(
         k, j, i, rho, T, Y_e,
         kap_a_n, kap_a_e,
@@ -1348,6 +1359,7 @@ private:
   bool verbose_warn_weak;
   bool validate_opacities;
   bool zero_invalid_radmat;
+  bool use_averages;
   bool use_averaging_fix;
 };
 

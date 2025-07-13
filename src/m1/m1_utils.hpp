@@ -802,9 +802,9 @@ inline Real ToFiducial(
     k, j, i
   );
 
-  // AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
-  // sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
-  // sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
+  AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
+  sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
+  sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
 
   return sc_Gam__;
 }

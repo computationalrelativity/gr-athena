@@ -1007,22 +1007,21 @@ void M1::CalcClosure(AthenaArray<Real> & u)
     if (pm1->MaskGet(k,j,i))
     {
       // NonFiniteToZero(*this, C, k, j, i);
-      if (pm1->opt_solver.equilibrium_use_thick)
+      if (pm1->opt_solver.equilibrium_use_thick &&
+          pm1->IsEquilibrium(k,j,i))
       {
-        M1::M1::t_sln_r opt_reg = pm1->GetMaskSolutionRegime(
-          ix_g, ix_s, k, j, i
+        // set directly, only 1 rep of closures
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
         );
 
-        if ((opt_reg == M1::t_sln_r::equilibrium) ||
-            (opt_reg == M1::t_sln_r::equilibrium_wr))
-        {
-          M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
-          pm1->opt_closure.variety = M1::opt_closure_variety::thick;
+        // M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
+        // pm1->opt_closure.variety = M1::opt_closure_variety::thick;
 
-          C.Closure(k,j,i);
+        // C.Closure(k,j,i);
 
-          pm1->opt_closure.variety = opt_cl_variety;
-        }
+        // pm1->opt_closure.variety = opt_cl_variety;
       }
       else
       {

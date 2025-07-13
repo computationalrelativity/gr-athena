@@ -158,6 +158,7 @@ public:
                                 HybridizeMinModB,
                                 HybridizeMinModC,
                                 HybridizeMinModD,
+                                HybridizeMinModE,
                                 HybridizeMinMod,
                                 LO,
                                 HO };
@@ -211,6 +212,8 @@ public:
     // N.B. The following is controlled implicitly based on:
     // flux_lo_fallback_E, flux_lo_fallback_nG
     bool flux_lo_fallback;
+
+    bool flux_lo_fallback_eql_ho;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -805,6 +808,16 @@ public:
 
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
   typedef evolution_strategy::opt_source_treatment t_src_t;
+
+  inline bool IsEquilibrium(const int k, const int j, const int i)
+  {
+    // if in eql all species are in eql, just take the val from ix 0
+    t_sln_r cur_r = ev_strat.masks.solution_regime(0, 0, k, j, i);
+    return (
+      (cur_r == t_sln_r::equilibrium) ||
+      (cur_r == t_sln_r::equilibrium_wr)
+    );
+  }
 
   inline t_sln_r GetMaskSolutionRegime(const int ix_g, const int ix_s,
                                        const int k, const int j, const int i)
