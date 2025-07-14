@@ -644,7 +644,7 @@ void EquationOfState::NearestNeighborSmooth(
 
       avg_val /= count;
 
-      tar(k,j,i) = std::pow(10.0, avg_val);
+      tar(k,j,i) = avg_val;
     }
   }
 
