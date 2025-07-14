@@ -228,11 +228,11 @@ void SetEquilibrium_n_nG(
   Real T_nG;
   std::array<Real, N> T_F_d;
 
-  T_E = sc_E(k,j,i);
-  T_nG = sc_nG(k,j,i);
+  T_E = P.sc_E(k,j,i);
+  T_nG = P.sc_nG(k,j,i);
   for (int n=0; n<N; ++n)
   {
-    T_F_d[n] = sp_F_d(n,k,j,i);
+    T_F_d[n] = P.sp_F_d(n,k,j,i);
   }
 
   // --------------------------------------------------------------------------
@@ -243,68 +243,19 @@ void SetEquilibrium_n_nG(
   // If required, evolve (E,F_d) in absence of sources
   if (pm1.opt_solver.equilibrium_evolve)
   {
-    /*
-    if (pm1.opt_solver.equilibrium_evolve_use_euler)
-    {
-      Sources::SetMatterSourceZero(S, k, j, i);
-      Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
-
-      // Ensure resulting state is physical
-      EnforcePhysical_E_F_d(pm1, C, k, j, i);
-    }
-    else
-    {
-      // Internally this computes generic closure but when mapping back the
-      // result imposes thick
-      Integrators::Explicit::PrepareApproximateFirstOrder_E_F_d(
-        pm1, dt, C, P, I, S, CL_C, k, j, i
-      );
-    }
-    */
-
-
-    /*
     Sources::SetMatterSourceZero(S, k, j, i);
     Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
 
-    // Ensure resulting state is physical
-    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+    // Retain advected
+    T_E = sc_E(k,j,i);
 
-    if (!pm1.opt_solver.equilibrium_evolve_use_euler)
+    for (int n=0; n<N; ++n)
     {
-      // Retain advected
-      T_E = sc_E(k,j,i);
-
-      for (int n=0; n<N; ++n)
-      {
-        T_F_d[n] = sp_F_d(n,k,j,i);
-      }
-
-      // Internally this computes generic closure but when mapping back the
-      // result imposes thick
-      Integrators::Explicit::PrepareApproximateFirstOrder_E_F_d(
-        pm1, dt, C, P, I, S, CL_C, k, j, i
-      );
+      T_F_d[n] = sp_F_d(n,k,j,i);
     }
-    */
-
-
-    Sources::SetMatterSourceZero(S, k, j, i);
-    Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
-
-    // Ensure resulting state is physical
-    EnforcePhysical_E_F_d(pm1, C, k, j, i);
 
     if (!pm1.opt_solver.equilibrium_evolve_use_euler)
     {
-      // Retain advected
-      T_E = sc_E(k,j,i);
-
-      for (int n=0; n<N; ++n)
-      {
-        T_F_d[n] = sp_F_d(n,k,j,i);
-      }
-
       // Sources::SetMatterSourceZero(S, k, j, i);
       // Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
 
@@ -347,9 +298,12 @@ void SetEquilibrium_n_nG(
       J_0 = (J_0 * W + dt * C.sc_eta(k,j,i)) /
             (W + dt * C.sc_kap_a(k,j,i));
 
+      Real H_n__ = W * H_n / (W + dt * kap_as);
+
       for (int a=0; a<N; ++a)
       {
         sp_H_d_(a,i) = W * sp_H_d_(a,i) / (W + dt * kap_as);
+
       }
 
       // Project back assuming thick limit ------------------------------------
@@ -357,15 +311,34 @@ void SetEquilibrium_n_nG(
         CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
       );
 
-      // Yup, like this (Cf. THC)
+      // (sc_J, st_H_d) -> (sc_E, sp_F_d) reduces to:
+      sc_E(k,j,i) = ONE_3RD * J_0 * (
+        4.0 * W2 - 1.0
+      ) + 2.0 * W * H_n__;
+
+
+      Real dotFv (0.0);
+      for (int a=0; a<N; ++a)
+      {
+        sp_F_d(a,k,j,i) = 4.0 * ONE_3RD * W2 *
+                          pm1.fidu.sp_v_d(a,k,j,i) * J_0;
+        sp_F_d(a,k,j,i) += W * (H_n__ * pm1.fidu.sp_v_d(a,k,j,i) +
+                                sp_H_d_(a,i));
+
+        dotFv += sp_F_d(a,k,j,i) * pm1.fidu.sp_v_u(a,k,j,i);
+      }
+
+      // N.B. THC does the following:
+      /*
       C.sc_E(k,j,i) = J_0;
 
       for (int a=0; a<N; ++a)
       {
         C.sp_F_d(a,k,j,i) = sp_H_d_(a,i);
       }
-
+      */
     }
+
 
   }
 
@@ -402,10 +375,9 @@ void SetEquilibrium_n_nG(
     Sources::SetMatterSourceZero(S, k, j, i);
   }
 
-  // Add the new source contribution
+  // Construct C based on modified S
   if (pm1.opt_solver.equilibrium_src_E_F_d &&
-      pm1.opt_solver.equilibrium_use_diff_src &&
-      !pm1.opt_solver.equilibrium_evolve_use_euler)
+      pm1.opt_solver.equilibrium_use_diff_src)
   {
     Integrators::Explicit::StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
   }
@@ -444,14 +416,18 @@ void SetEquilibrium_n_nG(
 
   // Original expression for seeding average energy
   // sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
+
   if (pm1.opt.retain_equilibrium)
   {
-    sc_nG(k,j,i) = pm1.eql.sc_n(C.ix_g,C.ix_s)(k,j,i) * sc_Gam__;
+    sc_avg_nrg(k,j,i) = (
+      pm1.eql.sc_J(ix_g,ix_s)(k,j,i) /
+      pm1.eql.sc_n(ix_g,ix_s)(k,j,i)
+    );
+    // sc_nG(k,j,i) = pm1.eql.sc_n(C.ix_g,C.ix_s)(k,j,i) * sc_Gam__;
   }
-  else
-  {
-    sc_nG(k,j,i) = W / sc_avg_nrg(k,j,i) * (sc_E(k,j,i) - dotFv);
-  }
+
+  // update in accordance with average energies prepared in opac.
+  sc_nG(k,j,i) = W / sc_avg_nrg(k,j,i) * (sc_E(k,j,i) - dotFv);
 
   EnforcePhysical_nG(pm1, C, k, j, i);
   sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
@@ -481,8 +457,7 @@ void SetEquilibrium_n_nG(
   if (pm1.opt_solver.equilibrium_evolve)
   {
     Integrators::Explicit::StepExplicit_nG(pm1, dt, C, P, I, S, k, j, i);
-    EnforcePhysical_nG(pm1, C, k, j, i);
-    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;  // propagate back
+    sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
   }
 }
 
