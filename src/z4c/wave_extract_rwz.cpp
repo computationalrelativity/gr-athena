@@ -3279,8 +3279,8 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 
   //TODO This is a placeholder, these second drvt of the G multipole are not computed ATM!
   const Real G_dt2 = 0.0;
-  const Real G_dtdr = 0.0;
-  const Real G_dr2 = 0.0; 
+  //const Real G_dtdr = 0.0;
+  //const Real G_dr2 = 0.0; 
 
   norm_Tr_kappa_dd = 0.0;
   
@@ -3304,13 +3304,13 @@ void WaveExtractRWZ::MultipolesGaugeInvariant() {
 	kappa_01(lm,c) += - h1_dot(lm,c) - h0_dr(lm,c)
 	  + 2.0*(Gamma_dyn_udd(0,0,1)*h0(lm,c) + Gamma_dyn_udd(1,0,1)*h1(lm,c));
 	kappa_01(lm,c) += r*rdot*G_dr(lm,c) + r*G_dot(lm,c)
-	  + r2*(G_dtdr - Gamma_dyn_udd(0,0,1)*G_dot(lm,c) - Gamma_dyn_udd(1,0,1)*G_dr(lm,c));
+	  + r2*(G_dr_dot(lm,c) - Gamma_dyn_udd(0,0,1)*G_dot(lm,c) - Gamma_dyn_udd(1,0,1)*G_dr(lm,c));
 	
 	kappa_11(lm,c) = h11(lm,c);
 	kappa_11(lm,c) += - 2.0*h1_dr(lm,c)
 	  + 2.0*(Gamma_dyn_udd(0,1,1)*h0(lm,c) + Gamma_dyn_udd(1,1,1)*h1(lm,c));
 	kappa_11(lm,c) += 2.0*r*G_dr(lm,c)
-	  + r2*(G_dr2 - Gamma_dyn_udd(0,1,1)*G_dot(lm,c) - Gamma_dyn_udd(1,1,1)*G_dr(lm,c));
+	  + r2*(G_dr2(lm,c) - Gamma_dyn_udd(0,1,1)*G_dot(lm,c) - Gamma_dyn_udd(1,1,1)*G_dr(lm,c));
 	
 	kappa(lm,c) = K(lm,c);
 	kappa(lm,c) -= (g_uu(0,0) *rdot*( 2.0*h0(lm,c) - r2*G_dot(lm,c) ) +
