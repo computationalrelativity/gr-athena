@@ -509,6 +509,7 @@ public:
 
   inline void ApplyOpacityCorrections(
     int k, int j, int i,
+    const Real dt,
     const Real T, const Real T_star,
     const Real* dens_n,  const Real* dens_e,
     const Real* kap_a_n, const Real* kap_a_e,
@@ -689,7 +690,7 @@ public:
 
         PrintOpacityDiagnostics(
           "ApplyOpacityCorrections failure",
-          k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+          k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
           kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
           dens_n, dens_e
         );
@@ -966,6 +967,7 @@ public:
   inline void PrintOpacityDiagnostics(
     const std::string & msg,
     int k, int j, int i,
+    Real dt,
     Real rho, Real T, Real Y_e,
     Real tau, Real T_star, Real Y_e_star,
     const Real* kap_a_n, const Real* kap_a_e,
@@ -981,6 +983,7 @@ public:
     std::cout << " at (i,j,k)=(" << i << "," << j << "," << k << ")\n";
 
     std::cout << "Physical conditions:\n"
+              << "  dt    = " << dt << "\n"
               << "  rho   = " << rho << "\n"
               << "  T     = " << T << "\n"
               << "  Y_e   = " << Y_e << "\n"
@@ -989,14 +992,37 @@ public:
               << "  Y_e*  = " << Y_e_star << "\n";
 
     std::string regime;
-    if (opacity_tau_trap < 0 || tau <= opacity_tau_trap) {
-      regime = "thin";
-    } else if (tau > opacity_tau_trap + opacity_tau_delta) {
-      regime = "trapped";
-    } else {
-      regime = "interpolated";
-    }
 
+    // infer regime using same logic as ComputeEquilibriumDensities -----------
+
+    // BD: would be better to unify this detection logic more cleanly...
+
+    const bool calculate_trapped = (
+      (opacity_tau_trap >= 0.0) &&
+      (tau < dt / opacity_tau_trap) &&
+      (rho >= pm1->opt_solver.tra_rho_min)
+    );
+    const bool need_thin = !(
+      calculate_trapped &&
+      (tau < dt / (opacity_tau_trap + opacity_tau_delta))
+    );
+
+    if (calculate_trapped)
+    {
+      if (tau < dt / (opacity_tau_trap + opacity_tau_delta))
+      {
+        regime = "trapped";
+      }
+      else
+      {
+        regime = "interpolated";
+      }
+    }
+    else
+    {
+      regime = "thin";
+    }
+    // ------------------------------------------------------------------------
     std::cout << "Opacity regime: " << regime << "\n";
 
     std::cout << "Opacity coefficients:\n";
@@ -1111,7 +1137,7 @@ public:
         {
           PrintOpacityDiagnostics(
             "CalculateOpacityCoefficients failure",
-            k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+            k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e
           );
@@ -1140,7 +1166,7 @@ public:
             {
               PrintOpacityDiagnostics(
                 "CalculateOpacityCoefficients (averaged) failure",
-                k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+                k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
                 kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
                 dens_n, dens_e
               );
@@ -1179,7 +1205,7 @@ public:
         {
           PrintOpacityDiagnostics(
             "ComputeEquilibriumDensities failure",
-            k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+            k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e);
         }
@@ -1214,7 +1240,7 @@ public:
             {
               PrintOpacityDiagnostics(
                 "ComputeEquilibriumDensities (averaged) failure",
-                k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+                k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
                 kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
                 dens_n, dens_e);
             }
@@ -1250,7 +1276,7 @@ public:
           {
             PrintOpacityDiagnostics(
               "ComputeEquilibriumDensities - ignored neutrino data - failure",
-              k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+              k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
               kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
               dens_n, dens_e);
           }
@@ -1268,6 +1294,7 @@ public:
 
       ApplyOpacityCorrections(
         k, j, i,
+        dt,
         T, T_star,
         dens_n, dens_e,
         kap_a_n, kap_a_e,
@@ -1315,7 +1342,7 @@ public:
         {
           PrintOpacityDiagnostics(
             "ValidateRadMatQuantities failure",
-            k, j, i, rho, T, Y_e, tau, T_star, Y_e_star,
+            k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e);
         }
