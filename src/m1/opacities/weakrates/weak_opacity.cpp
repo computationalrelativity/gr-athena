@@ -1,5 +1,7 @@
 #include "weak_opacity.hpp"
 #include "fermi.hpp"
+#include "error_codes.hpp"
+#include <cmath>
 
 using namespace std;
 using namespace M1::Opacities::WeakRates::WeakRatesFermi;
@@ -26,19 +28,13 @@ int WeakOpacityMod::NeutrinoAbsorptionOpacityImpl(Real rho, Real temp, Real ye, 
   bool boundsErr = EoS->ApplyTableLimits(rho0, temp0, ye0);
 
   if (boundsErr) {
-    iout = -1;
+    iout = WR_OPAC_BNDS_ERR;
     return iout;
   } // end if
 
-  int err = Absorption_cgs(rho, temp, ye, 
-    abs_n_nue, abs_n_nua, abs_n_nux, 
-    abs_e_nue, abs_e_nua, abs_e_nux);
-
-  if (err != 0) {
-    // write(*,*) "NeutrinoAbsorptionOpacityImpl: Problem in Absorption_cgs"
-    // write(*,*) rho_cgs, temp0, ye0
-    iout = -1;
-  } // end if
+  iout = Absorption_cgs(rho, temp, ye,
+                        abs_n_nue, abs_n_nua, abs_n_nux,
+                        abs_e_nue, abs_e_nua, abs_e_nux);
 
   return iout;
 }
@@ -64,20 +60,14 @@ int WeakOpacityMod::NeutrinoScatteringOpacityImpl(Real rho, Real temp, Real ye, 
   bool boundsErr = EoS->ApplyTableLimits(rho0, temp0, ye0);
 
   if (boundsErr) {
-    iout = -1;
+    iout = WR_OPAC_BNDS_ERR;
     return iout;
   } // end if
 
-  int err = Scattering_cgs(rho, temp, ye, 
-    sct_n_nue, sct_n_nua, sct_n_nux, 
-    sct_e_nue, sct_e_nua, sct_e_nux);
+  iout = Scattering_cgs(rho, temp, ye,
+                        sct_n_nue, sct_n_nua, sct_n_nux,
+                        sct_e_nue, sct_e_nua, sct_e_nux);
 
-  if (err != 0) {
-    // write(*,*) "NeutrinoScatteringOpacityImpl: Problem in Scattering_cgs"
-    // write(*,*) rho_cgs, temp0, ye0
-    iout = -1;
-  } // end if
-  
   return iout;
 }
 
@@ -127,40 +117,17 @@ EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
   abs_e_nua = zeta_nua * temp_erg_sq * fermi5O3(eta_nua);
   abs_e_nux = zeta_nux * temp_erg_sq * fermi5O3(eta_nux);
 
-/*
-#ifndef FORTRAN_DISABLE_IEEE_ARITHMETIC
-    if (.not.ieee_is_finite(kappa_0_nue)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_0_nue", rho, temp, ye
-       Absorption_cgs = -1
-    endif
+  if (!std::isfinite(abs_n_nue) ||
+      !std::isfinite(abs_n_nua) ||
+      !std::isfinite(abs_n_nux) ||
+      !std::isfinite(abs_e_nue) ||
+      !std::isfinite(abs_e_nua) ||
+      !std::isfinite(abs_e_nux))
+  {
+    iout = WR_OPAC_ABS_NONFINITE;
+  }
 
-    if (.not.ieee_is_finite(kappa_0_nua)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_0_nua", rho, temp, ye
-       Absorption_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nux)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_0_nux", rho, temp, ye
-       Absorption_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nue)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_1_nue", rho, temp, ye
-       Absorption_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nua)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_1_nua", rho, temp, ye
-       Absorption_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nux)) then
-       write(*,*) "Absorption_cgs: NaN/Inf in kappa_1_nux", rho, temp, ye
-       Absorption_cgs = -1
-    endif
-#endif
-*/
-    return iout;
+  return iout;
 } // END FUNCTION Absorption_cgs
 
 int WeakOpacityMod::Scattering_cgs(Real rho, Real temp, Real ye, Real& sct_n_nue, Real& sct_n_nua, Real& sct_n_nux, Real& sct_e_nue, Real& sct_e_nua, Real& sct_e_nux) {
@@ -239,39 +206,15 @@ EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
   sct_e_nua = zeta_nua * temp_erg_sq * fermi5O3(eta_nua);
   sct_e_nux = zeta_nux * temp_erg_sq * fermi5O3(eta_nux);
 
-/* TODO?
-#ifndef FORTRAN_DISABLE_IEEE_ARITHMETIC
-    if (.not.ieee_is_finite(kappa_0_nue)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_0_nue", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nua)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_0_nua", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nux)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_0_nux", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nue)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_1_nue", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nua)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_1_nua", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_1_nux)) then
-       write(*,*) "Scattering_cgs: NaN/Inf in kappa_1_nux", rho, temp, ye
-       Scattering_cgs = -1
-    endif
-#endif
-*/
+  if (!std::isfinite(sct_n_nue) ||
+      !std::isfinite(sct_n_nua) ||
+      !std::isfinite(sct_n_nux) ||
+      !std::isfinite(sct_e_nue) ||
+      !std::isfinite(sct_e_nua) ||
+      !std::isfinite(sct_e_nux))
+  {
+    iout = WR_OPAC_SCA_NONFINITE;
+  }
 
   return iout;
 } // END FUNCTION Scattering_cgs
@@ -302,20 +245,15 @@ int WeakOpacityMod::NeutrinoOpacityImpl(Real rho, Real temp, Real ye, Real& kapp
   bool boundsErr = EoS->ApplyTableLimits(rho0, temp0, ye0);
 
   if (boundsErr) {
-    iout = -1;
+    iout = WR_OPAC_BNDS_ERR;
     return iout;
   } // end if
 
-  int err = Opacities_cgs(rho0, temp0, ye0,
-                          kappa_0_nue, kappa_0_nua,
-                          kappa_0_nux,
-                          kappa_1_nue, kappa_1_nua,
-                          kappa_1_nux);
-
-  if (err == -1) {
-    // write(*,*) rho_cgs, temp0, ye0
-    iout = -1;
-  } // end if
+  iout = Opacities_cgs(rho0, temp0, ye0,
+                       kappa_0_nue, kappa_0_nua,
+                       kappa_0_nux,
+                       kappa_1_nue, kappa_1_nua,
+                       kappa_1_nux);
 
   // Done elsewhere
   /*
@@ -360,50 +298,15 @@ int WeakOpacityMod::Opacities_cgs(Real rho, Real temp, Real ye, Real& kappa_0_nu
   err = Absorption_cgs(rho, temp, ye, kappa_0_nue_abs, kappa_0_nua_abs, kappa_0_nux_abs, kappa_1_nue_abs, kappa_1_nua_abs, kappa_1_nux_abs);
 
   if (err != 0) {
-    // write(*,*) "Opacities_cgs: Problem in Absorption_cgs"
-    iout = -1;
-  } // endif
+    iout = err;
+  }
 
   err = Scattering_cgs(rho, temp, ye, kappa_0_nue_sct, kappa_0_nua_sct, kappa_0_nux_sct, kappa_1_nue_sct, kappa_1_nua_sct, kappa_1_nux_sct);
 
   if (err != 0) {
     // write(*,*) "Opacities_cgs: Problem in Scattering_cgs"
-    iout = -1;
-  } // endif
-  
-  /* needed?
-#ifndef FORTRAN_DISABLE_IEEE_ARITHMETIC
-    if (.not.ieee_is_finite(kappa_0_nue_abs)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nue_abs"
-       Opacities_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nua_abs)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nua_abs"
-       Opacities_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nux_abs)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nux_abs"
-       Opacities_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nue_sct)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nue_sct"
-       Opacities_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nua_sct)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nua_sct"
-       Opacities_cgs = -1
-    endif
-
-    if (.not.ieee_is_finite(kappa_0_nux_sct)) then
-       write(*,*) "Opacities_cgs: NaN/Inf in kappa_0_nux_sct"
-       Opacities_cgs = -1
-    endif
-#endif
-  */
+    iout = err;
+  }
 
   kappa_0_nue = kappa_0_nue_abs + kappa_0_nue_sct;
   kappa_0_nua = kappa_0_nua_abs + kappa_0_nua_sct;

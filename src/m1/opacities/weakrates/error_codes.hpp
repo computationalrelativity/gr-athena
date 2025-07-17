@@ -1,0 +1,24 @@
+#ifndef WEAKRATES_ERROR_CODES
+#define WEAKRATES_ERROR_CODES
+
+// these should all be non-zero
+#define WE_ND_NONFINITE 1
+
+#define WE_FAIL_INI_ASSIGN 2
+#define WE_FAIL_INI_ASSIGN_NRG 3
+#define WE_FAIL_INI_ASSIGN_Y_E 4
+#define WE_FAIL_NONFINITE 5
+
+#define WR_RADMAT_INVALID 6
+#define WR_OPAC_CORRECTION_ERROR 7
+
+#define WR_OPAC_BNDS_ERR 8
+
+#define WR_OPAC_ABS 9
+#define WR_OPAC_SCA 10
+
+#define WR_OPAC_ABS_NONFINITE 11
+#define WR_OPAC_SCA_NONFINITE 12
+
+
+#endif // WEAKRATES_ERROR_CODES

@@ -13,8 +13,10 @@
 #include "../../../field/field.hpp"
 
 // Weakrates header
+#include "error_codes.hpp"
 #include "weak_rates.hpp"
 #include <cmath>
+#include <iomanip>
 #include <limits>
 
 namespace M1::Opacities::WeakRates {
@@ -204,7 +206,7 @@ public:
           !std::isfinite(pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i)) ||
           pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i) < 0.0)
       {
-        ierr_invalid = 1;
+        ierr_invalid = WR_RADMAT_INVALID;
       }
     }
 
@@ -292,8 +294,8 @@ public:
 
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
-      // if (ix_s == NUX)
-      //   continue;
+      if (ix_s == NUX)
+        continue;
 
       const Real rat = 1.0 / std::sqrt(
         kap_a_e[ix_s] * (kap_a_e[ix_s] + kap_s_e[ix_s])
@@ -398,15 +400,20 @@ public:
         dens_e_trap[2]
       );
 
+      if (ierr_we)
+      {
+        return ierr_we;
+      }
+
       // immediately break on error or non-finite values ----------------------
       Real val = 0;
       for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
       {
         val += dens_n_trap[ix_s] + dens_e_trap[ix_s];
       }
-      if (!std::isfinite(val) || ierr_we)
+      if (!std::isfinite(val))
       {
-        return 1;
+        return WE_FAIL_NONFINITE;
       }
 
       TY_adjusted = true;
@@ -425,7 +432,7 @@ public:
     );
 
     // only calculate if actually needed
-    if (need_thin || pm1->opt.retain_equilibrium)
+    if (need_thin)
     {
       ierr_nd = pmy_weakrates->NeutrinoDensity(
           rho, T, Y_e,
@@ -436,7 +443,7 @@ public:
       if (ierr_nd)
       {
         // immediately break on error
-        return 1;
+        return ierr_nd;
       }
     }
 
@@ -690,6 +697,7 @@ public:
 
         PrintOpacityDiagnostics(
           "ApplyOpacityCorrections failure",
+          WR_OPAC_CORRECTION_ERROR,
           k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
           kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
           dens_n, dens_e
@@ -965,7 +973,7 @@ public:
   }
 
   inline void PrintOpacityDiagnostics(
-    const std::string & msg,
+    const std::string & msg, const int error_code,
     int k, int j, int i,
     Real dt,
     Real rho, Real T, Real Y_e,
@@ -978,10 +986,10 @@ public:
     std::cout << "M1: Opacity diagnostics";
     if (!msg.empty())
     {
-      std::cout << " [" << msg << "]";
+      std::cout << " [" << msg << "; error_code: " << error_code << "]";
     }
     std::cout << " at (i,j,k)=(" << i << "," << j << "," << k << ")\n";
-
+    std::cout << std::setprecision(14);
     std::cout << "Physical conditions:\n"
               << "  dt    = " << dt << "\n"
               << "  rho   = " << rho << "\n"
@@ -989,7 +997,21 @@ public:
               << "  Y_e   = " << Y_e << "\n"
               << "  tau   = " << tau << "\n"
               << "  T*    = " << T_star << "\n"
-              << "  Y_e*  = " << Y_e_star << "\n";
+              << "  Y_e*  = " << Y_e_star << "\n"
+              << " rad.sc_n(0,NUE)(k,j,i)   = "
+              << pm1->rad.sc_n(0, NUE)(k, j, i) << "\n"
+              << " rad.sc_n(0,NUA)(k,j,i)   = "
+              << pm1->rad.sc_n(0, NUA)(k, j, i) << "\n"
+              << " rad.sc_n(0,NUX)(k,j,i)   = "
+              << pm1->rad.sc_n(0, NUX)(k, j, i) << "\n"
+              << " rad.sc_n(0,NUE)(k,j,i)   = "
+              << pm1->rad.sc_J(0, NUE)(k, j, i) << "\n"
+              << " rad.sc_J(0,NUA)(k,j,i)   = "
+              << pm1->rad.sc_J(0, NUA)(k, j, i) << "\n"
+              << " rad.sc_J(0,NUX)(k,j,i)   = "
+              << pm1->rad.sc_J(0, NUX)(k, j, i) << "\n"
+              << " OO(det_gamma)            = "
+              << pm1->geom.sc_oo_sqrt_det_g(k, j, i) << "\n";
 
     std::string regime;
 
@@ -1136,7 +1158,7 @@ public:
         if (verbose_warn_weak)
         {
           PrintOpacityDiagnostics(
-            "CalculateOpacityCoefficients failure",
+            "CalculateOpacityCoefficients failure", ierr_opac,
             k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e
@@ -1165,7 +1187,7 @@ public:
             if (verbose_warn_weak)
             {
               PrintOpacityDiagnostics(
-                "CalculateOpacityCoefficients (averaged) failure",
+                "CalculateOpacityCoefficients (averaged) failure", ierr_opac,
                 k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
                 kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
                 dens_n, dens_e
@@ -1204,7 +1226,7 @@ public:
         if (verbose_warn_weak)
         {
           PrintOpacityDiagnostics(
-            "ComputeEquilibriumDensities failure",
+            "ComputeEquilibriumDensities failure", ierr_we,
             k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e);
@@ -1239,7 +1261,7 @@ public:
             if (verbose_warn_weak)
             {
               PrintOpacityDiagnostics(
-                "ComputeEquilibriumDensities (averaged) failure",
+                "ComputeEquilibriumDensities (averaged) failure", ierr_we,
                 k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
                 kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
                 dens_n, dens_e);
@@ -1276,6 +1298,7 @@ public:
           {
             PrintOpacityDiagnostics(
               "ComputeEquilibriumDensities - ignored neutrino data - failure",
+              ierr_we,
               k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
               kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
               dens_n, dens_e);
@@ -1341,7 +1364,7 @@ public:
         if (ierr_vrm && verbose_warn_weak)
         {
           PrintOpacityDiagnostics(
-            "ValidateRadMatQuantities failure",
+            "ValidateRadMatQuantities failure", ierr_vrm,
             k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e);

@@ -1,9 +1,12 @@
 #include "weak_equilibrium.hpp"
 #include "fermi.hpp"
+#include "error_codes.hpp"
 
 using namespace std;
 using namespace M1::Opacities::WeakRates::WeakRatesFermi;
 using namespace M1::Opacities::WeakRates::WeakRates_Equilibrium;
+
+#define NO_THC_NRG_DENS_FLOOR
 
 int WeakEquilibriumMod::NeutrinoDensityImpl(
   Real rho,     // [g/cm^3] 
@@ -44,19 +47,15 @@ int WeakEquilibriumMod::NeutrinoDensityImpl(
 
   // TODO done by the EoS interface
   // boundsErr = enforceTableBounds(rho_cgs,temp0,ye0)
-  int boundsErr = 0;
+  // int boundsErr = 0;
 
-  if (boundsErr==-1) {
-    iout = -1;
-    return iout;
-  } // end if
+  // if (boundsErr==-1) {
+  //   iout = -1;
+  //   return iout;
+  // } // end if
 
   // Call CGS backend
-  int ierr = NeutrinoDens_cgs(rho0, temp0, ye0, n_nue, n_nua, n_nux, e_nue, e_nua, e_nux);
-
-  if (ierr!=0) {
-    iout = -1;
-  } // end if
+  iout = NeutrinoDens_cgs(rho0, temp0, ye0, n_nue, n_nua, n_nux, e_nue, e_nua, e_nux);
 
   /* Now done elsewhere
   ! Conversion from CGS units
@@ -150,17 +149,9 @@ int WeakEquilibriumMod::WeakEquilibriumImpl(
     // Compute weak equilibrium
     Real y_eq[4] = {0.0};
     Real e_eq[4] = {0.0};
-    int na=0, ierr=0;
-    weak_equil_wnu(rho0, temp0, y_in, e_in, temp_eq, y_eq, e_eq, na, ierr);
+    int na=0;
+    weak_equil_wnu(rho0, temp0, y_in, e_in, temp_eq, y_eq, e_eq, na, iout);
     ye_eq = y_eq[0];
-
-    if (ierr != 0) {
-      // WeakEquilibriumImpl = -1
-      iout = -1;
-    } else {
-      // WeakEquilibriumImpl = 0
-      iout = 0;
-    } // end if
 
     // Convert results to Cactus units
     // Conversion no longer here, just split output arrays from weak_equil_wnu
@@ -311,7 +302,8 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
     na += 1;
   } // end while
 
-//....assign the output.................................................
+
+  //....assign the output.................................................
   if (ierr==0) {
     // calculations worked
     T_eq = x1[0];
@@ -332,6 +324,8 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
       y_eq[i] = y_in[i]; // [#/baryon]
       e_eq[i] = e_in[i]; // [erg/cm^3]
     }
+
+    ierr = WE_FAIL_INI_ASSIGN;
     return;
 
 // 25    format(3es14.6)
@@ -389,10 +383,17 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
   // TODO these checks should probably be done by the EoS?
   // check that the energy is positive
   // For tabulated eos we should check that the energy is above the minimum?
-  //if (e_eq[0]<nb*atomic_mass*clight*clight) {
+
+  // Note [DD2]:
+  // nb*atomic_mass*clight*clight < EoS->GetMinimumEnergyDensity(rho, y_eq[0])
+  // 2.387e+35 < 2.514e+35
+#ifdef THC_NRG_DENS_FLOOR
+  if (e_eq[0]<nb*atomic_mass*clight*clight) {
+#else
   Real e_min = EoS->GetMinimumEnergyDensity(rho, y_eq[0]);
   if (e_eq[0]<e_min) {
-    ierr = 1;
+#endif // THC_NRG_DENS_FLOOR
+    ierr = WE_FAIL_INI_ASSIGN_NRG;
     T_eq = T;
     for (int i=0;i<4;i++) {
       y_eq[i] = y_in[i]; // [#/baryon]
@@ -400,12 +401,12 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
     }
     return;
   } // end if
-  
+
   // check that Y_e is within the range
   Real table_ye_min, table_ye_max;
   EoS->GetTableLimitsYe(table_ye_min, table_ye_max);
   if (y_eq[0]<table_ye_min || y_eq[0]>table_ye_max) {
-    ierr = 1;
+    ierr = WE_FAIL_INI_ASSIGN_Y_E;
     T_eq = T;
     for (int i=0;i<4;i++) {
       y_eq[i] = y_in[i]; // [#/baryon]
@@ -1540,34 +1541,33 @@ int WeakEquilibriumMod::NeutrinoDens_cgs(Real rho, Real temp, Real ye, Real& n_n
 // #ifndef FORTRAN_DISABLE_IEEE_ARITHMETIC
   if (!isfinite(n_nue)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in n_nue", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 
   if (!isfinite(n_nua)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in n_nua", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 
   if (!isfinite(n_nux)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in n_nux", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 
   if (!isfinite(en_nue)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in en_nue", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 
   if (!isfinite(en_nua)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in en_nua", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 
   if (!isfinite(en_nux)) {
     // write(*,*) "NeutrinoDens_cgs: NaN/Inf in en_nux", rho, temp, ye
-    iout = -1;
+    iout = WE_ND_NONFINITE;
   } // endif
 // #endif
-
   return iout;
 } // END FUNCTION NeutrinoDens_cgs
