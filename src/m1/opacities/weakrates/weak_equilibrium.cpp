@@ -302,7 +302,6 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
     na += 1;
   } // end while
 
-
   //....assign the output.................................................
   if (ierr==0) {
     // calculations worked
@@ -325,7 +324,7 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
       e_eq[i] = e_in[i]; // [erg/cm^3]
     }
 
-    ierr = WE_FAIL_INI_ASSIGN;
+    // ierr = WE_FAIL_INI_ASSIGN;
     return;
 
 // 25    format(3es14.6)
@@ -502,13 +501,14 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
     // compute the Jacobian
     jacobi_eq_weak(rho,u,yl,x1,J,ierr);
     if (ierr != 0) {
+      ierr = WE_FAIL_JACOBIAN;
       return;
     } // end if
     
     // compute and check the determinant of the Jacobian
     Real det = J[0][0]*J[1][1] - J[0][1]*J[1][0];
-    if (det==0.0) {
-      ierr = 1;
+    if (det==0) {
+      ierr = WE_FAIL_DET_SINGULAR;
       return;
       // write(6,*)'Singular determinant in weak equilibrium!'
       // stop
@@ -549,7 +549,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
 
     if ((dxa[0]*dxa[0] + dxa[1]*dxa[1]) < (eps_lim*eps_lim * (dx1[0]*dx1[0] + dx1[1]*dx1[1]))) {
       KKT = true;
-      ierr = 2;
+      ierr = WE_FAIL_KKT;
       return;
     } // endif
 
@@ -566,7 +566,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
 
       // check if the next step calculation had problems
       if (isnan(x1_tmp[0])) {
-        ierr = 1;
+        ierr = WE_FAIL_NEXT_STEP;
         return;
         // write(*,*)'x1_tmp NaN',x1_tmp(1)
         // write(*,*)'x1',x1(1)
@@ -595,7 +595,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
 
       } // end do
 
-    // update the iteration
+      // update the iteration
     n_iter += 1;
 
   } //end do
@@ -605,7 +605,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
   if (n_iter <= n_max) {
     ierr = 0;
   } else {
-    ierr = 1;
+    ierr = WE_FAIL_STAGNATED;
   } // end if
   
   return;

@@ -1205,6 +1205,7 @@ public:
       tau = CalculateTau(kap_a_e, kap_s_e);
 
       bool ignore_current_data = false;
+
       int ierr_we = ComputeEquilibriumDensities(
         k, j, i,
         dt,
@@ -1262,7 +1263,7 @@ public:
             {
               PrintOpacityDiagnostics(
                 "ComputeEquilibriumDensities (averaged) failure", ierr_we,
-                k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
+                k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
                 kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
                 dens_n, dens_e);
             }
@@ -1299,7 +1300,7 @@ public:
             PrintOpacityDiagnostics(
               "ComputeEquilibriumDensities - ignored neutrino data - failure",
               ierr_we,
-              k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
+              k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
               kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
               dens_n, dens_e);
           }
@@ -1365,7 +1366,7 @@ public:
         {
           PrintOpacityDiagnostics(
             "ValidateRadMatQuantities failure", ierr_vrm,
-            k, j, i, rho, dt, T, Y_e, tau, T_star, Y_e_star,
+            k, j, i, dt, rho, T, Y_e, tau, T_star, Y_e_star,
             kap_a_n, kap_a_e, kap_s_n, kap_s_e, eta_n, eta_e,
             dens_n, dens_e);
         }
