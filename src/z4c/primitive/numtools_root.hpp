@@ -80,26 +80,26 @@ class Root {
         ftest = f(x,args...);
 
         // Check the sign of f. If f is on the same side as the lower bound, then we adjust
-        // the lower bound. Similarly, if f is on the same side as the upper bound, we 
+        // the lower bound. Similarly, if f is on the same side as the upper bound, we
         // adjust the upper bound. If ftest falls on the same side twice, we weight one of
         // the sides to force the new root to fall on the other side. This allows us to
         // whittle down both sides at once and get better average convergence.
         if (ftest*flb >= 0) {
-          flb = ftest;
-          lb = x;
           if (side == 1) {
             Real m = 1. - ftest/flb;
             fub = (m > 0) ? fub*m : 0.5*fub;
           }
+          flb = ftest;
+          lb = x;
           side = 1;
         }
         else {
-          fub = ftest;
-          ub = x;
           if (side == -1) {
             Real m = 1. - ftest/fub;
             flb = (m > 0) ? flb*m : 0.5*flb;
           }
+          fub = ftest;
+          ub = x;
           side = -1;
         }
       }
@@ -109,7 +109,7 @@ class Root {
       // Return success if we're below the tolerance, otherwise report failure.
       return fabs((x-xold)/x) <= tol;
     }
-    
+
     // }}}
 
     // Chandrupatla {{{
