@@ -3193,7 +3193,7 @@ void WaveExtractRWZ::MasterFuns() {
 	  + SQR(g_uu(0,1))*g_dot_dd(0,0)
 	  + SQR(g_uu(1,1))*g_dot_dd(1,1);
 	  
-	coef_G_dr_t *= r*g_uu(0,1);
+	coef_G_dr_t *= -0.5*r2*g_uu(0,1);
 
   Real coef_G_dr_rdot = -2.0*SQR(rdot)*g_uu(0,0)*g_uu(0,1) + 2.0*r*pow(g_uu(0,1),3)*g_dr_dd(0,0)
                       + 2.0*r*SQR(g_uu(0,1))*( g_uu(0,0)*g_dot_dd(0,0) + 2.0*g_uu(1,1)*g_dr_dd(0,1) )
