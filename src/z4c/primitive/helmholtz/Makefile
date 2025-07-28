@@ -1,5 +1,5 @@
 FC       := gfortran
-FFLAGS   += -g -Wall -Wpedantic -O0 -pg -gdwarf-2 # -flto -ftree-vectorize -march=native -ffast-math 
+FFLAGS   += -g -Wall -Wpedantic -flto -ftree-vectorize -march=native -ffast-math -O3 # -O0 -pg -gdwarf-2 
 LIB      := gcc-ar crs
 FLAGS    :=
 
