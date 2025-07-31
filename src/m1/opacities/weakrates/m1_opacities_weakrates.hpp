@@ -53,6 +53,11 @@ public:
                            "wr_flag_equilibrium",
                            false)
     ),
+    wr_flag_equilibrium_species(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_species",
+                           false)
+    ),
     wr_flag_equilibrium_dt_factor(
       pin->GetOrAddReal("M1_opacities",
                         "wr_flag_equilibrium_dt_factor",
@@ -183,6 +188,13 @@ public:
     avg_rho /= count;
     avg_T /= count;
     avg_Y_e /= count;
+
+    // do not double-average temperature
+    if (pmy_block->peos->smooth_temperature)
+    {
+      avg_T = pm1->hydro.sc_T(k, j, i);
+    }
+
   }
 
   inline int ValidateRadMatQuantities(int k, int j, int i)
@@ -306,6 +318,26 @@ public:
         : tau_fac;
     }
     return tau_fac;
+  }
+
+  // based on internal (corrected) opacity
+  inline Real CalculateTau(const int s_idx,
+                           const int k, const int j, const int i)
+  {
+    typedef M1::vars_RadMat RM;
+    RM & rm = pm1->radmat;
+
+    const int ix_g = 0;
+    const Real kap_s_e = rm.sc_kap_s(ix_g, s_idx)(k, j, i);
+    const Real kap_a_e = rm.sc_kap_a(ix_g, s_idx)(k, j, i);
+
+    const Real rat = 1.0 / std::sqrt(
+      kap_a_e * (kap_a_e + kap_s_e)
+    );
+
+    return (std::isfinite(rat))
+      ? rat
+      : std::numeric_limits<Real>::infinity();
   }
 
   inline int ComputeEquilibriumDensities(
@@ -600,6 +632,10 @@ public:
     R  & r  = pm1->rad;
 
     Real corr_fac[3];
+    const Real ix_g = 0;  // only 1 group
+
+    const Real W = pm1->fidu.sc_W(k,j,i);
+
     for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
     {
       // equilibrium and incoming energies
@@ -607,8 +643,26 @@ public:
                           (dens_e[s_idx] > 0))
         ? dens_e[s_idx] / dens_n[s_idx]
         : 0.0;
-      Real avg_nrg_inc = rm.sc_avg_nrg(0, s_idx)(k, j, i);
 
+      // Compute directly if not computed elsewhere: --------------------------
+      AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,s_idx);
+      AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,s_idx);
+      AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,s_idx);
+
+      Real dotFv (0.0);
+      for (int a=0; a<N; ++a)
+      {
+        dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+      }
+      rm.sc_avg_nrg(ix_g,s_idx)(k,j,i) = (
+        W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv)
+      );
+      rm.sc_avg_nrg(ix_g,s_idx)(k,j,i) = std::max(
+        rm.sc_avg_nrg(ix_g,s_idx)(k,j,i), 0.0
+      );
+      // ----------------------------------------------------------------------
+
+      Real avg_nrg_inc = rm.sc_avg_nrg(0, s_idx)(k, j, i);
       corr_fac[s_idx] = avg_nrg_inc / avg_nrg_eql;
 
       if (!std::isfinite(corr_fac[s_idx]))
@@ -707,7 +761,7 @@ public:
     }
   }
 
-  // Use the corrected opacities to flag equilibrium treatment
+  // Flag equilibrium treatment
   inline void FlagEquilibrium(
     const Real dt,
     const Real tau,
@@ -768,6 +822,7 @@ public:
         );
 
         // Average energy (Eulerian frame)
+        /*
         Real dotFv (0.0);
         for (int a=0; a<N; ++a)
         {
@@ -775,10 +830,35 @@ public:
         }
         const Real W = pm1->fidu.sc_W(k,j,i);
         sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
+        */
       }
 
     }
+  }
 
+  // Flag eql; compute per-species
+  inline void FlagEquilibrium(
+    const Real dt,
+    const Real rho,
+    const int k, const int j, const int i)
+  {
+    const int ix_g = 0;  // fix 1 group
+    const Real dt_fac = dt * wr_flag_equilibrium_dt_factor;
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      const Real tau = CalculateTau(ix_s, k, j, i);
+
+      bool flag_eql = ((opacity_tau_trap >= 0.0) &&
+                      (tau < dt_fac / opacity_tau_trap) &&
+                      (rho >= pm1->opt_solver.eql_rho_min));
+
+      M1::M1::t_sln_r sln_flag = (flag_eql)
+        ? M1::M1::t_sln_r::equilibrium
+        : M1::M1::t_sln_r::noop;
+
+      pm1->SetMaskSolutionRegime(sln_flag,ix_g,ix_s,k,j,i);
+    }
   }
 
   inline void ImposeEquilibriumDensities(
@@ -1004,7 +1084,7 @@ public:
               << pm1->rad.sc_n(0, NUA)(k, j, i) << "\n"
               << " rad.sc_n(0,NUX)(k,j,i)   = "
               << pm1->rad.sc_n(0, NUX)(k, j, i) << "\n"
-              << " rad.sc_n(0,NUE)(k,j,i)   = "
+              << " rad.sc_J(0,NUE)(k,j,i)   = "
               << pm1->rad.sc_J(0, NUE)(k, j, i) << "\n"
               << " rad.sc_J(0,NUA)(k,j,i)   = "
               << pm1->rad.sc_J(0, NUA)(k, j, i) << "\n"
@@ -1206,6 +1286,7 @@ public:
 
       bool ignore_current_data = false;
 
+
       int ierr_we = ComputeEquilibriumDensities(
         k, j, i,
         dt,
@@ -1311,11 +1392,6 @@ public:
         }
       }
 
-      if (wr_flag_equilibrium)
-      {
-        FlagEquilibrium(dt, tau, rho, k, j, i);
-      }
-
       ApplyOpacityCorrections(
         k, j, i,
         dt,
@@ -1325,6 +1401,18 @@ public:
         kap_s_n, kap_s_e,
         eta_n, eta_e
       );
+
+      if (wr_flag_equilibrium)
+      {
+        if (wr_flag_equilibrium_species)
+        {
+          FlagEquilibrium(dt, rho, k, j, i);
+        }
+        else
+        {
+          FlagEquilibrium(dt, tau, rho, k, j, i);
+        }
+      }
 
       if (propagate_hydro_equilibrium && TY_adjusted)
       {
@@ -1400,6 +1488,7 @@ private:
   const bool wr_flag_equilibrium;
   const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_recompute_fiducial;
+  const bool wr_flag_equilibrium_species;
   const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities
