@@ -330,6 +330,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   ReconstructionVariant rv = pr->xorder_style;
   ReconstructionVariant r_rv = pr->xorder_style_fb;
 
+  ReconstructionVariant p_rv = pr->xorder_style;
+  ReconstructionVariant p_r_rv = pr->xorder_style;
+
   PassiveScalars *ps = pmb->pscalars;
 
   // For passive-scalar reconstruction
@@ -378,7 +381,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
     pr->ReconstructMagneticFieldX1_(rv, bcc,
                                     wl_, wr_,
                                     k, j, il, iu);
-    pr->ReconstructPassiveScalarsX1_(rv, p,
+    pr->ReconstructPassiveScalarsX1_(p_rv, p,
                                      ps->rl_, ps->rr_,
                                      k, j, il, iu);
 
@@ -403,7 +406,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                    k, j, il, iu);
       pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_,
                                       k, j, il, iu);
-      pr->ReconstructPassiveScalarsX1_(r_rv, p,
+      pr->ReconstructPassiveScalarsX1_(p_r_rv, p,
                                        ps->r_rl_, ps->r_rr_,
                                        k, j, il, iu);
 
@@ -516,7 +519,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX2_(rv, bcc,
                                       wl_, wr_,
                                       k, jl-1, il, iu);
-      pr->ReconstructPassiveScalarsX2_(rv, p,
+      pr->ReconstructPassiveScalarsX2_(p_rv, p,
                                        ps->rl_, ps->rr_,
                                        k, jl-1, il, iu);
 
@@ -543,7 +546,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX2_(r_rv, bcc,
                                         r_wl_, r_wr_,
                                         k, jl-1, il, iu);
-        pr->ReconstructPassiveScalarsX2_(r_rv, p,
+        pr->ReconstructPassiveScalarsX2_(p_r_rv, p,
                                          ps->r_rl_, ps->r_rr_,
                                          k, jl-1, il, iu);
 
@@ -625,7 +628,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX2_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX2_(rv, p,
+        pr->ReconstructPassiveScalarsX2_(p_rv, p,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
@@ -652,7 +655,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructMagneticFieldX2_(r_rv, bcc,
                                           r_wlb_, r_wr_,
                                           k, j, il, iu);
-          pr->ReconstructPassiveScalarsX2_(r_rv, p,
+          pr->ReconstructPassiveScalarsX2_(p_r_rv, p,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
 
@@ -790,7 +793,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX3_(rv, bcc,
                                       wl_, wr_,
                                       kl-1, j, il, iu);
-      pr->ReconstructPassiveScalarsX3_(rv, p,
+      pr->ReconstructPassiveScalarsX3_(p_rv, p,
                                        ps->rl_, ps->rr_,
                                        kl-1, j, il, iu);
 
@@ -817,7 +820,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX3_(r_rv, bcc,
                                         r_wl_, r_wr_,
                                         kl-1, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(r_rv, p,
+        pr->ReconstructPassiveScalarsX3_(p_r_rv, p,
                                          ps->r_rl_, ps->r_rr_,
                                          kl-1, j, il, iu);
 
@@ -897,7 +900,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX3_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(rv, p,
+        pr->ReconstructPassiveScalarsX3_(p_rv, p,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
@@ -924,7 +927,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructMagneticFieldX3_(r_rv, bcc,
                                           r_wlb_, r_wr_,
                                           k, j, il, iu);
-          pr->ReconstructPassiveScalarsX3_(r_rv, p,
+          pr->ReconstructPassiveScalarsX3_(p_r_rv, p,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
 

@@ -125,12 +125,20 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
 
   xorder_use_fb = pin->GetOrAddBoolean("time", "xorder_use_fb", false);
 
+  GetVariant(pmb, pin, "xorder_p", "xorder_eps", xorder_style_p, xorder_eps);
+
   if (xorder_use_fb)
   {
     GetVariant(pmb, pin,
                "xorder_fb",
                "xorder_eps",
                xorder_style_fb,
+               xorder_eps);
+
+    GetVariant(pmb, pin,
+               "xorder_p_fb",
+               "xorder_eps",
+               xorder_style_p_fb,
                xorder_eps);
 
     xorder_use_fb_unphysical = pin->GetOrAddBoolean(

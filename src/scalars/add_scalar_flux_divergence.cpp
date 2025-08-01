@@ -40,7 +40,8 @@
 // TODO(felker): remove the following unnecessary private class member?
 // field_diffusion.cpp:66:    cell_volume_.NewAthenaArray(nc1);
 
-void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out) {
+void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out)
+{
   MeshBlock *pmb = pmy_block;
   AthenaArray<Real> &x1flux = s_flux[X1DIR];
   AthenaArray<Real> &x2flux = s_flux[X2DIR];
@@ -49,43 +50,41 @@ void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out
   int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
   AthenaArray<Real> &dflx = dflx_;
 
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      // calculate x1-flux divergence
-      for (int n=0; n<NSCALARS; ++n) {
-#pragma omp simd
-        for (int i=is; i<=ie; ++i) {
-          dflx(n,i) = (x1flux(n,k,j,i+1) - x1flux(n,k,j,i))/pmb->pcoord->dx1f(i);
-        }
-      }
+  for (int k=ks; k<=ke; ++k)
+  for (int j=js; j<=je; ++j)
+  {
+    // calculate x1-flux divergence
+    for (int n=0; n<NSCALARS; ++n)
+    #pragma omp simd
+    for (int i=is; i<=ie; ++i)
+    {
+      dflx(n,i) = (x1flux(n,k,j,i+1) - x1flux(n,k,j,i))/pmb->pcoord->dx1f(i);
+    }
 
-      // calculate x2-flux divergence
-      if (pmb->block_size.nx2 > 1) {
-        for (int n=0; n<NSCALARS; ++n) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x2flux(n,k,j+1,i) - x2flux(n,k,j,i))/pmb->pcoord->dx2f(j);
-          }
-        }
-      }
+    // calculate x2-flux divergence
+    if (pmb->block_size.nx2 > 1)
+    for (int n=0; n<NSCALARS; ++n)
+    #pragma omp simd
+    for (int i=is; i<=ie; ++i)
+    {
+      dflx(n,i) += (x2flux(n,k,j+1,i) - x2flux(n,k,j,i))/pmb->pcoord->dx2f(j);
+    }
 
-      // calculate x3-flux divergence
-      if (pmb->block_size.nx3 > 1) {
-        for (int n=0; n<NSCALARS; ++n) {
-#pragma omp simd
-          for (int i=is; i<=ie; ++i) {
-            dflx(n,i) += (x3flux(n,k+1,j,i) - x3flux(n,k,j,i))/pmb->pcoord->dx3f(k);
-          }
-        }
-      }
+    // calculate x3-flux divergence
+    if (pmb->block_size.nx3 > 1)
+    for (int n=0; n<NSCALARS; ++n)
+    #pragma omp simd
+    for (int i=is; i<=ie; ++i)
+    {
+      dflx(n,i) += (x3flux(n,k+1,j,i) - x3flux(n,k,j,i))/pmb->pcoord->dx3f(k);
+    }
 
-      // update conserved variables
-      for (int n=0; n<NSCALARS; ++n) {
-#pragma omp simd
-        for (int i=is; i<=ie; ++i) {
-          s_out(n,k,j,i) -= wght*dflx(n,i);
-        }
-      }
+    // update conserved variables
+    for (int n=0; n<NSCALARS; ++n)
+    #pragma omp simd
+    for (int i=is; i<=ie; ++i)
+    {
+      s_out(n,k,j,i) -= wght*dflx(n,i);
     }
   }
   return;
