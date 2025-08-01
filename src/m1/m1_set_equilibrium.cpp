@@ -202,6 +202,16 @@ void SetEquilibrium_n_nG(
     return;
   }
 
+  // eql fall-back should be disabled -----------------------------------------
+  Real opt_flux_lo_fallback_E = pm1.opt.flux_lo_fallback_E;
+  Real opt_flux_lo_fallback_nG = pm1.opt.flux_lo_fallback_nG;
+  if (pm1.opt.flux_lo_fallback_eql_ho)
+  {
+    pm1.opt.flux_lo_fallback_E = false;
+    pm1.opt.flux_lo_fallback_nG = false;
+  }
+  // --------------------------------------------------------------------------
+
   const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
 
   const int ix_g = C.ix_g;
@@ -459,6 +469,11 @@ void SetEquilibrium_n_nG(
     Integrators::Explicit::StepExplicit_nG(pm1, dt, C, P, I, S, k, j, i);
     sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
   }
+
+  // eql fall-back should be disabled -----------------------------------------
+  pm1.opt.flux_lo_fallback_E = opt_flux_lo_fallback_E;
+  pm1.opt.flux_lo_fallback_nG = opt_flux_lo_fallback_nG;
+  // --------------------------------------------------------------------------
 }
 
 /*
@@ -633,6 +648,16 @@ void SetEquilibrium_E_F_d_n_nG(
   }
 
   assert(pm1.opt.retain_equilibrium);
+
+  // eql fall-back should be disabled -----------------------------------------
+  Real opt_flux_lo_fallback_E = pm1.opt.flux_lo_fallback_E;
+  Real opt_flux_lo_fallback_nG = pm1.opt.flux_lo_fallback_nG;
+  if (pm1.opt.flux_lo_fallback_eql_ho)
+  {
+    pm1.opt.flux_lo_fallback_E = false;
+    pm1.opt.flux_lo_fallback_nG = false;
+  }
+  // --------------------------------------------------------------------------
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
   const Real sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
@@ -813,6 +838,11 @@ void SetEquilibrium_E_F_d_n_nG(
     // propagate back (N.B. using evolved Gamma factor)
     sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
   }
+
+  // eql fall-back should be disabled -----------------------------------------
+  pm1.opt.flux_lo_fallback_E = opt_flux_lo_fallback_E;
+  pm1.opt.flux_lo_fallback_nG = opt_flux_lo_fallback_nG;
+  // --------------------------------------------------------------------------
 }
 
 void MapReferenceEquilibrium(
