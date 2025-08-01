@@ -68,6 +68,16 @@ public:
                            "wr_flag_equilibrium_recompute_fiducial",
                            false)
     ),
+    wr_flag_equilibrium_thin_guess(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_thin_guess",
+                           false)
+    ),
+    wr_flag_equilibrium_no_nux(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_no_nux",
+                           false)
+    ),
     correction_adjust_upward(
       pin->GetOrAddBoolean("M1_opacities",
                            "correction_adjust_upward",
@@ -324,6 +334,12 @@ public:
   inline Real CalculateTau(const int s_idx,
                            const int k, const int j, const int i)
   {
+    // short-circuit if NUX excluded from eql.
+    if ((s_idx == NUX) && wr_flag_equilibrium_no_nux)
+    {
+      return std::numeric_limits<Real>::infinity();
+    }
+
     typedef M1::vars_RadMat RM;
     RM & rm = pm1->radmat;
 
@@ -331,7 +347,7 @@ public:
     const Real kap_s_e = rm.sc_kap_s(ix_g, s_idx)(k, j, i);
     const Real kap_a_e = rm.sc_kap_a(ix_g, s_idx)(k, j, i);
 
-    const Real rat = 1.0 / std::sqrt(
+    Real rat = 1.0 / std::sqrt(
       kap_a_e * (kap_a_e + kap_s_e)
     );
 
@@ -363,6 +379,27 @@ public:
     Real dens_e_trap[3];
     Real dens_n_thin[3];
     Real dens_e_thin[3];
+
+    const bool need_thin = !(
+      calculate_trapped &&
+      (tau < dt / (opacity_tau_trap + opacity_tau_delta))
+    ) || wr_flag_equilibrium_thin_guess;
+
+    // only calculate if actually needed
+    if (need_thin)
+    {
+      ierr_nd = pmy_weakrates->NeutrinoDensity(
+          rho, T, Y_e,
+          dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
+          dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]
+      );
+
+      if (ierr_nd)
+      {
+        // immediately break on error
+        return ierr_nd;
+      }
+    }
 
     calculate_trapped = (
       (opacity_tau_trap >= 0.0) &&
@@ -404,15 +441,30 @@ public:
       // ----------------------------------------------------------------------
       Real invsdetg = pm1->geom.sc_oo_sqrt_det_g(k, j, i);
 
-      // FF number density
-      dens_n[0] = pm1->rad.sc_n(0, 0)(k, j, i) * invsdetg;
-      dens_n[1] = pm1->rad.sc_n(0, 1)(k, j, i) * invsdetg;
-      dens_n[2] = pm1->rad.sc_n(0, 2)(k, j, i) * invsdetg;
+      if (wr_flag_equilibrium_thin_guess)
+      {
+        // FF number density
+        dens_n[0] = dens_n_thin[0];
+        dens_n[1] = dens_n_thin[1];
+        dens_n[2] = dens_n_thin[2];
 
-      // FF energy density
-      dens_e[0] = pm1->rad.sc_J(0, 0)(k, j, i) * invsdetg;
-      dens_e[1] = pm1->rad.sc_J(0, 1)(k, j, i) * invsdetg;
-      dens_e[2] = pm1->rad.sc_J(0, 2)(k, j, i) * invsdetg;
+        // FF energy density
+        dens_e[0] = dens_e_thin[0];
+        dens_e[1] = dens_e_thin[1];
+        dens_e[2] = dens_e_thin[2];
+      }
+      else
+      {
+        // FF number density
+        dens_n[0] = pm1->rad.sc_n(0, 0)(k, j, i) * invsdetg;
+        dens_n[1] = pm1->rad.sc_n(0, 1)(k, j, i) * invsdetg;
+        dens_n[2] = pm1->rad.sc_n(0, 2)(k, j, i) * invsdetg;
+
+        // FF energy density
+        dens_e[0] = pm1->rad.sc_J(0, 0)(k, j, i) * invsdetg;
+        dens_e[1] = pm1->rad.sc_J(0, 1)(k, j, i) * invsdetg;
+        dens_e[2] = pm1->rad.sc_J(0, 2)(k, j, i) * invsdetg;
+      }
 
       // Calculate equilibriated state
       ierr_we = pmy_weakrates->WeakEquilibrium(
@@ -456,27 +508,6 @@ public:
       // No trapped calculation, so leave T,Y_e unmodified if later propagated
       T_star = T;
       Y_e_star = Y_e;
-    }
-
-    const bool need_thin = !(
-      calculate_trapped &&
-      (tau < dt / (opacity_tau_trap + opacity_tau_delta))
-    );
-
-    // only calculate if actually needed
-    if (need_thin)
-    {
-      ierr_nd = pmy_weakrates->NeutrinoDensity(
-          rho, T, Y_e,
-          dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
-          dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]
-      );
-
-      if (ierr_nd)
-      {
-        // immediately break on error
-        return ierr_nd;
-      }
     }
 
     // Set the black body function
@@ -1071,27 +1102,27 @@ public:
     std::cout << " at (i,j,k)=(" << i << "," << j << "," << k << ")\n";
     std::cout << std::setprecision(14);
     std::cout << "Physical conditions:\n"
-              << "  dt    = " << dt << "\n"
-              << "  rho   = " << rho << "\n"
-              << "  T     = " << T << "\n"
-              << "  Y_e   = " << Y_e << "\n"
-              << "  tau   = " << tau << "\n"
-              << "  T*    = " << T_star << "\n"
-              << "  Y_e*  = " << Y_e_star << "\n"
-              << " rad.sc_n(0,NUE)(k,j,i)   = "
-              << pm1->rad.sc_n(0, NUE)(k, j, i) << "\n"
-              << " rad.sc_n(0,NUA)(k,j,i)   = "
-              << pm1->rad.sc_n(0, NUA)(k, j, i) << "\n"
-              << " rad.sc_n(0,NUX)(k,j,i)   = "
-              << pm1->rad.sc_n(0, NUX)(k, j, i) << "\n"
-              << " rad.sc_J(0,NUE)(k,j,i)   = "
-              << pm1->rad.sc_J(0, NUE)(k, j, i) << "\n"
-              << " rad.sc_J(0,NUA)(k,j,i)   = "
-              << pm1->rad.sc_J(0, NUA)(k, j, i) << "\n"
-              << " rad.sc_J(0,NUX)(k,j,i)   = "
-              << pm1->rad.sc_J(0, NUX)(k, j, i) << "\n"
-              << " OO(det_gamma)            = "
-              << pm1->geom.sc_oo_sqrt_det_g(k, j, i) << "\n";
+              << "  Real  dt    = " << dt << ";\n"
+              << "  Real  rho   = " << rho << ";\n"
+              << "  Real  T     = " << T << ";\n"
+              << "  Real  Y_e   = " << Y_e << ";\n"
+              << "  tau         = " << tau << ";\n"
+              << "  T_star      = " << T_star << ";\n"
+              << "  Y_e_star    = " << Y_e_star << ";\n"
+              << "  pm1->rad.sc_n(0,NUE)(k,j,i) = "
+              << pm1->rad.sc_n(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->rad.sc_n(0,NUA)(k,j,i) = "
+              << pm1->rad.sc_n(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->sc_n(0,NUX)(k,j,i)     = "
+              << pm1->rad.sc_n(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->sc_J(0,NUE)(k,j,i)     = "
+              << pm1->rad.sc_J(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->sc_J(0,NUA)(k,j,i)     = "
+              << pm1->rad.sc_J(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->rad.sc_J(0,NUX)(k,j,i) = "
+              << pm1->rad.sc_J(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->geom.sc_oo_sqrt_det_g(k, j, i) = "
+              << pm1->geom.sc_oo_sqrt_det_g(k, j, i) << ";\n";
 
     std::string regime;
 
@@ -1285,7 +1316,6 @@ public:
       tau = CalculateTau(kap_a_e, kap_s_e);
 
       bool ignore_current_data = false;
-
 
       int ierr_we = ComputeEquilibriumDensities(
         k, j, i,
@@ -1489,6 +1519,8 @@ private:
   const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_recompute_fiducial;
   const bool wr_flag_equilibrium_species;
+  const bool wr_flag_equilibrium_thin_guess;
+  const bool wr_flag_equilibrium_no_nux;
   const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities

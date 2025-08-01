@@ -527,6 +527,12 @@ void M1::StatePrintPoint(
     std::cout << static_cast<int>(GetMaskSourceTreatment(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
+    if (opt.flux_lo_fallback)
+    {
+      std::cout << "opt_flux_lo_fallback: ";
+      std::cout << sources.theta(k,j,i);
+      std::cout << "\n";
+    }
   }
 
   if (terminate)

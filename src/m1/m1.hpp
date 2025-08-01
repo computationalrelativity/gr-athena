@@ -161,7 +161,8 @@ public:
                                 HybridizeMinModE,
                                 HybridizeMinMod,
                                 LO,
-                                HO };
+                                HO,
+                                RiemannHLLEmod };
 
   enum class opt_characteristics_variety { approximate,
                                            mixed,
@@ -214,6 +215,8 @@ public:
     bool flux_lo_fallback;
 
     bool flux_lo_fallback_eql_ho;
+
+    bool flux_lo_fallback_first_stage;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -813,6 +816,16 @@ public:
   {
     // if in eql all species are in eql, just take the val from ix 0
     t_sln_r cur_r = ev_strat.masks.solution_regime(0, 0, k, j, i);
+    return (
+      (cur_r == t_sln_r::equilibrium) ||
+      (cur_r == t_sln_r::equilibrium_wr)
+    );
+  }
+
+  inline bool IsEquilibrium(const int ix_s, const int k, const int j, const int i)
+  {
+    // if in eql all species are in eql, just take the val from ix 0
+    t_sln_r cur_r = ev_strat.masks.solution_regime(0, ix_s, k, j, i);
     return (
       (cur_r == t_sln_r::equilibrium) ||
       (cur_r == t_sln_r::equilibrium_wr)

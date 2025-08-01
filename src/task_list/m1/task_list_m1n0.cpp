@@ -242,6 +242,12 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
     if (pm1->opt.flux_lo_fallback)
     {
+      // optionally we only do this on the first stage
+      if ((stage > 1) && pm1->opt.flux_lo_fallback_first_stage)
+      {
+        return TaskStatus::next;
+      }
+
       pm1->CalcFluxes(pm1->storage.u, true);
 
       // Zero property preservation mask

@@ -328,7 +328,7 @@ void Apply(
 
       // Compute closure based on limited (sc_E, sp_F_d)
       if (pm1->opt_solver.equilibrium_use_thick &&
-          pm1->IsEquilibrium(k,j,i))
+          pm1->IsEquilibrium(ix_s,k,j,i))
       {
         // set directly, only 1 rep of closures
         Closures::EddingtonFactors::ThickLimit(
@@ -491,7 +491,7 @@ void ApplyFull(
 
       // Compute closure based on limited (sc_E, sp_F_d)
       if (pm1->opt_solver.equilibrium_use_thick &&
-          pm1->IsEquilibrium(k,j,i))
+          pm1->IsEquilibrium(ix_s,k,j,i))
       {
         // set directly, only 1 rep of closures
         Closures::EddingtonFactors::ThickLimit(

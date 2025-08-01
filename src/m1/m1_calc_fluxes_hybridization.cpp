@@ -21,16 +21,16 @@ void M1::HybridizeLOFlux(AA & u_cur)
   AA & mask_pp = pm1->ev_strat.masks.pp;
 
   // no fallback if @ equilibrium (get unlimited fluxes)
-  if (pm1->opt.flux_lo_fallback_eql_ho)
-  {
-    M1_GLOOP3(k, j, i)
-    {
-      if (pm1->IsEquilibrium(k,j,i))
-      {
-        mask_pp(k,j,i) = 0.0;
-      }
-    }
-  }
+  // if (pm1->opt.flux_lo_fallback_eql_ho)
+  // {
+  //   M1_GLOOP3(k, j, i)
+  //   {
+  //     if (pm1->IsEquilibrium(k,j,i))
+  //     {
+  //       mask_pp(k,j,i) = 0.0;
+  //     }
+  //   }
+  // }
 
   for (int ix_d=0; ix_d<N; ++ix_d)
   {
@@ -51,10 +51,17 @@ void M1::HybridizeLOFlux(AA & u_cur)
 
       M1_MLOOP3(k, j, i)
       {
-        const Real Theta = std::max(
+        Real Theta = std::max(
           mask_pp(k,j,i),
           mask_pp(k-KO,j-JO,i-IO)
         );
+
+        if (pm1->opt.flux_lo_fallback_eql_ho &&
+            pm1->IsEquilibrium(ix_s,k,j,i) &&
+            pm1->IsEquilibrium(ix_s,k-KO,j-JO,i-IO))
+        {
+          Theta = 0;
+        }
 
         F_E(k,j,i) = F_E(k,j,i) - Theta * (F_E(k,j,i) - lo_F_E(k,j,i));
         F_nG(k,j,i) = F_nG(k,j,i) - Theta * (F_nG(k,j,i) - lo_F_nG(k,j,i));

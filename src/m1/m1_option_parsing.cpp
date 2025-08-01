@@ -326,6 +326,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModE;
     }
+    else if (tmp == "RiemannHLLEmod")
+    {
+      opt.flux_variety = opt_flux_variety::RiemannHLLEmod;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -404,6 +408,10 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.flux_lo_fallback_eql_ho = pin->GetOrAddBoolean(
       "M1", "flux_lo_fallback_eql_ho", false);
+
+    opt.flux_lo_fallback_first_stage = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_first_stage", false);
+
   }
 
   { // coupling
