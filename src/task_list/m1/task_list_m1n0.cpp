@@ -252,7 +252,8 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
       // Zero property preservation mask
       // Do prior to evo. as mask is modified on pp enforcement.
-      pm1->ev_strat.masks.pp.Fill(0.0);
+      if (stage == 1)
+        pm1->ev_strat.masks.pp.Fill(0.0);
 
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
@@ -289,7 +290,7 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // hybridize fluxes based on pp mask ------------------------------------
       pm1->HybridizeLOFlux(pm1->storage.u);
       // Flip mask to execute next CalcUpdate on LO points
-      pm1->AdjustMaskPropertyPreservation();
+      // pm1->AdjustMaskPropertyPreservation();
     }
 
     return TaskStatus::next;
