@@ -1103,9 +1103,9 @@ public:
     std::cout << std::setprecision(14);
     std::cout << "Physical conditions:\n"
               << "  Real  dt    = " << dt << ";\n"
-              << "  Real  rho   = " << rho << ";\n"
-              << "  Real  T     = " << T << ";\n"
-              << "  Real  Y_e   = " << Y_e << ";\n"
+              << "  rho         = " << rho << ";\n"
+              << "  T           = " << T << ";\n"
+              << "  Y_e         = " << Y_e << ";\n"
               << "  tau         = " << tau << ";\n"
               << "  T_star      = " << T_star << ";\n"
               << "  Y_e_star    = " << Y_e_star << ";\n"
@@ -1113,11 +1113,11 @@ public:
               << pm1->rad.sc_n(0, NUE)(k, j, i) << ";\n"
               << "  pm1->rad.sc_n(0,NUA)(k,j,i) = "
               << pm1->rad.sc_n(0, NUA)(k, j, i) << ";\n"
-              << "  pm1->sc_n(0,NUX)(k,j,i)     = "
+              << "  pm1->rad.sc_n(0,NUX)(k,j,i) = "
               << pm1->rad.sc_n(0, NUX)(k, j, i) << ";\n"
-              << "  pm1->sc_J(0,NUE)(k,j,i)     = "
+              << "  pm1->rad.sc_J(0,NUE)(k,j,i) = "
               << pm1->rad.sc_J(0, NUE)(k, j, i) << ";\n"
-              << "  pm1->sc_J(0,NUA)(k,j,i)     = "
+              << "  pm1->rad.sc_J(0,NUA)(k,j,i) = "
               << pm1->rad.sc_J(0, NUA)(k, j, i) << ";\n"
               << "  pm1->rad.sc_J(0,NUX)(k,j,i) = "
               << pm1->rad.sc_J(0, NUX)(k, j, i) << ";\n"
@@ -1196,13 +1196,19 @@ public:
         case NUX: species = "nu_x "; break;
       }
 
+      // Per-species [from corrected]
+      const Real tau_kapeff = CalculateTau(s_idx, k, j, i);
+      const bool eql_flag = tau_kapeff < dt * wr_flag_equilibrium_dt_factor;
+
       std::cout << "  " << species << ":\n"
-                << "    kap_a_0 = " << pm1->radmat.sc_kap_a_0(0, s_idx)(k, j, i) << "\n"
-                << "    kap_a   = " << pm1->radmat.sc_kap_a(0, s_idx)(k, j, i) << "\n"
-                << "    kap_s   = " << pm1->radmat.sc_kap_s(0, s_idx)(k, j, i) << "\n"
-                << "    eta_0   = " << pm1->radmat.sc_eta_0(0, s_idx)(k, j, i) << "\n"
-                << "    eta     = " << pm1->radmat.sc_eta(0, s_idx)(k, j, i) << "\n"
-                << "    avg_nrg = " << pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i) << "\n";
+                << "    kap_a_0    = " << pm1->radmat.sc_kap_a_0(0, s_idx)(k, j, i) << "\n"
+                << "    kap_a      = " << pm1->radmat.sc_kap_a(0, s_idx)(k, j, i) << "\n"
+                << "    kap_s      = " << pm1->radmat.sc_kap_s(0, s_idx)(k, j, i) << "\n"
+                << "    eta_0      = " << pm1->radmat.sc_eta_0(0, s_idx)(k, j, i) << "\n"
+                << "    eta        = " << pm1->radmat.sc_eta(0, s_idx)(k, j, i) << "\n"
+                << "    avg_nrg    = " << pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i) << "\n"
+                << "    tau_kapeff = " << tau_kapeff << "\n"
+                << "    eql_flag   = " << eql_flag << "\n";
     }
 
     std::cout << std::endl;
