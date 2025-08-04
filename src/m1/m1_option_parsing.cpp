@@ -215,6 +215,10 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.limit_full_radiation = GoA_bool("limit_full_radiation", false);
   opt_solver.full_lim = GoA_Real("full_lim", -1.0);
 
+  opt_solver.fb_rat_sl_E = GoA_Real("fb_rat_sl_E", -1.0);
+  opt_solver.fb_rat_sl_F_d = GoA_Real("fb_rat_sl_F_d", -1.0);
+  opt_solver.fb_rat_sl_nG = GoA_Real("fb_rat_sl_nG", -1.0);
+
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
   opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);

@@ -298,6 +298,10 @@ public:
     bool limit_full_radiation;
     Real full_lim;
 
+    Real fb_rat_sl_E;
+    Real fb_rat_sl_F_d;
+    Real fb_rat_sl_nG;
+
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;

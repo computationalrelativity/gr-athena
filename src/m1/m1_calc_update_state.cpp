@@ -23,6 +23,244 @@
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_vector.h>
 
+
+// ============================================================================
+namespace M1::State {
+// ============================================================================
+
+void SlopeFallback(
+  M1 * pm1,
+  const Real dt,
+  M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  M1::vars_Source & U_S)
+{
+  using namespace Update;
+  using namespace Closures;
+
+  // Requires LO flux fallback
+  assert(pm1->opt.flux_lo_fallback);
+
+  const Real rat_sl_sc_E   = pm1->opt_solver.fb_rat_sl_E;
+  const Real rat_sl_sp_F_d = pm1->opt_solver.fb_rat_sl_F_d;
+  const Real rat_sl_sc_nG  = pm1->opt_solver.fb_rat_sl_nG;
+
+  // This is ugly; define left / right limits (derived from MLOOP macro)
+  const int IL = M1_IX_IL-M1_MSIZEI;
+  const int IU = M1_IX_IU+M1_MSIZEI;
+
+  const int JL = M1_IX_JL-M1_MSIZEJ;
+  const int JU = M1_IX_JU+M1_MSIZEJ;
+
+  const int KL = M1_IX_KL-M1_MSIZEK;
+  const int KU = M1_IX_KU+M1_MSIZEK;
+
+  // hybridize (into ho) pp corrected fluxes
+  AA & mask_pp = pm1->ev_strat.masks.pp;
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    M1::vars_Lab & C = const_cast<M1::vars_Lab &>(U_C);
+    M1::vars_Lab & P = const_cast<M1::vars_Lab &>(U_P);
+    M1::vars_Lab & I = const_cast<M1::vars_Lab &>(U_I);
+
+    // Solution at next time
+    AT_C_sca & C_sc_E = C.sc_E(ix_g,ix_s);
+    AT_N_vec & C_sp_F_d = C.sp_F_d(ix_g,ix_s);
+    AT_C_sca & C_sc_nG = C.sc_nG(ix_g,ix_s);
+
+    Real rat_L, rat_R;
+    Real d_p1, d_0, d_m1;
+
+    M1_MLOOP3(k, j, i)
+    if (pm1->MaskGet(k, j, i))
+    {
+      // hybridization factor starts with HO
+      Real & hf = mask_pp(k,j,i);
+
+      // D_i[f] := f_{i+1} - f_{i}
+
+      if (rat_sl_sc_E > 0)
+      {
+        // x-dir --------------------------------------------------------------
+        d_p1 = C_sc_E(k,j,i+2) - C_sc_E(k,j,i+1);
+        d_0  = C_sc_E(k,j,i+1) - C_sc_E(k,j,i);
+        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k,j,i-1);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (i>IL) ? (
+          (rat_L < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+
+        hf = (i<IU-1) ? (
+          (rat_R < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+
+        // y-dir --------------------------------------------------------------
+        d_p1 = C_sc_E(k,j+2,i) - C_sc_E(k,j+1,i);
+        d_0  = C_sc_E(k,j+1,i) - C_sc_E(k,j,i);
+        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k,j-1,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        hf = (j>JL) ? (
+          (rat_L < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+
+        hf = (j<JU-1) ? (
+          (rat_R < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+
+        // z-dir --------------------------------------------------------------
+        d_p1 = C_sc_E(k+2,j,i) - C_sc_E(k+1,j,i);
+        d_0  = C_sc_E(k+1,j,i) - C_sc_E(k,j,i);
+        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k-1,j,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k>KL) ? (
+          (rat_L < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k<KU-1) ? (
+          (rat_R < rat_sl_sc_E) ? 1.0 : hf
+        ) : hf;
+      }
+
+      if (rat_sl_sc_nG > 0)
+      {
+        // x-dir --------------------------------------------------------------
+        d_p1 = C_sc_nG(k,j,i+2) - C_sc_nG(k,j,i+1);
+        d_0  = C_sc_nG(k,j,i+1) - C_sc_nG(k,j,i);
+        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k,j,i-1);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (i>IL) ? (
+          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (i<IU-1) ? (
+          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+
+        // y-dir --------------------------------------------------------------
+        d_p1 = C_sc_nG(k,j+2,i) - C_sc_nG(k,j+1,i);
+        d_0  = C_sc_nG(k,j+1,i) - C_sc_nG(k,j,i);
+        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k,j-1,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (j>JL) ? (
+          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (j<JU-1) ? (
+          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+
+        // z-dir --------------------------------------------------------------
+        d_p1 = C_sc_nG(k+2,j,i) - C_sc_nG(k+1,j,i);
+        d_0  = C_sc_nG(k+1,j,i) - C_sc_nG(k,j,i);
+        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k-1,j,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k>KL) ? (
+          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k<KU-1) ? (
+          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
+        ) : hf;
+      }
+
+      if (rat_sl_sp_F_d > 0)
+      for (int a=0; a<N; ++a)
+      {
+        // x-dir --------------------------------------------------------------
+        d_p1 = C_sp_F_d(a,k,j,i+2) - C_sp_F_d(a,k,j,i+1);
+        d_0  = C_sp_F_d(a,k,j,i+1) - C_sp_F_d(a,k,j,i);
+        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k,j,i-1);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (i>IL) ? (
+          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (i<IU-1) ? (
+          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+
+        // y-dir --------------------------------------------------------------
+        d_p1 = C_sp_F_d(a,k,j+2,i) - C_sp_F_d(a,k,j+1,i);
+        d_0  = C_sp_F_d(a,k,j+1,i) - C_sp_F_d(a,k,j,i);
+        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k,j-1,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (j>JL) ? (
+          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (j<JU-1) ? (
+          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+
+        // z-dir --------------------------------------------------------------
+        d_p1 = C_sp_F_d(a,k+2,j,i) - C_sp_F_d(a,k+1,j,i);
+        d_0  = C_sp_F_d(a,k+1,j,i) - C_sp_F_d(a,k,j,i);
+        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k-1,j,i);
+
+        rat_L = d_m1 / d_0;
+        rat_R = d_0 / d_p1;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k>KL) ? (
+          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+
+        // if idx in range, and rat too sharp, fall-back to LO
+        hf = (k<KU-1) ? (
+          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
+        ) : hf;
+      }
+
+    }
+  }
+
+}
+
+// ============================================================================
+} // namespace M1::State
+// ============================================================================
+
+
 // ============================================================================
 namespace M1 {
 // ============================================================================
@@ -357,16 +595,11 @@ void M1::CalcUpdate(const int stage,
      (opt_solver.flux_lo_fallback_Ye_max > -1))
   );
 
-  /*
-  const bool fb_lo_E  = opt.flux_lo_fallback_E;
-  const bool fb_lo_nG = opt.flux_lo_fallback_nG;
-
-  if (use_src_limiter)
-  {
-    opt.flux_lo_fallback_E  = false;
-    opt.flux_lo_fallback_nG = false;
-  }
-  */
+  const bool use_fb_slope = (
+    (opt_solver.fb_rat_sl_E > 0) ||
+    (opt_solver.fb_rat_sl_F_d > 0) ||
+    (opt_solver.fb_rat_sl_nG > 0)
+  );
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
@@ -394,6 +627,11 @@ void M1::CalcUpdate(const int stage,
 
     // adjust matter sources with theta mask and construct limited solution
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
+  }
+
+  if (use_fb_slope)
+  {
+    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S);
   }
 
   // should we enforce the equilibrium ? --------------------------------------
