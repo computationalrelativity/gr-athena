@@ -1236,7 +1236,7 @@ public:
       // slice directly into fluid if relevant
 #if FLUID_ENABLED
       zero_rates = zero_rates or (
-        pmy_block->phydro->u(IDN, k, j, i) >= wr_dfloor
+        pmy_block->phydro->u(IDN, k, j, i) < wr_dfloor
       );
 #endif // FLUID_ENABLED
 
