@@ -292,8 +292,7 @@ void DispatchIntegrationMethod(
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
-    if (pm1->MaskGet(k, j, i))
-    // if (pm1->MaskGetHybridize(k,j,i))
+    if (pm1->MaskGet(k, j, i) && pm1->MaskGetHybridize(ix_s, k, j, i))
     {
       // switch to different solver based on solution regime ------------------
       M1::opt_integration_strategy opt_is;

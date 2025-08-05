@@ -246,12 +246,18 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     if (opt.flux_lo_fallback_species)
     {
       ev_strat.masks.pp.NewAthenaArray(N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(N_SPCS,
+                                                  mbi.nn3, mbi.nn2, mbi.nn1);
+
     }
     else
     {
       ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
     }
   }
+
+  ev_strat.masks.compute_point.Fill(true);
 
   // --------------------------------------------------------------------------
   // general setup

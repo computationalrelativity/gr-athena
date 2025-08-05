@@ -74,13 +74,11 @@ public:
                   AA & sources,
                   const int kl, const int ku,
                   const int jl, const int ju,
-                  const int il, const int iu);
+                  const int il, const int iu,
+                  const bool ignore_fallback);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
-
-  // Used to adjust evolution mask in second CalcUpdate call in a substep
-  void AdjustMaskPropertyPreservation();
 
   void MulAddFluxDivergence(AA & u_inh, const Real fac,
                             const int kl, const int ku,
@@ -799,7 +797,7 @@ public:
       AthenaArray<bool>                 excised;
       AA                                flux_limiter;
       AA                                pp;
-      // AthenaArray<bool>                 pp_ho;
+      AthenaArray<bool>                 compute_point;
     } masks;
 
     struct {
@@ -825,6 +823,8 @@ public:
         num_radmat_zero = 0;
       }
     } status;
+
+    bool substep_shortcircuit;
   } ev_strat;
 
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
@@ -982,13 +982,32 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
-  // inline bool MaskGetHybridize(const int k, const int j, const int i)
-  // {
-  //   // if (!opt.flux_lo_fallback)
-  //   //   return true;
+  inline bool MaskGetHybridize(const int ix_s,
+                               const int k, const int j, const int i)
+  {
+    return true;
+    /*
+    if (!opt.flux_lo_fallback)
+      return true;
+    */
 
-  //   return (ev_strat.masks.pp(k,j,i) == 0);
-  // }
+    /*
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    return ev_strat.masks.compute_point(ix_ms,k,j,i);
+    */
+  }
+
+  inline void MaskSetHybridize(const bool value,
+                               const int ix_s,
+                               const int k, const int j, const int i)
+  {
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    ev_strat.masks.compute_point(ix_ms,k,j,i) = value;
+  }
 
 public:
   // These manipulate internal M1 mem-state; don't call external to class

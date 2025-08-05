@@ -77,6 +77,7 @@ void M1::HybridizeLOFlux(AA & mask_hyb,
   }
 }
 
+/*
 void M1::AdjustMaskPropertyPreservation()
 {
   assert(!opt.flux_lo_fallback_species);  // B.D. needs fix for species
@@ -105,7 +106,7 @@ void M1::AdjustMaskPropertyPreservation()
     mask_pp(k,j,i) = 0.0;
   }
 }
-
+*/
 
 // ============================================================================
 } // namespace M1::Fluxes

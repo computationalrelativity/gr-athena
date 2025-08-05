@@ -568,30 +568,13 @@ void M1::CalcUpdate(const int stage,
                     AA & u_src,
                     const int kl, const int ku,
                     const int jl, const int ju,
-                    const int il, const int iu)
+                    const int il, const int iu,
+                    const bool ignore_fallback)
 {
   using namespace Update;
   using namespace Sources;
   using namespace Integrators;
   using namespace Closures;
-
-  // can we short-circuit? ----------------------------------------------------
-  if (0)
-  if (pm1->opt.flux_lo_fallback && pmy_block->NeighborBlocksSameLevel())
-  {
-    assert(!opt.flux_lo_fallback_species);  // B.D. needs fix for species
-    AA & mask_pp = pm1->ev_strat.masks.pp;
-    Real max_theta = 0.0;
-    M1_MLOOP3(k, j, i)
-    {
-      max_theta = std::min(max_theta, mask_pp(k,j,i));
-    }
-
-    if (max_theta == 0.0)
-    {
-      return;
-    }
-  }
 
   // setup aliases ------------------------------------------------------------
   vars_Lab U_P { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
@@ -627,14 +610,14 @@ void M1::CalcUpdate(const int stage,
                             kl, ku, jl, ju, il, iu);
 
   // check whether current sources give physical matter coupling --------------
-  if (use_fb_lo_matter)
+  if (use_fb_lo_matter && !ignore_fallback)
   {
     Sources::Limiter::CheckPhysicalFallback(this, dt, U_S,
                                             kl, ku, jl, ju, il, iu);
   }
 
   // check whether solution is developing too rapidly -------------------------
-  if (use_fb_slope)
+  if (use_fb_slope && !ignore_fallback)
   {
     State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S,
                          kl, ku, jl, ju, il, iu);
