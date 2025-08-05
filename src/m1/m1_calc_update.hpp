@@ -350,7 +350,12 @@ inline void EnforcePhysical_E_F_d(
     }
 
     if (enforced && pm1.opt.flux_lo_fallback)
-      pm1.ev_strat.masks.pp(k,j,i) = 1.0;
+    {
+      const int ix_s = (pm1.opt.flux_lo_fallback_species)
+        ? V.ix_s
+        : 0;
+      pm1.ev_strat.masks.pp(ix_s,k,j,i) = 1.0;
+    }
   }
   else
   {
@@ -390,7 +395,12 @@ inline void EnforcePhysical_nG(
     V.sc_nG(k,j,i) = std::max(V.sc_nG(k,j,i), pm1.opt.fl_nG);
 
     if (enforced && pm1.opt.flux_lo_fallback)
-      pm1.ev_strat.masks.pp(k,j,i) = 1.0;
+    {
+      const int ix_s = (pm1.opt.flux_lo_fallback_species)
+        ? V.ix_s
+        : 0;
+      pm1.ev_strat.masks.pp(ix_s,k,j,i) = 1.0;
+    }
 
   }
   else

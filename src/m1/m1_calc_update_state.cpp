@@ -62,6 +62,11 @@ void SlopeFallback(
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
   {
+    // mask species index if using per-species
+    const int ix_ms = (pm1->opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+
     M1::vars_Lab & C = const_cast<M1::vars_Lab &>(U_C);
     M1::vars_Lab & P = const_cast<M1::vars_Lab &>(U_P);
     M1::vars_Lab & I = const_cast<M1::vars_Lab &>(U_I);
@@ -78,9 +83,11 @@ void SlopeFallback(
     if (pm1->MaskGet(k, j, i))
     {
       // hybridization factor starts with HO
-      Real & hf = mask_pp(k,j,i);
+      Real & hf = mask_pp(ix_ms,k,j,i);
 
       // D_i[f] := f_{i+1} - f_{i}
+
+      if (hf == 1.0) continue;  // already LO, short-circuit
 
       if (rat_sl_sc_E > 0)
       {
@@ -135,6 +142,8 @@ void SlopeFallback(
           (rat_R < rat_sl_sc_E) ? 1.0 : hf
         ) : hf;
       }
+
+      if (hf == 1.0) continue;
 
       if (rat_sl_sc_nG > 0)
       {
@@ -192,6 +201,8 @@ void SlopeFallback(
           (rat_R < rat_sl_sc_nG) ? 1.0 : hf
         ) : hf;
       }
+
+      if (hf == 1.0) continue;
 
       if (rat_sl_sp_F_d > 0)
       for (int a=0; a<N; ++a)
@@ -560,6 +571,7 @@ void M1::CalcUpdate(const int stage,
   if (0)
   if (pm1->opt.flux_lo_fallback && pmy_block->NeighborBlocksSameLevel())
   {
+    assert(!opt.flux_lo_fallback_species);  // B.D. needs fix for species
     AA & mask_pp = pm1->ev_strat.masks.pp;
     Real max_theta = 0.0;
     M1_MLOOP3(k, j, i)
@@ -611,6 +623,12 @@ void M1::CalcUpdate(const int stage,
     Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
   }
 
+  // check whether solution is developing too rapidly -------------------------
+  if (use_fb_slope)
+  {
+    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S);
+  }
+
   // prepare source & apply limiting mask -------------------------------------
   if (use_full_limiter)
   {
@@ -627,11 +645,6 @@ void M1::CalcUpdate(const int stage,
 
     // adjust matter sources with theta mask and construct limited solution
     Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
-  }
-
-  if (use_fb_slope)
-  {
-    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S);
   }
 
   // should we enforce the equilibrium ? --------------------------------------

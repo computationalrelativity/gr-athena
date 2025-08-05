@@ -542,10 +542,25 @@ void CheckPhysicalFallback(
   M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
-    if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+    if (pm1->opt.flux_lo_fallback_species)
     {
-      // already flagged
-      continue;
+      bool flagged = true;
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        flagged = flagged and (pm1->ev_strat.masks.pp(ix_s,k,j,i) == 1.0);
+      }
+      if (flagged)
+      {
+        continue;
+      }
+    }
+    else
+    {
+      if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+      {
+        // already flagged
+        continue;
+      }
     }
 
     const Real D = (
@@ -613,7 +628,17 @@ void CheckPhysicalFallback(
     // Update flux hybridization mask -----------------------------------------
     if (need_fallback)
     {
-      pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+      if (pm1->opt.flux_lo_fallback_species)
+      {
+        for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+        {
+          pm1->ev_strat.masks.pp(ix_s,k,j,i) = 1.0;
+        }
+      }
+      else
+      {
+        pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+      }
     }
   }
 #endif

@@ -242,7 +242,15 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
                                       mbi.nn3 + 1, mbi.nn2, mbi.nn1);
 
     SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
-    ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+
+    if (opt.flux_lo_fallback_species)
+    {
+      ev_strat.masks.pp.NewAthenaArray(N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+    }
+    else
+    {
+      ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+    }
   }
 
   // --------------------------------------------------------------------------

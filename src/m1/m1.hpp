@@ -218,6 +218,9 @@ public:
 
     bool flux_lo_fallback_first_stage;
 
+    // mask per species?
+    bool flux_lo_fallback_species;
+
     // Control the couplings
     bool couple_sources_ADM;
     bool couple_sources_hydro;
@@ -965,13 +968,13 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
-  inline bool MaskGetHybridize(const int k, const int j, const int i)
-  {
-    // if (!opt.flux_lo_fallback)
-    //   return true;
+  // inline bool MaskGetHybridize(const int k, const int j, const int i)
+  // {
+  //   // if (!opt.flux_lo_fallback)
+  //   //   return true;
 
-    return (ev_strat.masks.pp(k,j,i) == 0);
-  }
+  //   return (ev_strat.masks.pp(k,j,i) == 0);
+  // }
 
 public:
   // These manipulate internal M1 mem-state; don't call external to class

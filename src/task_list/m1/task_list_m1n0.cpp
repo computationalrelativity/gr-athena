@@ -278,8 +278,20 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // Update status
       M1_MLOOP3(k, j, i)
       {
-        const Real is_lo = pm1->ev_strat.masks.pp(k, j, i) == 1.0;
-        pm1->ev_strat.status.num_lo_reversions += is_lo;
+        int num_lo = 0;
+
+        if (pm1->opt.flux_lo_fallback_species)
+        {
+          for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+          {
+            num_lo += pm1->ev_strat.masks.pp(ix_s, k, j, i) == 1.0;
+          }
+        }
+        else
+        {
+          num_lo += pm1->ev_strat.masks.pp(k, j, i) == 1.0;
+        }
+        pm1->ev_strat.status.num_lo_reversions += num_lo;
       }
       // Revert inhomogeneity
       // WARNING: masks have been adjusted within CalcUpdate; to properly

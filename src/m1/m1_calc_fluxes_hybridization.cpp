@@ -49,11 +49,16 @@ void M1::HybridizeLOFlux(AA & u_cur)
       AT_C_sca & lo_F_E   = pm1->fluxes_lo.sc_E(  ix_g,ix_s,ix_d);
       AT_N_vec & lo_F_f_d = pm1->fluxes_lo.sp_F_d(ix_g,ix_s,ix_d);
 
+      // mask species index if using per-species
+      const int ix_ms = (opt.flux_lo_fallback_species)
+        ? ix_s
+        : 0;
+
       M1_MLOOP3(k, j, i)
       {
         Real Theta = std::max(
-          mask_pp(k,j,i),
-          mask_pp(k-KO,j-JO,i-IO)
+          mask_pp(ix_ms,k,j,i),
+          mask_pp(ix_ms,k-KO,j-JO,i-IO)
         );
 
         if (pm1->opt.flux_lo_fallback_eql_ho &&
@@ -78,6 +83,8 @@ void M1::HybridizeLOFlux(AA & u_cur)
 
 void M1::AdjustMaskPropertyPreservation()
 {
+  assert(!opt.flux_lo_fallback_species);  // B.D. needs fix for species
+
   AA & mask_pp = pm1->ev_strat.masks.pp;
   M1_MLOOP3(k,j,i)
   {
