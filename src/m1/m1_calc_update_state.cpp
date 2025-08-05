@@ -34,7 +34,10 @@ void SlopeFallback(
   M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S)
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   using namespace Update;
   using namespace Closures;
@@ -46,15 +49,15 @@ void SlopeFallback(
   const Real rat_sl_sp_F_d = pm1->opt_solver.fb_rat_sl_F_d;
   const Real rat_sl_sc_nG  = pm1->opt_solver.fb_rat_sl_nG;
 
-  // This is ugly; define left / right limits (derived from MLOOP macro)
-  const int IL = M1_IX_IL-M1_MSIZEI;
-  const int IU = M1_IX_IU+M1_MSIZEI;
+  // no check left / right check at extermal left / right points
+  const int IL = il;
+  const int IU = iu;
 
-  const int JL = M1_IX_JL-M1_MSIZEJ;
-  const int JU = M1_IX_JU+M1_MSIZEJ;
+  const int JL = jl;
+  const int JU = ju;
 
-  const int KL = M1_IX_KL-M1_MSIZEK;
-  const int KU = M1_IX_KU+M1_MSIZEK;
+  const int KL = kl;
+  const int KU = ku;
 
   // hybridize (into ho) pp corrected fluxes
   AA & mask_pp = pm1->ev_strat.masks.pp;
@@ -79,7 +82,9 @@ void SlopeFallback(
     Real rat_L, rat_R;
     Real d_p1, d_0, d_m1;
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (pm1->MaskGet(k, j, i))
     {
       // hybridization factor starts with HO
@@ -560,7 +565,10 @@ void M1::CalcUpdate(const int stage,
                     AA & u_pre,
                     AA & u_cur,
 		                AA & u_inh,
-                    AA & u_src)
+                    AA & u_src,
+                    const int kl, const int ku,
+                    const int jl, const int ju,
+                    const int il, const int iu)
 {
   using namespace Update;
   using namespace Sources;
@@ -615,36 +623,43 @@ void M1::CalcUpdate(const int stage,
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
-  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S);
+  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S,
+                            kl, ku, jl, ju, il, iu);
 
   // check whether current sources give physical matter coupling --------------
   if (use_fb_lo_matter)
   {
-    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S);
+    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S,
+                                            kl, ku, jl, ju, il, iu);
   }
 
   // check whether solution is developing too rapidly -------------------------
   if (use_fb_slope)
   {
-    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S);
+    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S,
+                         kl, ku, jl, ju, il, iu);
   }
 
   // prepare source & apply limiting mask -------------------------------------
   if (use_full_limiter)
   {
     AT_C_sca & theta = sources.theta;
-    Sources::Limiter::PrepareFull(this, dt, theta, U_C, U_P, U_I, U_S);
-    Sources::Limiter::ApplyFull(this, dt, theta, U_C, U_P, U_I, U_S);
+    Sources::Limiter::PrepareFull(this, dt, theta, U_C, U_P, U_I, U_S,
+                                  kl, ku, jl, ju, il, iu);
+    Sources::Limiter::ApplyFull(this, dt, theta, U_C, U_P, U_I, U_S,
+                                kl, ku, jl, ju, il, iu);
   }
 
   if (use_src_limiter)
   {
     AT_C_sca & theta = sources.theta;
 
-    Sources::Limiter::Prepare(this, dt, theta, U_C, U_P, U_I, U_S);
+    Sources::Limiter::Prepare(this, dt, theta, U_C, U_P, U_I, U_S,
+                              kl, ku, jl, ju, il, iu);
 
     // adjust matter sources with theta mask and construct limited solution
-    Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S);
+    Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S,
+                            kl, ku, jl, ju, il, iu);
   }
 
   // should we enforce the equilibrium ? --------------------------------------
@@ -652,7 +667,10 @@ void M1::CalcUpdate(const int stage,
       (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
       (stage == 1))
   {
-    M1_MLOOP3(k, j, i)
+
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (MaskGet(k, j, i))
     // if (MaskGetHybridize(k,j,i))
     {
@@ -724,7 +742,9 @@ void M1::CalcUpdate(const int stage,
   {
     SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (MaskGet(k, j, i))
     // if (MaskGetHybridize(k,j,i))
     {

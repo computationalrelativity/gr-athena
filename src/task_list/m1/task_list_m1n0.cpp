@@ -248,6 +248,13 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
         return TaskStatus::next;
       }
 
+      const int KL = M1_IX_KL-M1_MSIZEK;
+      const int KU = M1_IX_KU+M1_MSIZEK;
+      const int JL = M1_IX_JL-M1_MSIZEJ;
+      const int JU = M1_IX_JU+M1_MSIZEJ;
+      const int IL = M1_IX_IL-M1_MSIZEI;
+      const int IU = M1_IX_IU+M1_MSIZEI;
+
       pm1->CalcFluxes(pm1->storage.u, true);
 
       // Zero property preservation mask
@@ -258,7 +265,8 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
 
-      pm1->AddFluxDivergence(pm1->storage.u_rhs);
+      pm1->AddFluxDivergence(pm1->storage.u_rhs,
+                             KL, KU, JL, JU, IL, IU);
 
       Real const dt = pm->dt * dt_fac[stage - 1];
 
@@ -273,10 +281,13 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u1,
                       pm1->storage.u,
                       pm1->storage.u_rhs,
-                      pm1->storage.u_sources);
+                      pm1->storage.u_sources,
+                      KL, KU, JL, JU, IL, IU);
 
-      // Update status
-      M1_MLOOP3(k, j, i)
+      // Update status [physical only]
+      for (int k=M1_IX_KL; k<=M1_IX_KU; ++k)
+      for (int j=M1_IX_JL; j<=M1_IX_JU; ++j)
+      for (int i=M1_IX_IL; i<=M1_IX_IU; ++i)
       {
         int num_lo = 0;
 
@@ -297,12 +308,44 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // WARNING: masks have been adjusted within CalcUpdate; to properly
       // compensate flux addition we should not use the hybridization mask
       // there.
-      pm1->SubFluxDivergence(pm1->storage.u_rhs);
+      pm1->SubFluxDivergence(pm1->storage.u_rhs,
+                             KL, KU, JL, JU, IL, IU);
 
       // hybridize fluxes based on pp mask ------------------------------------
-      pm1->HybridizeLOFlux(pm1->storage.u);
+      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
+                           pm1->fluxes,
+                           pm1->fluxes_lo);
+      // ----------------------------------------------------------------------
+
+      // BD: REMOVE THIS
       // Flip mask to execute next CalcUpdate on LO points
       // pm1->AdjustMaskPropertyPreservation();
+
+      // Retain which points can be propagated --------------------------------
+      // If all NN MeshBlock on the same level, no flux correction;
+      // Otherwise, reduce loop extent (physical) by 1
+      // pm1->ev_strat.masks.pp_ho.Fill(false);
+
+      // if (pmb->NeighborBlocksSameLevel())
+      // {
+      //   // for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      //   // {
+      //   //   const int ix_ms = (pm1->opt.flux_lo_fallback_species)
+      //   //     ? ix_s
+      //   //     : 0;
+
+
+      //   // }
+
+      //   M1_ILOOP3(k,j,i)
+      //   {
+      //     pm1->ev_strat.masks.pp_ho(k,j,i) = (
+      //       pm1->ev_strat.masks.pp(k, j, i) == 0.0
+      //     );
+      //   }
+      // }
+
+      // ----------------------------------------------------------------------
     }
 
     return TaskStatus::next;
@@ -350,7 +393,10 @@ TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    pm1->AddFluxDivergence(pm1->storage.u_rhs);
+    pm1->AddFluxDivergence(pm1->storage.u_rhs,
+                           M1_IX_KL, M1_IX_KU,
+                           M1_IX_JL, M1_IX_JU,
+                           M1_IX_IL, M1_IX_IU);
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -392,7 +438,11 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
                     pm1->storage.u1,
                     pm1->storage.u,
                     pm1->storage.u_rhs,
-                    pm1->storage.u_sources);
+                    pm1->storage.u_sources,
+                    M1_IX_KL, M1_IX_KU,
+                    M1_IX_JL, M1_IX_JU,
+                    M1_IX_IL, M1_IX_IU
+                  );
 
     // pm1->opt.flux_lo_fallback = true;
 

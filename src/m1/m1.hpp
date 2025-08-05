@@ -71,19 +71,29 @@ public:
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
-                  AA & sources);
+                  AA & sources,
+                  const int kl, const int ku,
+                  const int jl, const int ju,
+                  const int il, const int iu);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
 
-  void HybridizeLOFlux(AA & u_cur);
-
   // Used to adjust evolution mask in second CalcUpdate call in a substep
   void AdjustMaskPropertyPreservation();
 
-  void MulAddFluxDivergence(AA & u_inh, const Real fac);
-  void SubFluxDivergence(AA & u_inh);
-  void AddFluxDivergence(AA & u_inh);
+  void MulAddFluxDivergence(AA & u_inh, const Real fac,
+                            const int kl, const int ku,
+                            const int jl, const int ju,
+                            const int il, const int iu);
+  void SubFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
+  void AddFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
 
   void AddSourceGR(AA & u, AA & u_inh);
 
@@ -789,6 +799,7 @@ public:
       AthenaArray<bool>                 excised;
       AA                                flux_limiter;
       AA                                pp;
+      // AthenaArray<bool>                 pp_ho;
     } masks;
 
     struct {
@@ -908,6 +919,9 @@ public:
 
 // additional methods =========================================================
 public:
+  void HybridizeLOFlux(AA & mask_hyb,
+                       vars_Flux & fluxes_ho,
+                       vars_Flux & fluxes_lo);
   void UpdateGeometry(vars_Geom  & geom,
                       vars_Scratch & scratch);
   void UpdateHydro(vars_Hydro & hydro,

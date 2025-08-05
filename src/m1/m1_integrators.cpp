@@ -242,7 +242,10 @@ void DispatchIntegrationMethod(
   M1::vars_Lab & U_C,        // current (target) step
   const M1::vars_Lab & U_P,  // previous step data
   const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S      // carries matter source contribution
+  M1::vars_Source & U_S,     // carries matter source contribution
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
 )
 {
   using namespace Update;
@@ -286,7 +289,9 @@ void DispatchIntegrationMethod(
     ClosureMetaVector CL_P = ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
     ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (pm1->MaskGet(k, j, i))
     // if (pm1->MaskGetHybridize(k,j,i))
     {

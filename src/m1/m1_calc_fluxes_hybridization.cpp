@@ -9,16 +9,12 @@
 namespace M1 {
 // ============================================================================
 
-void M1::HybridizeLOFlux(AA & u_cur)
+void M1::HybridizeLOFlux(AA & mask_hyb,
+                         vars_Flux & fluxes_ho,
+                         vars_Flux & fluxes_lo)
 {
 
-  ::M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
-                            {pm1->N_GRPS,pm1->N_SPCS},
-                            {pm1->N_GRPS,pm1->N_SPCS} };
-  pm1->SetVarAliasesLab(pm1->storage.u, U_C);
-
   // hybridize (into ho) pp corrected fluxes
-  AA & mask_pp = pm1->ev_strat.masks.pp;
 
   // no fallback if @ equilibrium (get unlimited fluxes)
   // if (pm1->opt.flux_lo_fallback_eql_ho)
@@ -41,13 +37,13 @@ void M1::HybridizeLOFlux(AA & u_cur)
     for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
     for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
     {
-      AT_C_sca & F_nG  = pm1->fluxes.sc_nG( ix_g,ix_s,ix_d);
-      AT_C_sca & F_E   = pm1->fluxes.sc_E(  ix_g,ix_s,ix_d);
-      AT_N_vec & F_f_d = pm1->fluxes.sp_F_d(ix_g,ix_s,ix_d);
+      AT_C_sca & F_nG  = fluxes_ho.sc_nG( ix_g,ix_s,ix_d);
+      AT_C_sca & F_E   = fluxes_ho.sc_E(  ix_g,ix_s,ix_d);
+      AT_N_vec & F_f_d = fluxes_ho.sp_F_d(ix_g,ix_s,ix_d);
 
-      AT_C_sca & lo_F_nG  = pm1->fluxes_lo.sc_nG( ix_g,ix_s,ix_d);
-      AT_C_sca & lo_F_E   = pm1->fluxes_lo.sc_E(  ix_g,ix_s,ix_d);
-      AT_N_vec & lo_F_f_d = pm1->fluxes_lo.sp_F_d(ix_g,ix_s,ix_d);
+      AT_C_sca & lo_F_nG  = fluxes_lo.sc_nG( ix_g,ix_s,ix_d);
+      AT_C_sca & lo_F_E   = fluxes_lo.sc_E(  ix_g,ix_s,ix_d);
+      AT_N_vec & lo_F_f_d = fluxes_lo.sp_F_d(ix_g,ix_s,ix_d);
 
       // mask species index if using per-species
       const int ix_ms = (opt.flux_lo_fallback_species)
@@ -57,8 +53,8 @@ void M1::HybridizeLOFlux(AA & u_cur)
       M1_MLOOP3(k, j, i)
       {
         Real Theta = std::max(
-          mask_pp(ix_ms,k,j,i),
-          mask_pp(ix_ms,k-KO,j-JO,i-IO)
+          mask_hyb(ix_ms,k,j,i),
+          mask_hyb(ix_ms,k-KO,j-JO,i-IO)
         );
 
         if (pm1->opt.flux_lo_fallback_eql_ho &&
