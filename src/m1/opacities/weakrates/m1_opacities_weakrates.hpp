@@ -43,6 +43,11 @@ public:
                            "propagate_hydro_equilibrium",
                            false)
     ),
+    wr_dfloor(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_dfloor",
+                        0.0)
+    ),
     wr_impose_equilibrium(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_impose_equilibrium",
@@ -1222,10 +1227,20 @@ public:
     M1_FLOOP3(k, j, i)
     if (pm1->MaskGet(k, j, i))
     {
+      // check whether we need to do anything ---------------------------------
       Real rho = pm1->hydro.sc_w_rho(k, j, i);
 
-      // check whether we need to do anything
-      if (rho <= pmy_weakrates->rho_min_code_units)
+      bool zero_rates = false;
+      zero_rates = zero_rates or (rho <= pmy_weakrates->rho_min_code_units);
+
+      // slice directly into fluid if relevant
+#if FLUID_ENABLED
+      zero_rates = zero_rates or (
+        pmy_block->phydro->u(IDN, k, j, i) >= wr_dfloor
+      );
+#endif // FLUID_ENABLED
+
+      if (zero_rates)
       {
         SetZeroRadMatAtPoint(k, j, i);
         continue;
@@ -1520,6 +1535,7 @@ private:
 
   const bool revert_thick_limit_equilibrium;
   const bool propagate_hydro_equilibrium;
+  const Real wr_dfloor;
   const bool wr_impose_equilibrium;
   const bool wr_flag_equilibrium;
   const Real wr_flag_equilibrium_dt_factor;
