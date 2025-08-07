@@ -75,7 +75,8 @@ public:
                   const int kl, const int ku,
                   const int jl, const int ju,
                   const int il, const int iu,
-                  const bool ignore_fallback);
+                  const bool fallback_mode,
+                  const bool dispatch_shortcircuit);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
@@ -225,6 +226,7 @@ public:
     bool flux_lo_fallback_eql_ho;
 
     bool flux_lo_fallback_first_stage;
+    bool flux_lo_fallback_mask_reset_all_stages;
 
     // mask per species?
     bool flux_lo_fallback_species;
@@ -985,18 +987,19 @@ public:
   inline bool MaskGetHybridize(const int ix_s,
                                const int k, const int j, const int i)
   {
-    return true;
+    if (!opt.flux_lo_fallback)
+      return true;
+
+    // return true;
     /*
     if (!opt.flux_lo_fallback)
       return true;
     */
 
-    /*
     const int ix_ms = (opt.flux_lo_fallback_species)
       ? ix_s
       : 0;
     return ev_strat.masks.compute_point(ix_ms,k,j,i);
-    */
   }
 
   inline void MaskSetHybridize(const bool value,

@@ -248,11 +248,27 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // initially, don't suppress any point-wise calc.
       pm1->ev_strat.masks.compute_point.Fill(true);
 
-      // optionally we only do this on the first stage
-      if ((stage > 1) && pm1->opt.flux_lo_fallback_first_stage)
+      Real const dt = pm->dt * dt_fac[stage - 1];
+
+      if (stage == 1)
+      {
+        pm1->PrepareEvolutionStrategy(dt);
+      }
+
+
+      // Zero property preservation mask
+      // Do prior to evo. as mask is modified on pp enforcement.
+      if ((stage == 1) || pm1->opt.flux_lo_fallback_mask_reset_all_stages)
+      {
+        pm1->ev_strat.masks.pp.Fill(0.0);
+      }
+
+      // optionally we skip the first stage
+      if ((stage == 1) && !pm1->opt.flux_lo_fallback_first_stage)
       {
         return TaskStatus::next;
       }
+
 
       const int KL = M1_IX_KL-M1_MSIZEK;
       const int KU = M1_IX_KU+M1_MSIZEK;
@@ -265,26 +281,14 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // first; but that would require another storage / a bit of refactoring.
       pm1->CalcFluxes(pm1->storage.u, true);
 
-      // Zero property preservation mask
-      // Do prior to evo. as mask is modified on pp enforcement.
-      if (stage == 1)
-        pm1->ev_strat.masks.pp.Fill(0.0);
-
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
 
       pm1->AddFluxDivergence(pm1->storage.u_rhs,
                              KL, KU, JL, JU, IL, IU);
 
-      Real const dt = pm->dt * dt_fac[stage - 1];
-
-      if (stage == 1)
-      {
-        pm1->PrepareEvolutionStrategy(dt);
-      }
-
       // Construct candidate state
-      const bool ignore_fallback = false;
+      const bool fallback_mode = true;
       pm1->CalcUpdate(stage,
                       dt,
                       pm1->storage.u1,
@@ -292,7 +296,8 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u_rhs,
                       pm1->storage.u_sources,
                       KL, KU, JL, JU, IL, IU,
-                      ignore_fallback);
+                      fallback_mode,
+                      pm1->ev_strat.substep_shortcircuit);
 
       // Update status [physical only]
       int num_lo = 0;
@@ -324,6 +329,7 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       if (pm1->ev_strat.substep_shortcircuit)
       {
         // don't need to bother hybridizing or re-adding flux etc
+        pm1->ev_strat.masks.compute_point.Fill(false);
         return TaskStatus::next;
       }
       // ----------------------------------------------------------------------
@@ -335,9 +341,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       // ----------------------------------------------------------------------
 
       // Retain which points can be propagated --------------------------------
-      // BD: TODO- complete pointwise propagation;
-      //           Probably the limiting is a bit delicate...
-      /*
       const int os = !pmb->NeighborBlocksSameLevel();  // will need bnd layer
 
       // fallback may be split over different species
@@ -356,7 +359,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
           ix_s, k, j, i
         );
       }
-      */
       // ----------------------------------------------------------------------
 
       // Finally revert inhomogeneity on points that can't be propagated
@@ -412,14 +414,14 @@ TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
     // Candidate solution accepted on whole block (no flux. corr. needed)
     if (pm1->ev_strat.substep_shortcircuit)
     {
-      return TaskStatus::success;
+      return TaskStatus::next;
     }
 
     pm1->AddFluxDivergence(pm1->storage.u_rhs,
                            M1_IX_KL, M1_IX_KU,
                            M1_IX_JL, M1_IX_JU,
                            M1_IX_IL, M1_IX_IU);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -432,7 +434,7 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -453,30 +455,21 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
       pm1->PrepareEvolutionStrategy(dt);
     }
 
-    // Candidate solution accepted on whole block (no flux. corr. needed)
-    if (pm1->ev_strat.substep_shortcircuit)
-    {
-      return TaskStatus::next;
-    }
-
     // Need lo on at least one point...
-    const bool ignore_fallback = true;
-    pm1->CalcUpdate(stage,
-                    dt,
-                    pm1->storage.u1,
-                    pm1->storage.u,
-                    pm1->storage.u_rhs,
-                    pm1->storage.u_sources,
-                    M1_IX_KL, M1_IX_KU,
-                    M1_IX_JL, M1_IX_JU,
-                    M1_IX_IL, M1_IX_IU,
-                    ignore_fallback
-                  );
-
-    // if (stage == 2)
-    // {
-    //   pm1->ResetEvolutionStrategy();
-    // }
+    const bool fallback_mode = false;
+    pm1->CalcUpdate(
+      stage,
+      dt,
+      pm1->storage.u1,
+      pm1->storage.u,
+      pm1->storage.u_rhs,
+      pm1->storage.u_sources,
+      M1_IX_KL, M1_IX_KU,
+      M1_IX_JL, M1_IX_JU,
+      M1_IX_IL, M1_IX_IU,
+      fallback_mode,
+      pm1->ev_strat.substep_shortcircuit
+    );
 
     return TaskStatus::next;
   }

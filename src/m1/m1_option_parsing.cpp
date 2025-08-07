@@ -414,10 +414,13 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "flux_lo_fallback_eql_ho", false);
 
     opt.flux_lo_fallback_first_stage = pin->GetOrAddBoolean(
-      "M1", "flux_lo_fallback_first_stage", false);
+      "M1", "flux_lo_fallback_first_stage", true);
 
     opt.flux_lo_fallback_species = pin->GetOrAddBoolean(
       "M1", "flux_lo_fallback_species", false);
+
+    opt.flux_lo_fallback_mask_reset_all_stages = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_mask_reset_all_stages", true);
 
   }
 

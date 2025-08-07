@@ -569,7 +569,8 @@ void M1::CalcUpdate(const int stage,
                     const int kl, const int ku,
                     const int jl, const int ju,
                     const int il, const int iu,
-                    const bool ignore_fallback)
+                    const bool fallback_mode,
+                    const bool dispatch_shortcircuit)
 {
   using namespace Update;
   using namespace Sources;
@@ -589,39 +590,51 @@ void M1::CalcUpdate(const int stage,
   vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
   SetVarAliasesSource(u_src, U_S);
 
+  // construct unlimited solution ---------------------------------------------
+  // uses ev_strat.masks.{solution_regime, source_treatment} internally
+  if (!dispatch_shortcircuit)
+  {
+    DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S,
+                              kl, ku, jl, ju, il, iu);
+  }
+
+  // for candidate solution construction --------------------------------------
+  // We only check whether fallback is potentially required;
+  // - Sources are not rescaled on this initial pass
+  if (fallback_mode)
+  {
+    const bool use_fb_lo_matter = opt.flux_lo_fallback && (
+      opt_solver.flux_lo_fallback_tau_min > -1 ||
+      ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
+      (opt_solver.flux_lo_fallback_Ye_max > -1))
+    );
+
+    const bool use_fb_slope = (
+      (opt_solver.fb_rat_sl_E > 0) ||
+      (opt_solver.fb_rat_sl_F_d > 0) ||
+      (opt_solver.fb_rat_sl_nG > 0)
+    );
+
+    // check whether current sources give physical matter coupling ------------
+    if (use_fb_lo_matter)
+    {
+      Sources::Limiter::CheckPhysicalFallback(this, dt, U_S,
+                                              kl, ku, jl, ju, il, iu);
+    }
+
+    // check whether solution is developing too rapidly -----------------------
+    if (use_fb_slope)
+    {
+      State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S,
+                          kl, ku, jl, ju, il, iu);
+    }
+
+    return;
+  }
+
   // local settings -----------------------------------------------------------
   const bool use_full_limiter = opt_solver.full_lim >= 0;
   const bool use_src_limiter = opt_solver.src_lim >= 0;
-  const bool use_fb_lo_matter = opt.flux_lo_fallback && (
-    opt_solver.flux_lo_fallback_tau_min > -1 ||
-    ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
-     (opt_solver.flux_lo_fallback_Ye_max > -1))
-  );
-
-  const bool use_fb_slope = (
-    (opt_solver.fb_rat_sl_E > 0) ||
-    (opt_solver.fb_rat_sl_F_d > 0) ||
-    (opt_solver.fb_rat_sl_nG > 0)
-  );
-
-  // construct unlimited solution ---------------------------------------------
-  // uses ev_strat.masks.{solution_regime, source_treatment} internally
-  DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S,
-                            kl, ku, jl, ju, il, iu);
-
-  // check whether current sources give physical matter coupling --------------
-  if (use_fb_lo_matter && !ignore_fallback)
-  {
-    Sources::Limiter::CheckPhysicalFallback(this, dt, U_S,
-                                            kl, ku, jl, ju, il, iu);
-  }
-
-  // check whether solution is developing too rapidly -------------------------
-  if (use_fb_slope && !ignore_fallback)
-  {
-    State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S,
-                         kl, ku, jl, ju, il, iu);
-  }
 
   // prepare source & apply limiting mask -------------------------------------
   if (use_full_limiter)
@@ -655,7 +668,6 @@ void M1::CalcUpdate(const int stage,
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     if (MaskGet(k, j, i))
-    // if (MaskGetHybridize(k,j,i))
     {
       bool equilibriate = false;
       for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
