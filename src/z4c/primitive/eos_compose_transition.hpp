@@ -220,6 +220,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     static bool m_initialized;
 
     static Real helm_ln_max;
+    static Real helm_lt_max;
 };
 
 

@@ -257,6 +257,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
    rho_zero = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
 #endif
 
+  rho_zero = pin->GetOrAddReal("problem", "rho_zero", rho_zero);
+
   for (int v = 0; v < itov_nv; v++)
     tov->data[v] = (Real*) malloc((tov->interp_npts)*sizeof(Real));
 
