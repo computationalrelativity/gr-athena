@@ -439,9 +439,10 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   }
 
+  // BD: TODO- should remove this option entirely and assume true
   opt.retain_equilibrium = pin->GetOrAddBoolean("M1",
                                                 "retain_equilibrium",
-                                                false);
+                                                true);
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
