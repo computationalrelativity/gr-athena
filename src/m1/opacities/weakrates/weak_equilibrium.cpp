@@ -383,6 +383,19 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
   // check that the energy is positive
   // For tabulated eos we should check that the energy is above the minimum?
 
+  // check that Y_e is within the range
+  Real table_ye_min, table_ye_max;
+  EoS->GetTableLimitsYe(table_ye_min, table_ye_max);
+  if (y_eq[0]<table_ye_min || y_eq[0]>table_ye_max) {
+    ierr = WE_FAIL_INI_ASSIGN_Y_E;
+    T_eq = T;
+    for (int i=0;i<4;i++) {
+      y_eq[i] = y_in[i]; // [#/baryon]
+      e_eq[i] = e_in[i]; // [erg/cm^3]
+    }
+    return;
+  } // end if
+
   // Note [DD2]:
   // nb*atomic_mass*clight*clight < EoS->GetMinimumEnergyDensity(rho, y_eq[0])
   // 2.387e+35 < 2.514e+35
@@ -393,19 +406,6 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
   if (e_eq[0]<e_min) {
 #endif // THC_NRG_DENS_FLOOR
     ierr = WE_FAIL_INI_ASSIGN_NRG;
-    T_eq = T;
-    for (int i=0;i<4;i++) {
-      y_eq[i] = y_in[i]; // [#/baryon]
-      e_eq[i] = e_in[i]; // [erg/cm^3]
-    }
-    return;
-  } // end if
-
-  // check that Y_e is within the range
-  Real table_ye_min, table_ye_max;
-  EoS->GetTableLimitsYe(table_ye_min, table_ye_max);
-  if (y_eq[0]<table_ye_min || y_eq[0]>table_ye_max) {
-    ierr = WE_FAIL_INI_ASSIGN_Y_E;
     T_eq = T;
     for (int i=0;i<4;i++) {
       y_eq[i] = y_in[i]; // [#/baryon]
