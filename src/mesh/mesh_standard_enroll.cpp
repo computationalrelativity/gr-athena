@@ -375,10 +375,39 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
 
   auto fcn_mass_bernulli = [&](MeshBlock *pmb, int iout)
   {
+#if MAGNETIC_FIELDS_ENABLED
+    // Get additional thermal contribution: incorporate b^2/rho term
+    AA h_tot_U_d_0;
+    h_tot_U_d_0.NewAthenaArray(pmb->ncells3-1, pmb->ncells2-1, pmb->ncells1-1);
+
+    CC_ILOOP3(k,j,i)
+    {
+      Real Y[MAX_SPECIES] = {0.0};
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        Y[n] = pmb->pscalars->r(n,k,j,i);
+      }
+
+      const Real oo_sqrt_detgamma = OO(
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+      );
+      const Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+      const Real h_inf = pmb->peos->GetEOS().GetAsymptoticEnthalpy(Y);
+      const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
+      const Real w_rho = pmb->phydro->w(IDN,k,j,i);
+      const Real u_d_0 = pmb->phydro->derived_ms(IX_U_d_0,k,j,i);
+      h_tot_U_d_0(k,j,i) = (h + oo_sqrt_detgamma * b2 / w_rho) / h_inf * u_d_0;
+    }
+    return windowed_int(pmb,
+                        IDN, pmb->phydro->u,
+                        0, h_tot_U_d_0,
+                        -1e99, -1, iout);
+#else
     return windowed_int(pmb,
                         IDN, pmb->phydro->u,
                         IX_HU_d_0, pmb->phydro->derived_ms,
                         -1e99, -1, iout);
+#endif // MAGNETIC_FIELDS_ENABLED
   };
 
   EnrollUserHistoryOutput(
