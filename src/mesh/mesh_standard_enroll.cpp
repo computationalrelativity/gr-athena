@@ -410,7 +410,7 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
       Real S_u_z = 0.0;
 
 #if MAGNETIC_FIELDS_ENABLED
-      const Real b2 = pmb->pfield->derived_ms(IX_b0,k,j,i);
+      const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
       S_u_x = (w_rho * h + b2) * W * util_u_x;
       S_u_y = (w_rho * h + b2) * W * util_u_y;
       S_u_z = (w_rho * h + b2) * W * util_u_z;
