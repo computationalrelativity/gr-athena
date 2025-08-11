@@ -71,6 +71,11 @@ public:
                         "wr_flag_equilibrium_dt_factor",
                         1.0)
     ),
+    wr_flag_equilibrium_nue_equals_nua(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_nue_equals_nua",
+                           false)
+    ),
     wr_flag_equilibrium_no_nux(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_flag_equilibrium_no_nux",
@@ -818,21 +823,34 @@ public:
     const int ix_g = 0;  // fix 1 group
     const Real dt_fac = dt * wr_flag_equilibrium_dt_factor;
 
-    Real tau;
+    Real tau_[N_SPCS];
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      tau_[ix_s] = CalculateTau(ix_s,k,j,i);
+    }
+
     if (!per_species)
     {
-      tau = std::min(
-        CalculateTau(NUE,k,j,i), CalculateTau(NUA,k,j,i)
-      );
+      // N.B. this will equilibriate nu_x with this and can be spurious!
+      const Real tau = std::min(tau_[NUE], tau_[NUA]);
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+          tau_[ix_s] = tau;
+      }
+    }
+    else
+    {
+      if (wr_flag_equilibrium_nue_equals_nua)
+      {
+        const Real tau = std::min(tau_[NUE], tau_[NUA]);
+        tau_[NUE] = tau;
+        tau_[NUA] = tau;
+      }
     }
 
     for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
     {
-      if (per_species)
-      {
-        tau = CalculateTau(ix_s, k, j, i);
-      }
-
+      const Real tau = tau_[ix_s];
       bool flag_eql = ((opacity_tau_trap >= 0.0) &&
                       (tau < dt_fac / opacity_tau_trap) &&
                       (rho >= pm1->opt_solver.eql_rho_min));
@@ -1257,6 +1275,7 @@ private:
   const bool wr_flag_equilibrium;
   const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_species;
+  const bool wr_flag_equilibrium_nue_equals_nua;
   const bool wr_flag_equilibrium_no_nux;
   const bool correction_adjust_upward;
 
