@@ -132,7 +132,9 @@ void Mesh::CalculateLoadBalance(double *clist, int *rlist, int *slist, int *nlis
   if ((Globals::nranks)*(num_mesh_threads_) > nb) {
     msg << "### FATAL ERROR in CalculateLoadBalance" << std::endl
         << "There are fewer MeshBlocks than OpenMP threads on each MPI rank" << std::endl
-        << "Decrease the number of threads or use more MeshBlocks." << std::endl;
+        << "Decrease the number of threads or use more MeshBlocks." << std::endl
+        << "nb=" << nb
+        << ", n_threads*n_procs=" << ((Globals::nranks)*(num_mesh_threads_)) << std::endl;
     ATHENA_ERROR(msg);
   }
   return;

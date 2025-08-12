@@ -31,7 +31,10 @@ void DispatchIntegrationMethod(
   M1::vars_Lab & U_C,        // current (target) step
   const M1::vars_Lab & U_P,  // previous step data
   const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S      // for construction of matter source contribution
+  M1::vars_Source & U_S,     // for construction of matter source contribution
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
 );
 
 // ============================================================================

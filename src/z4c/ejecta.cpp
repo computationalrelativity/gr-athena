@@ -370,7 +370,6 @@ void Ejecta::Interp(MeshBlock * pmb)
   }
   // T not in ghosts - rather than comm Temp, calculate from other prims on
   // sphere
-//  T_.InitWithShallowSlice(pmb->phydro->temperature, ITM, 1);
 #endif
 
   for (int n = 0; n < NDIM; ++n) {

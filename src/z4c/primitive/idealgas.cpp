@@ -48,10 +48,6 @@ Real IdealGas::Pressure(Real n, Real T, Real *Y) {
   return n*T;
 }
 
-Real IdealGas::Entropy(Real n, Real T, Real *Y) {
-  throw std::logic_error("IdealGas::Entropy not currently implemented.");
-}
-
 Real IdealGas::Enthalpy(Real n, Real T, Real *Y) {
   return mb + gamma/gammam1*T;
 }

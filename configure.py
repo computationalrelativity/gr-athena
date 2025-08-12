@@ -1222,6 +1222,8 @@ if args["cxx"] == "g++-simd_O2":
     "-O2 -std=c++17 -fwhole-program -flto=auto "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
+    # The following is to avoid linker issue (LRZ)
+    "-ffat-lto-objects "
     # "-ffp-contract=off "  # disables FMA
     # '-finline-limit=2048 '
     # '-Wunknown-pragmas '
@@ -1915,6 +1917,13 @@ if args["link_gold"]:
 src_aux = [
   "$(wildcard src/task_list/task_*.cpp)",
 ]
+
+if args["z"]:
+  str_ej = "src/z4c/ejecta.cpp"
+  str_filt = f"$(filter-out {str_ej},$(wildcard src/z4c/*.cpp))"
+  makefile_options["Z4C_FILES"] = str_filt
+else:
+  makefile_options["Z4C_FILES"] = ""
 
 if args["z"]:
   str_stem = "filter-out src/task_list"

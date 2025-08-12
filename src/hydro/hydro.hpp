@@ -49,10 +49,10 @@ class Hydro {
   AA u2;           // time-integrator memory register #3
   // (no more than MAX_NREGISTER allowed)
 
-#if USETM
-// Storage for temperature output
-  AA temperature;
-#endif
+  // storage for derived quantities (HydroDerivedIndex); matter-sampling
+  AA derived_ms;
+  // storage for derived quantities for internal usage (HydroInternalDerivedIndex);
+  AA derived_int;
 
   AA flux[3];  // face-averaged flux vector
 
@@ -61,28 +61,33 @@ class Hydro {
   AA coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
 
-  // BD: TODO - make the mask more useful
-  // prim: w, cons: u
-  // u<->w can fail; in this situation values need to be reset
-  // It is helpful to make a mask to this end
-  AthenaArray<bool> mask_reset_u;
-  AA c2p_status;
-
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
   bool flux_reconstruction = false;
   bool split_lr_fallback = false;
+  bool flux_table_limiter = false;
 
   HydroBoundaryVariable hbvar;
   HydroSourceTerms hsrc;
   HydroDiffusion hdif;
 
   struct {
-    Real alpha_threshold;  // excise hydro if alpha < alpha_excision
-    bool horizon_based;    // use horizon for excise
-    Real horizon_factor;   // factor to multiply horizon radius
+    Real alpha_threshold;           // excise hydro if alpha < alpha_excision
+    bool horizon_based;             // use horizon for excise
+    Real horizon_factor;            // factor to multiply horizon radius
+    bool hybrid_hydro;              // control whether to use ahf+hydro excision
+    Real hybrid_fac_min_alpha;      // cut values below this * min_alpha
+    Real use_taper;                 // taper instead of hard-cut?
+    bool excise_hydro_freeze_evo;   // use with taper
+    bool excise_hydro_taper;        // taper (cons) state-vector
+    Real taper_pow;                 // taper(x) ^ taper_pow
+    bool excise_hydro_damping;      // replace hydro evo with exponential decay
+    bool excise_c2p;
+    bool excise_flux;
+    Real hydro_damping_factor;
   } opt_excision;
 
+  AA excision_mask;
 
   // --------------------------------------------------------------------------
   struct ixn_cons
@@ -127,22 +132,30 @@ class Hydro {
     };
   };
 
-  struct ixn_aux
+  struct ixn_derived_ms
   {
-    enum
-    {
-#if USETM
-      T,
-#endif
-      c2p_status,
-      N
-    };
-
+    // Uses "HydroDerivedIndex"
     static constexpr char const * const names[] = {
-#if USETM
-      "hydro.aux.T",
-#endif
       "hydro.aux.c2p_status",
+      "hydro.aux.W",
+      "hydro.aux.T",
+      "hydro.aux.h",
+      "hydro.aux.s",
+      "hydro.aux.e",
+      "hydro.aux.u_t",
+      "hydro.aux.hu_t",
+      "hydro.aux.cs2",
+      "hydro.aux.Omega",
+    };
+  };
+
+  struct ixn_derived_int
+  {
+    // Uses "HydroDerivedIndex"
+    static constexpr char const * const names[] = {
+      "hydro.aux.V_u_x",
+      "hydro.aux.V_u_y",
+      "hydro.aux.V_u_z",
     };
   };
 
@@ -153,9 +166,12 @@ public:
   AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
   AT_N_sca alpha_;
+  AT_N_sca oo_alpha_;     // 1 / alpha
   AT_N_vec beta_u_;
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;
+
+  AT_N_sca chi_;
 
   AT_N_vec w_v_u_l_;
   AT_N_vec w_v_u_r_;
@@ -253,6 +269,7 @@ public:
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
+    AT_N_sca & sqrt_detgamma_,
     AA &flux,
     const AA &dxw,
     const Real lambda_rescaling);
@@ -276,6 +293,7 @@ public:
     AT_N_sca & alpha_,
     AT_N_vec & beta_u_,
     AT_N_sym & gamma_dd_,
+    AT_N_sca & sqrt_detgamma_,
     AA &flux,
     AA &ey,
     AA &ez,
@@ -610,6 +628,302 @@ public:
   }
 #endif
 
+  inline void LimitAuxiliariesX1_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    // Either 0 or 1, depending on l/r convention
+    static const int I = DGB_RECON_X1_OFFSET;
+
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+    // N.B. indicial range is bumped left to account for reconstruction
+    // convention in X1
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il-1; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i+I));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        al_(IX_ETH,i+I) = std::max(al_(IX_ETH,i+I), min_ETH);
+        ar_(IX_ETH,i  ) = std::max(ar_(IX_ETH,i  ), min_ETH);
+      }
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i+I) = std::max(al_(IX_LOR,i+I), 1.0);
+        ar_(IX_LOR,i  ) = std::max(ar_(IX_LOR,i  ), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      const Real max_cs2 = peos->max_cs2;
+
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i+I) = std::max(0.0, std::min(al_(IX_CS2,i+I), max_cs2));
+        ar_(IX_CS2,i  ) = std::max(0.0, std::min(ar_(IX_CS2,i  ), max_cs2));
+      }
+    }
+
+#endif // USETM
+  }
+
+  inline void LimitAuxiliariesX2_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_ETH,i) = std::max(al_(IX_ETH,i), min_ETH);
+        ar_(IX_ETH,i) = std::max(ar_(IX_ETH,i), min_ETH);
+      }
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i) = std::max(al_(IX_LOR,i), 1.0);
+        ar_(IX_LOR,i) = std::max(ar_(IX_LOR,i), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      const Real max_cs2 = peos->max_cs2;
+
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), max_cs2));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), max_cs2));
+      }
+    }
+#endif // USETM
+  }
+
+  inline void LimitAuxiliariesX3_(
+    AA & al_,
+    AA & ar_,
+    const int il, const int iu)
+  {
+    EquationOfState *peos = pmy_block->peos;
+    Reconstruction  *precon = pmy_block->precon;
+
+#if USETM
+    if (precon->xorder_use_aux_T)
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i));
+      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
+    }
+
+    if (precon->xorder_use_aux_h)
+    {
+      const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_ETH,i) = std::max(al_(IX_ETH,i), min_ETH);
+        ar_(IX_ETH,i) = std::max(ar_(IX_ETH,i), min_ETH);
+      }
+    }
+
+    if (precon->xorder_use_aux_W)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_LOR,i) = std::max(al_(IX_LOR,i), 1.0);
+        ar_(IX_LOR,i) = std::max(ar_(IX_LOR,i), 1.0);
+      }
+    }
+
+    if (precon->xorder_use_aux_cs2)
+    {
+      const Real max_cs2 = peos->max_cs2;
+
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        al_(IX_CS2,i) = std::max(0.0, std::min(al_(IX_CS2,i), max_cs2));
+        ar_(IX_CS2,i) = std::max(0.0, std::min(ar_(IX_CS2,i), max_cs2));
+      }
+    }
+#endif // USETM
+  }
+
+
+  inline void FallbackInadmissibleMaskPrimitiveX_(
+    AthenaArray<bool> & mask_l_,
+    AthenaArray<bool> & mask_r_,
+    AA & zl_,
+    AA & zr_,
+    const int il, const int iu, const int ivx)
+  {
+    const int I = (ivx == 1) ? DGB_RECON_X1_OFFSET : 0;
+
+#if USETM
+    EquationOfState * peos = pmy_block->peos;
+    Real mb = peos->GetEOS().GetBaryonMass();
+    const Real dfloor_fac = pmy_block->precon->xorder_fb_dfloor_fac;
+    const Real fl_w_rho = dfloor_fac * mb * peos->GetEOS().GetDensityFloor();
+#else
+    const Real fl_w_rho = 0;
+#endif
+
+    if (!split_lr_fallback)
+    {
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zl_(IDN,i+I) <= fl_w_rho) ||
+                                  (zr_(IDN,i) <= fl_w_rho);
+        mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+        mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+      }
+    }
+    else
+    {
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zl_(IDN,i+I) < fl_w_rho);
+        mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+      }
+
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        const bool inadmissible = (zr_(IDN,i) < fl_w_rho);
+        mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+      }
+    }
+
+    if (pmy_block->precon->xorder_use_fb_unphysical)
+    {
+      EquationOfState *peos = pmy_block->peos;
+      if (!split_lr_fallback)
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+
+          const bool inadmissible = (!pl_ || !pr_);
+          mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+          mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+        }
+      }
+      else
+      {
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pl_ = peos->CheckPrimitivePhysical(zl_, -1, -1, i+I);
+          const bool inadmissible = !pl_;
+          mask_l_(i+I) = mask_l_(i+I) && !inadmissible;
+        }
+
+        #pragma omp simd
+        for (int i=il-1; i<=iu; ++i)
+        {
+          const bool pr_ = peos->CheckPrimitivePhysical(zr_, -1, -1, i);
+          const bool inadmissible = !pr_;
+          mask_r_(i  ) = mask_r_(i  ) && !inadmissible;
+        }
+      }
+    }
+
+  }
+
+  inline void FallbackInadmissibleMaskX_(
+    AthenaArray<bool> & mask_l_,
+    AthenaArray<bool> & mask_r_,
+    AA & zl_,
+    AA & zr_,
+    AA & f_zl_,
+    AA & f_zr_,
+    const int nl, const int nu,
+    const int il, const int iu, const int ivx)
+  {
+    const int I = (ivx == 1) ? DGB_RECON_X1_OFFSET : 0;
+
+    if (!split_lr_fallback)
+    {
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_l_(i+I) || !mask_r_(i))
+        {
+          zl_(n,i+I) = f_zl_(n,i+I);
+          zr_(n,i  ) = f_zr_(n,i  );
+        }
+      }
+    }
+    else
+    {
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_l_(i+I))
+        {
+          zl_(n,i+I) = f_zl_(n,i+I);
+        }
+      }
+
+      for (int n=nl; n<nu; ++n)
+      #pragma omp simd
+      for (int i=il-1; i<=iu; ++i)
+      {
+        if (!mask_r_(i))
+        {
+          zr_(n,i  ) = f_zr_(n,i  );
+        }
+      }
+    }
+  }
+
  private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
   // scratch space used to compute fluxes
@@ -618,6 +932,15 @@ public:
   AA wl_, wr_, wlb_;
   AA r_wl_, r_wr_, r_wlb_;
   AA rl_, rr_, rlb_;
+
+  // reconstruction for auxiliaries
+  AA al_, ar_, alb_;
+  AA r_al_, r_ar_, r_alb_;
+
+  // fall-back mask
+  AthenaArray<bool> mask_l_;
+  AthenaArray<bool> mask_lb_;
+  AthenaArray<bool> mask_r_;
 
   AA dflx_;
 

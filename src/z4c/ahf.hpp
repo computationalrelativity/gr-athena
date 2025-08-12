@@ -46,6 +46,8 @@ public:
   { return ah_prop[hmeanradius];}
   //! Horizon found
   bool ah_found;
+  //! Time horizon _first_ found
+  Real time_first_found;
   //! Initial guess
   Real initial_radius;
   //! Minimum radius
@@ -69,6 +71,10 @@ public:
   //! n surface uses the punctures' mass-weighted center
   //bool use_puncture_massweighted_center[NHORIZON];
   bool use_puncture_massweighted_center;
+
+  //! n surface follows the extrema tracker if use_extrema[n] > 0
+  int use_extrema;
+
   //! Distance in M at which BHs are considered as merged
   Real merger_distance;
 
@@ -160,6 +166,7 @@ private:
   void factorial_list(Real * fac, const int maxn);
 
   Mesh const * pmesh;
+  ParameterInput * pin;
 
   int root;
   int ioproc;

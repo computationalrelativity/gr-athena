@@ -7,83 +7,162 @@
 // Impose boundary conditions on RHS of eqn.
 void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
 {
-  MeshBlock * pmb = pmy_block;
+  MeshBlock *pmb = pmy_block;
+  BoundaryValues *pbval = pmy_block->pbval;
+  const int ndim = pmb->pmy_mesh->ndim;
+
   if (use_Dirichlet)
   {
-    if(pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.il, mbi.il, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-    if(pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.iu, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-
-    if(pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.il, mbi.iu, mbi.jl, mbi.jl, mbi.kl, mbi.ku);
-    if(pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.il, mbi.iu, mbi.ju, mbi.ju, mbi.kl, mbi.ku);
-
-    if(pmb->pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.il, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.kl);
-    if(pmb->pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::extrapolate_outflow ||
-       pmb->pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::outflow)
-        WaveBoundaryDirichlet_(u, mbi.il, mbi.iu, mbi.jl, mbi.ju, mbi.ku, mbi.ku);
-
-  } else if (use_Sommerfeld) {
-
-    if (pmb->pmy_mesh->ndim == 3) {
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.il, mbi.il, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.iu, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.il, mbi.iu, mbi.jl, mbi.jl, mbi.kl, mbi.ku);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.il, mbi.iu, mbi.ju, mbi.ju, mbi.kl, mbi.ku);
-
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.il, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.kl);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::outflow)
-          WaveSommerfeld_3d_(u, mbi.il, mbi.iu, mbi.jl, mbi.ju, mbi.ku, mbi.ku);
-    } else if (pmb->pmy_mesh->ndim == 2) {
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_2d_(u, mbi.il, mbi.il, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_2d_(u, mbi.iu, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::outflow)
-          WaveSommerfeld_2d_(u, mbi.il, mbi.iu, mbi.jl, mbi.jl, mbi.kl, mbi.ku);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::outflow)
-          WaveSommerfeld_2d_(u, mbi.il, mbi.iu, mbi.ju, mbi.ju, mbi.kl, mbi.ku);
-    } else {
-      if(pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_1d_L_(u, mbi.il, mbi.il, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
-      if(pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::extrapolate_outflow ||
-        pmb->pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::outflow)
-          WaveSommerfeld_1d_R_(u, mbi.iu, mbi.iu, mbi.jl, mbi.ju, mbi.kl, mbi.ku);
+    if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.il, mbi.il,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
     }
-
-  } else {
-    return;
+    if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.iu, mbi.iu,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
+    }
+    if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.il, mbi.iu,
+                             mbi.jl, mbi.jl,
+                             mbi.kl, mbi.ku);
+    }
+    if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.il, mbi.iu,
+                             mbi.ju, mbi.ju,
+                             mbi.kl, mbi.ku);
+    }
+    if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.il, mbi.iu,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.kl);
+    }
+    if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::gr_sommerfeld)
+    {
+      WaveBoundaryDirichlet_(u,
+                             mbi.il, mbi.iu,
+                             mbi.jl, mbi.ju,
+                             mbi.ku, mbi.ku);
+    }
   }
+  else if (use_Sommerfeld)
+  {
+    switch (ndim)
+    {
+      case 3:
+      {
+        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                             mbi.il, mbi.il,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                             mbi.iu, mbi.iu,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                                 mbi.il, mbi.iu,
+                                 mbi.jl, mbi.jl,
+                                 mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                                 mbi.il, mbi.iu,
+                                 mbi.ju, mbi.ju,
+                                 mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                                 mbi.il, mbi.iu,
+                                 mbi.jl, mbi.ju,
+                                 mbi.kl, mbi.kl);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_3d_(u,
+                                 mbi.il, mbi.iu,
+                                 mbi.jl, mbi.ju,
+                                 mbi.ku, mbi.ku);
+        }
 
-  return;
-
-
+        break;
+      }
+      case 2:
+      {
+        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_2d_(u,
+                             mbi.il, mbi.il,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_2d_(u,
+                             mbi.iu, mbi.iu,
+                             mbi.jl, mbi.ju,
+                             mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_2d_(u,
+                             mbi.il, mbi.iu,
+                             mbi.jl, mbi.jl,
+                             mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_2d_(u,
+                             mbi.il, mbi.iu,
+                             mbi.ju, mbi.ju,
+                             mbi.kl, mbi.ku);
+        }
+        break;
+      }
+      case 1:
+      {
+        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_1d_L_(u,
+                               mbi.il, mbi.il,
+                               mbi.jl, mbi.ju,
+                               mbi.kl, mbi.ku);
+        }
+        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        {
+          WaveSommerfeld_1d_R_(u,
+                               mbi.iu, mbi.iu,
+                               mbi.jl, mbi.ju,
+                               mbi.kl, mbi.ku);
+        }
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+  }
 }
 
 void Wave::WaveBoundaryDirichlet_(AthenaArray<Real> & u, int il, int iu,

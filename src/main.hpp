@@ -168,7 +168,7 @@ class Timer
 
   void pause()
   {
-    if (is_paused_)
+    if (!is_paused_)
     {
       time_paused_ = ClockT::now();
       is_paused_ = true;
@@ -203,7 +203,8 @@ class Clocks
   public:
     Clocks(Mesh * pmesh)
     : pmesh(pmesh),
-      wtime()
+      wtime(),
+      evo_clock_time_start(pmesh->start_time)
     {
       tstart = clock();
 #ifdef OPENMP_PARALLEL
@@ -495,7 +496,7 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
     tinit init_style = (pfl->res == 0) ? tinit::pgen : tinit::restart;
 
     pm->Initialize(init_style, pin);
-    pm->InitializePostFirstInitialize(pin);
+    pm->InitializePostFirstInitialize(init_style, pin);
     pm->DeleteTemporaryUserMeshData();
   }
   catch(std::bad_alloc& ba)
@@ -530,6 +531,9 @@ inline Outputs * InitOutputs(Flags *pfl,
 
     if (pfl->res == 0)
     {
+#if FLUID_ENABLED
+      pm->presc->FinalizePreOutput();
+#endif
       pouts->MakeOutputs(pm, pin);
     }
 
@@ -556,24 +560,31 @@ inline void MakeOutputs(const bool is_final,
                         Mesh *pm,
                         Outputs *pouts)
 {
-    try
-    {
-      pouts->MakeOutputs(pm, pin, is_final);
-    }
-    catch(std::bad_alloc& ba)
-    {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "memory allocation failed during output: ";
-      std::cout << ba.what() <<std::endl;
-      gra::parallelism::Teardown();
-      std::exit(0);
-    }
-    catch(std::exception const& ex)
-    {
-      std::cout << ex.what() << std::endl;
-      gra::parallelism::Teardown();
-      std::exit(0);
-    }
+  // Record final time as start_time for any restarts
+  pin->SetReal("time", "start_time", pm->time);
+
+#if FLUID_ENABLED
+  pm->presc->FinalizePreOutput();
+#endif
+
+  try
+  {
+    pouts->MakeOutputs(pm, pin, is_final);
+  }
+  catch(std::bad_alloc& ba)
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "memory allocation failed during output: ";
+    std::cout << ba.what() <<std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
+  catch(std::exception const& ex)
+  {
+    std::cout << ex.what() << std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
 }
 
 // General info
@@ -827,12 +838,48 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
 
 inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
                                   gra::triggers::Triggers &trgs,
-                                  Mesh *pmesh)
+                                  Mesh *pmesh,
+                                  Outputs *pouts)
 {
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
   const Real time_end_stage   = pmesh->time+pmesh->dt;
   const int ncycle_end_stage  = pmesh->ncycle+1;
+
+  // All derived hydro/field quantities computed for hst or any surface
+#if FLUID_ENABLED
+  bool need_derived = trgs.IsSatisfied(ovar::hst);
+
+  if (!need_derived)
+  {
+    for (auto psurf : pmesh->psurfs)
+    {
+      need_derived = need_derived || trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix);
+      if (need_derived)
+        break;
+    }
+  }
+
+  // should also check whether needed for athdf:
+  if (!need_derived)
+  if (pouts->TimeExceedsNextOutputTime("hydro.aux", time_end_stage) ||
+      pouts->TimeExceedsNextOutputTime("field.aux", time_end_stage))
+  {
+    need_derived = true;
+  }
+
+  if (need_derived)
+  {
+    pmesh->CalculateHydroFieldDerived();
+  }
+
+#endif // FLUID_ENABLED
+
+  // Compute global extrema quantities if so desired
+  if (trgs.IsSatisfied(tvar::global_extrema))
+  {
+    pmesh->GlobalExtrema();
+  }
 
   // Derivatives of ADM metric and other auxiliary computations needed below
   if (trgs.IsSatisfied(tvar::Z4c_AHF) or trgs.IsSatisfied(tvar::Z4c_RWZ))
@@ -914,6 +961,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
       }
     }
 
+    pmesh->CalculateExcisionMask();
   }
 
 #ifdef EJECTA_ENABLED
@@ -957,9 +1005,30 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
       // monolithic send
       // pmesh->ScatterMatter(pmb_array);
 
-      // recycle the matter task-based send
-      static const int stage_dummy = 0; // only a comm. so irrelevant
+      if (!pmesh->use_split_grmhd_z4c)
+      {
+        std::printf("GR(M)HD+M1 requires use_split_grmhd_z4c\n");
+        assert(false);
+      }
+
+      // recycle the matter task-based send -----------------------------------
+
+      // If we set stage 0 then no auxiliary quantities (e.g Weyl/ADM cons.)
+      // are computed and hence we only do communication + ADM matter pop.
+      static const int stage_dummy = 0;
       ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
+      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage_dummy);
+
+#if FLUID_ENABLED
+      // Rescale as required
+      const Real time_end_stage   = pmesh->time+pmesh->dt;
+      const Real ncycle_end_stage = pmesh->ncycle+1;
+
+      pmesh->presc->Apply();
+      pmesh->presc->OutputWrite(ncycle_end_stage,
+                                time_end_stage,
+                                stage);
+#endif
     }
   }
 }

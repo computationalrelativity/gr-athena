@@ -156,6 +156,43 @@ enum TriangleIndex {T00=0, T10=1, T11=2, T20=3, T21=4, T22=5, T30=6, T31=7, T32=
 enum SpatialMetricIndex {S11=0, S12=1, S13=2, S22=3, S23=4, S33=5,
   NSPMETRIC=6};
 
+// Hydro-derived quantities for output:
+enum HydroDerivedIndex {
+  IX_C2P=0,   // c2p status
+  IX_LOR=1,   // Lorentz factor
+  IX_T=2,     // temperature
+  IX_ETH=3,   // enthalpy
+  IX_SPB=4,   // entropy per baryon
+  IX_SEN=5,   // specific internal energy
+  IX_U_d_0=6, // u_t (downstairs)
+  IX_HU_d_0=7,   // h/h_inf u_t
+  IX_CS2=8,   // cs^2
+  IX_OM=9,     // Omega = y Wv^x - x Wv^y /(x^2 + y^2)^(1/2) angular velocity
+  NDRV_HYDRO=10};
+
+// Hydro-derived quantities for internal use
+enum HydroInternalDerivedIndex {
+  // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j - beta^j
+  IX_TR_V1   =0,
+  IX_TR_V2   =1,
+  IX_TR_V3   =2,
+  NIDRV_HYDRO=3};
+
+  // Field-derived quantities:
+enum FieldDerivedIndex {
+  IX_B2=0,    // B^iB^j adm_gamma_{ij}
+  IX_b0=1,    // W scB^i v_i / alpha
+  IX_b2=2,    // ((alpha b^0)^2 + (scB^i scB^j) adm_gamma_{ij}) / W^2
+  IX_b_U_1=3, // (scB^i + alpha * b^0 * W * vtil^i) / W
+  IX_b_U_2=4,
+  IX_b_U_3=5,
+  IX_MAG=6, // magnetisation B^2/D
+  IX_BET=7, // plasma beta^-1 (2 p / b^2)^-1
+  IX_MRI=8, // fastest growing mode lambda_MRI = b^z / (sqrt(rho) Omega)
+  IX_ALF=9, // Alfven speed v_A = sqrt(B^2 / (4pi rho))
+  NDRV_FIELD=10
+};
+
 // enumerator types that are used for variables and function parameters:
 
 // needed for arrays dimensioned over grid directions

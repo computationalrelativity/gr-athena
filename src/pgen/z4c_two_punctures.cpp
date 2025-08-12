@@ -200,11 +200,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
 
   pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
   pz4c->ADMConstraints(pz4c->storage.con, pz4c->storage.adm,
                        pz4c->storage.mat, pz4c->storage.u);
+  pz4c->assert_is_finite_con();
+  */
+  // --------------------------------------------------------------------------
 
   pz4c->assert_is_finite_adm();
-  pz4c->assert_is_finite_con();
   pz4c->assert_is_finite_mat();
   pz4c->assert_is_finite_z4c();
 

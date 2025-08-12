@@ -57,6 +57,7 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   storage{
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u
     { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u1
+    // { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 },  // u2
     {   // flux
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2, mbi.nn1 + 1 },
      { ixn_Lab::N*N_GS, mbi.nn3, mbi.nn2 + 1, mbi.nn1 },
@@ -111,6 +112,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS},
+    {N_GRPS,N_SPCS}
+  },
+  eql{
     {N_GRPS,N_SPCS},
     {N_GRPS,N_SPCS}
   },
@@ -182,23 +187,42 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   SetVarAliasesFidu(  storage.intern, fidu);
   SetVarAliasesNet(   storage.intern, net);
 
+  if (opt.retain_equilibrium)
+  {
+    storage_eql.NewAthenaArray(ixn_Eql::N*N_GS,
+                               mbi.nn3, mbi.nn2, mbi.nn1);
+    SetVarAliasesEql(storage_eql, eql);
+  }
+
   // storage for misc. quantities ---------------------------------------------
-  if (opt_solver.src_lim >= 0)
+  if ((opt_solver.src_lim >= 0) ||
+      (opt_solver.full_lim >= 0))
   {
     sources.theta.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   }
 
-  ev_strat.masks.solution_regime.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  if (opt_solver.solver_reduce_to_common)
+  {
+    ev_strat.masks.solution_regime.NewAthenaArray(
+      N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.source_treatment.NewAthenaArray(
+      N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
+  else
+  {
+    ev_strat.masks.solution_regime.NewAthenaArray(
+      N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+    ev_strat.masks.source_treatment.NewAthenaArray(
+      N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+  }
   ev_strat.masks.solution_regime.Fill(t_sln_r::noop);
-
-  ev_strat.masks.source_treatment.NewAthenaArray(
-    N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.source_treatment.Fill(t_src_t::noop);
 
   ev_strat.masks.excised.NewAthenaArray(
     mbi.nn3, mbi.nn2, mbi.nn1);
   ev_strat.masks.excised.Fill(false);
+
+  ev_strat.status.clear();
 
 
   if (opt.flux_limiter_use_mask)
@@ -218,8 +242,22 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
                                       mbi.nn3 + 1, mbi.nn2, mbi.nn1);
 
     SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
-    ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+
+    if (opt.flux_lo_fallback_species)
+    {
+      ev_strat.masks.pp.NewAthenaArray(N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(N_SPCS,
+                                                  mbi.nn3, mbi.nn2, mbi.nn1);
+
+    }
+    else
+    {
+      ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+    }
   }
+
+  ev_strat.masks.compute_point.Fill(true);
 
   // --------------------------------------------------------------------------
   // general setup
@@ -356,6 +394,16 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real> & u, vars_RadMat & radmat)
   }
 }
 
+void M1::SetVarAliasesEql(AthenaArray<Real> & u, vars_Eql & eq)
+{
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+  {
+    SetVarAlias(eql.sc_J, u, ix_g, ix_s, ixn_Eql::sc_J, ixn_Eql::N);
+    SetVarAlias(eql.sc_n, u, ix_g, ix_s, ixn_Eql::sc_n, ixn_Eql::N);
+  }
+}
+
 void M1::SetVarAliasesDiag(AthenaArray<Real> & u, vars_Diag & rdiag)
 {
   for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
@@ -382,10 +430,9 @@ void M1::SetVarAliasesFidu(AthenaArray<Real> & u, vars_Fidu & fidu)
 
 void M1::SetVarAliasesNet(AthenaArray<Real> & u, vars_Net & net)
 {
-  // net.abs.InitWithShallowSlice(u, I_Intern_netabs);
-  // net.heat.InitWithShallowSlice(u, I_Intern_netheat);
+  net.abs.InitWithShallowSlice( u, ixn_Internal::netabs);
+  net.heat.InitWithShallowSlice(u, ixn_Internal::netheat);
 }
-
 
 void M1::StatePrintPoint(
   const std::string & tag,
@@ -409,6 +456,7 @@ void M1::StatePrintPoint(
 
     std::cout << "geometric fields=========================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
+    geom.sc_oo_sqrt_det_g.PrintPoint("geom.sc_oo_sqrt_det_g", k,j,i);
     geom.sc_sqrt_det_g.PrintPoint("geom.sc_sqrt_det_g", k,j,i);
     geom.sc_alpha.PrintPoint("geom.sc_alpha", k,j,i);
 
@@ -442,6 +490,7 @@ void M1::StatePrintPoint(
     std::cout << "hydro fields============================: " << "\n\n";
     std::cout << "sc=================: " << "\n";
     hydro.sc_W.PrintPoint("hydro.sc_W", k,j,i);
+    hydro.sc_T.PrintPoint("hydro.sc_T", k,j,i);
     hydro.sc_w_p.PrintPoint("hydro.sc_w_p", k,j,i);
     hydro.sc_w_rho.PrintPoint("hydro.sc_w_rho", k,j,i);
     hydro.sc_w_Ye.PrintPoint("hydro.sc_w_Ye", k,j,i);
@@ -485,13 +534,19 @@ void M1::StatePrintPoint(
     std::printf("OO(kap_as * dx3) = %.3g\n", OO(kap_as) * mbi.dx3(k));
 
     std::cout << "opt_solution_regime: ";
-    std::cout << static_cast<int>(ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i));
+    std::cout << static_cast<int>(GetMaskSolutionRegime(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
     std::cout << "opt_source_treatment: ";
-    std::cout << static_cast<int>(ev_strat.masks.source_treatment(ix_g,ix_s,k,j,i));
+    std::cout << static_cast<int>(GetMaskSourceTreatment(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
+    if (opt.flux_lo_fallback)
+    {
+      std::cout << "opt_flux_lo_fallback: ";
+      std::cout << sources.theta(k,j,i);
+      std::cout << "\n";
+    }
   }
 
   if (terminate)

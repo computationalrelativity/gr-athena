@@ -31,14 +31,6 @@ static Real Kerr_AMR_sc_E_threshold { 0 };
 static int Kerr_AMR_target_level { 0 };
 
 int RefinementCondition(MeshBlock *pmb);
-#if FLUID_ENABLED
-Real num_c2p_fail(MeshBlock *pmb, int iout);
-#endif
-
-Real min_sc_E_00(MeshBlock *pmb, int iout);
-Real min_sc_J_00(MeshBlock *pmb, int iout);
-
-
 
 void InitM1Advection(MeshBlock *pmb, ParameterInput *pin)
 {
@@ -208,7 +200,9 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
   const Real Ye = pin->GetReal("problem", "Y_e");
 #if USETM
   const Real temp = pin->GetReal("problem", "temperature");
-  phydro->temperature.Fill(temp);
+  AA temperature;
+  temperature.InitWithShallowSlice(phydro->derived_ms, IX_T, 1);
+  temperature.Fill(temp);
 #else
   const Real press = pin->GetReal("problem", "press");
 #endif
@@ -898,19 +892,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 
 #if FLUID_ENABLED
-  AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(0, num_c2p_fail, "num_c2p_fail",
-                          UserHistoryOperation::sum);
+  EnrollUserStandardHydro(pin);
 #endif
-
-  static const int NUM_ENROLLED = 2;
-  AllocateUserHistoryOutput(NUM_ENROLLED);
-  EnrollUserHistoryOutput(0,
-                          min_sc_E_00,
-                          "min_sc_E_00", UserHistoryOperation::min);
-  EnrollUserHistoryOutput(1,
-                          min_sc_J_00,
-                          "min_sc_J_00", UserHistoryOperation::min);
+  EnrollUserStandardM1(pin);
 
   return;
 }
@@ -992,12 +976,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     InitM1ValueInject(this, pin);
   }
 
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
 #if M1_ENABLED
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   pm1->CalcFiducialVelocity();
 #endif  // M1_ENABLED
-
+  */
+  // --------------------------------------------------------------------------
 #if FLUID_ENABLED
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w,
@@ -1012,7 +1000,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #endif // FLUID_ENABLED
 
 #if Z4C_ENABLED
-  // Initialise matter (also taken care of in task-list)
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
   pz4c->GetMatter(pz4c->storage.mat,
                   pz4c->storage.adm,
                   phydro->w,
@@ -1023,6 +1014,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
+  */
+  // --------------------------------------------------------------------------
 #endif // Z4C_ENABLED
 
 }
@@ -1170,55 +1163,6 @@ int RefinementCondition(MeshBlock *pmb)
   }
 
   return 0;  // do nothing
-}
-
-#if FLUID_ENABLED
-Real num_c2p_fail(MeshBlock *pmb, int iout)
-{
-  Real sum_ = 0;
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  AthenaArray<Real> &cstat = pmb->phydro->c2p_status;
-
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    if (pmb->phydro->c2p_status(k,j,i) > 0)
-      sum_++;
-  }
-
-  return sum_;
-}
-#endif
-
-
-Real min_sc_E_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_E_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_E_00 = std::min(min_sc_E_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->lab.sc_E(0,0)(k,j,i));
-  }
-  return min_sc_E_00;
-}
-
-Real min_sc_J_00(MeshBlock *pmb, int iout)
-{
-  Real min_sc_J_00 = +std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
-  {
-    // const Real oo_sc_sqrt_det_g = OO(pmb->pm1->geom.sc_sqrt_det_g(k,j,i));
-    min_sc_J_00 = std::min(min_sc_J_00,
-                          //  oo_sc_sqrt_det_g *
-                           pmb->pm1->rad.sc_J(0,0)(k,j,i));
-  }
-  return min_sc_J_00;
 }
 
 // ============================================================================

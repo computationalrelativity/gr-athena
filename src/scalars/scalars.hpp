@@ -86,56 +86,14 @@ class PassiveScalars {
     AthenaArray<Real> & zr_,
     AthenaArray<Real> & f_zl_,
     AthenaArray<Real> & f_zr_,
-    const int il, const int iu, const int I);
+    const int il, const int iu, const int ivx);
 
-  void FallbackInadmissibleScalarX1_(
+  void FallbackInadmissibleMaskScalarX_(
+    AthenaArray<bool> & mask_l_,
+    AthenaArray<bool> & mask_r_,
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
-
-  void FallbackInadmissibleScalarX2_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
-
-  void FallbackInadmissibleScalarX3_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
-
-  void FallbackInadmissibleScalarTableLimitsX_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu, const int I);
-
-  void FallbackInadmissibleScalarTableLimitsX1_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
-
-  void FallbackInadmissibleScalarTableLimitsX2_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
-
-  void FallbackInadmissibleScalarTableLimitsX3_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu);
+    const int il, const int iu, const int ivx);
 
 public:  // debug for combined hydro-scalar recon
   MeshBlock* pmy_block;

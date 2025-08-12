@@ -115,6 +115,8 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 
   if (stage == 1)
   {
+    pm1->ResetEvolutionStrategy();
+
     // u1 stores the solution at the beginning of the timestep
     pm1->storage.u1 = pm1->storage.u;
     // pm1->storage.u1.DeepCopy(pm1->storage.u);
@@ -130,6 +132,9 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 //! Functions to end MPI communication
 TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
+  Mesh * pm = pmb->pmy_mesh;
+  ::M1::M1 * pm1 = pmb->pm1;
+
   pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
   return TaskStatus::success;
 }
@@ -233,20 +238,15 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       pm1->CalcFluxLimiter(pm1->storage.u);
     }
 
+    // reset total number of LO reversions on current substep
+    pm1->ev_strat.substep_shortcircuit = false;
+
     pm1->CalcFluxes(pm1->storage.u, false);
 
     if (pm1->opt.flux_lo_fallback)
     {
-      pm1->CalcFluxes(pm1->storage.u, true);
-
-      // Zero property preservation mask
-      // Do prior to evo. as mask is modified on pp enforcement.
-      pm1->ev_strat.masks.pp.Fill(0.0);
-
-      // construct candidate solution -----------------------------------------
-      // need to add divF to inhomogeneity; subtract off after solution known
-
-      pm1->AddFluxDivergence(pm1->storage.u_rhs);
+      // initially, don't suppress any point-wise calc.
+      pm1->ev_strat.masks.compute_point.Fill(true);
 
       Real const dt = pm->dt * dt_fac[stage - 1];
 
@@ -255,24 +255,115 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
         pm1->PrepareEvolutionStrategy(dt);
       }
 
+
+      // Zero property preservation mask
+      // Do prior to evo. as mask is modified on pp enforcement.
+      if ((stage == 1) || pm1->opt.flux_lo_fallback_mask_reset_all_stages)
+      {
+        pm1->ev_strat.masks.pp.Fill(0.0);
+      }
+
+      // optionally we skip the first stage
+      if ((stage == 1) && !pm1->opt.flux_lo_fallback_first_stage)
+      {
+        return TaskStatus::next;
+      }
+
+
+      const int KL = M1_IX_KL-M1_MSIZEK;
+      const int KU = M1_IX_KU+M1_MSIZEK;
+      const int JL = M1_IX_JL-M1_MSIZEJ;
+      const int JU = M1_IX_JU+M1_MSIZEJ;
+      const int IL = M1_IX_IL-M1_MSIZEI;
+      const int IU = M1_IX_IU+M1_MSIZEI;
+
+      // BD: TODO- calculation could be avoided if we computed candidate soln.
+      // first; but that would require another storage / a bit of refactoring.
+      pm1->CalcFluxes(pm1->storage.u, true);
+
+      // construct candidate solution -----------------------------------------
+      // need to add divF to inhomogeneity; subtract off after solution known
+
+      pm1->AddFluxDivergence(pm1->storage.u_rhs,
+                             KL, KU, JL, JU, IL, IU);
+
       // Construct candidate state
+      const bool fallback_mode = true;
       pm1->CalcUpdate(stage,
                       dt,
                       pm1->storage.u1,
                       pm1->storage.u,
                       pm1->storage.u_rhs,
-                      pm1->storage.u_sources);
+                      pm1->storage.u_sources,
+                      KL, KU, JL, JU, IL, IU,
+                      fallback_mode,
+                      pm1->ev_strat.substep_shortcircuit);
 
-      // Revert inhomogeneity
-      // WARNING: masks have been adjusted within CalcUpdate; to properly
-      // compensate flux addition we should not use the hybridization mask
-      // there.
-      pm1->SubFluxDivergence(pm1->storage.u_rhs);
+      // Update status [physical only]
+      int num_lo = 0;
+      for (int k=M1_IX_KL; k<=M1_IX_KU; ++k)
+      for (int j=M1_IX_JL; j<=M1_IX_JU; ++j)
+      for (int i=M1_IX_IL; i<=M1_IX_IU; ++i)
+      {
+
+        if (pm1->opt.flux_lo_fallback_species)
+        {
+          for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+          {
+            num_lo += pm1->ev_strat.masks.pp(ix_s, k, j, i) == 1.0;
+          }
+        }
+        else
+        {
+          num_lo += pm1->ev_strat.masks.pp(k, j, i) == 1.0;
+        }
+      }
+      pm1->ev_strat.status.num_lo_reversions += num_lo;
+
+      // maybe we can short-circuit the block in future? ----------------------
+      pm1->ev_strat.substep_shortcircuit = (
+        (num_lo == 0) &&                  // no fb needed
+        pmb->NeighborBlocksSameLevel()    // no flux corr.
+      );
+
+      if (pm1->ev_strat.substep_shortcircuit)
+      {
+        // don't need to bother hybridizing or re-adding flux etc
+        pm1->ev_strat.masks.compute_point.Fill(false);
+        return TaskStatus::next;
+      }
+      // ----------------------------------------------------------------------
 
       // hybridize fluxes based on pp mask ------------------------------------
-      pm1->HybridizeLOFlux(pm1->storage.u);
-      // Flip mask to execute next CalcUpdate on LO points
-      pm1->AdjustMaskPropertyPreservation();
+      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
+                           pm1->fluxes,
+                           pm1->fluxes_lo);
+      // ----------------------------------------------------------------------
+
+      // Retain which points can be propagated --------------------------------
+      const int os = !pmb->NeighborBlocksSameLevel();  // will need bnd layer
+
+      // fallback may be split over different species
+      const int IX_MS = (pm1->opt.flux_lo_fallback_species)
+        ? pm1->N_SPCS
+        : 0;
+
+      // consider only interior of physical points
+      for (int ix_s=0; ix_s<IX_MS; ++ix_s)
+      for (int k=M1_IX_KL+os; k<=M1_IX_KU-os; ++k)
+      for (int j=M1_IX_JL+os; j<=M1_IX_JU-os; ++j)
+      for (int i=M1_IX_IL+os; i<=M1_IX_IU-os; ++i)
+      {
+        pm1->MaskSetHybridize(
+          pm1->ev_strat.masks.pp(ix_s,k,j,i) == 1.0,
+          ix_s, k, j, i
+        );
+      }
+      // ----------------------------------------------------------------------
+
+      // Finally revert inhomogeneity on points that can't be propagated
+      pm1->SubFluxDivergence(pm1->storage.u_rhs,
+                             KL, KU, JL, JU, IL, IU);
     }
 
     return TaskStatus::next;
@@ -320,8 +411,17 @@ TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    pm1->AddFluxDivergence(pm1->storage.u_rhs);
-    return TaskStatus::success;
+    // Candidate solution accepted on whole block (no flux. corr. needed)
+    if (pm1->ev_strat.substep_shortcircuit)
+    {
+      return TaskStatus::next;
+    }
+
+    pm1->AddFluxDivergence(pm1->storage.u_rhs,
+                           M1_IX_KL, M1_IX_KU,
+                           M1_IX_JL, M1_IX_JU,
+                           M1_IX_IL, M1_IX_IU);
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -334,7 +434,7 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->AddSourceGR(pm1->storage.u, pm1->storage.u_rhs);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -355,21 +455,21 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
       pm1->PrepareEvolutionStrategy(dt);
     }
 
-
-    // pm1->opt.flux_lo_fallback = false;
-    pm1->CalcUpdate(stage,
-                    dt,
-                    pm1->storage.u1,
-                    pm1->storage.u,
-                    pm1->storage.u_rhs,
-                    pm1->storage.u_sources);
-
-    // pm1->opt.flux_lo_fallback = true;
-
-    if (stage == 2)
-    {
-      pm1->ResetEvolutionStrategy();
-    }
+    // Need lo on at least one point...
+    const bool fallback_mode = false;
+    pm1->CalcUpdate(
+      stage,
+      dt,
+      pm1->storage.u1,
+      pm1->storage.u,
+      pm1->storage.u_rhs,
+      pm1->storage.u_sources,
+      M1_IX_KL, M1_IX_KU,
+      M1_IX_JL, M1_IX_JU,
+      M1_IX_IL, M1_IX_IU,
+      fallback_mode,
+      pm1->ev_strat.substep_shortcircuit
+    );
 
     return TaskStatus::next;
   }
@@ -385,6 +485,11 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 
   if (stage == nstages)
   {
+    if (pm1->opt.zero_fix_sources)
+    {
+      pm1->EnforceSourcesFinite();
+    }
+
     if (pm1->opt.couple_sources_hydro)
     {
       pm1->CoupleSourcesHydro(pmb->phydro->u);

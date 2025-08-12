@@ -13,6 +13,7 @@
 #include "../z4c/z4c_macro.hpp"
 #include "coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/floating_point.hpp"
 
 //-----------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -176,6 +177,7 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool coarse_flag)
     oo_detgamma_.NewAthenaTensor(nc1);
 
     alpha_.NewAthenaTensor(nc1);
+    oo_alpha_.NewAthenaTensor(nc1);
     beta_u_.NewAthenaTensor(nc1);
     gamma_dd_.NewAthenaTensor(nc1);
     gamma_uu_.NewAthenaTensor(nc1);
@@ -242,9 +244,14 @@ void GRDynamical::AddCoordTermsDivergence(
   AthenaArray<Real> &cons)
 {
   using namespace LinearAlgebra;
+  using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
   EquationOfState * peos = pmb->peos;
+  Hydro * ph = pmb->phydro;
+
+  // regularization factor
+  const Real eps_alpha__ = pmb->pz4c->opt.eps_floor;
 
   // perform variable resampling when required
   Z4c * pz4c = pmy_block->pz4c;
@@ -255,6 +262,15 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_sym adm_gamma_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym adm_K_dd(    pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
+  // BD: TODO - clean this up
+  AT_N_sca adm_sqrt_detgamma;
+#if FLUID_ENABLED
+  adm_sqrt_detgamma.InitWithShallowSlice(
+    pz4c->storage.aux_extended,
+    Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma
+  );
+#endif // FLUID_ENABLED
+
   // Slice matter -------------------------------------------------------------
   AA & ccprim = const_cast<AthenaArray<Real>&>(prim);
   AT_N_sca w_rho(   ccprim, IDN);
@@ -262,7 +278,7 @@ void GRDynamical::AddCoordTermsDivergence(
   AT_N_vec w_util_u(ccprim, IVX);
 #if NSCALARS > 0
   AA & ccprim_scalar = const_cast<AthenaArray<Real>&>(prim_scalar);
-  AT_N_vec w_r(ccprim_scalar, 0);
+  AT_S_vec w_r(ccprim_scalar, 0);
 #endif
 
   // --------------------------------------------------------------------------
@@ -273,6 +289,12 @@ void GRDynamical::AddCoordTermsDivergence(
     GetGeometricFieldCC(K_dd_,     adm_K_dd,     k, j);
     GetGeometricFieldCC(alpha_,    adm_alpha,    k, j);
     GetGeometricFieldCC(beta_u_,   adm_beta_u,   k, j);
+
+    CC_PCO_ILOOP1(i)
+    {
+      Real alpha__ = regularize_near_zero(alpha_(i), eps_alpha__);
+      oo_alpha_(i) = OO(alpha__);
+    }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
     for (int a=0; a<NDIM; ++a)
@@ -307,8 +329,10 @@ void GRDynamical::AddCoordTermsDivergence(
     // Prepare determinant-like
     CC_PCO_ILOOP1(i)
     {
-      detgamma_(i)      = Det3Metric(gamma_dd_, i);
-      sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
+      // detgamma_(i)      = Det3Metric(gamma_dd_, i);
+      // sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
+      sqrt_detgamma_(i) = adm_sqrt_detgamma(k,j,i);
+      detgamma_(i)      = SQR(sqrt_detgamma_(i));
 
       oo_detgamma_(i)      = OO(detgamma_(i));
 #if MAGNETIC_FIELDS_ENABLED
@@ -330,11 +354,14 @@ void GRDynamical::AddCoordTermsDivergence(
     // Lorentz factors
     CC_PCO_ILOOP1(i)
     {
+      /*
       const Real norm2_utilde_ = InnerProductSlicedVec3Metric(
         w_util_d_, gamma_uu_, i
       );
 
       W_(i) = std::sqrt(1. + norm2_utilde_);
+      */
+      W_(i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
     }
 
     // Calculate enthalpy (rho*h) NB EOS specific!
@@ -352,8 +379,15 @@ void GRDynamical::AddCoordTermsDivergence(
       }
 #endif
 
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+      Real T = pmb->phydro->derived_ms(IX_T,k,j,i);
+      Real h = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+#else
       Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(k,j,i), Y);
-      w_hrho_(i) = w_rho(k,j,i)*peos->GetEOS().GetEnthalpy(n, T, Y);
+      Real h = peos->GetEOS().GetEnthalpy(n, T, Y);
+#endif
+
+      w_hrho_(i) = w_rho(k,j,i) * h;
 #else
       const Real gamma_adi = peos->GetGamma();
     	w_hrho_(i) = w_rho(k,j,i) + gamma_adi/(gamma_adi-1.0) * w_p(k,j,i);
@@ -379,7 +413,7 @@ void GRDynamical::AddCoordTermsDivergence(
       {
         CC_PCO_ILOOP1(i)
         {
-          b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) / alpha_(i);
+          b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) * oo_alpha_(i);
         }
       }
 
@@ -388,7 +422,7 @@ void GRDynamical::AddCoordTermsDivergence(
         bi_u_(a, i) = (
           q_scB_u_(a, i) +
           alpha_(i) * b0_(i) * (w_util_u_(a, i) / W_(i) -
-                                beta_u_(a, i) / alpha_(i))
+                                beta_u_(a, i) * oo_alpha_(i))
         );
       }
 
@@ -427,8 +461,8 @@ void GRDynamical::AddCoordTermsDivergence(
       // T_dd (space-time) components -----------------------------------------
       CC_PCO_ILOOP1(i)
       {
-        T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) / alpha_(i)) +
-                  (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 / SQR(alpha_(i))) -
+        T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) * oo_alpha_(i)) +
+                  (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 * SQR(oo_alpha_(i))) -
                   b0_(i) * b0_(i));
       }
 
@@ -437,9 +471,9 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           T0i_u(a, i) =
-              ((w_hrho_(i) + b2_(i)) * W_(i) / alpha_(i) *
-                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) / alpha_(i)) +
-               (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) / SQR(alpha_(i)) -
+              ((w_hrho_(i) + b2_(i)) * W_(i) * oo_alpha_(i) *
+                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_(i)) +
+               (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) * SQR(oo_alpha_(i)) -
                b0_(i) * bi_u_(a, i));
         }
       }
@@ -451,7 +485,7 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           T0i_d(a, i) =
-              (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) / alpha_(i) -
+              (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) * oo_alpha_(i) -
                b0_(i) * bi_d_(a, i));
         }
       }
@@ -463,11 +497,11 @@ void GRDynamical::AddCoordTermsDivergence(
         {
           Tij_uu(a, b, i) =
               ((w_hrho_(i) + b2_(i)) *
-                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) / alpha_(i)) *
-                   (w_util_u_(b, i) - W_(i) * beta_u_(b, i) / alpha_(i)) +
+                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_(i)) *
+                   (w_util_u_(b, i) - W_(i) * beta_u_(b, i) * oo_alpha_(i)) +
                (w_p(k, j, i) + b2_(i) / 2.0) *
                    (gamma_uu_(a, b, i) -
-                    beta_u_(a, i) * beta_u_(b, i) / SQR(alpha_(i))) -
+                    beta_u_(a, i) * beta_u_(b, i) * SQR(oo_alpha_(i))) -
                bi_u_(a, i) * bi_u_(b, i));
         }
       }
@@ -532,8 +566,8 @@ void GRDynamical::AddCoordTermsDivergence(
       {
         CC_PCO_ILOOP1(i)
         {
-          Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) /
-                     alpha_(i);
+          Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) *
+            oo_alpha_(i);
 
         }
 
@@ -554,7 +588,7 @@ void GRDynamical::AddCoordTermsDivergence(
         CC_PCO_ILOOP1(i)
         {
           SS_d_(a, i) = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
-                       dalpha_d_(a, i) / alpha_(i);
+                       dalpha_d_(a, i) * oo_alpha_(i);
         }
 
         for (int b=0; b<NDIM; ++b)
@@ -562,7 +596,7 @@ void GRDynamical::AddCoordTermsDivergence(
           CC_PCO_ILOOP1(i)
           {
             SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
-                           dbeta_du_(a, b, i) / alpha_(i);
+                           dbeta_du_(a, b, i) * oo_alpha_(i);
           }
 
           for (int c=0; c<NDIM; ++c)
@@ -580,15 +614,64 @@ void GRDynamical::AddCoordTermsDivergence(
     } // MAGNETIC_FIELDS_ENABLED
 
     // Add sources
+    if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_freeze_evo)
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i) *
+                           ph->excision_mask(k,j,i);
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      }
+    }
+    else if (ph->opt_excision.excise_hydro_damping)
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+        // 1 if not excising, 0 if excising
+        const Real ef = ph->excision_mask(k,j,i);
+
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+
+        const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
+        const Real gam_w_vol = gam * w_vol;
+        cons(IDN,k,j,i) -= gam_w_vol * ph->u(IDN,k,j,i);
+        cons(IM1,k,j,i) -= gam_w_vol * ph->u(IM1,k,j,i);
+        cons(IM2,k,j,i) -= gam_w_vol * ph->u(IM2,k,j,i);
+        cons(IM3,k,j,i) -= gam_w_vol * ph->u(IM3,k,j,i);
+        cons(IEN,k,j,i) -= gam_w_vol * ph->u(IEN,k,j,i);
+      }
+    }
+    else
+    {
+      CC_PCO_ILOOP1(i)
+      {
+        // BD: TODO - consider embedded pre-factor to avoid zero-div. if alpha->0
+        const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+        cons(IEN,k,j,i) += w_vol * Stau_(i);
+        cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
+        cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
+        cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      }
+    }
+
+    // DEBUG FULL EXCISION
+    if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_taper)
     CC_PCO_ILOOP1(i)
     {
-      // BD: TODO - consider embedded pre-factor to avoid zero-div. if alpha->0
-      const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
-      cons(IEN,k,j,i) += w_vol * Stau_(i);
-      cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
-      cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
-      cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
+      cons(IDN,k,j,i) = ph->excision_mask(k,j,i) * cons(IDN,k,j,i);
+      cons(IM1,k,j,i) = ph->excision_mask(k,j,i) * cons(IM1,k,j,i);
+      cons(IM2,k,j,i) = ph->excision_mask(k,j,i) * cons(IM2,k,j,i);
+      cons(IM3,k,j,i) = ph->excision_mask(k,j,i) * cons(IM3,k,j,i);
+      cons(IEN,k,j,i) = ph->excision_mask(k,j,i) * cons(IEN,k,j,i);
     }
+
   } // j, k
 
 }

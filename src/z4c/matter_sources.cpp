@@ -4,12 +4,14 @@
 // Athena++ headers
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
+#include "ahf.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
 #include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/floating_point.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #endif // M1_ENABLED
@@ -29,9 +31,11 @@ void Z4c::GetMatter(
 #if defined(Z4C_WITH_HYDRO_ENABLED)
 
   using namespace LinearAlgebra;
+  using namespace FloatingPoint;
 
+  Mesh * pm       = pmy_mesh;
   MeshBlock * pmb = pmy_block;
-  Hydro * phydro = pmb->phydro;
+  Hydro * ph      = pmb->phydro;
 #if USETM
   PassiveScalars * pscalars = pmb->pscalars;
 #endif
@@ -48,6 +52,9 @@ void Z4c::GetMatter(
 
   SetZ4cAliases(storage.u,   z4c);
   SetADMAliases(storage.adm, adm);
+
+  // regularization factor
+  const Real eps_alpha__ = opt.eps_floor;
 
   // set up some parameters ---------------------------------------------------
 #if USETM
@@ -120,7 +127,12 @@ void Z4c::GetMatter(
           Y[l] = w_r(l,i);
         }
 #endif
+
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        Real T = ph->derived_ms(IX_T,k,j,i);
+#else
         Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
+#endif
 
         Real Wvu[3] = { };
         for (int ix=0; ix<3; ++ix)
@@ -129,18 +141,38 @@ void Z4c::GetMatter(
         }
 
         peos->GetEOS().ApplyPrimitiveFloor(n, Wvu, w_p(i), T, Y);
+        // propagate floors back
+        w_rho(i) = n * mb;
+#if NSCALARS>0
+        for (int l=0; l<NSCALARS; l++)
+        {
+          w_r(l,i) = Y[l];
+        }
+#endif
 
-        w_hrho(i) = w_rho(i)*peos->GetEOS().GetEnthalpy(n, T, Y);
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        Real h = ph->derived_ms(IX_ETH,k,j,i);
+#else
+        Real h = peos->GetEOS().GetEnthalpy(n, T, Y);
+#endif
+
+
+        w_hrho(i) = w_rho(i) * h;
 #else
         w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif
 
         // compute Lorenz factors
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+        W(i) = ph->derived_ms(IX_LOR,k,j,i);
+#else
         Real const norm2_utilde = InnerProductSlicedVec3Metric(w_utilde_u,
                                                                adm.g_dd,
                                                                k, j, i);
         W(i) = std::sqrt(1.0 + norm2_utilde);
-        detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
+#endif
+        // detgamma(i) = Det3Metric(adm.g_dd, k, j, i);
+        detgamma(i) = SQR(aux_extended.gs_sqrt_detgamma(k,j,i));
       }
 
       // extract 3-velocity
@@ -157,7 +189,9 @@ void Z4c::GetMatter(
         SlicedVecMet3Contraction(v_d, v_u, adm.g_dd, k, j, i);
 
 #if MAGNETIC_FIELDS_ENABLED
-        Real const r_sqrt_detgamma_i = 1.0/std::sqrt(detgamma(i));
+        Real const r_sqrt_detgamma_i = OO(
+          aux_extended.gs_sqrt_detgamma(k,j,i)
+        );
         bb_u(0,i) = bb(0,i)*r_sqrt_detgamma_i;
         bb_u(1,i) = bb(1,i)*r_sqrt_detgamma_i;
         bb_u(2,i) = bb(2,i)*r_sqrt_detgamma_i;
@@ -170,7 +204,8 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i)/adm.alpha(k,j,i);
+          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
+          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i) * OO(alpha__);
         }
       }
 
@@ -190,8 +225,9 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
+          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
           bi_u(a,i) = (bb_u(a,i)+adm.alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
-                       adm.beta_u(a,k,j,i)/adm.alpha(k,j,i)))/W(i);
+                       adm.beta_u(a,k,j,i)*OO(alpha__)))/W(i);
         }
       }
 
@@ -262,8 +298,8 @@ void Z4c::GetMatter(
         mat.rho(k,j,i) = w_hrho(i)*SQR(W(i)) - w_p(i);
 
         // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
-        // Real D   = phydro->u(IDN,k,j,i);
-        // Real tau = phydro->u(IEN,k,j,i);
+        // Real D   = ph->u(IDN,k,j,i);
+        // Real tau = ph->u(IEN,k,j,i);
         // mat.rho(k,j,i) = oo_sqrtdg * (D + tau);
       }
       for (int a=0; a<NDIM; ++a)
@@ -272,7 +308,7 @@ void Z4c::GetMatter(
         {
           mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
           // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
-          // mat.S_d(a,k,j,i) = phydro->u(IM1+a,k,j,i) *oo_sqrtdg;
+          // mat.S_d(a,k,j,i) = ph->u(IM1+a,k,j,i) *oo_sqrtdg;
         }
         for (int b=a; b<NDIM; ++b)
         {
@@ -309,6 +345,28 @@ void Z4c::GetMatter(
   }
 
 #endif // M1_ENABLED
+
+  // If excision is activated; optionally remove matter from the coupling
+  if (opt.excise_z4c_matter_sources &&
+      ph->opt_excision.use_taper)
+  {
+    ILOOP3(k,j,i)
+    {
+      mat.rho(k,j,i) = ph->excision_mask(k,j,i) * mat.rho(k,j,i);
+      for (int a=0; a<NDIM; ++a)
+      {
+        mat.S_d(a,k,j,i) = ph->excision_mask(k,j,i) * mat.S_d(a,k,j,i);
+
+        for (int b=a; b<NDIM; ++b)
+        {
+          mat.S_dd(a,b,k,j,i) = ph->excision_mask(k,j,i) * mat.S_dd(a,b,k,j,i);
+        }
+      }
+
+    }
+
+  }
+
 
 #endif // Z4C_WITH_HYDRO_ENABLED
 }

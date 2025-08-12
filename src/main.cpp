@@ -111,6 +111,9 @@ int main(int argc, char *argv[])
   const bool allow_rescale_dt =
       pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
 
+  // deal uniquely with hst
+  trgs.Add(ovar::hst, true, allow_rescale_dt);
+
   trgs.Add(tvar::tracker_extrema, ovar::user, true, allow_rescale_dt);
 
 #if defined(TWO_PUNCTURES)
@@ -120,7 +123,7 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, allow_rescale_dt);
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, allow_rescale_dt);
 
-  trgs.Add(tvar::Z4c_Weyl, ovar::user, true, allow_rescale_dt);
+  trgs.Add(tvar::Z4c_Weyl, ovar::user, false, allow_rescale_dt);
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
@@ -134,6 +137,8 @@ int main(int argc, char *argv[])
 #if defined(EJECTA_ENABLED)
   trgs.Add(tvar::ejecta, ovar::user, true, allow_rescale_dt);
 #endif
+
+  trgs.Add(tvar::global_extrema, ovar::user, true, allow_rescale_dt);
 
   gra::mesh::surfaces::InitSurfaceTriggers(trgs, pmesh->psurfs);
 
@@ -161,6 +166,9 @@ int main(int argc, char *argv[])
     bool mesh_dt_adjusted = (trgs_can_adjust_mesh_dt)
       ? trgs.AdjustFromAny_mesh_dt()
       : false;
+
+    // Any Mesh-level logic to be called prior to next iter of integration loop
+    pmesh->UserWorkBeforeLoop(pinput);
 
     if (Globals::my_rank == 0)
     {
@@ -196,7 +204,7 @@ int main(int argc, char *argv[])
         gra::evolve::Z4c_Vacuum(ptlc, pmesh);
       }
 
-      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh);
+      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh, pouts);
     }
     else if (M1_ENABLED)
     {

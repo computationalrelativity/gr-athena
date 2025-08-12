@@ -17,6 +17,7 @@
 //      (2023)
 
 // c++
+#include <cmath>
 #include <iostream>
 
 // Athena++ classes headers
@@ -70,19 +71,28 @@ public:
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
-                  AA & sources);
+                  AA & sources,
+                  const int kl, const int ku,
+                  const int jl, const int ju,
+                  const int il, const int iu,
+                  const bool fallback_mode,
+                  const bool dispatch_shortcircuit);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
 
-  void HybridizeLOFlux(AA & u_cur);
-
-  // Used to adjust evolution mask in second CalcUpdate call in a substep
-  void AdjustMaskPropertyPreservation();
-
-  void MulAddFluxDivergence(AA & u_inh, const Real fac);
-  void SubFluxDivergence(AA & u_inh);
-  void AddFluxDivergence(AA & u_inh);
+  void MulAddFluxDivergence(AA & u_inh, const Real fac,
+                            const int kl, const int ku,
+                            const int jl, const int ju,
+                            const int il, const int iu);
+  void SubFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
+  void AddFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
 
   void AddSourceGR(AA & u, AA & u_inh);
 
@@ -91,6 +101,10 @@ public:
   void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
   void CoupleSourcesHydro(AA &cons);
   void CoupleSourcesYe(const Real mb, AA &ps);
+
+  void EnforceSourcesFinite();
+  bool AreSourcesFinite(const int k, const int j, const int i);
+  void SetZeroSources(const int k, const int j, const int i);
 
   void PerformAnalysis();
 
@@ -117,6 +131,7 @@ public:
   {
     AA u;          // solution of M1 evolution system
     AA u1;         // solution at intermediate steps
+    // AA u2;         // candidate solution
     AA flux[3];    // flux in the 3 directions
     AA flux_lo[3]; // flux in the 3 directions
     AA u_rhs;      // M1 rhs
@@ -129,6 +144,9 @@ public:
     // N.B. these do not have group dimension!
     AA intern;
   } storage;
+
+  // BD: shift here temporarily to avoid storage write clash
+  AA storage_eql;  // retain equilibrium vars
 
   // Variables to deal with refinement
   AthenaArray<Real> coarse_u_;
@@ -149,9 +167,11 @@ public:
                                 HybridizeMinModB,
                                 HybridizeMinModC,
                                 HybridizeMinModD,
+                                HybridizeMinModE,
                                 HybridizeMinMod,
                                 LO,
-                                HO };
+                                HO,
+                                RiemannHLLEmod };
 
   enum class opt_characteristics_variety { approximate,
                                            mixed,
@@ -164,7 +184,7 @@ public:
                                    Kershaw };
 
   enum class opt_closure_method {
-    none, gsl_Brent, gsl_Newton
+    none, gsl_Brent, gsl_Newton, custom_NB, custom_NAB, custom_ONAB
   };
 
   struct
@@ -185,6 +205,7 @@ public:
     Real fl_E;
     Real fl_J;
     Real fl_nG;
+    Real fl_nF2;
     Real eps_E;
     Real eps_J;
     bool enforce_causality;
@@ -202,13 +223,29 @@ public:
     // flux_lo_fallback_E, flux_lo_fallback_nG
     bool flux_lo_fallback;
 
+    bool flux_lo_fallback_eql_ho;
+
+    bool flux_lo_fallback_first_stage;
+    bool flux_lo_fallback_mask_reset_all_stages;
+
+    // mask per species?
+    bool flux_lo_fallback_species;
+
     // Control the couplings
     bool couple_sources_ADM;
     bool couple_sources_hydro;
     bool couple_sources_Y_e;
 
+    // retain equilibrium during opacity calculations?
+    bool retain_equilibrium;
+    // use eql term in coupling?
+    bool retain_equilibrium_src = false;
+
     // debugging:
     bool value_inject;
+
+    // if flooring was too strict, we can still save the source (set zero)
+    bool zero_fix_sources;
   } opt;
 
   struct
@@ -237,6 +274,7 @@ public:
   struct
   {
     struct {
+      // opt_integration_strategy do_nothing;
       opt_integration_strategy non_stiff;
       opt_integration_strategy stiff;
       opt_integration_strategy scattering;
@@ -270,10 +308,36 @@ public:
     Real src_lim_thick;
     Real src_lim_scattering;
 
+    bool limit_full_radiation;
+    Real full_lim;
+
+    Real fb_rat_sl_E;
+    Real fb_rat_sl_F_d;
+    Real fb_rat_sl_nG;
+
     // equilibrium parameters
     bool equilibrium_enforce;
     bool equilibrium_initial;
+    bool equilibrium_sources;  // used during evol.
+
+    bool equilibrium_evolve;
+    bool equilibrium_evolve_use_euler;
+    bool equilibrium_E_F_d;
+    bool equilibrium_n_nG;
+    bool equilibrium_use_thick;
+    bool equilibrium_src_nG;
+    bool equilibrium_src_E_F_d;
+    bool equilibrium_use_diff_src;
+
+    Real equilibrium_zeta;
+
     Real eql_rho_min;
+    Real tra_rho_min;
+
+    // fallback parameters for checking matter coupling
+    Real flux_lo_fallback_tau_min;
+    Real flux_lo_fallback_Ye_min;
+    Real flux_lo_fallback_Ye_max;
 
     bool verbose;
   } opt_solver;
@@ -349,6 +413,14 @@ public:
   };
   vars_RadMat radmat;
 
+  // retain equilibrium vars
+  struct vars_Eql
+  {
+    GroupSpeciesContainer<AT_C_sca> sc_J;
+    GroupSpeciesContainer<AT_C_sca> sc_n;
+  };
+  vars_Eql eql;
+
   struct vars_Source
   {
     GroupSpeciesContainer<AT_C_sca> sc_nG;
@@ -415,6 +487,7 @@ public:
     AT_C_sca sc_w_Ye;
     AT_C_sca sc_w_p;
     AT_C_sca sc_W;
+    AT_C_sca sc_T;
 
     // (sp)atial quantities
     AT_N_vec sp_w_util_u;
@@ -621,6 +694,20 @@ public:
     };
   };
 
+  // Equilibrium
+  struct ixn_Eql
+  {
+    enum
+    {
+      sc_J,
+      sc_n,
+      N
+    };
+    static constexpr char const * const names[] = {
+      "M1.eql.sc_J",
+      "M1.eql.sc_n",
+    };
+  };
 
   // Diagnostic variables
   struct ixn_Diag
@@ -700,6 +787,7 @@ public:
                                     stiff,
                                     scattering,
                                     equilibrium,
+                                    equilibrium_wr,
                                     N};
     enum class opt_source_treatment {noop,
                                      full,
@@ -711,11 +799,112 @@ public:
       AthenaArray<bool>                 excised;
       AA                                flux_limiter;
       AA                                pp;
+      AthenaArray<bool>                 compute_point;
     } masks;
+
+    struct {
+      int num_lo_reversions;
+      int num_opac_failures;
+      int num_opac_fixes;
+      int num_equi_failures;
+      int num_equi_fixes;
+      int num_equi_ignored;
+      int num_radmat_zero;
+
+      // We retain this cumulatively - cleared during reduction @ output
+      inline void clear()
+      {
+        num_lo_reversions = 0;
+
+        // this is primarily for weakrates
+        num_opac_failures = 0;
+        num_opac_fixes = 0;
+        num_equi_failures = 0;
+        num_equi_fixes = 0;
+        num_equi_ignored = 0;
+        num_radmat_zero = 0;
+      }
+    } status;
+
+    bool substep_shortcircuit;
   } ev_strat;
 
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
   typedef evolution_strategy::opt_source_treatment t_src_t;
+
+  inline bool IsEquilibrium(const int k, const int j, const int i)
+  {
+    // if in eql all species are in eql, just take the val from ix 0
+    t_sln_r cur_r = ev_strat.masks.solution_regime(0, 0, k, j, i);
+    return (
+      (cur_r == t_sln_r::equilibrium) ||
+      (cur_r == t_sln_r::equilibrium_wr)
+    );
+  }
+
+  inline bool IsEquilibrium(const int ix_s, const int k, const int j, const int i)
+  {
+    // if in eql all species are in eql, just take the val from ix 0
+    t_sln_r cur_r = ev_strat.masks.solution_regime(0, ix_s, k, j, i);
+    return (
+      (cur_r == t_sln_r::equilibrium) ||
+      (cur_r == t_sln_r::equilibrium_wr)
+    );
+  }
+
+  inline t_sln_r GetMaskSolutionRegime(const int ix_g, const int ix_s,
+                                       const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      return ev_strat.masks.solution_regime(ix_g, k, j, i);
+    }
+    else
+    {
+      return ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i);
+    }
+  }
+
+  inline t_src_t GetMaskSourceTreatment(const int ix_g, const int ix_s,
+                                        const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      return ev_strat.masks.source_treatment(ix_g, k, j, i);
+    }
+    else
+    {
+      return ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i);
+    }
+
+  }
+
+  inline void SetMaskSolutionRegime(t_sln_r sol_r,
+                                    const int ix_g, const int ix_s,
+                                    const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      ev_strat.masks.solution_regime(ix_g, k, j, i) = sol_r;
+    }
+    else
+    {
+      ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i) = sol_r;
+    }
+  }
+  inline void SetMaskSourceTreatment(t_src_t src_t,
+                                     const int ix_g, const int ix_s,
+                                     const int k, const int j, const int i)
+  {
+    if (opt_solver.solver_reduce_to_common)
+    {
+      ev_strat.masks.source_treatment(ix_g, k, j, i) = src_t;
+    }
+    else
+    {
+      ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i) = src_t;
+    }
+  }
 
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks
@@ -724,12 +913,17 @@ public:
   void PrepareEvolutionStrategy(const Real dt,
                                 const Real kap_a,
                                 const Real kap_s,
+                                const Real rho,
                                 t_sln_r & mask_sln_r,
                                 t_src_t & mask_src_t);
+  void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);
 
 // additional methods =========================================================
 public:
+  void HybridizeLOFlux(AA & mask_hyb,
+                       vars_Flux & fluxes_ho,
+                       vars_Flux & fluxes_lo);
   void UpdateGeometry(vars_Geom  & geom,
                       vars_Scratch & scratch);
   void UpdateHydro(vars_Hydro & hydro,
@@ -790,12 +984,32 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
-  inline bool MaskGetHybridize(const int k, const int j, const int i)
+  inline bool MaskGetHybridize(const int ix_s,
+                               const int k, const int j, const int i)
   {
-    // if (!opt.flux_lo_fallback)
-    //   return true;
+    if (!opt.flux_lo_fallback)
+      return true;
 
-    return (ev_strat.masks.pp(k,j,i) == 0);
+    // return true;
+    /*
+    if (!opt.flux_lo_fallback)
+      return true;
+    */
+
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    return ev_strat.masks.compute_point(ix_ms,k,j,i);
+  }
+
+  inline void MaskSetHybridize(const bool value,
+                               const int ix_s,
+                               const int k, const int j, const int i)
+  {
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    ev_strat.masks.compute_point(ix_ms,k,j,i) = value;
   }
 
 public:
@@ -848,6 +1062,7 @@ public:
   void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
   void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
   void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
+  void SetVarAliasesEql(   AA  &eql,                vars_Eql    & eq);
   void SetVarAliasesDiag(  AA  &diagno,             vars_Diag   & rdia);
   void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
   void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);

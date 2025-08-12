@@ -222,6 +222,9 @@ namespace {
 static const int Z = 0;
 static const Real MINMOD_THETA = 1;
 
+static const Real HMME_fac_A = 10;
+static const Real HMME_fac_B = 10;
+
 Real MinMod2(const Real A, const Real B)
 {
   return std::min(1.0, MINMOD_THETA * std::min(A, B));
@@ -338,11 +341,11 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
 
-      const Real xi_avg = 0.5 * (xi_m1 + xi_0);
+      const Real xi_avg = std::min(1.0, 0.5 * (xi_m1 + xi_0));
 
       const Real A = (((d_qlc < 0) && (d_qcr < 0)))
         ? 1.0
-        : std::min(1.0, xi_avg);
+        : xi_avg;
 
       return A * (1 - Phi);
     }
@@ -381,6 +384,32 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       Real res = (sawtooth ? 1.0 : A) * (1 - Phi);
       return res;
+    }
+    case (M1::opt_flux_variety::HybridizeMinModE):
+    {
+      const Real d_ql = qm1 - qm2;
+      const Real d_qc = q0  - qm1;
+      const Real d_qr = qp1 - q0;
+
+      const Real d_qlc = d_ql * d_qc;
+      const Real d_qcr = d_qc * d_qr;
+
+      const Real oo_d_qc = OO(d_qc);
+
+      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+
+      const Real xi_avg = std::min(1.0, 0.5 * (xi_m1 + xi_0));
+
+      // Smoothly interp instead of hard-cut
+      // s_qlc simeq 1 when d_qlc < 0
+      const Real s_qlc = 0.5 * (1.0 + std::tanh(-HMME_fac_A * d_qlc));
+      const Real s_qcr = 0.5 * (1.0 + std::tanh(-HMME_fac_A * d_qcr));
+
+      const Real fac_mon = s_qlc * s_qcr;
+      const Real wei = OO(1.0 + std::exp(-HMME_fac_B * (-fac_mon)));
+
+      const Real A = wei + (1.0-wei) * xi_avg;
+      return A * (1 - Phi);
     }
     default:
     {

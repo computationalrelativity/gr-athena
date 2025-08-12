@@ -1072,6 +1072,24 @@ class GRDynamical : public Coordinates {
   }
 
   template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
+  inline void GetGeometricFieldFC_LO(
+    AthenaTensor<       dtype, TSYM, DIM, NVAL> & tar,
+    const  AthenaTensor<dtype, TSYM, DIM, NVAL> & src,
+    const int dir,
+    const int tr_k,
+    const int tr_j,
+    const int tr_il,
+    const int tr_iu
+  )
+  {
+#if defined(Z4C_VC_ENABLED)
+    ig_1N->VC2FC(tar, src, dir, tr_k, tr_j, tr_il, tr_iu);
+#else  // Z4C_CX_ENABLED
+    ig_1N->CC2FC(tar, src, dir, tr_k, tr_j, tr_il, tr_iu);
+#endif
+  }
+
+  template <typename dtype, TensorSymm TSYM, int DIM, int NVAL>
   inline void GetGeometricFieldDerCC(
     AthenaTensor<      dtype, TSYM, DIM, NVAL+1> & tar,
     const AthenaTensor<dtype, TSYM, DIM, NVAL  > & src,
@@ -1126,6 +1144,7 @@ private:
   AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
   AT_N_sca alpha_;
+  AT_N_sca oo_alpha_;
   AT_N_vec beta_u_;
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;

@@ -164,7 +164,10 @@ public:
   };
 
   enum {
-    I_AUX_EXTENDED_cc_sqrt_detgamma,
+    I_AUX_EXTENDED_gs_sqrt_detgamma,
+#if FLUID_ENABLED
+    I_AUX_EXTENDED_ms_sqrt_detgamma,
+#endif // FLUID_ENABLED
     N_AUX_EXTENDED
   };
   // Names of auxiliary variables
@@ -261,7 +264,10 @@ public:
 
   // aliases for auxiliary variables for metric derivatives
   struct Aux_extended_vars {
-    AT_N_sca cc_sqrt_detgamma;  // adm gamma on cc
+    AT_N_sca gs_sqrt_detgamma;  // adm gamma on geometric sampling
+#if FLUID_ENABLED
+    AT_N_sca ms_sqrt_detgamma;  // matter sampling
+#endif  // FLUID_ENABLED
   };
   Aux_extended_vars aux_extended;
 
@@ -337,11 +343,16 @@ public:
     // control whether ^ is communicated
     bool communicate_aux_adm;
 
-    // Compute aux_extended variables?
-    bool extended_aux_adm;
-
     // For debug
     bool use_tp_trackers_extrema;
+
+    // Impose global regularization on conf / alpha
+    bool force_regularization;
+
+    // Excision of matter sources / evolution?
+    bool excise_z4c_matter_sources;
+    bool excise_z4c_freeze_evo;
+    Real excise_z4c_freeze_evo_rat;
   } opt;
 
   AA empty_flux[3];
@@ -392,6 +403,8 @@ public:
   void Z4cRHS(AA & u, AA & mat, AA & rhs);
   void Z4cRHS_(AA & u, AA & mat, AA & rhs);
 
+  void Z4cRHSExciseFreeze(AA & u, AA & mat, AA & rhs);
+
   // compute the boundary RHS given the Z4c and matter variables
   void Z4cBoundaryRHS(AA & u, AA & mat, AA & rhs);
   // compute linear combination of states
@@ -407,7 +420,19 @@ public:
   void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
                       AthenaArray<Real> &u_aux);
 
-  void PrepareAuxExtended(AA &u_aux_extended, AA &u_adm);
+  void PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm);
+
+  void Z4cToADM(AA & u, AA & u_adm,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku,
+    bool skip_physical);
+
+  void PrepareAuxExtended(AA &u_aux_extended, AA & u, AA & u_adm,
+    const int il, const int iu,
+    const int jl, const int ju,
+    const int kl, const int ku,
+    bool skip_physical);
 
   // Conformal factor conversions
   // Floor applied: std::max(chi, opt.chi_div_floor)
@@ -440,6 +465,13 @@ public:
   // enforce algebraic constraints on the solution
   void AlgConstr(AA & u);
 
+  // allow to skip physical nodes (i.e. only apply on ghosts)
+  void AlgConstr(AA & u,
+                 const int il, const int iu,
+                 const int jl, const int ju,
+                 const int kl, const int ku,
+                 bool skip_physical);
+
   // compute ADM constraints
   void ADMConstraints(AA & u_con, AA & u_adm, AA & u_mat, AA & u_z4c);
 
@@ -468,7 +500,7 @@ public:
   // set auxiliary variable aliases
   static void SetAuxAliases(AA & u, Aux_vars & aux);
   // set auxiliary (extended) variable aliases
-  static void SetAuxExtendedAliases(AA & u_adm,
+  static void SetAuxExtendedAliases(AA & u_aux_extended,
                                     Aux_extended_vars & aux_extended);
 
   // additional global functions
@@ -610,6 +642,7 @@ private:
   AT_N_T2  Riemm4_dd;   // 4D Riemann *n^a*n^c
 
   // Aux vars handling cx/vc matter interpolation
+  AT_N_sca ms_detgamma_;
   AT_N_sca w_rho;
   AT_N_sca w_p;
   AT_N_vec w_utilde_u;

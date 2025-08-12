@@ -33,6 +33,7 @@ enum{
 #include "../utils/tensor.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "puncture_tracker.hpp"
+#include "../trackers/extrema_tracker.hpp"
 
 using namespace utils::tensor;
 
@@ -40,7 +41,8 @@ using namespace utils::tensor;
 //! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n)
 //  \brief class for apparent horizon finder
 AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
-  pmesh(pmesh)
+  pmesh(pmesh),
+  pin(pin)
 {
   nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
 
@@ -126,6 +128,20 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   parname += n_str;
   use_puncture_massweighted_center = pin->GetOrAddBoolean("ahf", parname, 0);
 
+  parname = "use_extrema_";
+  parname += n_str;
+  use_extrema = pin->GetOrAddInteger("ahf", parname, -1);
+
+  if (use_extrema>=0) {
+    const int N_tracker = pmesh->ptracker_extrema->N_tracker;
+    if (use_extrema >= N_tracker) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in AHF constructor" << std::endl;
+        msg << " : extrema = " << use_extrema << " > N_tracker = " << N_tracker;
+        throw std::runtime_error(msg.str().c_str());
+    }
+  }
+
   parname = "start_time_";
   parname += n_str;
   start_time = pin->GetOrAddReal("ahf", parname, std::numeric_limits<double>::max());
@@ -145,6 +161,10 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   // Initialize last & found
   last_a0 = -1;
   ah_found = false;
+
+  parname = "time_first_found_";
+  parname += n_str;
+  time_first_found = pin->GetOrAddReal("ahf", parname, -1.0);
 
   //TODO guess from file
   // * if found, set ah_found to true & store the guess
@@ -339,11 +359,13 @@ void AHF::Write(int iter, Real time)
         ah_prop[hminradius]);
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
-    
-    if (ah_found) {
+
+    if (ah_found)
+    {
       // Shape file (coefficients)
       pofile_shape = fopen(ofname_shape.c_str(), "a");
-      if (NULL == pofile_shape) {
+      if (NULL == pofile_shape)
+      {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
         msg << "Could not open file '" << pofile_shape << "' for writing!";
@@ -363,6 +385,15 @@ void AHF::Write(int iter, Real time)
       fclose(pofile_shape);
     }
   }
+
+  // This is needed on all ranks.
+  if (ah_found && (time_first_found < 0))
+  {
+    std::string parname {"time_first_found_" + std::to_string(nh)};
+    time_first_found = time;
+    pin->SetReal("ahf", parname, time_first_found);
+  }
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -1487,6 +1518,13 @@ void AHF::InitialGuess()
       a0(0) *= std::sqrt(4.0*PI);
     }
     return;
+  }
+
+  if (use_extrema>=0) {
+    // Update the center to the extrema
+    center[0] = pmesh->ptracker_extrema->c_x1(use_extrema);
+    center[1] = pmesh->ptracker_extrema->c_x2(use_extrema);
+    center[2] = pmesh->ptracker_extrema->c_x3(use_extrema);
   }
 
   if (use_puncture_massweighted_center) {

@@ -20,6 +20,13 @@ void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
 {
   // retain then overwrite setting if we want to force lo flux
   opt_flux_variety ofv = opt.flux_variety;
+
+  if (opt.flux_variety == opt_flux_variety::RiemannHLLEmod)
+  {
+    Fluxes::RiemannHLLEmod(this, u, use_lo);
+    return;
+  }
+
   if (use_lo)
   {
     opt.flux_variety = opt_flux_variety::LO;
@@ -298,6 +305,11 @@ void M1::CalcCharacteristicSpeed(const int dir,
     return std::max(std::abs(A), std::abs(B));
   };
 
+  auto AMIN = [&](const Real A, const Real B)
+  {
+    return std::min(std::abs(A), std::abs(B));
+  };
+
   auto lam_mixed = [&](const int k, const int j, const int i)
   {
     // See [3]
@@ -321,8 +333,8 @@ void M1::CalcCharacteristicSpeed(const int dir,
     Real B = beta_u(dir,k,j,i);
     const Real lam_thick = AMAX(A+B, A-B);
 
-    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0.0;
-    const Real oo_nF  = (nF2 > 0) ? std::sqrt(oo_nF2) : 0.0;
+    const Real oo_nF2 = (nF2 > pm1->opt.fl_nF2) ? OO(nF2) : 0.0;
+    const Real oo_nF  = (nF2 > pm1->opt.fl_nF2) ? std::sqrt(oo_nF2) : 0.0;
 
     A = alpha(k,j,i) * oo_nF * std::abs(F_u);
     const Real lam_thin = AMAX(A+B, A-B);
@@ -330,7 +342,8 @@ void M1::CalcCharacteristicSpeed(const int dir,
     return std::max(lam_thick, lam_thin);
   };
 
-  auto lam_thin = [&](const int k, const int j, const int i)
+  auto lam_thin = [&](const int k, const int j, const int i,
+                      Real & lam_m, Real & lam_p)
   {
     /*
     Real normF2 (0.);
@@ -374,22 +387,27 @@ void M1::CalcCharacteristicSpeed(const int dir,
       }
     }
 
-    const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0;
-    const Real oo_nF  = std::sqrt(oo_nF2);
+    const Real oo_nF2 = (nF2 > pm1->opt.fl_nF2) ? OO(nF2) : 0;
+    const Real oo_nF  = (nF2 > pm1->opt.fl_nF2) ? std::sqrt(oo_nF2) : 0;
 
     const Real lfac_a = alpha(k,j,i) * F_u * oo_nF;
-    const Real lam_a = AMAX(
-      -beta_u(dir,k,j,i) - lfac_a,
-      -beta_u(dir,k,j,i) + lfac_a
-    );
+    // const Real lam_a = AMAX(
+    //   -beta_u(dir,k,j,i) - lfac_a,
+    //   -beta_u(dir,k,j,i) + lfac_a
+    // );
 
-    return AMAX(
-      lam_a,
-      -beta_u(dir,k,j,i) + alpha(k,j,i) * sc_E(k,j,i) * F_u * oo_nF2
-    );
+    // return lam_a;
+    // return AMAX(
+    //   lam_a,
+    //   -beta_u(dir,k,j,i) + alpha(k,j,i) * sc_E(k,j,i) * F_u * oo_nF2
+    // );
+
+    lam_m = -beta_u(dir,k,j,i) - lfac_a;
+    lam_p = -beta_u(dir,k,j,i) + lfac_a;
   };
 
-  auto lam_thick = [&](const int k, const int j, const int i)
+  auto lam_thick = [&](const int k, const int j, const int i,
+                       Real & lam_m, Real & lam_p)
   {
     const Real W2 = SQR(W(k,j,i));
 
@@ -401,10 +419,15 @@ void M1::CalcCharacteristicSpeed(const int dir,
     const Real fac_A = 2.0 * W(k,j,i) * alpha(k,j,i) * v_u(dir,k,j,i);
     const Real fac_B = OO(2.0 * W2 + 1);
 
-    const Real lam_m = -beta_u(dir,k,j,i) + fac_B * (fac_A - fac_sqrt);
-    const Real lam_p = -beta_u(dir,k,j,i) + fac_B * (fac_A + fac_sqrt);
+    const Real lam_m_ = -beta_u(dir,k,j,i) + fac_B * (fac_A - fac_sqrt);
+    const Real lam_p_ = -beta_u(dir,k,j,i) + fac_B * (fac_A + fac_sqrt);
 
-    return AMAX(lam_m, lam_p);
+    const Real p_u = alpha(k,j,i) * v_u(dir,k,j,i) / W(k,j,i);
+    // See Weih 2020
+    // return AMIN(AMIN(lam_m, lam_p), -beta_u(dir,k,j,i) + p_u);
+
+    lam_m = std::min(-beta_u(dir,k,j,i) + p_u, lam_m_);
+    lam_p = std::min(-beta_u(dir,k,j,i) + p_u, lam_p_);
   };
 
   switch (opt.characteristics_variety)
@@ -426,7 +449,9 @@ void M1::CalcCharacteristicSpeed(const int dir,
       M1_FLOOP3(k,j,i)
       if (pm1->MaskGet(k,j,i))
       {
-        lambda(k,j,i) = lam_thin(k,j,i);
+        Real lam_m, lam_p;
+        lam_thin(k, j, i, lam_m, lam_p);
+        lambda(k,j,i) = AMAX(lam_m, lam_p);
       }
 
       break;
@@ -437,7 +462,9 @@ void M1::CalcCharacteristicSpeed(const int dir,
       M1_FLOOP3(k,j,i)
       if (pm1->MaskGet(k,j,i))
       {
-        lambda(k,j,i) = lam_thick(k,j,i);
+        Real lam_m, lam_p;
+        lam_thick(k, j, i, lam_m, lam_p);
+        lambda(k,j,i) = AMAX(lam_m, lam_p);
       }
 
       break;
@@ -448,10 +475,23 @@ void M1::CalcCharacteristicSpeed(const int dir,
       M1_FLOOP3(k,j,i)
       if (pm1->MaskGet(k,j,i))
       {
-        lambda(k,j,i) = (
-          Assemble::Frames::d_th(sc_chi, k, j, i) * lam_thin(k,j,i) +
-          Assemble::Frames::d_tk(sc_chi, k, j, i) * lam_thick(k,j,i)
+        Real th_lam_m, th_lam_p;
+        Real tk_lam_m, tk_lam_p;
+
+        lam_thin(k, j, i, th_lam_m, th_lam_p);
+        lam_thick(k, j, i, tk_lam_m, tk_lam_p);
+
+        const Real lam_m = (
+          Assemble::Frames::d_th(sc_chi, k, j, i) * th_lam_m +
+          Assemble::Frames::d_tk(sc_chi, k, j, i) * tk_lam_m
         );
+
+        const Real lam_p = (
+          Assemble::Frames::d_th(sc_chi, k, j, i) * th_lam_p +
+          Assemble::Frames::d_tk(sc_chi, k, j, i) * tk_lam_p
+        );
+
+        lambda(k,j,i) = AMAX(lam_m, lam_p);
       }
 
       break;

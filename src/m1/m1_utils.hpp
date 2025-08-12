@@ -446,8 +446,8 @@ inline Real d_tk(const AT_C_sca & sc_chi,
 }
 
 // We write:
-// sc_J = J_0
-// st_H = H_n n^alpha + H_v v^alpha + H_F F^alpha
+// sc_J   = J_0
+// st_H^a = H_n n^a + H_v v^a + H_F F^a
 inline void ToFiducialExpansionCoefficients(
   M1 & pm1,
   Real & J_0,
@@ -473,8 +473,51 @@ inline void ToFiducialExpansionCoefficients(
   const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
 
   const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
-  const Real dotFhatv = oo_nF * dotFv;
+  const Real oo_nF2 = (nF2 > pm1.opt.fl_nF2) ? OO(nF2) : 0.0;
+
+  const Real d_T = Frames::d_tk(sc_chi, k, j, i);
+  const Real d_t = Frames::d_th(sc_chi, k, j, i);
+
+  // Prepare expansion coefficients -------------------------------------------
+  const Real J_c = W2 * (E - 2.0 * dotFv);
+  const Real J_t = W2 * E * SQR(dotFv) * oo_nF2;
+  const Real J_T = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  /*
+  const Real Hn_c = -W * (J_c + (dotFv - E));
+  const Real Hn_t = -W * J_t;
+  const Real Hn_T = -W * J_T;
+  */
+  const Real Hv_c = -W * J_c;
+  const Real Hv_t = -W * J_t;
+  const Real Hv_T = -W * (
+    J_T + 1 / (2.0 * W2 + 1.0) * (
+      (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+    )
+  );
+
+  const Real HF_c = W;
+  const Real HF_t = -W * E * dotFv * oo_nF2;
+  const Real HF_T = -W * dotvv;
+  // --------------------------------------------------------------------------
+
+  // now propagate back
+  J_0 = J_c + d_t * J_t + d_T * J_T;
+  J_0 = std::max(J_0, pm1.opt.fl_J);
+
+  // H_n = Hn_c + d_t * Hn_t + d_T * Hn_T;
+  H_v = Hv_c + d_t * Hv_t + d_T * Hv_T;
+  H_F = HF_c + d_t * HF_t + d_T * HF_T;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
+
+
+  /*
+  const Real oo_nF = (nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real dotFhatv = dotFv * oo_nF;
 
   const Real d_th = Frames::d_th(sc_chi, k, j, i);
   const Real d_tk = Frames::d_tk(sc_chi, k, j, i);
@@ -522,6 +565,7 @@ inline void ToFiducialExpansionCoefficients(
 
   // (from H \perp u)
   H_n = H_F * dotFv + H_v * dotvv;
+  */
 
   // --------------------------------------------------------------------------
   // Check conventions correct (need H \perp u)
@@ -724,18 +768,18 @@ inline Real ToFiducial(
 
   // The following two are equivalent, however, floors will potentially affect
   // results!
-  const Real sc_Gam__ = (J_0 > 0)
-    ? W * (1.0 + H_n / (J_0 * W))
-    : W;
-
-  // const Real sc_Gam__ = (
-  //   (sc_E(k,j,i) > pm1.opt.fl_E) &&
-  //   (J_0 > pm1.opt.fl_J)
-  // ) ? W * (sc_E(k,j,i) / J_0) * std::min(
-  //       1.0 - sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i),
-  //       1.0 - pm1.opt.eps_E
-  //     )
+  // const Real sc_Gam__ = (J_0 > pm1.opt.fl_J)
+  //   ? W * (1.0 + H_n / (J_0 * W))
   //   : W;
+
+  const Real sc_Gam__ = (
+    (sc_E(k,j,i) > pm1.opt.fl_E) &&
+    (J_0 > pm1.opt.fl_J)
+  ) ? W * (sc_E(k,j,i) / J_0) * std::min(
+        1.0 - sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i) / sc_E(k,j,i),
+        1.0 - pm1.opt.eps_E
+      )
+    : W;
 
   return sc_Gam__;
 }
@@ -758,13 +802,34 @@ inline Real ToFiducial(
     k, j, i
   );
 
-  /*
   AT_C_sca & sc_nG_ = const_cast<AT_C_sca &>(sc_nG);
   sc_nG_(k,j,i) = std::max(pm1.opt.fl_nG, sc_nG(k,j,i));
-  */
   sc_n(k,j,i) = sc_nG(k,j,i) / sc_Gam__;
 
   return sc_Gam__;
+}
+
+inline Real sc_Gam__(
+  M1 & pm1,
+  AT_C_sca & sc_J,
+  AT_D_vec & st_H_u,
+  const int k, const int j, const int i
+)
+{
+  Real ret_sc_Gam__ = 1.0;
+  const Real alpha = pm1.geom.sc_alpha(k,j,i);
+
+  AT_C_sca & sc_W   = pm1.fidu.sc_W;
+
+  const Real W = sc_W(k,j,i);
+
+  const Real J_0 = sc_J(k,j,i);
+  const Real H_n = st_H_u(0,k,j,i) * alpha;
+
+  ret_sc_Gam__ = (J_0 > pm1.opt.fl_J)
+    ? W * (1.0 + H_n / (J_0 * W))
+    : W;
+  return ret_sc_Gam__;
 }
 
 inline Real sp_f_u__(
@@ -780,15 +845,42 @@ inline Real sp_f_u__(
   const AT_N_sca & sc_alpha  = pm1.geom.sc_alpha;
   const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
 
+  // N.B. input takes is space-time H_u; we need to form a spatial projection.
+  // In general:
+  //   H^a = H_n n^a + P^a_b H^b
+  // where P^a_b = g^a_b + n^a n_b.
+  //
+  // We have:
+  //   P^a_b H^b = H_v v^a + H_F F^a.
+  // where v^a, F^a are spatial and v^0 = 0 = F^0.
+  // Furthermore n^a = (1, -beta^i) / alpha
+  //
+  // => H^0 = H_n n^0 and so: H_n = alpha H^0
+  // => H^i = H_n n^i + H_v v^i + H_F F^i
+  //        = H_n (-beta^i) / alpha + H_v v^i + H_F F^i
+  //        = -H^0 beta^i + H_v v^i + H_F F^i
+  // => P^i_b H^b = H^i + H^0 * beta^i
+
+  const Real sp_H_u_dir = (
+    st_H_u(1+dir,k,j,i) +
+    st_H_u(0,k,j,i) * sp_beta_u(dir,k,j,i)
+  );
+
+  return (
+    sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
+    + ((sc_J(k,j,i) > pm1.opt.fl_J) ? sp_H_u_dir / sc_J(k,j,i) : 0.0)
+  );
+
+  // BD: Following are wrong
   // return (
   //   sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
   //   + ((sc_J(k,j,i) > pm1.opt.fl_J) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
   // );
 
-  return (
-    sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
-    + ((sc_J(k,j,i) > 0) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
-  );
+  // return (
+  //   sc_W(k,j,i) * (sp_v_u(dir,k,j,i) - sp_beta_u(dir,k,j,i) / sc_alpha(k,j,i))
+  //   + ((sc_J(k,j,i) > 0) ? st_H_u(1+dir,k,j,i) / sc_J(k,j,i) : 0.0)
+  // );
 
 }
 
@@ -806,8 +898,7 @@ inline void sp_P_th_dd_(
   for (int i=il; i<=iu; ++i)
   {
     const Real nF2 = Assemble::sp_norm2__(sp_F_d, pm1.geom.sp_g_uu, k, j, i);
-    const Real fac = (nF2 > 0) ? sc_E(k,j,i) / nF2
-                               : 0.0;
+    const Real fac = (nF2 > pm1.opt.fl_nF2) ? sc_E(k,j,i) / nF2 : 0.0;
 
     for (int a=0; a<N; ++a)
     for (int b=a; b<N; ++b)
@@ -855,23 +946,26 @@ inline void sp_P_tk_dd_(
     );
 
     const Real fac_H_tk = W /  (2.0 * W2 + 1.0) * (
-      (4.0 * W2 + 1.0) * dotFv - 4.0 * W2 * sc_E(k,j,i)
+      4.0 * W2 * sc_E(k,j,i) - (4.0 * W2 + 1.0) * dotFv
     );
 
     for (int a=0; a<N; ++a)
     {
-      const Real H_a_tk = oo_W * sp_F_d(a,k,j,i) +
+      const Real H_a_tk = oo_W * sp_F_d(a,k,j,i) -
                           fac_H_tk * sp_v_d(a,k,j,i);
 
       for (int b=a; b<N; ++b)
       {
-        const Real H_b_tk = oo_W * sp_F_d(b,k,j,i) +
+        const Real H_b_tk = oo_W * sp_F_d(b,k,j,i) -
                             fac_H_tk * sp_v_d(b,k,j,i);
 
         const Real res_dd__ = (
-          4.0 * ONE_3RD * W2 * J_tk * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) +
-          W * (sp_v_d(a,k,j,i) * H_b_tk + sp_v_d(b,k,j,i) * H_a_tk) +
-          ONE_3RD * J_tk * sp_g_dd(a,b,k,j,i)
+          ONE_3RD * J_tk * (
+            4.0 * W2 * sp_v_d(a,k,j,i) * sp_v_d(b,k,j,i) + sp_g_dd(a,b,k,j,i)
+          ) +
+          W * (
+            sp_v_d(a,k,j,i) * H_b_tk + sp_v_d(b,k,j,i) * H_a_tk
+          )
         );
 
         if (overwrite_slice)
@@ -990,12 +1084,17 @@ inline void sources_sc_E_sp_F_d(
     k, j, i
   );
 
+  S_sc_E(k,j,i) = alpha * (
+    W * (sqrt_det_g * eta - kap_a * J_0) -
+    kap_as * H_n
+  );
+
   // The following two are equivalent, though, floors may affect near-zero
   // regions.
-  S_sc_E(k,j,i) = -alpha * (
-    H_n * kap_as +
-    (J_0 * kap_a - eta * sqrt_det_g) * W
-  );
+  // S_sc_E(k,j,i) = -alpha * (
+  //   H_n * kap_as +
+  //   (J_0 * kap_a - eta * sqrt_det_g) * W
+  // );
 
   // const Real dotFv = Assemble::sc_dot_dense_sp__(sp_F_d, sp_v_u, k, j, i);
 
@@ -1013,13 +1112,25 @@ inline void sources_sc_E_sp_F_d(
     //             +H_F * sp_F_d(a,k,j,i) )
     // );
 
-    S_sp_F_d(a,k,j,i) = -alpha * (
-      sp_F_d(a,k,j,i) * H_F * kap_as +
-      sp_v_d(a,k,j,i) * (
-        H_v * kap_as +
-        (J_0 * kap_a - eta * sqrt_det_g) * W
-      )
+    // S_sp_F_d(a,k,j,i) = -alpha * (
+    //   sp_F_d(a,k,j,i) * H_F * kap_as +
+    //   sp_v_d(a,k,j,i) * (
+    //     H_v * kap_as +
+    //     (J_0 * kap_a - eta * sqrt_det_g) * W
+    //   )
+    // );
+
+    // Form spatial projection of H_a to H_i
+    const Real sp_Htil_d_a = (
+      H_v * sp_v_d(a,k,j,i) +
+      H_F * sp_F_d(a,k,j,i)
     );
+
+    S_sp_F_d(a,k,j,i) = alpha * (
+      W * (sqrt_det_g * eta - kap_a * J_0) * sp_v_d(a,k,j,i) -
+      kap_as * sp_Htil_d_a
+    );
+
   }
 }
 
@@ -1082,8 +1193,9 @@ inline void Jacobian_sc_E_sp_F_d(
   Assemble::sp_d_to_u_(&pm1, sp_F_u_, sp_F_d, k, j, i, i);
 
   const Real nF2 = Assemble::sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF2 = (nF2 > 0) ? OO(nF2) : 0.0;
-  const Real oo_nF  = (nF2 > 0) ? std::sqrt(oo_nF2) : 0.0;
+
+  const Real oo_nF2 = (nF2 > pm1.opt.fl_nF2) ? OO(nF2) : 0.0;
+  const Real oo_nF  = (nF2 > pm1.opt.fl_nF2) ? std::sqrt(oo_nF2) : 0.0;
   const Real dotFhatv = oo_nF * dotFv;
 
   // derivative terms ---------------------------------------------------------
@@ -1392,7 +1504,7 @@ inline void ToFiducialExpansionCoefficients(
   const Real dotvv = sc_dot_dense_sp__(sp_v_d, sp_v_u, k, j, i);
 
   const Real nF2 = sp_norm2__(sp_F_d, sp_g_uu, k, j, i);
-  const Real oo_nF = (nF2 > 0) ? OO(std::sqrt(nF2)) : 0.0;
+  const Real oo_nF = (nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(nF2)) : 0.0;
   const Real dotFhatv = oo_nF * dotFv;
 
   const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);

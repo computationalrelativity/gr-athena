@@ -84,14 +84,14 @@ Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
     cur.rsc_s.NewAthenaArray(NSCALARS);
   }
 
-  if ((opt.rescale_conserved_density || opt.rescale_conserved_scalars) &&
-      !pin->GetOrAddBoolean("z4c", "extended_aux_adm", false))
+  if ((opt.rescale_conserved_density || opt.rescale_conserved_scalars))
   {
+#if !defined(Z4C_CX_ENABLED)
     std::stringstream msg;
-    msg << "### FATAL ERROR: Rescaling activation requires" << std::endl
-        << "z4c/extended_aux_adm = true";
-
+    msg << "### FATAL ERROR: Rescaling activation requires " << std::endl
+        << "z4c on CX";
     ATHENA_ERROR(msg);
+#endif
   }
 }
 
@@ -105,20 +105,52 @@ void Rescaling::Initialize()
   if (opt.rescale_conserved_density)
   {
     const Real D_cut = 0;
-    ini.m = IntegrateField(variety_cs::conserved_hydro, IDN, D_cut);
+    ini.m = pin->GetOrAddReal(
+      "rescaling", "ini_m",
+      IntegrateField(variety_cs::conserved_hydro, IDN, D_cut)
+    );
     cur.m = ini.m;
   }
 
-  if (opt.rescale_conserved_scalars)
+  if (opt.rescale_conserved_scalars && (NSCALARS > 0))
   {
     const Real s_cut = 0;
     ini.S.NewAthenaArray(NSCALARS);
     cur.S.NewAthenaArray(NSCALARS);
     cur.err_rel_S.NewAthenaArray(NSCALARS);
 
+    if (pin->DoesParameterExist("rescaling", "ini_S"))
+    {
+      AA ini_S_inp = pin->GetOrAddRealArray(
+        "rescaling", "ini_S", 0, 0
+      );
+
+      if (ini_S_inp.GetSize() != NSCALARS)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in function [Rescaling::Initialize]\n";
+        msg << "Parameter ini_S is malformed";
+        ATHENA_ERROR(msg);
+      }
+      else
+      {
+        for (int n=0; n<NSCALARS; ++n)
+        {
+          ini.S(n) = ini_S_inp(n);
+        }
+      }
+
+    }
+    else
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        ini.S(n) = IntegrateField(variety_cs::conserved_scalar, n, s_cut);
+      }
+    }
+
     for (int n=0; n<NSCALARS; ++n)
     {
-      ini.S(n) = IntegrateField(variety_cs::conserved_scalar, n, s_cut);
       cur.S(n) = ini.S(n);
     }
   }
@@ -190,7 +222,7 @@ void Rescaling::Apply()
   }
   // --------------------------------------------------------------------------
 
-  bool outside_threshold = false;
+  bool outside_threshold_conserved_density = false;
 
   if (opt.rescale_conserved_density)
   {
@@ -252,7 +284,7 @@ void Rescaling::Apply()
         CC_GLOOP1(i)
         {
           const Real oo_sqrt_detgamma = OO(
-            aux_extended.cc_sqrt_detgamma(k,j,i)
+            aux_extended.ms_sqrt_detgamma(k,j,i)
           );
 
           const Real fac = ((oo_sqrt_detgamma * ph->u(IDN,k,j,i)) <=
@@ -266,9 +298,11 @@ void Rescaling::Apply()
     }
     else
     {
-      outside_threshold = true;
+      outside_threshold_conserved_density = true;
     }
   }
+
+  bool outside_threshold_conserved_scalars = false;
 
   if (opt.rescale_conserved_scalars)
   {
@@ -344,7 +378,7 @@ void Rescaling::Apply()
           CC_GLOOP1(i)
           {
             const Real oo_sqrt_detgamma = OO(
-              aux_extended.cc_sqrt_detgamma(k,j,i)
+              aux_extended.ms_sqrt_detgamma(k,j,i)
             );
 
             const Real fac = ((oo_sqrt_detgamma * ps->s(n,k,j,i)) <=
@@ -357,26 +391,33 @@ void Rescaling::Apply()
         }
         else
         {
-          outside_threshold = true;
+          outside_threshold_conserved_scalars = true;
         }
       }
     }
   }
 
-  // optionally disable all future rescalings if any current one failed:
-  if (outside_threshold && opt.disable_on_first_failure)
+  // optionally disable future rescalings of a given class if one fails:
+  if (opt.disable_on_first_failure)
   {
-    opt.rescale_conserved_density = false;
-    opt.rescale_conserved_scalars = false;
+    if (outside_threshold_conserved_density)
+    {
+      opt.rescale_conserved_density = false;
+      // and keep it disabled for future restarts
+      pin->OverwriteParameter("rescaling",
+                              "rescale_conserved_density",
+                              false);
+    }
 
-    // and keep it disabled for future restarts
-    pin->OverwriteParameter("rescaling",
-                            "rescale_conserved_density",
-                            false);
+    if (outside_threshold_conserved_scalars)
+    {
+      opt.rescale_conserved_scalars = false;
+      // and keep it disabled for future restarts
+      pin->OverwriteParameter("rescaling",
+                              "rescale_conserved_scalars",
+                              false);
+    }
 
-    pin->OverwriteParameter("rescaling",
-                            "rescale_conserved_scalars",
-                            false);
   }
 
   // debug info ---------------------------------------------------------------
@@ -470,7 +511,7 @@ Real Rescaling::CompensatedSummation(const variety_cs v_cs,
     CC_ILOOP3(k, j, i)
     {
       const Real oo_sqrt_detgamma = OO(
-        aux_extended.cc_sqrt_detgamma(k,j,i)
+        aux_extended.ms_sqrt_detgamma(k,j,i)
       );
       const Real v = oo_sqrt_detgamma * arr(0,k,j,i);
       const Real vol = pmb->pcoord->GetCellVolume(k,j,i);
@@ -544,31 +585,31 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
 
     AA arr;
 
+    switch (v_cs)
+    {
+      case variety_cs::conserved_hydro:
+      {
+        arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
+        break;
+      }
+      case variety_cs::conserved_scalar:
+      {
+        arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
+        break;
+      }
+      default:
+      {
+        assert(false);
+      }
+    }
+
     CC_ILOOP2(k, j)
     #pragma omp simd reduction(min:min_V)
     for (int i=pmb->is; i<=pmb->ie; ++i)
     {
 
-      switch (v_cs)
-      {
-        case variety_cs::conserved_hydro:
-        {
-          arr.InitWithShallowSlice(pmb->phydro->u, 4, n, 1);
-          break;
-        }
-        case variety_cs::conserved_scalar:
-        {
-          arr.InitWithShallowSlice(pmb->pscalars->s, 4, n, 1);
-          break;
-        }
-        default:
-        {
-          assert(false);
-        }
-      }
-
       const Real oo_sqrt_detgamma = OO(
-        aux_extended.cc_sqrt_detgamma(k,j,i)
+        aux_extended.ms_sqrt_detgamma(k,j,i)
       );
 
       const Real V = oo_sqrt_detgamma * arr(k,j,i);
@@ -589,21 +630,27 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (require_positive && min_V <= 0)
+  if (require_positive && !(min_V > 0.0))
   {
     min_V = std::numeric_limits<Real>::infinity();
   }
 
-  if (Globals::my_rank == 0)
-  {
-    MPI_Reduce(MPI_IN_PLACE, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-  }
-  else
-  {
-    MPI_Reduce(&min_V, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
-               MPI_COMM_WORLD);
-  }
+  // if (Globals::my_rank == 0)
+  // {
+  //   MPI_Reduce(MPI_IN_PLACE, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
+  //              MPI_COMM_WORLD);
+  // }
+  // else
+  // {
+  //   MPI_Reduce(&min_V, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, 0,
+  //              MPI_COMM_WORLD);
+  // }
+
+  // Real min_all_V;
+  // MPI_Allreduce(&min_V, &min_all_V, 1,
+  //   MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &min_V, 1,
+    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
 #endif
 
   return min_V;
@@ -725,6 +772,26 @@ void Rescaling::OutputFinalize()
   if (Globals::my_rank == 0)
   {
     fclose(pofile);
+  }
+}
+
+// retain conserved quantity values within parameter file
+void Rescaling::FinalizePreOutput()
+{
+  if (opt.rescale_conserved_density)
+  {
+    pin->SetReal("rescaling", "ini_m", ini.m);
+  }
+
+  if (opt.rescale_conserved_scalars &&
+      (NSCALARS > 0))
+  {
+    AA ini_S(NSCALARS);
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      ini_S(n) = ini.S(n);
+    }
+    pin->SetRealArray("rescaling", "ini_S", ini_S);
   }
 }
 

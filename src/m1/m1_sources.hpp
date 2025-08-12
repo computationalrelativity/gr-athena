@@ -128,7 +128,11 @@ void Prepare(
   const M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  const M1::vars_Source & U_S);
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
 
 void Apply(
   M1 * pm1,
@@ -137,7 +141,47 @@ void Apply(
   M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
+
+void PrepareFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  const M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
+
+void ApplyFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
+
+// Check whether the current sources / state give rise to a physical solution
+// with respect to the hydro / species sector.
+void CheckPhysicalFallback(
+  M1 * pm1,
+  const Real dt,
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
 );
 
 // ============================================================================

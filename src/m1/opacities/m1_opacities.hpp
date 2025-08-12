@@ -91,7 +91,7 @@ public:
   // WeakRates:
   // [[n_nue, n_nua, n_nux, n_nux]
   //  [e_nue, e_nua, e_nux, e_nux]]
-  void CalculateEquilbriumDensity(
+  void CalculateEquilibriumDensity(
     const Real w_rho,
     const Real w_T,
     const Real w_Y_e,

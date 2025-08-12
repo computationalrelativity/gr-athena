@@ -87,6 +87,7 @@ class Rescaling
   public:
     void Initialize();
     void Apply();
+    void FinalizePreOutput();
 
     // Compute volume-weighted sum of a variable on a given rank
     // Optionally use a lower (undensitized) cut.

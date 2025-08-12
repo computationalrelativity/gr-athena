@@ -34,6 +34,38 @@ void M1::CalcFiducialVelocity()
   {
     case opt_fiducial_velocity::fluid:
     {
+      // In the case that we have fluid then we can slice auxiliaries
+#if FLUID_ENABLED
+      M1_GLOOP3(k,j,i)
+      {
+        fidu.sc_W(k,j,i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
+      }
+
+      M1_GLOOP2(k,j)
+      for (int a=0; a<M1_NDIM; ++a)
+      {
+        M1_GLOOP1(i)
+        {
+          fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i) / fidu.sc_W(k,j,i);
+        }
+      }
+
+      // map to form
+      fidu.sp_v_d.ZeroClear();
+
+      M1_GLOOP2(k,j)
+      {
+        for (int a=0; a<N; ++a)
+        for (int b=0; b<N; ++b)
+        M1_GLOOP1(i)
+        {
+          fidu.sp_v_d(a,k,j,i) += geom.sp_g_dd(a,b,k,j,i) * fidu.sp_v_u(b,k,j,i);
+        }
+      }
+
+      return;
+#else
+      // computation of, and rescaling by, W below
       M1_GLOOP2(k,j)
       for (int a=0; a<M1_NDIM; ++a)
       {
@@ -43,6 +75,7 @@ void M1::CalcFiducialVelocity()
         }
       }
       break;
+#endif // FLUID_ENABLED
     }
     case opt_fiducial_velocity::mixed:
     {
@@ -136,6 +169,8 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
     AT_D_vec & st_H_u = rad.st_H_u(ix_g, ix_s);
     AT_C_sca & sc_n   = rad.sc_n(  ix_g,ix_s);
 
+    AT_C_sca & sc_avg_nrg = radmat.sc_avg_nrg(ix_g,ix_s);
+
     M1_GLOOP3(k, j, i)
     {
       Assemble::Frames::ToFiducial(
@@ -145,6 +180,20 @@ void M1::CalcFiducialFrame(AthenaArray<Real> & u)
         sc_E, sp_F_d, sc_nG,
         k, j, i
       );
+
+      // Fiducial frame expression
+      // sc_avg_nrg(k,j,i) = (sc_n(k,j,i) > 0)
+      //   ? sc_J(k,j,i) / sc_n(k,j,i)
+      //   : 0.0;
+
+      // Eulerian expression
+      // Real dotFv (0.0);
+      // for (int a=0; a<N; ++a)
+      // {
+      //   dotFv += sp_F_d(a,k,j,i) * fidu.sp_v_u(a,k,j,i);
+      // }
+      // const Real W = pm1->fidu.sc_W(k,j,i);
+      // sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
     }
 
   }

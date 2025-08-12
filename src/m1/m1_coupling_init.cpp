@@ -18,14 +18,27 @@ namespace M1 {
 // Prepare coupled (background) geometry (only during M1 ctor)
 void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 {
-  // Allocate dense storage ---------------------------------------------------
+  // Allocate / slice dense storage -------------------------------------------
+#ifdef Z4C_CX_ENABLED
+  AA & u_adm = pmy_block->pz4c->storage.adm;
+  geom.sc_alpha.InitWithShallowSlice( u_adm, Z4c::I_ADM_alpha);
+  geom.sp_beta_u.InitWithShallowSlice(u_adm, Z4c::I_ADM_betax);
+  geom.sp_g_dd.InitWithShallowSlice(  u_adm, Z4c::I_ADM_gxx);
+  geom.sp_K_dd.InitWithShallowSlice(  u_adm, Z4c::I_ADM_Kxx);
+  geom.sc_sqrt_det_g.InitWithShallowSlice(
+    pmy_block->pz4c->aux_extended.gs_sqrt_detgamma.array(), 0
+  );
+#else
   geom.sc_alpha.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
   geom.sp_beta_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sp_g_dd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   geom.sp_K_dd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
+  geom.sc_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+#endif // Z4C_CX_ENABLED
+
+  // always allocated ---------------------------------------------------------
   geom.sp_dalpha_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sp_dbeta_du.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
@@ -34,11 +47,8 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
   // For derived quantities
   geom.sp_beta_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
-  geom.sc_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-  geom.sc_oo_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
   geom.sp_g_uu.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  geom.sc_oo_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   // Populate storage ---------------------------------------------------------
   if (!Z4C_ENABLED)
@@ -105,6 +115,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
       JL, JU,
       KL, KU);
 
+#ifndef Z4C_CX_ENABLED
     for (int k=KL; k<=KU; ++k)
     for (int j=JL; j<=JU; ++j)
     {
@@ -138,6 +149,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
         geom.sp_K_dd(a,b,k,j,i) = K_dd_(a,b,i);
       }
     }
+#endif // Z4C_CX_ENABLED
 
     // Derivatives for geometric sources needed on interior -------------------
     for (int k=mbi.kl; k<=mbi.ku; ++k)
@@ -234,6 +246,15 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
   for (int k=KL; k<=KU; ++k)
   for (int j=JL; j<=JU; ++j)
   {
+#ifdef Z4C_CX_ENABLED
+    #pragma omp simd
+    for (int i=IL; i<=IU; ++i)
+    {
+      // have geom.sc_sqrt_det_g(k,j,i)
+      geom.sc_oo_sqrt_det_g(k,j,i) = OO(geom.sc_sqrt_det_g(k,j,i));
+      oo_detgamma_(i) = SQR(geom.sc_oo_sqrt_det_g(k,j,i));
+    }
+#else
     Det3Metric(detgamma_,geom.sp_g_dd,
                k,j,IL,IU);
 
@@ -244,6 +265,7 @@ void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
       geom.sc_sqrt_det_g(k,j,i) = std::sqrt(detgamma_(i));
       geom.sc_oo_sqrt_det_g(k,j,i) = OO(geom.sc_sqrt_det_g(k,j,i));
     }
+#endif // Z4C_CX_ENABLED
 
     Inv3Metric(oo_detgamma_, geom.sp_g_dd, sp_g_uu_,
                k,j,IL,IU);
@@ -271,8 +293,6 @@ void M1::InitializeHydro(vars_Hydro & hydro,
                          vars_Scratch & scratch)
 {
   // Allocate dense storage ---------------------------------------------------
-  hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-
   if (FLUID_ENABLED)
   {
     Hydro * phydro = pmy_block->phydro;
@@ -286,6 +306,16 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
     hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
+    hydro.sc_T.InitWithShallowSlice(phydro->derived_ms, IX_T);
+
+    if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
+    {
+      hydro.sc_W.InitWithShallowSlice(phydro->derived_ms, IX_LOR);
+    }
+    else
+    {
+      hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    }
   }
   else
   {
@@ -294,6 +324,9 @@ void M1::InitializeHydro(vars_Hydro & hydro,
     hydro.sc_w_Ye.NewAthenaTensor(    mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
+
+    hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_T.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     // set constant Gamma=2 EoS with K=1 for debug
     const Real K = 1;
@@ -338,9 +371,11 @@ void M1::DerivedHydro(vars_Hydro & hydro,
   using namespace LinearAlgebra;
 
   // Lorentz factor
-  M1_GLOOP2(k,j)
+
+  if (!((opt.fiducial_velocity == opt_fiducial_velocity::fluid) &&
+        FLUID_ENABLED))
   {
-    M1_GLOOP1(i)
+    M1_GLOOP3(k,j,i)
     {
       const Real norm2_util = InnerProductVecMetric(
         hydro.sp_w_util_u, geom.sp_g_dd,
@@ -349,6 +384,28 @@ void M1::DerivedHydro(vars_Hydro & hydro,
       hydro.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
     }
   }
+
+#if !FLUID_ENABLED
+  M1_GLOOP2(k,j)
+  {
+    M1_GLOOP1(i)
+    {
+#if USETM
+      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      const Real nb = hydro.sc_w_rho(k,j,i) / mb;
+      const Real w_p = hydro.sc_w_p(k,j,i);
+      Real Y[MAX_SPECIES] = {0.0};
+      Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
+
+      hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(
+        nb, w_p, Y
+      );
+#endif // USETM
+
+    }
+  }
+
+#endif // !FLUID_ENABLED
 
 }
 

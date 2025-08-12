@@ -224,6 +224,11 @@ class PrimitiveSolver {
       this->use_toms_748 = use_toms_748;
     }
 
+    inline void SetMaxVelocityLorentz(const Real W)
+    {
+      GetEOS()->SetMaxVelocityLorentz(W);
+    }
+
     /// Destructor
     ~PrimitiveSolver() = default;
 
@@ -417,8 +422,10 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   Real q      = tau/D;
 
   // Make sure there are no NaNs at this point.
-  if (!std::isfinite(D) || !std::isfinite(rsqr) || !std::isfinite(q) ||
-      !std::isfinite(rbsqr) || !std::isfinite(bsqr)) {
+  // if (!std::isfinite(D) || !std::isfinite(rsqr) || !std::isfinite(q) ||
+  //     !std::isfinite(rbsqr) || !std::isfinite(bsqr))
+  if (!std::isfinite(D+rsqr+q+rbsqr+bsqr))
+  {
     HandleFailure(prim, cons, b, g3d);
     solver_result.error = Error::NANS_IN_CONS;
     return solver_result;

@@ -125,6 +125,8 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
 
   xorder_use_fb = pin->GetOrAddBoolean("time", "xorder_use_fb", false);
 
+  GetVariant(pmb, pin, "xorder_p", "xorder_eps", xorder_style_p, xorder_eps);
+
   if (xorder_use_fb)
   {
     GetVariant(pmb, pin,
@@ -133,10 +135,54 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
                xorder_style_fb,
                xorder_eps);
 
+    GetVariant(pmb, pin,
+               "xorder_p_fb",
+               "xorder_eps",
+               xorder_style_p_fb,
+               xorder_eps);
+
     xorder_use_fb_unphysical = pin->GetOrAddBoolean(
       "time", "xorder_use_fb_unphysical", false);
+
+    xorder_use_fb_mask = pin->GetOrAddBoolean(
+      "time", "xorder_use_fb_mask", false);
   }
 
+  xorder_use_cons_passive = pin->GetOrAddBoolean(
+    "time", "xorder_use_cons_passive", false
+  );
+
+  xorder_limit_species = pin->GetOrAddBoolean(
+    "time", "xorder_limit_species", true
+  );
+
+  xorder_fb_dfloor_fac = pin->GetOrAddReal(
+    "time", "xorder_fb_dfloor_fac", 1.0
+  );
+
+  xorder_upwind_scalars = pin->GetOrAddBoolean(
+    "time", "xorder_upwind_scalars", true
+  );
+
+  xorder_use_auxiliaries = pin->GetOrAddBoolean(
+    "time", "xorder_use_auxiliaries", false
+  );
+
+  xorder_use_aux_T = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_T", false
+  );
+
+  xorder_use_aux_h = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_h", false
+  );
+
+  xorder_use_aux_W = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_W", false
+  );
+
+  xorder_use_aux_cs2 = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_cs2", false
+  );
 
   // Check for incompatible choices with broader solver configuration
   // --------------------------------

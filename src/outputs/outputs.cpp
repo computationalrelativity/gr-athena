@@ -368,29 +368,17 @@ void LoadOutputDataHydro(
     num_vars_++;
   }
 
-  if (output_params.variable == "hydro.aux")
+  for (int ix=0; ix<NDRV_HYDRO; ++ix)
+  if (output_params.variable == "hydro" ||
+    output_params.variable == "hydro.aux" ||
+    output_params.variable == Hydro::ixn_derived_ms::names[ix])
   {
-    // Temperature if we have it:
-#if USETM
-    {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = Hydro::ixn_aux::names[Hydro::ixn_aux::T];
-      pod->data.InitWithShallowSlice(ph->temperature, 0, 1);
-      pot->AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-#endif
-
-    // c2p
-    {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = Hydro::ixn_aux::names[Hydro::ixn_aux::c2p_status];
-      pod->data.InitWithShallowSlice(ph->c2p_status, 0, 1);
-      pot->AppendOutputDataNode(pod);
-      num_vars_++;
-    }
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Hydro::ixn_derived_ms::names[ix];
+    pod->data.InitWithShallowSlice(ph->derived_ms, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
   }
 }
 
@@ -474,6 +462,19 @@ void LoadOutputDataMagneticFields(
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   }
+
+  for (int ix=0; ix<NDRV_FIELD; ++ix)
+  if (output_params.variable == "field.aux" ||
+      output_params.variable == Field::ixn_derived_ms::names[ix])
+  {
+    pod = new OutputData;
+    pod->type = "SCALARS";
+    pod->name = Field::ixn_derived_ms::names[ix];
+    pod->data.InitWithShallowSlice(pf->derived_ms, 4, ix, 1);
+    pot->AppendOutputDataNode(pod);
+    num_vars_++;
+  }
+
 }
 
 void LoadOutputDataM1(
@@ -500,7 +501,7 @@ void LoadOutputDataM1(
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = name + "_" + idx_GS;
-    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pod->data.InitWithShallowSlice(data_, 4, 0, 1);
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   };
@@ -519,7 +520,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -544,7 +545,7 @@ void LoadOutputDataM1(
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
                   std::to_string(b);
-      pod->data.InitWithShallowSlice(data_, I, 1);
+      pod->data.InitWithShallowSlice(data_, 4, I, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -564,7 +565,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -578,7 +579,7 @@ void LoadOutputDataM1(
     pod = new OutputData;
     pod->type = "SCALARS";
     pod->name = name;
-    pod->data.InitWithShallowSlice(data_, 0, 1);
+    pod->data.InitWithShallowSlice(data_, 4, 0, 1);
     pot->AppendOutputDataNode(pod);
     num_vars_++;
   };
@@ -592,7 +593,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -611,7 +612,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a) + std::to_string(b);
-      pod->data.InitWithShallowSlice(data_, I, 1);
+      pod->data.InitWithShallowSlice(data_, 4, I, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -626,7 +627,7 @@ void LoadOutputDataM1(
       pod = new OutputData;
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
-      pod->data.InitWithShallowSlice(data_, a, 1);
+      pod->data.InitWithShallowSlice(data_, 4, a, 1);
       pot->AppendOutputDataNode(pod);
       num_vars_++;
     }
@@ -877,16 +878,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     num_vars_++;
   }
 
-  // latest recorded status (error) in ConservedToPrimitive
-  if (output_params.variable.compare("c2p_status") == 0) {
-    pod = new OutputData;
-    pod->type = "SCALARS";
-    pod->name = "c2p_status";
-    pod->data.InitWithShallowSlice(phyd->c2p_status, 0, 1);
-    AppendOutputDataNode(pod);
-    num_vars_++;
-  }
-
   // (rest-frame) density
   if (output_params.variable.compare("d") == 0 ||
       output_params.variable.compare("prim") == 0) {
@@ -920,20 +911,6 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
-
-    // temperature
-#if USETM
-    if (output_params.variable.compare("t") == 0 ||
-        output_params.variable.compare("temp") == 0) {
-      pod = new OutputData;
-      pod->type = "SCALARS";
-      pod->name = "temp";
-      pod->data.InitWithShallowSlice(phyd->temperature, 0, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
-#endif
-
   }
 
   // momentum vector
@@ -1365,6 +1342,27 @@ Real Outputs::GetMinOutputTimeStepExhaustive(std::string variable)
     }
   }
   return dt;
+}
+
+bool Outputs::TimeExceedsNextOutputTime(std::string variable_substring,
+                                        const Real time)
+{
+  OutputType* ptype = pfirst_type_;
+
+  bool ret = false;
+  while (ptype != nullptr)
+  {
+    if (ptype->output_params.variable.find(variable_substring) !=
+        std::string::npos)
+    {
+      ret = ret || (ptype->output_params.next_time <= time);
+    }
+    if (ret)
+      break;
+    // move to next OutputType node in signly linked list
+    ptype = ptype->pnext_type;
+  }
+  return ret;
 }
 
 //----------------------------------------------------------------------------------------

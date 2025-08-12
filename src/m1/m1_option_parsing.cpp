@@ -1,6 +1,7 @@
 // See m1.hpp for description / references.
 
 // c++
+#include <limits>
 #include <map>
 #include <codecvt>
 #include <iomanip>
@@ -65,9 +66,12 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
 
   {
     static const std::map<std::string, opt_closure_method> opt_var {
-      { "none",       opt_closure_method::none},
-      { "gsl_Brent",  opt_closure_method::gsl_Brent},
-      { "gsl_Newton", opt_closure_method::gsl_Newton}
+      { "none",        opt_closure_method::none},
+      { "gsl_Brent",   opt_closure_method::gsl_Brent},
+      { "gsl_Newton",  opt_closure_method::gsl_Newton},
+      { "custom_NB",   opt_closure_method::custom_NB},
+      { "custom_NAB",  opt_closure_method::custom_NAB},
+      { "custom_ONAB", opt_closure_method::custom_ONAB}
     };
 
     auto itr = opt_var.find(GoA_str("method", "gsl_Brent"));
@@ -208,9 +212,45 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.src_lim_thick      = GoA_Real("src_lim_thick",      -1.0);
   opt_solver.src_lim_scattering = GoA_Real("src_lim_scattering", -1.0);
 
+  opt_solver.limit_full_radiation = GoA_bool("limit_full_radiation", false);
+  opt_solver.full_lim = GoA_Real("full_lim", -1.0);
+
+  opt_solver.fb_rat_sl_E = GoA_Real("fb_rat_sl_E", -1.0);
+  opt_solver.fb_rat_sl_F_d = GoA_Real("fb_rat_sl_F_d", -1.0);
+  opt_solver.fb_rat_sl_nG = GoA_Real("fb_rat_sl_nG", -1.0);
+
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
+  opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);
+  opt_solver.equilibrium_evolve = GoA_bool("equilibrium_evolve", false);
+  opt_solver.equilibrium_evolve_use_euler = GoA_bool(
+    "equilibrium_evolve_use_euler", false
+  );
+  opt_solver.equilibrium_E_F_d = GoA_bool("equilibrium_E_F_d", false);
+  opt_solver.equilibrium_n_nG = GoA_bool("equilibrium_n_nG", false);
+  opt_solver.equilibrium_use_thick = GoA_bool("equilibrium_use_thick", false);
+
+  opt_solver.equilibrium_src_nG = GoA_bool("equilibrium_src_nG", false);
+  opt_solver.equilibrium_src_E_F_d = GoA_bool("equilibrium_src_E_F_d", false);
+  opt_solver.equilibrium_use_diff_src = GoA_bool("equilibrium_use_diff_src",
+                                                 false);
+
+  opt_solver.equilibrium_zeta = GoA_Real("equilibrium_zeta", 0.0);
+
   opt_solver.eql_rho_min = GoA_Real("eql_rho_min", 0.0);
+  opt_solver.tra_rho_min = GoA_Real(
+    "tra_rho_min", opt_solver.eql_rho_min
+  );
+
+  opt_solver.flux_lo_fallback_tau_min = GoA_Real(
+    "flux_lo_fallback_tau_min", -1
+  );
+  opt_solver.flux_lo_fallback_Ye_min = GoA_Real(
+    "flux_lo_fallback_Ye_min", -1
+  );
+  opt_solver.flux_lo_fallback_Ye_max = GoA_Real(
+    "flux_lo_fallback_Ye_max", -1
+  );
 
   opt_solver.verbose = GoA_bool("verbose", false);
 }
@@ -286,6 +326,14 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModD;
     }
+    else if (tmp == "HybridizeMinModE")
+    {
+      opt.flux_variety = opt_flux_variety::HybridizeMinModE;
+    }
+    else if (tmp == "RiemannHLLEmod")
+    {
+      opt.flux_variety = opt_flux_variety::RiemannHLLEmod;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -322,9 +370,10 @@ void M1::PopulateOptions(ParameterInput *pin)
   }
 
   { // tol / ad-hoc
-    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",  1e-15);
-    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",  1e-15);
-    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG", 1e-50);
+    opt.fl_E  = pin->GetOrAddReal("M1", "fl_E",    1e-15);
+    opt.fl_J  = pin->GetOrAddReal("M1", "fl_J",    1e-15);
+    opt.fl_nG = pin->GetOrAddReal("M1", "fl_nG",   1e-50);
+    opt.fl_nF2 = pin->GetOrAddReal("M1", "fl_nF2", 1e-80);
     opt.eps_E = pin->GetOrAddReal("M1", "eps_E", 1e-5);
     opt.eps_J = pin->GetOrAddReal("M1", "eps_J", 1e-10);
     opt.enforce_causality = pin->GetOrAddBoolean(
@@ -360,6 +409,19 @@ void M1::PopulateOptions(ParameterInput *pin)
       "M1", "flux_lo_fallback_nG", false);
 
     opt.flux_lo_fallback = (opt.flux_lo_fallback_E || opt.flux_lo_fallback_nG);
+
+    opt.flux_lo_fallback_eql_ho = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_eql_ho", false);
+
+    opt.flux_lo_fallback_first_stage = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_first_stage", true);
+
+    opt.flux_lo_fallback_species = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_species", false);
+
+    opt.flux_lo_fallback_mask_reset_all_stages = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_mask_reset_all_stages", true);
+
   }
 
   { // coupling
@@ -377,8 +439,16 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   }
 
+  // BD: TODO- should remove this option entirely and assume true
+  opt.retain_equilibrium = pin->GetOrAddBoolean("M1",
+                                                "retain_equilibrium",
+                                                true);
+
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
+
+  // fix issues
+  opt.zero_fix_sources = pin->GetOrAddBoolean("M1", "zero_fix_sources", true);
 }
 
 // ============================================================================

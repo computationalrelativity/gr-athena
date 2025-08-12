@@ -430,23 +430,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
                 ruser_meshblock_data[n].GetSizeInBytes());
     os += ruser_meshblock_data[n].GetSizeInBytes();
   }
-
-
-  // Loading complete; derived:
-  if (Z4C_ENABLED)
-  {
-    pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-
-    if (FLUID_ENABLED)
-    {
-      // Update w1 to have the state of w
-      phydro->RetainState(phydro->w1, phydro->w,
-                          0, ncells1-1,
-                          0, ncells2-1,
-                          0, ncells3-1);
-    }
-  }
-  return;
 }
 
 //----------------------------------------------------------------------------------------

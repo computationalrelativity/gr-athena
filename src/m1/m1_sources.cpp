@@ -1,4 +1,5 @@
 // C++ standard headers
+#include <cmath>
 #include <iostream>
 
 // Athena++ headers
@@ -38,7 +39,7 @@ void PrepareMatterSource_E_F_d(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.ev_strat.masks.source_treatment(k,j,i);
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
 
   if (st == ost::set_zero)
   {
@@ -69,7 +70,7 @@ void PrepareMatterSource_nG(
 {
   // Extract source mask value for potential short-circuit treatment ----------
   typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.ev_strat.masks.source_treatment(k,j,i);
+  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
 
   if (st == ost::set_zero)
   {
@@ -134,12 +135,15 @@ void Prepare(
   const M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  const M1::vars_Source & U_S)
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   // parameters & aliases------------------------------------------------------
   MeshBlock * pmb = pm1->pmy_block;
 #if FLUID_ENABLED
-  const Real mb = pmb->peos->GetEOS().GetRawBaryonMass();
+  const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
 #endif
 
   const Real par_src_lim = pm1->opt_solver.src_lim;
@@ -153,7 +157,9 @@ void Prepare(
   theta.Fill(1.0);
   // --------------------------------------------------------------------------
 
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -161,7 +167,7 @@ void Prepare(
 
 #if FLUID_ENABLED
     const Real & tau = pmb->phydro->u(IEN, k, j, i);
-    const Real & Y_e = pm1->hydro.sc_w_Ye(0,k,j,i);
+    const Real & w_Y_e = pm1->hydro.sc_w_Ye(0,k,j,i);
 
     const Real D = (
       pm1->hydro.sc_W(k,j,i) *
@@ -170,19 +176,21 @@ void Prepare(
     );
 
     Real Dtau_sum (0);
-    Real DDxp_sum (0);
+    Real DDYe (0);
 #endif // FLUID_ENABLED
 
     for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
     for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
     {
       // these points have zero sources
-      if (pm1->ev_strat.masks.solution_regime(ix_g,ix_s,k,j,i) ==
-          M1::evolution_strategy::opt_solution_regime::equilibrium)
+      /*
+      if (pm1->GetMaskSolutionRegime(ix_g,ix_s,k,j,i) ==
+          M1::M1::t_sln_r::equilibrium)
       {
         theta__ = 0;
         continue;
       }
+      */
 
       // C = P + dt (I + S[C])
       // => dt S[C] = C - (P + dt I)
@@ -225,7 +233,7 @@ void Prepare(
       // Cf. CoupleSourcesHydro, CoupleSourcesYe
       Dtau_sum -= DE;
       if (pm1->N_SPCS == 3)
-        DDxp_sum += mb * DN * ( (ix_s == 1) - (ix_s == 0) );
+        DDYe += mb_raw * DN * ( (ix_s == 1) - (ix_s == 0) );
 #endif // FLUID_ENABLED
     }
 
@@ -247,31 +255,33 @@ void Prepare(
       );
     }
 
-    const Real DYe = DDxp_sum / D;
-    if (DYe > 0)
+    if (DDYe > 0)
     {
       theta__ = std::min(
         par_src_lim * std::max(
-          par_src_Ye_max - Y_e, 0.0
-        ) / DYe,
+          D * (par_src_Ye_max - w_Y_e), 0.0
+        ) / DDYe,
         theta__
       );
     }
-    else if (DYe < 0)
+    else if (DDYe < 0)
     {
       theta__ = std::min(
         par_src_lim * std::min(
-          par_src_Ye_min - Y_e, 0.0
-        ) / DYe,
+          D * (par_src_Ye_min - w_Y_e), 0.0
+        ) / DDYe,
         theta__
       );
     }
+
 #endif // FLUID_ENABLED
 
   }
 
   // Finally enforce mask to be non-negative ----------------------------------
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -286,7 +296,10 @@ void Apply(
   M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S)
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   using namespace Update;
   using namespace Closures;
@@ -306,7 +319,9 @@ void Apply(
 
     ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (pm1->MaskGet(k, j, i))
     // if (pm1->MaskGetHybridize(k,j,i))
     {
@@ -323,8 +338,20 @@ void Apply(
       EnforcePhysical_E_F_d(*pm1, C, k, j, i);
       EnforcePhysical_nG(*pm1, C, k, j, i);
 
-      // Compute (pm1 storage) (sp_P_dd, ...) based on (sc_E*, sp_F_d*)
-      CL_C.Closure(k, j, i);
+      // Compute closure based on limited (sc_E, sp_F_d)
+      if (pm1->opt_solver.equilibrium_use_thick &&
+          pm1->IsEquilibrium(ix_s,k,j,i))
+      {
+        // set directly, only 1 rep of closures
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+        );
+      }
+      else
+      {
+        CL_C.Closure(k, j, i);
+      }
 
       // We now have nG*, it is useful to immediately construct n*
       Prepare_n_from_nG(*pm1, C, k, j, i);
@@ -358,11 +385,296 @@ void Apply(
 
 }
 
+void PrepareFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  const M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
+{
+  // parameters & aliases------------------------------------------------------
+  MeshBlock * pmb = pm1->pmy_block;
+  const Real par_full_lim = pm1->opt_solver.full_lim;
+
+  M1::vars_Lab & C = const_cast<M1::vars_Lab &>(U_C);
+  M1::vars_Lab & P = const_cast<M1::vars_Lab &>(U_P);
+  M1::vars_Lab & I = const_cast<M1::vars_Lab &>(U_I);
+
+  theta.Fill(1.0);
+  // --------------------------------------------------------------------------
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  if (pm1->MaskGet(k, j, i))
+  // if (pm1->MaskGetHybridize(k,j,i))
+  {
+    Real & theta__ = theta(k,j,i);
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+    {
+      // C = P + dt (I + S[C])
+      // => C - P = dt (I + S[C])
+      const Real DE = C.sc_E(ix_g,ix_s)(k,j,i)  - P.sc_E(ix_g,ix_s)(k,j,i);
+      const Real DN = C.sc_nG(ix_g,ix_s)(k,j,i) - P.sc_nG(ix_g,ix_s)(k,j,i);
+
+      if (pm1->opt_solver.limit_full_radiation)
+      {
+        if (DE < 0)
+        {
+          theta__ = std::min(
+            -par_full_lim * std::max(
+              P.sc_E(ix_g,ix_s)(k,j,i), 0.0
+            ) / DE, theta__
+          );
+        }
+
+        if (DN < 0)
+        {
+          theta__ = std::min(
+            -par_full_lim * std::max(
+              P.sc_nG(ix_g,ix_s)(k,j,i), 0.0
+            ) / DN, theta__
+          );
+        }
+      }
+    }
+  }
+
+  // Finally enforce mask to be non-negative ----------------------------------
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  if (pm1->MaskGet(k, j, i))
+  // if (pm1->MaskGetHybridize(k,j,i))
+  {
+    theta(k, j, i) = std::max(0.0, theta(k, j, i));
+  }
+}
+
+void ApplyFull(
+  M1 * pm1,
+  const Real dt,
+  AT_C_sca & theta,
+  M1::vars_Lab & U_C,
+  const M1::vars_Lab & U_P,
+  const M1::vars_Lab & U_I,
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
+{
+  using namespace Update;
+  using namespace Closures;
+
+  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+  {
+    StateMetaVector C = ConstructStateMetaVector(*pm1, U_C, ix_g, ix_s);
+    StateMetaVector P = ConstructStateMetaVector(
+      *pm1, const_cast<M1::vars_Lab&>(U_P), ix_g, ix_s
+    );
+    StateMetaVector I = ConstructStateMetaVector(
+      *pm1, const_cast<M1::vars_Lab&>(U_I), ix_g, ix_s
+    );
+
+    SourceMetaVector S = ConstructSourceMetaVector(*pm1, U_S, ix_g, ix_s);
+
+    ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
+
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    if (pm1->MaskGet(k, j, i))
+    // if (pm1->MaskGetHybridize(k,j,i))
+    {
+      // Subtract off unlimited sources: C <- C - dt * S
+      InPlaceScalarMulAdd_nG_E_F_d(-dt, C, S, k, j, i);
+
+      // Subtract off unlimited inhomogeneity: C <- C - dt * I
+      InPlaceScalarMulAdd_nG_E_F_d(-dt, C, I, k, j, i);
+
+      // Limit: S <- theta * S for (nG, ) & (E, F_d) components
+      InPlaceScalarMul_nG_E_F_d(theta(k, j, i), S, k, j, i);
+      // Same for I
+      InPlaceScalarMul_nG_E_F_d(theta(k, j, i), I, k, j, i);
+
+      // Updated state with limited sources [C <- C + dt * theta * S]
+      InPlaceScalarMulAdd_nG_E_F_d(dt, C, S, k, j, i);
+      InPlaceScalarMulAdd_nG_E_F_d(dt, C, I, k, j, i);
+
+      // Require states to be physical
+      EnforcePhysical_E_F_d(*pm1, C, k, j, i);
+      EnforcePhysical_nG(*pm1, C, k, j, i);
+
+      // Compute closure based on limited (sc_E, sp_F_d)
+      if (pm1->opt_solver.equilibrium_use_thick &&
+          pm1->IsEquilibrium(ix_s,k,j,i))
+      {
+        // set directly, only 1 rep of closures
+        Closures::EddingtonFactors::ThickLimit(
+          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
+          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
+        );
+      }
+      else
+      {
+        CL_C.Closure(k, j, i);
+      }
+
+      // We now have nG*, it is useful to immediately construct n*
+      Prepare_n_from_nG(*pm1, C, k, j, i);
+    }
+  }
+
+}
+
+void CheckPhysicalFallback(
+  M1 * pm1,
+  const Real dt,
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
+{
+#if FLUID_ENABLED
+  // parameters & aliases------------------------------------------------------
+  MeshBlock * pmb = pm1->pmy_block;
+  const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
+
+  const Real par_tau_min = pm1->opt_solver.flux_lo_fallback_tau_min;
+  const Real par_Ye_min  = pm1->opt_solver.flux_lo_fallback_Ye_min;
+  const Real par_Ye_max  = pm1->opt_solver.flux_lo_fallback_Ye_max;
+
+  const bool check_tau = (
+    pm1->opt.flux_lo_fallback_E &&
+    (pm1->opt_solver.flux_lo_fallback_tau_min > -1)
+  );
+
+  const bool check_Ye = (
+    pm1->opt.flux_lo_fallback_nG &&
+    (pm1->opt_solver.flux_lo_fallback_Ye_min > -1) &&
+    (pm1->opt_solver.flux_lo_fallback_Ye_max > -1)
+  );
+
+  M1::vars_Source & S = const_cast<M1::vars_Source &>(U_S);
+  // --------------------------------------------------------------------------
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  if (pm1->MaskGet(k, j, i))
+  {
+    if (pm1->opt.flux_lo_fallback_species)
+    {
+      bool flagged = true;
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        flagged = flagged and (pm1->ev_strat.masks.pp(ix_s,k,j,i) == 1.0);
+      }
+      if (flagged)
+      {
+        continue;
+      }
+    }
+    else
+    {
+      if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+      {
+        // already flagged
+        continue;
+      }
+    }
+
+    const Real D = (
+      pm1->hydro.sc_W(k,j,i) *
+      pm1->hydro.sc_w_rho(k,j,i) *
+      pm1->geom.sc_sqrt_det_g(k,j,i)
+    );
+
+    Real cons_IEN = pmb->phydro->u(IEN,k,j,i);
+    Real s_Y_e    = pmb->pscalars->s(0,k,j,i);
+
+    bool is_finite = true;
+    bool need_fallback = false;
+
+    for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+    {
+
+      if (check_tau)
+      {
+        for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+        {
+          AT_C_sca & S_sc_E   = S.sc_E(ix_g,ix_s);
+          AT_N_vec & S_sp_F_d = S.sp_F_d(ix_g,ix_s);
+
+          cons_IEN -= dt * S_sc_E(k,j,i);
+
+          for (int a=0; a<N; ++a)
+          {
+            is_finite = is_finite && std::isfinite(
+              S_sp_F_d(a,k,j,i)
+            );
+          }
+        }
+
+        is_finite = is_finite && std::isfinite(cons_IEN);
+
+        if (!is_finite || (cons_IEN < par_tau_min))
+        {
+          need_fallback = true;
+        }
+      }
+
+      if (check_Ye)
+      {
+        AT_C_sca & S_sc_nG_nue = S.sc_nG(ix_g,0);
+        AT_C_sca & S_sc_nG_nua = S.sc_nG(ix_g,1);
+
+        s_Y_e += dt * mb_raw * (
+          S_sc_nG_nua(k,j,i) - S_sc_nG_nue(k,j,i)
+        );
+
+        is_finite = is_finite && std::isfinite(s_Y_e);
+
+        const Real w_Y_e = (D != 0.0) ? (s_Y_e / D) : 0.0;
+
+        if (!is_finite ||
+            (w_Y_e < par_Ye_min) ||
+            (w_Y_e > par_Ye_max))
+        {
+          need_fallback = true;
+        }
+      }
+    }
+
+    // Update flux hybridization mask -----------------------------------------
+    if (need_fallback)
+    {
+      if (pm1->opt.flux_lo_fallback_species)
+      {
+        for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+        {
+          pm1->ev_strat.masks.pp(ix_s,k,j,i) = 1.0;
+        }
+      }
+      else
+      {
+        pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+      }
+    }
+  }
+#endif
+}
+
 } // namespace M1::Sources::Limiter
 // ============================================================================
-
-// ============================================================================
-
 
 // ============================================================================
 } // namespace M1::Sources
