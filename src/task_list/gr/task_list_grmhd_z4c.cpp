@@ -549,15 +549,14 @@ TaskStatus GRMHD_Z4c::CalculateHydroFlux(MeshBlock *pmb, int stage)
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     Reconstruction * pr = pmb->precon;
+    PassiveScalars *ps = pmb->pscalars;
 
-    int xorder = pmb->precon->xorder;
+    AA(& hflux)[3] = ph->flux;
+    AA(& sflux)[3] = ps->s_flux;
 
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      xorder = 1;
-    }
-
-    ph->CalculateFluxes(ph->w, pf->b, pf->bcc, xorder);
+    ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
+                        hflux, sflux,
+                        pr->xorder_style);
 
     return TaskStatus::next;
   }
@@ -962,22 +961,8 @@ TaskStatus GRMHD_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c::CalculateScalarFlux(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
-  {
-    PassiveScalars *ps = pmb->pscalars;
-
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      ps->CalculateFluxes(ps->r, 1);
-      return TaskStatus::next;
-    }
-    else
-    {
-      ps->CalculateFluxes(ps->r, pmb->precon->xorder);
-      return TaskStatus::next;
-    }
-  }
-  return TaskStatus::fail;
+  // BD: TODO- remove (handled in hydro now)
+  return TaskStatus::next;
 }
 
 

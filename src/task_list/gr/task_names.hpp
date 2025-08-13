@@ -112,19 +112,19 @@ const TaskID RECV_HYDFLX(1);
 const TaskID RECV_FLDFLX(2);
 const TaskID RECV_SCLRFLX(3);
 
-const TaskID CALC_HYDFLX(10);
 const TaskID CALC_FLDFLX(11);
-const TaskID CALC_SCLRFLX(14);
 
 const TaskID SEND_HYDFLX(20);
 const TaskID SEND_FLDFLX(21);
 const TaskID SEND_SCLRFLX(22);
 
-const TaskID INT_HYD(30);
-const TaskID INT_FLD(31);
-const TaskID INT_SCLR(32);
+// collective hydro/scalar integration
+const TaskID CALC_HYDSCLRFLX(24);
+const TaskID INT_HYDSCLR(25);
+const TaskID ADD_FLX_DIV(26);
+const TaskID SRCTERM_HYD(27);
 
-const TaskID SRCTERM_HYD(45);
+const TaskID INT_FLD(31);
 
 const TaskID CLEAR_ALLBND(60);
 

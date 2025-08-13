@@ -148,10 +148,6 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
       "time", "xorder_use_fb_mask", false);
   }
 
-  xorder_use_cons_passive = pin->GetOrAddBoolean(
-    "time", "xorder_use_cons_passive", false
-  );
-
   xorder_limit_species = pin->GetOrAddBoolean(
     "time", "xorder_limit_species", true
   );

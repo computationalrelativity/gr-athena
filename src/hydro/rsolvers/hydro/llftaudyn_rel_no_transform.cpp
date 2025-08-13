@@ -98,14 +98,8 @@ void Hydro::RiemannSolver(
     sqrt_detgamma_(i) = std::pow(chi_guarded, chi_pow / 2.0);
   }
 
-#ifdef DBG_COMBINED_HYDPA
   AA & pscalars_l = ps->rl_;
   AA & pscalars_r = ps->rr_;
-
-#else
-  AA pscalars_l;
-  AA pscalars_r;
-#endif
 
   // --------------------------------------------------------------------------
   RiemannSolver(k, j, il, iu, ivx, prim_l, prim_r,
@@ -368,50 +362,11 @@ void Hydro::RiemannSolver(
     Real Yl[MAX_SPECIES] = {0.0};
     Real Yr[MAX_SPECIES] = {0.0};
 
-    // BD: TODO - handle this better in the non-combined case
-#ifdef DBG_COMBINED_HYDPA
     for (int n=0; n<NSCALARS; n++)
     {
       Yl[n] = pscalars_l(n,i);
       Yr[n] = pscalars_r(n,i);
     }
-#else
-    for (int n=0; n<NSCALARS; n++)
-    {
-      Yr[n] = ps->r(n,k,j,i);
-    }
-    switch (ivx)
-    {
-      case IVX:
-      {
-        for (int n=0; n<NSCALARS; n++)
-        {
-          Yl[n] = ps->r(n,k,j,i-1);
-        }
-        break;
-      }
-      case IVY:
-      {
-        for (int n=0; n<NSCALARS; n++)
-        {
-          Yl[n] = ps->r(n,k,j-1,i);
-        }
-        break;
-      }
-      case IVZ:
-      {
-        for (int n=0; n<NSCALARS; n++)
-        {
-          Yl[n] = ps->r(n,k-1,j,i);
-        }
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
-#endif // DBG_COMBINED_HYDPA
 
     Real Tl, Tr;
     Real hl, hr;

@@ -47,7 +47,6 @@ class Reconstruction {
   bool xorder_use_fb;                     // try order reduction
   bool xorder_use_fb_unphysical = false;  // try energy conditions
   bool xorder_use_fb_mask = false;        // cpt failure->state failure
-  bool xorder_use_cons_passive = false;   // use cons. passive for recon?
   bool xorder_limit_species = false;      // limit reconstructed species?
   Real xorder_fb_dfloor_fac = 1;          // multiply dfloor by this to consider fb
   bool xorder_upwind_scalars = true;      // should passive scalars be upwinded?
@@ -79,20 +78,21 @@ class Reconstruction {
     const int dir,
     int & il, int & iu,
     int & jl, int & ju,
-    int & kl, int & ku
+    int & kl, int & ku,
+    const int num_enlarge_layer
   )
   {
     MeshBlock * pmb = pmy_block_;
     Mesh * pm = pmb->pmy_mesh;
 
-    const int is = pmb->is;
-    const int ie = pmb->ie;
+    const int is = pmb->is-num_enlarge_layer;
+    const int ie = pmb->ie+num_enlarge_layer;
 
-    const int js = pmb->js;
-    const int je = pmb->je;
+    const int js = pmb->js-num_enlarge_layer;
+    const int je = pmb->je+num_enlarge_layer;
 
-    const int ks = pmb->ks;
-    const int ke = pmb->ke;
+    const int ks = pmb->ks-num_enlarge_layer;
+    const int ke = pmb->ke+num_enlarge_layer;
 
     switch (dir)
     {

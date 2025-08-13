@@ -55,48 +55,53 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
 
   // (M)HD sub-system logic ---------------------------------------------------
-  Add(CALC_HYDFLX, NONE, &GRMHD_Z4c_Phase_MHD::CalculateHydroFlux);
 
-  if (NSCALARS > 0)
-  {
-    Add(CALC_SCLRFLX, CALC_HYDFLX, &GRMHD_Z4c_Phase_MHD::CalculateScalarFlux);
-  }
+  // weighted average of prior stages
+  Add(INT_HYDSCLR, NONE, &GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars);
+
+  // hydro + scalar fluxes
+  Add(CALC_HYDSCLRFLX, INT_HYDSCLR,
+      &GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux);
+
+  // collect receive operations
+  TaskID RECV_FLX = NONE;
 
   if (multilevel)
   {
-    Add(SEND_HYDFLX, CALC_HYDFLX,
+    RECV_FLX = RECV_FLX | RECV_HYDFLX;
+
+    Add(SEND_HYDFLX, CALC_HYDSCLRFLX,
         &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionHydro);
-    Add(RECV_HYDFLX, CALC_HYDFLX,
+    Add(RECV_HYDFLX, CALC_HYDSCLRFLX,
         &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectHydroFlux);
-    Add(INT_HYD,     RECV_HYDFLX,
-        &GRMHD_Z4c_Phase_MHD::IntegrateHydro);
   }
-  else
-  {
-    Add(INT_HYD, CALC_HYDFLX, &GRMHD_Z4c_Phase_MHD::IntegrateHydro);
-  }
-
-  Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro);
-
 
   if (NSCALARS > 0)
   {
     if (multilevel)
     {
-      Add(SEND_SCLRFLX, CALC_SCLRFLX, &GRMHD_Z4c_Phase_MHD::SendScalarFlux);
-      Add(RECV_SCLRFLX, CALC_SCLRFLX, &GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux);
-      Add(INT_SCLR,     RECV_SCLRFLX, &GRMHD_Z4c_Phase_MHD::IntegrateScalars);
-    }
-    else
-    {
-      Add(INT_SCLR, CALC_SCLRFLX, &GRMHD_Z4c_Phase_MHD::IntegrateScalars);
+      RECV_FLX = RECV_FLX | RECV_SCLRFLX;
+
+      Add(SEND_SCLRFLX, CALC_HYDSCLRFLX,
+          &GRMHD_Z4c_Phase_MHD::SendScalarFlux);
+      Add(RECV_SCLRFLX, CALC_HYDSCLRFLX,
+          &GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux);
     }
   }
 
+  // Are fluxes prepared (& sent if req.) for hydro / scalar?
+  // If so, we can add flux divergence
+  Add(ADD_FLX_DIV, CALC_HYDSCLRFLX | RECV_FLX,
+      &GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars);
+
+  // Then add sources (which completes the hydro step)
+  Add(SRCTERM_HYD, ADD_FLX_DIV,
+      &GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro);
+
   if (MAGNETIC_FIELDS_ENABLED)
   {
-    // compute MHD fluxes, integrate field
-    Add(CALC_FLDFLX, CALC_HYDFLX, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
+    // compute MHD fluxes (can be done whenever), integrate field
+    Add(CALC_FLDFLX, NONE, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
     Add(SEND_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF);
     Add(RECV_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF);
     Add(INT_FLD,     RECV_FLDFLX, &GRMHD_Z4c_Phase_MHD::IntegrateField);
@@ -104,19 +109,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
   // Collect result of integrations as a final block.
   TaskID FIN = SRCTERM_HYD;
-  if (multilevel)
-  {
-    FIN = FIN | SEND_HYDFLX;
-  }
-
-  if (NSCALARS > 0)
-  {
-    FIN = FIN | INT_SCLR;
-    if (multilevel)
-    {
-      FIN = FIN | SEND_SCLRFLX;
-    }
-  }
 
   if (MAGNETIC_FIELDS_ENABLED)
   {
@@ -178,30 +170,38 @@ TaskStatus GRMHD_Z4c_Phase_MHD::ClearAllBoundary(MeshBlock *pmb, int stage)
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::matter_flux_corrected);
 
-  // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:MHD\n", "@E:MHD\n");
-
   return TaskStatus::success;
 }
 
 //-----------------------------------------------------------------------------
 // Functions to calculates fluxes
-TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroFlux(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
+  MeshBlock *pmb, int stage
+)
 {
-
   if (stage <= nstages)
   {
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     Reconstruction * pr = pmb->precon;
+    PassiveScalars *ps = pmb->pscalars;
 
-    int xorder = pmb->precon->xorder;
+    const int num_enlarge_layer = 0;
+    AA(& hflux)[3] = ph->flux;
+    AA(& sflux)[3] = ps->s_flux;
 
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      xorder = 1;
-    }
+    ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
+                        hflux, sflux,
+                        pr->xorder_style,
+                        num_enlarge_layer);
 
-    ph->CalculateFluxes(ph->w, pf->b, pf->bcc, xorder);
+    // Logic to test candidate state can go here. This is pre-flux-correction.
+    bool all_valid = true;
+    const Real dt_scaled = this->dt_scaled(stage, pmb);
+    // ...
+
+    // ph->CheckStateWithFluxDivergence(dt_scaled, ph->u, hflux, sflux, all_valid);
+    // std::printf("all_valid = %d\n", all_valid);
 
     return TaskStatus::next;
   }
@@ -271,36 +271,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF(MeshBlock *pmb, int stage)
 
 //-----------------------------------------------------------------------------
 // Functions to integrate conserved variables
-TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydro(MeshBlock *pmb, int stage)
-{
-  if (stage <= nstages)
-  {
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
-    Field *pf = pmb->pfield;
-
-    // See IntegrateField
-    Real ave_wghts[3];
-    ave_wghts[0] = 1.0;
-    ave_wghts[1] = stage_wghts[stage-1].delta;
-    ave_wghts[2] = 0.0;
-    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts);
-
-    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
-
-    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts);
-
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
-    ph->AddFluxDivergence(dt_scaled, ph->u);
-
-    return TaskStatus::next;
-  }
-  return TaskStatus::fail;
-}
-
-
 TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateField(MeshBlock *pmb, int stage)
 {
   Field *pf = pmb->pfield;
@@ -363,28 +333,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
-
-TaskStatus GRMHD_Z4c_Phase_MHD::CalculateScalarFlux(MeshBlock *pmb, int stage)
-{
-  if (stage <= nstages)
-  {
-    PassiveScalars *ps = pmb->pscalars;
-
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      ps->CalculateFluxes(ps->r, 1);
-      return TaskStatus::next;
-    }
-    else
-    {
-      ps->CalculateFluxes(ps->r, pmb->precon->xorder);
-      return TaskStatus::next;
-    }
-  }
-  return TaskStatus::fail;
-}
-
-
 TaskStatus GRMHD_Z4c_Phase_MHD::SendScalarFlux(MeshBlock *pmb, int stage)
 {
   PassiveScalars * ps = pmb->pscalars;
@@ -408,52 +356,59 @@ TaskStatus GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux(MeshBlock *pmb, int stage)
   }
 }
 
-
-TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateScalars(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    PassiveScalars * ps = pmb->pscalars;
+    Hydro *ph = pmb->phydro;
+    PassiveScalars *ps = pmb->pscalars;
+    // Field *pf = pmb->pfield;
 
-    // This time-integrator-specific averaging operation logic is identical to
-    // IntegrateHydro, IntegrateField
+    const int num_enlarge_layer = 0;
+
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
     ave_wghts[2] = 0.0;
-    pmb->WeightedAveCC(ps->s1, ps->s, ps->s2, ave_wghts);
+    pmb->WeightedAveCC(ph->u1, ph->u, ph->u2, ave_wghts, num_enlarge_layer);
+
+    if (NSCALARS > 0)
+      pmb->WeightedAveCC(ps->s1, ps->s, ps->s2, ave_wghts, num_enlarge_layer);
 
     ave_wghts[0] = stage_wghts[stage-1].gamma_1;
     ave_wghts[1] = stage_wghts[stage-1].gamma_2;
     ave_wghts[2] = stage_wghts[stage-1].gamma_3;
 
-    pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts);
+    pmb->WeightedAveCC(ph->u, ph->u1, ph->u2, ave_wghts, num_enlarge_layer);
 
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
-    ps->AddFluxDivergence(dt_scaled, ps->s);
-
-// #if M1_ENABLED & USETM
-//     ::M1::M1 * pm1 = pmb->pm1;
-
-//     if (pm1->opt.couple_sources_Y_e)
-//     {
-//       if (pm1->N_SPCS != 3)
-//       #pragma omp critical
-//       {
-//         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
-//         std::exit(0);
-//       }
-
-//       const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-//       pm1->CoupleSourcesYe(dt_scaled, mb, ps->s);
-//     }
-// #endif
+    if (NSCALARS > 0)
+      pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts, num_enlarge_layer);
 
     return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
+TaskStatus GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars(
+  MeshBlock *pmb, int stage
+)
+{
+  if (stage <= nstages)
+  {
+    Hydro *ph = pmb->phydro;
+    PassiveScalars * ps = pmb->pscalars;
+
+    const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    ph->AddFluxDivergence(dt_scaled, ph->u);
+
+    if (NSCALARS > 0)
+      ps->AddFluxDivergence(dt_scaled, ps->s);
+
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
 
 //
 // :D

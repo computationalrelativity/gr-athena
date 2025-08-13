@@ -33,301 +33,41 @@
 #endif
 
 
-void Hydro::CalculateFluxes(AthenaArray<Real> &w, FaceField &b,
-                            AthenaArray<Real> &bcc, const int order)
+void Hydro::CalculateFluxes(AthenaArray<Real> &w,
+                            AthenaArray<Real> &r,
+                            FaceField &b,
+                            AthenaArray<Real> &bcc,
+                            AA(& hflux)[3],
+                            AA(& sflux)[3],
+                            Reconstruction::ReconstructionVariant rv,
+                            const int num_enlarge_layer)
 {
   if (flux_reconstruction)
   {
-    CalculateFluxes_FluxReconstruction(w, b, bcc, order);
+    // Unsupported
+    assert(false);
+    // CalculateFluxes_FluxReconstruction(w, b, bcc, order);
     return;
   }
 
-#if (NSCALARS > 0) & defined(DBG_COMBINED_HYDPA)
-  CalculateFluxesCombined(w,b,bcc,order);
-  return;
-#endif
-
-  MeshBlock *pmb = pmy_block;
-  Reconstruction * pr = pmb->precon;
-  typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
-  ReconstructionVariant rv = pr->xorder_style;
-  ReconstructionVariant r_rv = pr->xorder_style_fb;
-
-  int il, iu, jl, ju, kl, ku;
-
-#if MAGNETIC_FIELDS_ENABLED
-  // used only to pass to (up-to) 2x RiemannSolver() calls per dimension:
-  // x1:
-  AthenaArray<Real> &b1 = b.x1f, &w_x1f = pmb->pfield->wght.x1f,
-                  &e3x1 = pmb->pfield->e3_x1f, &e2x1 = pmb->pfield->e2_x1f;
-  // x2:
-  AthenaArray<Real> &b2 = b.x2f, &w_x2f = pmb->pfield->wght.x2f,
-                  &e1x2 = pmb->pfield->e1_x2f, &e3x2 = pmb->pfield->e3_x2f;
-  // x3:
-  AthenaArray<Real> &b3 = b.x3f, &w_x3f = pmb->pfield->wght.x3f,
-                  &e1x3 = pmb->pfield->e1_x3f, &e2x3 = pmb->pfield->e2_x3f;
-#endif
-
-  //---------------------------------------------------------------------------
-  // i-direction
-  AthenaArray<Real> &x1flux = flux[X1DIR];
-  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
-
-  for (int k=kl; k<=ku; ++k)
-  for (int j=jl; j<=ju; ++j)
-  {
-    pr->ReconstructPrimitivesX1_(rv, w, wl_, wr_,
-                                 k, j, il, iu);
-    pr->ReconstructMagneticFieldX1_(rv, bcc, wl_, wr_,
-                                    k, j, il, iu);
-
-    if (pr->xorder_use_fb)
-    {
-      pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_,
-                                   k, j, il, iu);
-      pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_,
-                                      k, j, il, iu);
-
-      FallbackInadmissiblePrimitiveX1_(wl_, wr_, r_wl_, r_wr_,
-                                       il, iu);
-    }
-    else
-    {
-#if USETM
-      PassiveScalars *ps = pmy_block->pscalars;
-      pr->ReconstructPassiveScalarsX1_(ReconstructionVariant::donate,
-                                       ps->r, rl_, rr_,
-                                       k, j, il, iu);
-      FloorPrimitiveX1_(wl_, wr_, rl_, rr_,
-                        k, j, il, iu);
-#else
-      FloorPrimitiveX1_(wl_, wr_,
-                        k, j, il, iu);
-#endif
-    }
-
-    pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
-
-#if !MAGNETIC_FIELDS_ENABLED
-    RiemannSolver(k, j, il, iu, IVX, wl_, wr_, x1flux, dxw_);
-#else
-    // x1flux(IBY) = (v1*b2 - v2*b1) = -EMFZ
-    // x1flux(IBZ) = (v1*b3 - v3*b1) =  EMFY
-    RiemannSolver(k, j, il, iu, IVX, b1, wl_, wr_,
-                  x1flux, e3x1, e2x1, w_x1f, dxw_);
-#endif
-  }
-  //---------------------------------------------------------------------------
-
-  //---------------------------------------------------------------------------
-  // j-direction
-  if (pmb->pmy_mesh->f2)
-  {
-    AthenaArray<Real> &x2flux = flux[X2DIR];
-    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
-
-    for (int k=kl; k<=ku; ++k)
-    {
-      pr->ReconstructPrimitivesX2_(rv, w, wl_, wr_,
-                                   k, jl-1, il, iu);
-      pr->ReconstructMagneticFieldX2_(rv, bcc, wl_, wr_,
-                                      k, jl-1, il, iu);
-
-      if (pr->xorder_use_fb)
-      {
-        pr->ReconstructPrimitivesX2_(r_rv, w, r_wl_, r_wr_,
-                                     k, jl-1, il, iu);
-        pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wl_, r_wr_,
-                                        k, jl-1, il, iu);
-
-        FallbackInadmissiblePrimitiveX2_(wl_, wr_, r_wl_, r_wr_,
-                                         il, iu);
-      }
-      else
-      {
-#if USETM
-        PassiveScalars *ps = pmy_block->pscalars;
-        pr->ReconstructPassiveScalarsX2_(ReconstructionVariant::donate,
-                                         ps->r, rl_, rr_,
-                                         k, jl-1, il, iu);
-        FloorPrimitiveX2_(wl_, wr_, rl_, rr_,
-                          k, jl-1, il, iu);
-#else
-        FloorPrimitiveX2_(wl_, wr_,
-                          k, jl-1, il, iu);
-#endif
-      }
-
-
-      for (int j=jl; j<=ju; ++j)
-      {
-
-        pr->ReconstructPrimitivesX2_(rv, w, wlb_, wr_,
-                                     k, j, il, iu);
-        pr->ReconstructMagneticFieldX2_(rv, bcc, wlb_, wr_,
-                                        k, j, il, iu);
-
-        if (pr->xorder_use_fb)
-        {
-          pr->ReconstructPrimitivesX2_(r_rv, w, r_wlb_, r_wr_,
-                                       k, j, il, iu);
-          pr->ReconstructMagneticFieldX2_(r_rv, bcc, r_wlb_, r_wr_,
-                                          k, j, il, iu);
-
-          FallbackInadmissiblePrimitiveX2_(wlb_, wr_, r_wlb_, r_wr_,
-                                           il, iu);
-        }
-        else
-        {
-#if USETM
-          PassiveScalars *ps = pmy_block->pscalars;
-          pr->ReconstructPassiveScalarsX2_(ReconstructionVariant::donate,
-                                           ps->r, rlb_, rr_,
-                                           k, j, il, iu);
-          FloorPrimitiveX2_(wlb_, wr_, rlb_, rr_, k, j, il, iu);
-#else
-          FloorPrimitiveX2_(wlb_, wr_, k, j, il, iu);
-#endif
-        }
-
-        pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
-#if !MAGNETIC_FIELDS_ENABLED
-        RiemannSolver(k, j, il, iu, IVY, wl_, wr_,
-                      x2flux, dxw_);
-#else
-        // flx(IBY) = (v2*b3 - v3*b2) = -EMFX
-        // flx(IBZ) = (v2*b1 - v1*b2) =  EMFZ
-        RiemannSolver(k, j, il, iu, IVY, b2, wl_, wr_,
-                      x2flux, e1x2, e3x2, w_x2f, dxw_);
-#endif
-
-        // swap the arrays for the next step
-        wl_.SwapAthenaArray(wlb_);
-        if (pr->xorder_use_fb)
-        {
-          r_wl_.SwapAthenaArray(r_wlb_);
-        }
-        else
-        {
-#if USETM
-          rl_.SwapAthenaArray(rlb_);
-#endif
-        }
-      }
-    }
-  }
-
-  //---------------------------------------------------------------------------
-  // k-direction
-  if (pmb->pmy_mesh->f3)
-  {
-    AthenaArray<Real> &x3flux = flux[X3DIR];
-    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
-
-    for (int j=jl; j<=ju; ++j)
-    { // this loop ordering is intentional
-      pr->ReconstructPrimitivesX3_(rv, w, wl_, wr_,
-                                   kl-1, j, il, iu);
-      pr->ReconstructMagneticFieldX3_(rv, bcc, wl_, wr_,
-                                      kl-1, j, il, iu);
-
-      if (pr->xorder_use_fb)
-      {
-        pr->ReconstructPrimitivesX3_(r_rv, w, r_wl_, r_wr_,
-                                     kl-1, j, il, iu);
-        pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wl_, r_wr_,
-                                        kl-1, j, il, iu);
-
-        FallbackInadmissiblePrimitiveX3_(wl_, wr_, r_wl_, r_wr_,
-                                         il, iu);
-      }
-      else
-      {
-#if USETM
-        PassiveScalars *ps = pmy_block->pscalars;
-        pr->ReconstructPassiveScalarsX3_(ReconstructionVariant::donate,
-                                         ps->r, rl_, rr_,
-                                         kl-1, j, il, iu);
-        FloorPrimitiveX3_(wl_, wr_, rl_, rr_,
-                          kl-1, j, il, iu);
-#else
-        FloorPrimitiveX3_(wl_, wr_, kl-1, j, il, iu);
-#endif
-      }
-
-
-      for (int k=kl; k<=ku; ++k)
-      {
-        pr->ReconstructPrimitivesX3_(rv, w, wlb_, wr_,
-                                     k, j, il, iu);
-        pr->ReconstructMagneticFieldX3_(rv, bcc, wlb_, wr_,
-                                        k, j, il, iu);
-
-        if (pr->xorder_use_fb)
-        {
-          pr->ReconstructPrimitivesX3_(r_rv, w, r_wlb_, r_wr_,
-                                       k, j, il, iu);
-          pr->ReconstructMagneticFieldX3_(r_rv, bcc, r_wlb_, r_wr_,
-                                          k, j, il, iu);
-
-          FallbackInadmissiblePrimitiveX3_(wlb_, wr_, r_wlb_, r_wr_,
-                                           il, iu);
-        }
-        else
-        {
-#if USETM
-          PassiveScalars *ps = pmy_block->pscalars;
-          pr->ReconstructPassiveScalarsX3_(ReconstructionVariant::donate,
-                                           ps->r, rlb_, rr_,
-                                           k, j, il, iu);
-          FloorPrimitiveX3_(wlb_, wr_, rlb_, rr_,
-                            k, j, il, iu);
-#else
-          FloorPrimitiveX3_(wlb_, wr_,
-                            k, j, il, iu);
-#endif
-        }
-
-        pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
-
-#if !MAGNETIC_FIELDS_ENABLED  // Hydro:
-        RiemannSolver(k, j, il, iu, IVZ, wl_, wr_,
-                      x3flux, dxw_);
-#else
-        // flx(IBY) = (v3*b1 - v1*b3) = -EMFY
-        // flx(IBZ) = (v3*b2 - v2*b3) =  EMFX
-        RiemannSolver(k, j, il, iu, IVZ, b3, wl_, wr_,
-                      x3flux, e2x3, e1x3, w_x3f, dxw_);
-#endif
-        // swap the arrays for the next step
-        wl_.SwapAthenaArray(wlb_);
-        if (pr->xorder_use_fb)
-        {
-          r_wl_.SwapAthenaArray(r_wlb_);
-        }
-        else
-        {
-#if USETM
-          rl_.SwapAthenaArray(rlb_);
-#endif
-        }
-      }
-    }
-  }
-
+  CalculateFluxesCombined(w,r,b,bcc,hflux,sflux,rv,num_enlarge_layer);
   return;
 }
 
 void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
+                                    AthenaArray<Real> &r,
                                     FaceField &b,
                                     AthenaArray<Real> &bcc,
-                                    const int order)
+                                    AA(& hflux)[3],
+                                    AA(& sflux)[3],
+                                    Reconstruction::ReconstructionVariant rv,
+                                    const int num_enlarge_layer)
 {
   MeshBlock *pmb = pmy_block;
 
   Reconstruction * pr = pmb->precon;
   typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
-  ReconstructionVariant rv = pr->xorder_style;
+  // ReconstructionVariant rv = pr->xorder_style;
   ReconstructionVariant r_rv = pr->xorder_style_fb;
 
   ReconstructionVariant p_rv = pr->xorder_style;
@@ -339,16 +79,6 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   AthenaArray<Real> mass_flux;
   // AthenaArray<Real> &r = pmb->pscalars->r;
 
-  AA p;
-  if (pr->xorder_use_cons_passive)
-  {
-    p.InitWithShallowSlice(pmb->pscalars->s, 4, 0, NSCALARS);
-  }
-  else
-  {
-    p.InitWithShallowSlice(pmb->pscalars->r, 4, 0, NSCALARS);
-  }
-
   int il, iu, jl, ju, kl, ku;
 
 #if MAGNETIC_FIELDS_ENABLED
@@ -366,11 +96,17 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 
   //---------------------------------------------------------------------------
   // i-direction
-  AthenaArray<Real> &x1flux = flux[X1DIR];
-  AthenaArray<Real> &s_x1flux = pmb->pscalars->s_flux[X1DIR];
-  mass_flux.InitWithShallowSlice(flux[X1DIR], 4, IDN, 1);
+  AthenaArray<Real> &x1flux = hflux[X1DIR];
+  AthenaArray<Real> s_x1flux;
 
-  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku);
+  if (NSCALARS > 0)
+  {
+    mass_flux.InitWithShallowSlice(hflux[X1DIR], 4, IDN, 1);
+    s_x1flux.InitWithShallowSlice(sflux[X1DIR], 4, 0, NSCALARS);
+  }
+
+  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku,
+                                       num_enlarge_layer);
 
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
@@ -381,17 +117,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
     pr->ReconstructMagneticFieldX1_(rv, bcc,
                                     wl_, wr_,
                                     k, j, il, iu);
-    pr->ReconstructPassiveScalarsX1_(p_rv, p,
+    pr->ReconstructPassiveScalarsX1_(p_rv, r,
                                      ps->rl_, ps->rr_,
                                      k, j, il, iu);
-
-    if (pr->xorder_use_cons_passive)
-    for (int n=0; n<NSCALARS; ++n)
-    for (int i=il; i<=iu; ++i)
-    {
-      ps->rl_(n,i) /= wl_(IDN,i);
-      ps->rr_(n,i) /= wr_(IDN,i);
-    }
 
     if (pr->xorder_use_auxiliaries)
     {
@@ -406,7 +134,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                    k, j, il, iu);
       pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_,
                                       k, j, il, iu);
-      pr->ReconstructPassiveScalarsX1_(p_r_rv, p,
+      pr->ReconstructPassiveScalarsX1_(p_r_rv, r,
                                        ps->r_rl_, ps->r_rr_,
                                        k, j, il, iu);
 
@@ -489,9 +217,12 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                   x1flux, e3x1, e2x1, w_x1f, dxw_);
 #endif
 
-    ps->ComputeUpwindFlux(k, j, il, iu,
-                          ps->rl_, ps->rr_,
-                          mass_flux, s_x1flux);
+    if (NSCALARS > 0)
+    {
+      ps->ComputeUpwindFlux(k, j, il, iu,
+                            ps->rl_, ps->rr_,
+                            mass_flux, s_x1flux);
+    }
 
     if (pr->xorder_use_fb && pr->xorder_use_fb_mask)
     {
@@ -506,10 +237,16 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   if (pmb->pmy_mesh->f2)
   {
     AthenaArray<Real> &x2flux = flux[X2DIR];
-    AthenaArray<Real> &s_x2flux = pmb->pscalars->s_flux[X2DIR];
-    mass_flux.InitWithShallowSlice(flux[X2DIR], 4, IDN, 1);
+    AthenaArray<Real> s_x2flux;
 
-    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku);
+    if (NSCALARS > 0)
+    {
+      mass_flux.InitWithShallowSlice(hflux[X2DIR], 4, IDN, 1);
+      s_x2flux.InitWithShallowSlice(sflux[X2DIR], 4, 0, NSCALARS);
+    }
+
+    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku,
+                                         num_enlarge_layer);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -519,17 +256,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX2_(rv, bcc,
                                       wl_, wr_,
                                       k, jl-1, il, iu);
-      pr->ReconstructPassiveScalarsX2_(p_rv, p,
+      pr->ReconstructPassiveScalarsX2_(p_rv, r,
                                        ps->rl_, ps->rr_,
                                        k, jl-1, il, iu);
-
-      if (pr->xorder_use_cons_passive)
-      for (int n=0; n<NSCALARS; ++n)
-      for (int i=il; i<=iu; ++i)
-      {
-        ps->rl_(n,i) /= wl_(IDN,i);
-        ps->rr_(n,i) /= wr_(IDN,i);
-      }
 
       if (pr->xorder_use_auxiliaries)
       {
@@ -546,7 +275,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX2_(r_rv, bcc,
                                         r_wl_, r_wr_,
                                         k, jl-1, il, iu);
-        pr->ReconstructPassiveScalarsX2_(p_r_rv, p,
+        pr->ReconstructPassiveScalarsX2_(p_r_rv, r,
                                          ps->r_rl_, ps->r_rr_,
                                          k, jl-1, il, iu);
 
@@ -628,17 +357,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX2_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX2_(p_rv, p,
+        pr->ReconstructPassiveScalarsX2_(p_rv, r,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
-
-        if (pr->xorder_use_cons_passive)
-        for (int n=0; n<NSCALARS; ++n)
-        for (int i=il; i<=iu; ++i)
-        {
-          ps->rlb_(n,i) /= wlb_(IDN,i);
-          ps->rr_(n,i) /= wr_(IDN,i);
-        }
 
         if (pr->xorder_use_auxiliaries)
         {
@@ -655,7 +376,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructMagneticFieldX2_(r_rv, bcc,
                                           r_wlb_, r_wr_,
                                           k, j, il, iu);
-          pr->ReconstructPassiveScalarsX2_(p_r_rv, p,
+          pr->ReconstructPassiveScalarsX2_(p_r_rv, r,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
 
@@ -736,9 +457,12 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                       x2flux, e1x2, e3x2, w_x2f, dxw_);
 #endif
 
-        ps->ComputeUpwindFlux(k, j, il, iu,
-                              ps->rl_, ps->rr_,
-                              mass_flux, s_x2flux);
+        if (NSCALARS > 0)
+        {
+          ps->ComputeUpwindFlux(k, j, il, iu,
+                                ps->rl_, ps->rr_,
+                                mass_flux, s_x2flux);
+        }
 
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
@@ -780,10 +504,16 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   if (pmb->pmy_mesh->f3)
   {
     AthenaArray<Real> &x3flux = flux[X3DIR];
-    AthenaArray<Real> &s_x3flux = pmb->pscalars->s_flux[X3DIR];
-    mass_flux.InitWithShallowSlice(flux[X3DIR], 4, IDN, 1);
+    AthenaArray<Real> s_x3flux;
 
-    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku);
+    if (NSCALARS > 0)
+    {
+      mass_flux.InitWithShallowSlice(hflux[X3DIR], 4, IDN, 1);
+      s_x3flux.InitWithShallowSlice(sflux[X3DIR], 4, 0, NSCALARS);
+    }
+
+    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku,
+                                         num_enlarge_layer);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional
@@ -793,17 +523,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX3_(rv, bcc,
                                       wl_, wr_,
                                       kl-1, j, il, iu);
-      pr->ReconstructPassiveScalarsX3_(p_rv, p,
+      pr->ReconstructPassiveScalarsX3_(p_rv, r,
                                        ps->rl_, ps->rr_,
                                        kl-1, j, il, iu);
-
-      if (pr->xorder_use_cons_passive)
-      for (int n=0; n<NSCALARS; ++n)
-      for (int i=il; i<=iu; ++i)
-      {
-        ps->rl_(n,i) /= wl_(IDN,i);
-        ps->rr_(n,i) /= wr_(IDN,i);
-      }
 
       if (pr->xorder_use_auxiliaries)
       {
@@ -820,7 +542,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX3_(r_rv, bcc,
                                         r_wl_, r_wr_,
                                         kl-1, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(p_r_rv, p,
+        pr->ReconstructPassiveScalarsX3_(p_r_rv, r,
                                          ps->r_rl_, ps->r_rr_,
                                          kl-1, j, il, iu);
 
@@ -900,17 +622,9 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX3_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(p_rv, p,
+        pr->ReconstructPassiveScalarsX3_(p_rv, r,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
-
-        if (pr->xorder_use_cons_passive)
-        for (int n=0; n<NSCALARS; ++n)
-        for (int i=il; i<=iu; ++i)
-        {
-          ps->rlb_(n,i) /= wlb_(IDN,i);
-          ps->rr_(n,i) /= wr_(IDN,i);
-        }
 
         if (pr->xorder_use_auxiliaries)
         {
@@ -927,7 +641,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           pr->ReconstructMagneticFieldX3_(r_rv, bcc,
                                           r_wlb_, r_wr_,
                                           k, j, il, iu);
-          pr->ReconstructPassiveScalarsX3_(p_r_rv, p,
+          pr->ReconstructPassiveScalarsX3_(p_r_rv, r,
                                            ps->r_rlb_, ps->r_rr_,
                                            k, j, il, iu);
 
@@ -1010,9 +724,13 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                       x3flux, e2x3, e1x3, w_x3f, dxw_);
 #endif
 
-        ps->ComputeUpwindFlux(k, j, il, iu,
-                              ps->rl_, ps->rr_,
-                              mass_flux, s_x3flux);
+        if (NSCALARS > 0)
+        {
+          ps->ComputeUpwindFlux(k, j, il, iu,
+                                ps->rl_, ps->rr_,
+                                mass_flux, s_x3flux);
+        }
+
         // swap the arrays for the next step
         wl_.SwapAthenaArray(wlb_);
 #if NSCALARS > 0
@@ -1102,7 +820,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x1flux = flux[X1DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
 
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
@@ -1147,7 +865,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x2flux = flux[X2DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
 
     for (int k=kl; k<=ku; ++k)
     {
@@ -1218,7 +936,7 @@ void Hydro::CalculateFluxes_FluxReconstruction(
     }
 
     AthenaArray<Real> &x3flux = flux[X3DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku);
+    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
 
     for (int j=jl; j<=ju; ++j)
     { // this loop ordering is intentional

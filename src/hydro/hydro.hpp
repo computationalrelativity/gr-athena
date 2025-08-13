@@ -237,17 +237,36 @@ public:
   // functions ----------------------------------------------------------------
   void NewBlockTimeStep();    // computes new timestep on a MeshBlock
   void AddFluxDivergence(const Real wght, AA &u_out);
-  void CalculateFluxes(AA &w, FaceField &b,
-                       AA &bcc, const int order);
+  void CalculateFluxes(AA &w,
+                       AA &r,
+                       FaceField &b,
+                       AA &bcc,
+                       AA(& hflux)[3],
+                       AA(& sflux)[3],
+                       Reconstruction::ReconstructionVariant rv,
+                       const int num_enlarge_layer=0);
 
+  void CalculateFluxesCombined(AA &w,
+                               AA &r,
+                               FaceField &b,
+                               AA &bcc,
+                               AA(& hflux)[3],
+                               AA(& sflux)[3],
+                               Reconstruction::ReconstructionVariant rv,
+                               const int num_enlarge_layer=0);
+
+  void CheckStateWithFluxDivergence(
+    const Real wght,
+    AA &u,
+    AA(& hflux)[3],
+    AA(& sflux)[3],
+    bool &all_valid
+  );
+
+  // BD: TODO- To remove
   void CalculateFluxes_FluxReconstruction(
     AA &w, FaceField &b,
     AA &bcc, const int order);
-
-
-  // debug join hydro+passive scalar recon.
-  void CalculateFluxesCombined(AA &w, FaceField &b,
-                               AA &bcc, const int order);
 
   void CalculateFluxes_STS();
 

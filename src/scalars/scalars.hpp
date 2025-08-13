@@ -55,8 +55,6 @@ class PassiveScalars {
   // public functions:
   // KGF: use inheritance for these functions / overall class?
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out);
-  void CalculateFluxes(AthenaArray<Real> &s, const int order);
-  void CalculateFluxesRef(AthenaArray<Real> &s, const int order);
   void CalculateFluxes_STS();
 
   // NOTE: for now, not creating subfolder "scalars_diffusion/", nor class ScalarDiffusion
