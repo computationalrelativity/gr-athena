@@ -22,6 +22,7 @@ namespace gra::mesh::surfaces {
 
 // Forward declare
 class SurfaceSpherical;
+class SurfaceCylindrical;
 
 void InitSurfaces(Mesh *pm, ParameterInput *pin);
 
@@ -34,7 +35,8 @@ void InitSurfaceTriggers(gra::triggers::Triggers & trgs,
 class Surfaces
 {
   public:
-    enum class variety_surface { spherical };
+    enum class variety_surface { cylindrical,
+                                 spherical };
 
     // Data that can be reduced to surface
     enum class variety_data {
@@ -169,6 +171,22 @@ class Surfaces
     virtual void ReinitializeSurfaces() {};
 };
 
+class SurfacesCylindrical : public Surfaces
+{
+  public:
+    SurfacesCylindrical(Mesh *pm, ParameterInput *pin, const int par_ix);
+    ~SurfacesCylindrical();
+
+  public:
+    const int num_radii;
+
+    std::vector<SurfaceCylindrical *> psurf;
+
+  public:
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurfaces() override;
+};
+
 class SurfacesSpherical : public Surfaces
 {
   public:
@@ -284,6 +302,90 @@ class SurfaceSpherical : public Surface
       for (int n=0; n<N_th; ++n)
       {
         th_in(n) = dth * (0.5 + n);
+      }
+    }
+
+    inline void gr_ph(aliases::AA & ph_in)
+    {
+      const Real dph = 2.0 * PI / static_cast<Real>(N_ph);
+      for (int n=0; n<N_ph; ++n)
+      {
+        ph_in(n) = dph * (0.5 + n);
+      }
+    }
+
+  // interpolator specific ----------------------------------------------------
+  private:
+    void PrepareInterpolators();
+    void PrepareInterpolatorAtPoint(MeshBlock * pmb, const int i, const int j);
+    void TearDownInterpolators();
+
+    void DoInterpolations();
+    Real InterpolateAtPoint(aliases::AA & raw_cpt,
+                            Surfaces::variety_base_grid vs,
+                            const int tar_i, const int tar_j);
+
+    void MPI_Reduce();
+
+  // output specific ----------------------------------------------------------
+  private:
+    virtual void write_hdf5(const Real time) override;
+
+};
+
+class SurfaceCylindrical : public Surface
+{
+  public:
+    enum class variety_sampling { uniform };
+    enum class variety_interpolator { Lagrange };
+
+    SurfaceCylindrical(Mesh *pm,
+                     ParameterInput *pin,
+                     Surfaces *psurfs,
+                     const int surf_ix);
+
+    ~SurfaceCylindrical();
+
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurface() override;
+
+  private:
+
+    Real rad;
+    Real z_min, z_max;
+    int N_ph;
+    int N_z;
+    int N_pts;
+
+    // For storage of grids
+    aliases::AA ph;
+    aliases::AA z;
+    aliases::AA x_o_ph_z;  // (x1(rad,ph,z), x2(rad,ph,z), x3(rad,ph,z))
+
+    variety_sampling vs;
+    variety_interpolator vi;
+
+    // For storage of interpolators / target point masks
+    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+
+    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
+    // that contains (th_i, th_j)
+    AthenaArray<MeshBlock *> mask_mb;
+
+    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
+    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+
+    // have we allocated interpolators for a given grid structure?
+    bool prepared = false;
+
+  private:
+
+    inline void gr_z(aliases::AA & z_in)
+    {
+      const Real dz = (z_max-z_min) / static_cast<Real>(N_z - 1);
+      for (int n=0; n<N_z; ++n)
+      {
+        z_in(n) = z_min + dz * n;
       }
     }
 
