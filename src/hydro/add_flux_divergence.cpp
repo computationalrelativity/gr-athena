@@ -110,7 +110,9 @@ void Hydro::CheckStateWithFluxDivergence(
   AA &u,
   AA(& hflux)[3],
   AA(& sflux)[3],
-  bool & all_valid
+  bool & all_valid,
+  AthenaArray<bool> &mask,
+  const int num_enlarge_layer
 )
 {
 
@@ -138,8 +140,8 @@ void Hydro::CheckStateWithFluxDivergence(
       (hflux[2](IDN,k+1,j,i) - hflux[2](IDN,k,j,i)) / pmb->pcoord->dx3f(k)
     );
 
-    all_valid = all_valid && (
-      Dstar * oo_sqrt_detgamma >= dfloor
-    );
+    const bool is_valid = Dstar * oo_sqrt_detgamma >= dfloor;
+    mask(k,j,i) = is_valid;
+    all_valid = all_valid && is_valid;
   }
 }

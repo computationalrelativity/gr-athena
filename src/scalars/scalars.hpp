@@ -44,6 +44,7 @@ class PassiveScalars {
   // "primitive vars" = (density-normalized) mass fraction/concentration of each species
   AthenaArray<Real> r;  // , r1;
   AthenaArray<Real> s_flux[3];  // face-averaged flux vector
+  AthenaArray<Real> lo_s_flux[3];
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:

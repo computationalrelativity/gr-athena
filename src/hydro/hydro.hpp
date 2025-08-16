@@ -55,6 +55,7 @@ class Hydro {
   AA derived_int;
 
   AA flux[3];  // face-averaged flux vector
+  AA lo_flux[3];
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
@@ -260,10 +261,12 @@ public:
     AA &u,
     AA(& hflux)[3],
     AA(& sflux)[3],
-    bool &all_valid
+    bool &all_valid,
+    AthenaArray<bool> &mask,
+    const int num_enlarge_layer
   );
 
-  // BD: TODO- To remove
+    // BD: TODO- To remove
   void CalculateFluxes_FluxReconstruction(
     AA &w, FaceField &b,
     AA &bcc, const int order);

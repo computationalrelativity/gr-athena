@@ -47,6 +47,7 @@ class Reconstruction {
   bool xorder_use_fb;                     // try order reduction
   bool xorder_use_fb_unphysical = false;  // try energy conditions
   bool xorder_use_fb_mask = false;        // cpt failure->state failure
+  bool xorder_floor_primitives = false;   // apply floors to reconstructed states?
   bool xorder_limit_species = false;      // limit reconstructed species?
   Real xorder_fb_dfloor_fac = 1;          // multiply dfloor by this to consider fb
   bool xorder_upwind_scalars = true;      // should passive scalars be upwinded?

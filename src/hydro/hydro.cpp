@@ -44,6 +44,21 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
            (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
             AthenaArray<Real>::DataStatus::empty)}
     },
+    lo_flux {
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1+1)
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+             (pmb->pmy_mesh->f2 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+             (pmb->pmy_mesh->f3 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA()
+    },
     coarse_cons_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),

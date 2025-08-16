@@ -148,6 +148,10 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
       "time", "xorder_use_fb_mask", false);
   }
 
+  xorder_floor_primitives = pin->GetOrAddBoolean(
+    "time", "xorder_floor_primitives", true
+  );
+
   xorder_limit_species = pin->GetOrAddBoolean(
     "time", "xorder_limit_species", true
   );

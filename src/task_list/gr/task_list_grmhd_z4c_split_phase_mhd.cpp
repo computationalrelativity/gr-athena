@@ -186,7 +186,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
     Reconstruction * pr = pmb->precon;
     PassiveScalars *ps = pmb->pscalars;
 
-    const int num_enlarge_layer = 0;
+    const int num_enlarge_layer = (pr->xorder_use_fb) ? 1 : 0;
     AA(& hflux)[3] = ph->flux;
     AA(& sflux)[3] = ps->s_flux;
 
@@ -196,12 +196,32 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
                         num_enlarge_layer);
 
     // Logic to test candidate state can go here. This is pre-flux-correction.
-    bool all_valid = true;
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
-    // ...
+    if (pr->xorder_use_fb)
+    {
 
-    // ph->CheckStateWithFluxDivergence(dt_scaled, ph->u, hflux, sflux, all_valid);
-    // std::printf("all_valid = %d\n", all_valid);
+      bool all_valid = true;
+      AthenaArray<bool> mask(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+
+      const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+      ph->CheckStateWithFluxDivergence(dt_scaled, ph->u, hflux, sflux,
+                                       all_valid, mask,
+                                       num_enlarge_layer);
+
+      if (!all_valid)
+      {
+        AA(& lo_hflux)[3] = ph->lo_flux;
+        AA(& lo_sflux)[3] = ps->lo_s_flux;
+
+        ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
+                            lo_hflux, lo_sflux,
+                            pr->xorder_style_fb,
+                            num_enlarge_layer);
+
+        // flux hybridization here
+        // ...
+      }
+    }
 
     return TaskStatus::next;
   }
@@ -363,8 +383,9 @@ TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
     Hydro *ph = pmb->phydro;
     PassiveScalars *ps = pmb->pscalars;
     // Field *pf = pmb->pfield;
+    Reconstruction *pr = pmb->precon;
 
-    const int num_enlarge_layer = 0;
+    const int num_enlarge_layer = (pr->xorder_use_fb) ? 1 : 0;
 
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;

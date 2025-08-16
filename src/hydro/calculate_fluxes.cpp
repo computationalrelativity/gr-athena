@@ -66,18 +66,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   MeshBlock *pmb = pmy_block;
 
   Reconstruction * pr = pmb->precon;
-  typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
-  // ReconstructionVariant rv = pr->xorder_style;
-  ReconstructionVariant r_rv = pr->xorder_style_fb;
-
-  ReconstructionVariant p_rv = pr->xorder_style;
-  ReconstructionVariant p_r_rv = pr->xorder_style;
-
   PassiveScalars *ps = pmb->pscalars;
 
   // For passive-scalar reconstruction
   AthenaArray<Real> mass_flux;
-  // AthenaArray<Real> &r = pmb->pscalars->r;
 
   int il, iu, jl, ju, kl, ku;
 
@@ -117,7 +109,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
     pr->ReconstructMagneticFieldX1_(rv, bcc,
                                     wl_, wr_,
                                     k, j, il, iu);
-    pr->ReconstructPassiveScalarsX1_(p_rv, r,
+    pr->ReconstructPassiveScalarsX1_(rv, r,
                                      ps->rl_, ps->rr_,
                                      k, j, il, iu);
 
@@ -128,71 +120,15 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                          k, j, il, iu);
     }
 
-    if (pr->xorder_use_fb)
+    if (pr->xorder_limit_species)
     {
-      pr->ReconstructPrimitivesX1_(r_rv, w, r_wl_, r_wr_,
-                                   k, j, il, iu);
-      pr->ReconstructMagneticFieldX1_(r_rv, bcc, r_wl_, r_wr_,
-                                      k, j, il, iu);
-      pr->ReconstructPassiveScalarsX1_(p_r_rv, r,
-                                       ps->r_rl_, ps->r_rr_,
-                                       k, j, il, iu);
-
-      if (pr->xorder_use_auxiliaries)
-      {
-        pr->ReconstructHydroAuxiliariesX1_(r_rv, derived_ms,
-                                           r_al_, r_ar_,
-                                           k, j, il, iu);
-      }
-
-      if (pr->xorder_use_fb_mask)
-      {
-        mask_l_.Fill(true);
-        mask_r_.Fill(true);
-
-        FallbackInadmissibleMaskPrimitiveX_(mask_l_, mask_r_,
-                                            wl_, wr_,
-                                            il, iu, IVX);
-        ps->FallbackInadmissibleMaskScalarX_(mask_l_, mask_r_,
-                                             ps->rl_, ps->rr_,
-                                             il, iu, IVX);
-
-        FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                   wl_, wr_,
-                                   r_wl_, r_wr_,
-                                   0, NWAVE, il, iu, IVX);
-
-        FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                   ps->rl_, ps->rr_,
-                                   ps->r_rl_, ps->r_rr_,
-                                   0, NSCALARS, il, iu, IVX);
-
-      }
-      else
-      {
-        FallbackInadmissiblePrimitiveX1_(wl_, wr_,
-                                         r_wl_, r_wr_,
-                                         il, iu);
-        ps->FallbackInadmissibleScalarX_(ps->rl_, ps->rr_,
-                                         ps->r_rl_, ps->r_rr_,
-                                         il, iu, IVX);
-      }
-
-      if (pr->xorder_limit_species)
-      {
-        ps->ApplySpeciesLimits(ps->rl_, il, iu);
-        ps->ApplySpeciesLimits(ps->rr_, il, iu);
-      }
+      ps->ApplySpeciesLimits(ps->rl_, il, iu);
+      ps->ApplySpeciesLimits(ps->rr_, il, iu);
     }
-    else
-    {
-      if (pr->xorder_limit_species)
-      {
-        ps->ApplySpeciesLimits(ps->rl_, il, iu);
-        ps->ApplySpeciesLimits(ps->rr_, il, iu);
-      }
 
 #if USETM
+    if (pr->xorder_floor_primitives)
+    {
       FloorPrimitiveX1_(wl_, wr_,
                         ps->rl_, ps->rr_,
                         k, j, il, iu);
@@ -200,11 +136,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       FloorPrimitiveX1_(wl_, wr_,
                         k, j, il, iu);
 #endif
-
-      if (pr->xorder_use_auxiliaries)
-        LimitAuxiliariesX1_(al_, ar_, il, iu);
-
     }
+
+    if (pr->xorder_use_auxiliaries)
+      LimitAuxiliariesX1_(al_, ar_, il, iu);
 
     pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
 
@@ -223,12 +158,6 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                             ps->rl_, ps->rr_,
                             mass_flux, s_x1flux);
     }
-
-    if (pr->xorder_use_fb && pr->xorder_use_fb_mask)
-    {
-      // mask_l_.Fill(true);
-      // mask_r_.Fill(true);
-    }
   }
   //---------------------------------------------------------------------------
 
@@ -236,7 +165,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   // j-direction
   if (pmb->pmy_mesh->f2)
   {
-    AthenaArray<Real> &x2flux = flux[X2DIR];
+    AthenaArray<Real> &x2flux = hflux[X2DIR];
     AthenaArray<Real> s_x2flux;
 
     if (NSCALARS > 0)
@@ -256,7 +185,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX2_(rv, bcc,
                                       wl_, wr_,
                                       k, jl-1, il, iu);
-      pr->ReconstructPassiveScalarsX2_(p_rv, r,
+      pr->ReconstructPassiveScalarsX2_(rv, r,
                                        ps->rl_, ps->rr_,
                                        k, jl-1, il, iu);
 
@@ -267,72 +196,14 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                            k, jl-1, il, iu);
       }
 
-      if (pr->xorder_use_fb)
+      if (pr->xorder_limit_species)
       {
-        pr->ReconstructPrimitivesX2_(r_rv, w,
-                                     r_wl_, r_wr_,
-                                     k, jl-1, il, iu);
-        pr->ReconstructMagneticFieldX2_(r_rv, bcc,
-                                        r_wl_, r_wr_,
-                                        k, jl-1, il, iu);
-        pr->ReconstructPassiveScalarsX2_(p_r_rv, r,
-                                         ps->r_rl_, ps->r_rr_,
-                                         k, jl-1, il, iu);
-
-        if (pr->xorder_use_auxiliaries)
-        {
-          pr->ReconstructHydroAuxiliariesX2_(r_rv, derived_ms,
-                                             r_al_, r_ar_,
-                                             k, jl-1, il, iu);
-        }
-
-        if (pr->xorder_use_fb_mask)
-        {
-          mask_l_.Fill(true);
-          mask_r_.Fill(true);
-
-          FallbackInadmissibleMaskPrimitiveX_(mask_l_, mask_r_,
-                                              wl_, wr_,
-                                              il, iu, IVY);
-          ps->FallbackInadmissibleMaskScalarX_(mask_l_, mask_r_,
-                                               ps->rl_, ps->rr_,
-                                               il, iu, IVY);
-
-          FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                     wl_, wr_,
-                                     r_wl_, r_wr_,
-                                     0, NWAVE, il, iu, IVY);
-
-          FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                     ps->rl_, ps->rr_,
-                                     ps->r_rl_, ps->r_rr_,
-                                     0, NSCALARS, il, iu, IVY);
-
-        }
-        else
-        {
-          FallbackInadmissiblePrimitiveX2_(wl_, wr_,
-                                           r_wl_, r_wr_,
-                                           il, iu);
-          ps->FallbackInadmissibleScalarX_(ps->rl_, ps->rr_,
-                                           ps->r_rl_, ps->r_rr_,
-                                           il, iu, IVY);
-        }
-
-        if (pr->xorder_limit_species)
-        {
-          ps->ApplySpeciesLimits(ps->rl_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_, il, iu);
-        }
+        ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        ps->ApplySpeciesLimits(ps->rr_, il, iu);
       }
-      else
-      {
-        if (pr->xorder_limit_species)
-        {
-          ps->ApplySpeciesLimits(ps->rl_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_, il, iu);
-        }
 
+      if (pr->xorder_floor_primitives)
+      {
 #if USETM
         FloorPrimitiveX2_(wl_, wr_,
                           ps->rl_, ps->rr_,
@@ -341,11 +212,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         FloorPrimitiveX2_(wl_, wr_,
                           k, jl-1, il, iu);
 #endif
-
-        if (pr->xorder_use_auxiliaries)
-          LimitAuxiliariesX2_(al_, ar_, il, iu);
-
       }
+
+      if (pr->xorder_use_auxiliaries)
+        LimitAuxiliariesX2_(al_, ar_, il, iu);
 
 
       for (int j=jl; j<=ju; ++j)
@@ -357,7 +227,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX2_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX2_(p_rv, r,
+        pr->ReconstructPassiveScalarsX2_(rv, r,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
@@ -368,71 +238,14 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                              k, j, il, iu);
         }
 
-        if (pr->xorder_use_fb)
+        if (pr->xorder_limit_species)
         {
-          pr->ReconstructPrimitivesX2_(r_rv, w,
-                                       r_wlb_, r_wr_,
-                                       k, j, il, iu);
-          pr->ReconstructMagneticFieldX2_(r_rv, bcc,
-                                          r_wlb_, r_wr_,
-                                          k, j, il, iu);
-          pr->ReconstructPassiveScalarsX2_(p_r_rv, r,
-                                           ps->r_rlb_, ps->r_rr_,
-                                           k, j, il, iu);
-
-          if (pr->xorder_use_auxiliaries)
-          {
-            pr->ReconstructHydroAuxiliariesX2_(r_rv, derived_ms,
-                                               r_alb_, r_ar_,
-                                               k, j, il, iu);
-          }
-
-          if (pr->xorder_use_fb_mask)
-          {
-            mask_lb_.Fill(true);
-            mask_r_.Fill(true);
-
-            FallbackInadmissibleMaskPrimitiveX_(mask_lb_, mask_r_,
-                                                wlb_, wr_,
-                                                il, iu, IVY);
-            ps->FallbackInadmissibleMaskScalarX_(mask_lb_, mask_r_,
-                                                 ps->rlb_, ps->rr_,
-                                                 il, iu, IVY);
-
-            FallbackInadmissibleMaskX_(mask_lb_, mask_r_,
-                                       wlb_, wr_,
-                                       r_wlb_, r_wr_,
-                                       0, NWAVE, il, iu, IVY);
-
-            FallbackInadmissibleMaskX_(mask_lb_, mask_r_,
-                                       ps->rlb_, ps->rr_,
-                                       ps->r_rlb_, ps->r_rr_,
-                                       0, NSCALARS, il, iu, IVY);
-          }
-          else
-          {
-            FallbackInadmissiblePrimitiveX2_(wlb_, wr_,
-                                             r_wlb_, r_wr_,
-                                             il, iu);
-            ps->FallbackInadmissibleScalarX_(ps->rlb_, ps->rr_,
-                                             ps->r_rlb_, ps->r_rr_,
-                                             il, iu, IVY);
-          }
-
-          if (pr->xorder_limit_species)
-          {
-            ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-            ps->ApplySpeciesLimits(ps->rr_, il, iu);
-          }
+          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          ps->ApplySpeciesLimits(ps->rr_, il, iu);
         }
-        else
-        {
-          if (pr->xorder_limit_species)
-          {
-            ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-            ps->ApplySpeciesLimits(ps->rr_, il, iu);
-          }
 
+        if (pr->xorder_floor_primitives)
+        {
 #if USETM
           FloorPrimitiveX2_(wlb_, wr_,
                             ps->rlb_, ps->rr_,
@@ -440,11 +253,11 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #else
           FloorPrimitiveX2_(wlb_, wr_, k, j, il, iu);
 #endif
-
-          if (pr->xorder_use_auxiliaries)
-            LimitAuxiliariesX2_(alb_, ar_, il, iu);
-
         }
+
+        if (pr->xorder_use_auxiliaries)
+          LimitAuxiliariesX2_(alb_, ar_, il, iu);
+
 
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED
@@ -474,27 +287,6 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         {
           al_.SwapAthenaArray(alb_);
         }
-
-        if (pr->xorder_use_fb)
-        {
-          r_wl_.SwapAthenaArray(r_wlb_);
-#if NSCALARS > 0
-          ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
-#endif
-
-          if (pr->xorder_use_auxiliaries)
-          {
-            r_al_.SwapAthenaArray(r_alb_);
-          }
-
-          if (pr->xorder_use_fb_mask)
-          {
-            // mask_lb_.Fill(true);
-            // mask_r_.Fill(true);
-            mask_l_.SwapAthenaArray(mask_lb_);
-          }
-
-        }
       }
     }
   }
@@ -503,7 +295,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
   // k-direction
   if (pmb->pmy_mesh->f3)
   {
-    AthenaArray<Real> &x3flux = flux[X3DIR];
+    AthenaArray<Real> &x3flux = hflux[X3DIR];
     AthenaArray<Real> s_x3flux;
 
     if (NSCALARS > 0)
@@ -523,7 +315,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
       pr->ReconstructMagneticFieldX3_(rv, bcc,
                                       wl_, wr_,
                                       kl-1, j, il, iu);
-      pr->ReconstructPassiveScalarsX3_(p_rv, r,
+      pr->ReconstructPassiveScalarsX3_(rv, r,
                                        ps->rl_, ps->rr_,
                                        kl-1, j, il, iu);
 
@@ -534,72 +326,14 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                            kl-1, j, il, iu);
       }
 
-      if (pr->xorder_use_fb)
+      if (pr->xorder_limit_species)
       {
-        pr->ReconstructPrimitivesX3_(r_rv, w,
-                                     r_wl_, r_wr_,
-                                     kl-1, j, il, iu);
-        pr->ReconstructMagneticFieldX3_(r_rv, bcc,
-                                        r_wl_, r_wr_,
-                                        kl-1, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(p_r_rv, r,
-                                         ps->r_rl_, ps->r_rr_,
-                                         kl-1, j, il, iu);
-
-        if (pr->xorder_use_auxiliaries)
-        {
-          pr->ReconstructHydroAuxiliariesX3_(r_rv, derived_ms,
-                                             r_al_, r_ar_,
-                                             kl-1, j, il, iu);
-        }
-
-        if (pr->xorder_use_fb_mask)
-        {
-          mask_l_.Fill(true);
-          mask_r_.Fill(true);
-
-          FallbackInadmissibleMaskPrimitiveX_(mask_l_, mask_r_,
-                                              wl_, wr_,
-                                              il, iu, IVZ);
-          ps->FallbackInadmissibleMaskScalarX_(mask_l_, mask_r_,
-                                               ps->rl_, ps->rr_,
-                                               il, iu, IVZ);
-
-          FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                     wl_, wr_,
-                                     r_wl_, r_wr_,
-                                     0, NWAVE, il, iu, IVZ);
-
-          FallbackInadmissibleMaskX_(mask_l_, mask_r_,
-                                     ps->rl_, ps->rr_,
-                                     ps->r_rl_, ps->r_rr_,
-                                     0, NSCALARS, il, iu, IVZ);
-
-        }
-        else
-        {
-          FallbackInadmissiblePrimitiveX3_(wl_, wr_,
-                                           r_wl_, r_wr_,
-                                           il, iu);
-          ps->FallbackInadmissibleScalarX_(ps->rl_, ps->rr_,
-                                           ps->r_rl_, ps->r_rr_,
-                                           il, iu, IVZ);
-        }
-
-        if (pr->xorder_limit_species)
-        {
-          ps->ApplySpeciesLimits(ps->rl_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_, il, iu);
-        }
+        ps->ApplySpeciesLimits(ps->rl_, il, iu);
+        ps->ApplySpeciesLimits(ps->rr_, il, iu);
       }
-      else
-      {
-        if (pr->xorder_limit_species)
-        {
-          ps->ApplySpeciesLimits(ps->rl_, il, iu);
-          ps->ApplySpeciesLimits(ps->rr_, il, iu);
-        }
 
+      if (pr->xorder_floor_primitives)
+      {
 #if USETM
         FloorPrimitiveX3_(wl_, wr_,
                           ps->rl_, ps->rr_,
@@ -607,12 +341,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
 #else
         FloorPrimitiveX3_(wl_, wr_, kl-1, j, il, iu);
 #endif
-
-        if (pr->xorder_use_auxiliaries)
-          LimitAuxiliariesX3_(al_, ar_, il, iu);
-
       }
 
+      if (pr->xorder_use_auxiliaries)
+        LimitAuxiliariesX3_(al_, ar_, il, iu);
 
       for (int k=kl; k<=ku; ++k)
       {
@@ -622,7 +354,7 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         pr->ReconstructMagneticFieldX3_(rv, bcc,
                                         wlb_, wr_,
                                         k, j, il, iu);
-        pr->ReconstructPassiveScalarsX3_(p_rv, r,
+        pr->ReconstructPassiveScalarsX3_(rv, r,
                                          ps->rlb_, ps->rr_,
                                          k, j, il, iu);
 
@@ -633,71 +365,14 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
                                              k, j, il, iu);
         }
 
-        if (pr->xorder_use_fb)
+        if (pr->xorder_limit_species)
         {
-          pr->ReconstructPrimitivesX3_(r_rv, w,
-                                       r_wlb_, r_wr_,
-                                       k, j, il, iu);
-          pr->ReconstructMagneticFieldX3_(r_rv, bcc,
-                                          r_wlb_, r_wr_,
-                                          k, j, il, iu);
-          pr->ReconstructPassiveScalarsX3_(p_r_rv, r,
-                                           ps->r_rlb_, ps->r_rr_,
-                                           k, j, il, iu);
-
-          if (pr->xorder_use_auxiliaries)
-          {
-            pr->ReconstructHydroAuxiliariesX3_(r_rv, derived_ms,
-                                               r_alb_, r_ar_,
-                                               k, j, il, iu);
-          }
-
-          if (pr->xorder_use_fb_mask)
-          {
-            mask_lb_.Fill(true);
-            mask_r_.Fill(true);
-
-            FallbackInadmissibleMaskPrimitiveX_(mask_lb_, mask_r_,
-                                                wlb_, wr_,
-                                                il, iu, IVZ);
-            ps->FallbackInadmissibleMaskScalarX_(mask_lb_, mask_r_,
-                                                 ps->rlb_, ps->rr_,
-                                                 il, iu, IVZ);
-
-            FallbackInadmissibleMaskX_(mask_lb_, mask_r_,
-                                       wlb_, wr_,
-                                       r_wlb_, r_wr_,
-                                       0, NWAVE, il, iu, IVZ);
-
-            FallbackInadmissibleMaskX_(mask_lb_, mask_r_,
-                                       ps->rlb_, ps->rr_,
-                                       ps->r_rlb_, ps->r_rr_,
-                                       0, NSCALARS, il, iu, IVZ);
-          }
-          else
-          {
-            FallbackInadmissiblePrimitiveX3_(wlb_, wr_,
-                                             r_wlb_, r_wr_,
-                                             il, iu);
-            ps->FallbackInadmissibleScalarX_(ps->rlb_, ps->rr_,
-                                             ps->r_rlb_, ps->r_rr_,
-                                             il, iu, IVZ);
-          }
-
-          if (pr->xorder_limit_species)
-          {
-            ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-            ps->ApplySpeciesLimits(ps->rr_, il, iu);
-          }
-
+          ps->ApplySpeciesLimits(ps->rlb_, il, iu);
+          ps->ApplySpeciesLimits(ps->rr_, il, iu);
         }
-        else
+
+        if (pr->xorder_floor_primitives)
         {
-          if (pr->xorder_limit_species)
-          {
-            ps->ApplySpeciesLimits(ps->rlb_, il, iu);
-            ps->ApplySpeciesLimits(ps->rr_, il, iu);
-          }
 #if USETM
           FloorPrimitiveX3_(wlb_, wr_,
                             ps->rlb_, ps->rr_,
@@ -706,11 +381,10 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
           FloorPrimitiveX3_(wlb_, wr_,
                             k, j, il, iu);
 #endif
-
-          if (pr->xorder_use_auxiliaries)
-            LimitAuxiliariesX3_(alb_, ar_, il, iu);
-
         }
+
+        if (pr->xorder_use_auxiliaries)
+          LimitAuxiliariesX3_(alb_, ar_, il, iu);
 
         pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
 
@@ -740,25 +414,6 @@ void Hydro::CalculateFluxesCombined(AthenaArray<Real> &w,
         if (pr->xorder_use_auxiliaries)
         {
           al_.SwapAthenaArray(alb_);
-        }
-
-        if (pr->xorder_use_fb)
-        {
-          r_wl_.SwapAthenaArray(r_wlb_);
-#if NSCALARS > 0
-          ps->r_rl_.SwapAthenaArray(ps->r_rlb_);
-#endif
-          if (pr->xorder_use_auxiliaries)
-          {
-            r_al_.SwapAthenaArray(r_alb_);
-          }
-
-          if (pr->xorder_use_fb_mask)
-          {
-            // mask_lb_.Fill(true);
-            // mask_r_.Fill(true);
-            mask_l_.SwapAthenaArray(mask_lb_);
-          }
         }
       }
     }
