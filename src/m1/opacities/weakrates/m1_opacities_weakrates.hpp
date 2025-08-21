@@ -453,11 +453,11 @@ public:
     RM & rm = pm1->radmat;
 
     const int ix_g = 0;
-    const Real kap_s_e = rm.sc_kap_s(ix_g, s_idx)(k, j, i);
-    const Real kap_a_e = rm.sc_kap_a(ix_g, s_idx)(k, j, i);
+    const Real kap_s = rm.sc_kap_s(ix_g, s_idx)(k, j, i);
+    const Real kap_a = rm.sc_kap_a(ix_g, s_idx)(k, j, i);
 
     Real rat = 1.0 / std::sqrt(
-      kap_a_e * (kap_a_e + kap_s_e)
+      kap_a * (kap_a + kap_s)
     );
 
     return (std::isfinite(rat))
