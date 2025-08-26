@@ -40,6 +40,7 @@
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
 #   -mkl                enable mkl
+#   -openblas           enable openblas
 #   -elliptica          enable Elliptica
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   -sgrid             enable SGRID
@@ -585,6 +586,11 @@ parser.add_argument(
 # -mkl argument
 parser.add_argument(
   "-mkl", action="store_true", default=False, help="use mkl libraries",
+)
+
+# -openblas argument
+parser.add_argument(
+  "-openblas", action="store_true", default=False, help="use openblas libraries",
 )
 
 # -elliptica argument
@@ -1694,6 +1700,10 @@ if args["lorene"]:
   if args["mkl"]:
     makefile_options["LIBRARY_FLAGS"] += (
       " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
+    )
+  elif args["openblas"]:
+    makefile_options["LIBRARY_FLAGS"] += (
+      " -lopenblas"
     )
   else:
     makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
