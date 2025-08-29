@@ -608,7 +608,7 @@ void SurfaceCylindrical::MPI_Reduce()
 
   // Useful to have the data on all ranks
   MPI_Allreduce(MPI_IN_PLACE,
-                &(u_vars(0,0,0,0)),
+                &(u_vars(0,0,0)),
                 N_cpts_total * N_ph * N_z,
                 MPI_ATHENA_REAL,
                 MPI_SUM,
