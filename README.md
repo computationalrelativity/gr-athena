@@ -60,9 +60,6 @@ python configure.py    \
   -z -z_vc             \
   --cxx g++ -omp       \
   --nghost=4           \
-  --ncghost=4          \
-  --ncghost_cx=4       \
-  --nextrapolate=4     \
   -hdf5 -h5double -gsl \
   --lib_path=${PINST_HDF5}/lib     \
   --lib_path=${PINST_GSL}/lib      \
@@ -76,7 +73,7 @@ Brief explanation:
 
 - Configuration script sets up the problem to run (here `z4c_awa_tests`)
 - Compiler is selected as `g++` with `OpenMP` threading
-- Ghost selection is made
+- Vertex-centered sampling is chosen; ghost selection is made
 
 Run the code:
 
