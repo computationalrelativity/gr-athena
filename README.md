@@ -105,9 +105,9 @@ Brief explanation:
 ### Branching
 
  * `master` : production branch, protected - requires PR
- * `feature/*` : development
- * `project/*` : development for specific project
- * `bug/*` : bug fix, delete after merge!
+ * `feature/*` : development code, to be later merged into `master`
+ * `project/*` : development for specific project, may diverge from `master`
+ * `bugfix/*` : delete after merge!
  * `attic/*` : reference/outdated code
 
 ### Simulations
