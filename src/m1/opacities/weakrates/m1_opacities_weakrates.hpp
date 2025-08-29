@@ -18,6 +18,7 @@
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <locale>
 
 namespace M1::Opacities::WeakRates {
 
@@ -56,6 +57,16 @@ public:
                            "wr_equilibrium_fallback_zero",
                            false)
     ),
+    wr_fix_nn_densities(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_fix_nn_densities",
+                           false)
+    ),
+    wr_fix_nn_opacities(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_fix_nn_opacities",
+                           false)
+    ),
     wr_flag_equilibrium(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_flag_equilibrium",
@@ -85,6 +96,41 @@ public:
       pin->GetOrAddBoolean("M1_opacities",
                            "correction_adjust_upward",
                            false)
+    ),
+    fix_num_passes(
+      pin->GetOrAddInteger("M1_opacities",
+                           "wr_fix_num_passes",
+                           3)
+    ),
+    fix_num_neighbors(
+      pin->GetOrAddInteger("M1_opacities",
+                           "wr_fix_num_neighbors",
+                           1)
+    ),
+    fix_fac_median(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_fix_fac_median",
+                        2.0)
+    ),
+    fix_exclude_first_extrema(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_fix_exclude_first_extrema",
+                           true)
+    ),
+    fix_keep_base_point(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_fix_keep_base_point",
+                           false)
+    ),
+    fix_fac_min(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_fix_fac_min",
+                        0.5)
+    ),
+    fix_fac_max(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_fix_fac_max",
+                        1.5)
     )
   {
 
@@ -681,6 +727,289 @@ public:
     return 0;
   }
 
+  inline void ValueWithinNearestNeighbors(
+    bool & value_bounded,
+    Real & value_average,
+    const AA & src,
+    const AthenaArray<cstate> & calc_state,
+    const int n,
+    const int k, const int j, const int i,
+    const int num_neighbors,
+    Real fac_min,
+    Real fac_max,
+    const bool exclude_first_extrema,
+    const bool keep_base_point // exclude base-point from average
+  )
+  {
+    value_bounded = true;
+    value_average = 0.0;
+
+    const int nn = num_neighbors;
+    int count = 0;
+
+    Real min_val = std::numeric_limits<Real>::max();
+    Real max_val = -std::numeric_limits<Real>::max();
+
+    for (int kk=-nn; kk<=nn; ++kk)
+    for (int jj=-nn; jj<=nn; ++jj)
+    for (int ii=-nn; ii<=nn; ++ii)
+    {
+      const int i_ix = ii+i;
+      const int j_ix = jj+j;
+      const int k_ix = kk+k;
+
+      // ignore central point for extrema
+      if ((ii == 0) && (jj == 0) && (kk == 0))
+      {
+        continue;
+      }
+
+      // from FLOOP macro
+      if ((i_ix < M1_IX_IL-M1_FSIZEI) || (i_ix > M1_IX_IU+M1_FSIZEI+1))
+        continue;
+
+      if ((j_ix < M1_IX_JL-M1_FSIZEJ) || (j_ix > M1_IX_JU+M1_FSIZEJ+1))
+        continue;
+
+      if ((k_ix < M1_IX_KL-M1_FSIZEK) || (k_ix > M1_IX_KU+M1_FSIZEK+1))
+        continue;
+
+      // check whether data is computed at the point
+      bool use_point = calc_state(k_ix,j_ix,i_ix) == cstate::need;
+
+      const Real val = src(n,k_ix,j_ix,i_ix);
+
+      if (use_point)
+      {
+        // Track min/max values
+        min_val = std::min(min_val, val);
+        max_val = std::max(max_val, val);
+
+        value_average += val;
+        count++;
+      }
+    }
+
+    const Real val = src(n,k,j,i);
+
+    if (keep_base_point)
+    {
+      value_average += val;
+      count += 1;
+    }
+
+    if (exclude_first_extrema && count > 2)
+    {
+      value_average -= min_val;
+      value_average -= max_val;
+
+      count -= 2;
+    }
+
+    value_average /= count;
+    value_bounded = (fac_min * min_val < val) && (val < fac_max * max_val);
+  }
+
+  inline void ValueWithinNearestNeighborMedian(
+    bool & value_bounded,
+    Real & value_corrected,
+    const AA & src,
+    const AthenaArray<cstate> & calc_state,
+    const int n,
+    const int k, const int j, const int i,
+    const int num_neighbors,
+    const Real fac_median,
+    const bool exclude_first_extrema,
+    const bool keep_base_point // exclude base-point from median
+    )
+  {
+    value_bounded = true;
+    value_corrected = src(n,k,j,i);
+
+    const int nn = num_neighbors;
+    const int max_neighbors = POW3(2*nn+1);
+    Real neighbor_vals[max_neighbors];
+
+    int count = 0;
+
+    Real min_val = std::numeric_limits<Real>::max();
+    Real max_val = -std::numeric_limits<Real>::max();
+
+    for (int kk=-nn; kk<=nn; ++kk)
+    for (int jj=-nn; jj<=nn; ++jj)
+    for (int ii=-nn; ii<=nn; ++ii)
+    {
+      const int i_ix = ii+i;
+      const int j_ix = jj+j;
+      const int k_ix = kk+k;
+
+      // ignore central point for extrema
+      if ((ii == 0) && (jj == 0) && (kk == 0) && (!keep_base_point))
+      {
+        continue;
+      }
+
+      // from FLOOP macro
+      if ((i_ix < M1_IX_IL-M1_FSIZEI) || (i_ix > M1_IX_IU+M1_FSIZEI+1))
+        continue;
+
+      if ((j_ix < M1_IX_JL-M1_FSIZEJ) || (j_ix > M1_IX_JU+M1_FSIZEJ+1))
+        continue;
+
+      if ((k_ix < M1_IX_KL-M1_FSIZEK) || (k_ix > M1_IX_KU+M1_FSIZEK+1))
+        continue;
+
+      // check whether data is computed at the point
+      bool use_point = calc_state(k_ix,j_ix,i_ix) == cstate::need;
+
+      if (use_point)
+      {
+        const Real val = src(n,k_ix,j_ix,i_ix);
+
+        neighbor_vals[count++] = val;
+
+        if (exclude_first_extrema)
+        {
+          min_val = std::min(min_val, val);
+          max_val = std::max(max_val, val);
+        }
+      }
+    }
+
+    // nothing to do?
+    if (count == 0)
+    {
+      return;
+    }
+
+    if (exclude_first_extrema && count > 2)
+    {
+      int remove_count = 0;
+
+      // min_val to the end
+      for (int m=0; m<count; ++m)
+      {
+        if (neighbor_vals[m] == min_val)
+        {
+          std::swap(neighbor_vals[m], neighbor_vals[count-1-remove_count]);
+          remove_count++;
+          break;
+        }
+      }
+
+      // max_val to the end
+      for (int m=0; m<count-remove_count; ++m)
+      {
+        if (neighbor_vals[m]== max_val)
+        {
+          std::swap(neighbor_vals[m], neighbor_vals[count-1-remove_count]);
+          remove_count++;
+          break;
+        }
+      }
+
+      count -= remove_count;
+    }
+
+    // compute the median
+    int ix_mid = count / 2;
+    std::nth_element(neighbor_vals, neighbor_vals+ix_mid, neighbor_vals+count);
+    Real median = neighbor_vals[ix_mid];
+
+    if (count % 2 == 0) {
+      // largest value in lower half for even count
+      Real max_lower = *std::max_element(neighbor_vals, neighbor_vals+ix_mid);
+      median = 0.5 * (median + max_lower);
+    }
+
+    // are we within a factor of the median?
+    if ((median!=0) &&
+        (std::abs(value_corrected-median) <= fac_median*median))
+    {
+      return;
+    }
+
+    value_bounded = false;
+
+    Real sum = 0.0;
+    int n_valid = 0;
+
+    for (int m=0; m<count; ++m)
+    {
+      if (std::abs(neighbor_vals[m]-median) <= fac_median*median)
+      {
+        sum += neighbor_vals[m];
+        n_valid++;
+      }
+    }
+
+    if (n_valid>0)
+    {
+      value_corrected = sum / n_valid;
+    }
+    else
+    {
+      // fallback to median if all points outside threshold
+      value_corrected = median;
+    }
+  }
+
+  // Based on extrema / median behaviour, correct values
+  inline void ApplyValueFixes(
+    std::vector<GroupSpeciesContainer<AT_C_sca>*> & data,
+    const AthenaArray<cstate> & calc_state,
+    const int k, const int j, const int i
+  )
+  {
+    const int num_neighbors = fix_num_neighbors;
+    const Real fac_median = fix_fac_median;
+    const bool exclude_first_extrema = fix_exclude_first_extrema;
+    const bool keep_base_point = fix_keep_base_point;
+
+    const Real fac_min = fix_fac_min;
+    const Real fac_max = fix_fac_max;
+
+    bool bounded_extrema = true;
+    Real val_cor_avg = 0.0;
+
+    for (size_t ix_d=0; ix_d<data.size(); ++ix_d)
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      ValueWithinNearestNeighbors(
+        bounded_extrema, val_cor_avg,
+        (*data[ix_d])(ix_g,ix_s).array(),
+        calc_state,
+        0, k, j, i, num_neighbors,
+        fac_min, fac_max,
+        exclude_first_extrema,
+        keep_base_point);
+
+      if (!bounded_extrema)
+      {
+        bool bounded_median = true;
+        Real val_cor_med = 0.0;
+        ValueWithinNearestNeighborMedian(
+          bounded_median, val_cor_med,
+          (*data[ix_d])(ix_g,ix_s).array(),
+          calc_state,
+          0, k, j, i, num_neighbors,
+          fac_median,
+          exclude_first_extrema,
+          keep_base_point
+        );
+
+        if (bounded_median)
+        {
+          continue;
+        }
+
+        (*data[ix_d])(ix_g,ix_s)(k,j,i) = val_cor_med;
+      }
+    }
+  }
+
+
   inline void ApplyOpacityCorrections(int k, int j, int i)
   {
     // numerical shenanigans --------------------------------------------------
@@ -1207,11 +1536,53 @@ public:
     }
     // ========================================================================
 
-    // correct opacities ======================================================
+    // corrections based on nn ================================================
+    if (wr_fix_nn_densities)
+    {
+      // apply to the following arrays
+      std::vector<GroupSpeciesContainer<AT_C_sca>*> data;
+      data.push_back(&pm1->eql.sc_n);
+      data.push_back(&pm1->eql.sc_J);
+
+      for (int p=0; p<fix_num_passes; ++p)
+      M1_FLOOP3(k, j, i)
+      if (calc_state(k,j,i) == cstate::need)
+      {
+        ApplyValueFixes(data, calc_state, k, j, i);
+      }
+    }
+    // ========================================================================
+
+
+    // correct opacities by energy ratio ======================================
     M1_FLOOP3(k, j, i)
     if (calc_state(k,j,i) == cstate::need)
     {
       ApplyOpacityCorrections(k, j, i);
+    }
+    // ========================================================================
+
+    // corrections based on nn ================================================
+    if (wr_fix_nn_opacities)
+    {
+      // apply to the following arrays
+      typedef M1::vars_RadMat RM;
+      RM & rm = pm1->radmat;
+
+      std::vector<GroupSpeciesContainer<AT_C_sca>*> data;
+      data.push_back(&rm.sc_kap_s);
+      data.push_back(&rm.sc_kap_a);
+      data.push_back(&rm.sc_eta);
+
+      data.push_back(&rm.sc_kap_a_0);
+      data.push_back(&rm.sc_eta_0);
+
+      for (int p=0; p<fix_num_passes; ++p)
+      M1_FLOOP3(k, j, i)
+      if (calc_state(k,j,i) == cstate::need)
+      {
+        ApplyValueFixes(data, calc_state, k, j, i);
+      }
     }
     // ========================================================================
 
@@ -1272,6 +1643,9 @@ private:
   const Real wr_dfloor;
   const bool wr_equilibrium_fallback_thin;
   const bool wr_equilibrium_fallback_zero;
+  const bool wr_fix_nn_densities;
+  const bool wr_fix_nn_opacities;
+
   const bool wr_flag_equilibrium;
   const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_species;
@@ -1283,6 +1657,14 @@ private:
   Real opacity_tau_trap;
   Real opacity_tau_delta;
   Real opacity_corr_fac_max;
+
+  const int fix_num_passes;
+  const int fix_num_neighbors;
+  const Real fix_fac_median;
+  const bool fix_exclude_first_extrema;
+  const bool fix_keep_base_point;
+  const Real fix_fac_min;
+  const Real fix_fac_max;
 
   bool verbose_warn_weak;
   bool zero_invalid_radmat;
