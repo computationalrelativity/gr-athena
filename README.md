@@ -75,22 +75,18 @@ Brief explanation:
 - Compiler is selected as `g++` with `OpenMP` threading
 - Vertex-centered sampling is chosen; ghost selection is made
 
-Run the code:
+Run the code (staying in the repository root):
 
 ```bash
-# Point to an input file for the test that lives in `simulations`
-export DIR_SIMULATIONS=$PATH_TO_SIMULATIONS_REPO
-export DIR_INPUTS=${DIR_SIMULATIONS}/inputs/GR-Athena++/br_master/gr/
+# location where data will be written
 mkdir -p outputs/gr_AwA_gauge_wave_1s
-
-# This assumes you are still in the `athena_z4c` folder
 
 # show information about how we compiled
 ./bin/athena -h
 
 # perform a run with input file from this repository
 ./bin/athena                                 \
-  -i ${DIR_INPUTS}/z4c_AwA_gauge_wave_1s.inp \
+  -i inputs/z4c/awa/z4c_AwA_gauge_wave_1s.inp \
   -d outputs/gr_AwA_gauge_wave_1s/
 ```
 
