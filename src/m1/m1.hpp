@@ -990,12 +990,6 @@ public:
     if (!opt.flux_lo_fallback)
       return true;
 
-    // return true;
-    /*
-    if (!opt.flux_lo_fallback)
-      return true;
-    */
-
     const int ix_ms = (opt.flux_lo_fallback_species)
       ? ix_s
       : 0;
