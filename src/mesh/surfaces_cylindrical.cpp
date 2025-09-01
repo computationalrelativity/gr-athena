@@ -591,6 +591,7 @@ void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
   }
 };
 
+/*
 void SurfaceCylindrical::MPI_Reduce()
 {
 #ifdef MPI_PARALLEL
@@ -613,6 +614,40 @@ void SurfaceCylindrical::MPI_Reduce()
                 MPI_ATHENA_REAL,
                 MPI_SUM,
                 MPI_COMM_WORLD);
+#endif
+}
+*/
+
+void SurfaceCylindrical::MPI_Reduce()
+{
+#ifdef MPI_PARALLEL
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  size_t total_bytes = u_vars.GetSizeInBytes();
+
+  // max chunk size in bytes
+  size_t max_chunk_bytes = DBG_SURF_CHUNK * 1024 * 1024;
+  size_t start_byte = 0;
+
+  // Pointer to the data
+  Real* data_ptr = &(u_vars(0,0,0));
+
+  while (start_byte < total_bytes) {
+    // Compute number of elements for this chunk
+    size_t bytes_left = total_bytes - start_byte;
+    size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
+    int count = static_cast<int>(chunk_bytes / sizeof(Real));
+
+    MPI_Allreduce(MPI_IN_PLACE,
+                  data_ptr + start_byte / sizeof(Real),
+                  count,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+
+    start_byte += chunk_bytes;
+  }
 #endif
 }
 
