@@ -46,15 +46,24 @@ SurfacesCylindrical::~SurfacesCylindrical()
   psurf.resize(0);
 }
 
-void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
+bool SurfacesCylindrical::IsActive(const Real time)
 {
-  // do not perform reduction if we are outside specified ranges --------------
   if ((start_time >= 0) && time < start_time)
   {
-    return;
+    return false;
   }
 
   if ((stop_time >= 0) && time > stop_time)
+  {
+    return false;
+  }
+  return true;
+};
+
+void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
+{
+  // do not perform reduction if we are outside specified ranges --------------
+  if (!IsActive(time))
   {
     return;
   }
@@ -73,8 +82,15 @@ void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
   }
 }
 
-void SurfacesCylindrical::ReinitializeSurfaces()
+void SurfacesCylindrical::ReinitializeSurfaces(const int ncycle, const Real time)
 {
+  // do not reinitialize if we are outside specified ranges -------------------
+  if (!IsActive(time))
+  {
+    return;
+  }
+  // --------------------------------------------------------------------------
+
   for (int surf_ix=0; surf_ix<num_radii; ++surf_ix)
   {
     psurf[surf_ix]->ReinitializeSurface();
@@ -401,9 +417,6 @@ SurfaceCylindrical::SurfaceCylindrical(
 SurfaceCylindrical::~SurfaceCylindrical()
 {
   TearDownInterpolators();
-  prepared = false;
-  // DEBUG
-  // std::printf("Killed s @ rad=%.3g, N_th=%d, N_ph=%d \n", rad, N_th, N_ph);
 }
 
 void SurfaceCylindrical::PrepareInterpolatorAtPoint(
@@ -473,6 +486,10 @@ void SurfaceCylindrical::PrepareInterpolatorAtPoint(
 void SurfaceCylindrical::PrepareInterpolators()
 {
   // BD: TODO - could be optimized further
+  if (prepared)
+  {
+    return;
+  }
 
   // Connect target (th_i, ph_j) to salient MeshBlock pointer -----------------
   MeshBlock * pmb = pm->pblock;
@@ -505,10 +522,17 @@ void SurfaceCylindrical::PrepareInterpolators()
     pmb = pmb->next;
   }
   // --------------------------------------------------------------------------
+
+  prepared = true;
 }
 
 void SurfaceCylindrical::TearDownInterpolators()
 {
+  if (!prepared)
+  {
+    return;
+  }
+
   // clean up mask containing salient MeshBlock
   mask_mb.Fill(nullptr);
 
@@ -546,7 +570,6 @@ void SurfaceCylindrical::ReinitializeSurface()
 {
   TearDownInterpolators();
   PrepareInterpolators();
-  prepared = true;
 }
 
 void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
@@ -567,8 +590,6 @@ void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
     if (have_point)
       mask_mb.print_all("%p");
     */
-
-    prepared = true;
   }
 
   // use pre-allocated interpolators on desired data --------------------------

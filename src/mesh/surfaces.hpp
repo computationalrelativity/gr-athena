@@ -167,10 +167,14 @@ class Surfaces
     AthenaArray<variety_base_grid> variable_sampling;
 
   public:
+
+    // Check whether a surface is active
+    virtual bool IsActive(const Real time) { return true; };
     // Reduction (call on each surface in Surfaces collection)
     virtual void Reduce(const int ncycle, const Real time) { };
     // Teardown and prepare interpolators on each Surface
-    virtual void ReinitializeSurfaces() {};
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) { };
 };
 
 class SurfacesCartesian : public Surfaces
@@ -185,8 +189,10 @@ class SurfacesCartesian : public Surfaces
     std::vector<SurfaceCartesian *> psurf;
 
   public:
+    virtual bool IsActive(const Real time) override;
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurfaces() override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
 };
 
 class SurfacesCylindrical : public Surfaces
@@ -201,8 +207,10 @@ class SurfacesCylindrical : public Surfaces
     std::vector<SurfaceCylindrical *> psurf;
 
   public:
+    virtual bool IsActive(const Real time) override;
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurfaces() override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
 };
 
 class SurfacesSpherical : public Surfaces
@@ -217,8 +225,10 @@ class SurfacesSpherical : public Surfaces
     std::vector<SurfaceSpherical *> psurf;
 
   public:
+    virtual bool IsActive(const Real time) override;
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurfaces() override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
 };
 
 

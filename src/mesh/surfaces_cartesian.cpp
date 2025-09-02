@@ -46,15 +46,24 @@ SurfacesCartesian::~SurfacesCartesian()
   psurf.resize(0);
 }
 
-void SurfacesCartesian::Reduce(const int ncycle, const Real time)
+bool SurfacesCartesian::IsActive(const Real time)
 {
-  // do not perform reduction if we are outside specified ranges --------------
   if ((start_time >= 0) && time < start_time)
   {
-    return;
+    return false;
   }
 
   if ((stop_time >= 0) && time > stop_time)
+  {
+    return false;
+  }
+  return true;
+};
+
+void SurfacesCartesian::Reduce(const int ncycle, const Real time)
+{
+  // do not perform reduction if we are outside specified ranges --------------
+  if (!IsActive(time))
   {
     return;
   }
@@ -73,8 +82,15 @@ void SurfacesCartesian::Reduce(const int ncycle, const Real time)
   }
 }
 
-void SurfacesCartesian::ReinitializeSurfaces()
+void SurfacesCartesian::ReinitializeSurfaces(const int ncycle, const Real time)
 {
+  // do not reinitialize if we are outside specified ranges -------------------
+  if (!IsActive(time))
+  {
+    return;
+  }
+  // --------------------------------------------------------------------------
+
   for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
   {
     psurf[surf_ix]->ReinitializeSurface();
@@ -393,9 +409,6 @@ SurfaceCartesian::SurfaceCartesian(
 SurfaceCartesian::~SurfaceCartesian()
 {
   TearDownInterpolators();
-  prepared = false;
-  // DEBUG
-  // std::printf("Killed s @ rad=%.3g, N_th=%d, N_ph=%d \n", rad, N_th, N_ph);
 }
 
 void SurfaceCartesian::PrepareInterpolatorAtPoint(
@@ -465,6 +478,10 @@ void SurfaceCartesian::PrepareInterpolatorAtPoint(
 void SurfaceCartesian::PrepareInterpolators()
 {
   // BD: TODO - could be optimized further
+  if (prepared)
+  {
+    return;
+  }
 
   // Connect target (th_i, ph_j) to salient MeshBlock pointer -----------------
   MeshBlock * pmb = pm->pblock;
@@ -496,10 +513,17 @@ void SurfaceCartesian::PrepareInterpolators()
     pmb = pmb->next;
   }
   // --------------------------------------------------------------------------
+
+  prepared = true;
 }
 
 void SurfaceCartesian::TearDownInterpolators()
 {
+  if (!prepared)
+  {
+    return;
+  }
+
   // clean up mask containing salient MeshBlock
   mask_mb.Fill(nullptr);
 
@@ -538,7 +562,6 @@ void SurfaceCartesian::ReinitializeSurface()
 {
   TearDownInterpolators();
   PrepareInterpolators();
-  prepared = true;
 }
 
 void SurfaceCartesian::Reduce(const int ncycle, const Real time)
@@ -559,8 +582,6 @@ void SurfaceCartesian::Reduce(const int ncycle, const Real time)
     if (have_point)
       mask_mb.print_all("%p");
     */
-
-    prepared = true;
   }
 
   // use pre-allocated interpolators on desired data --------------------------

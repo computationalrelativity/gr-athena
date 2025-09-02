@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
       pmesh->InitializePostMainUpdatedMesh(pinput);
       for (auto psurf : pmesh->psurfs)
       {
-        psurf->ReinitializeSurfaces();
+        psurf->ReinitializeSurfaces(pmesh->ncycle, pmesh->time);
       }
     }
 
