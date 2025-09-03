@@ -1,6 +1,7 @@
 #ifndef MESH_SURFACES_HPP
 #define MESH_SURFACES_HPP
 // C++ standard headers
+#include <future>
 #include <iomanip>
 #include <map>
 #include <string>
@@ -11,6 +12,7 @@
 #include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "mesh.hpp"
+#include "../outputs/hdf5_guard.hpp"
 
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_barycentric.hpp"
@@ -166,6 +168,9 @@ class Surfaces
     // their associated samplings
     AthenaArray<variety_base_grid> variable_sampling;
 
+    // only use asynchronous writes with thread-safe library
+    const bool can_async = is_hdf5_threadsafe();
+
   public:
 
     // Check whether a surface is active
@@ -193,6 +198,14 @@ class SurfacesCartesian : public Surfaces
     virtual void Reduce(const int ncycle, const Real time) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
 
 class SurfacesCylindrical : public Surfaces
@@ -211,6 +224,14 @@ class SurfacesCylindrical : public Surfaces
     virtual void Reduce(const int ncycle, const Real time) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
 
 class SurfacesSpherical : public Surfaces
@@ -229,6 +250,14 @@ class SurfacesSpherical : public Surfaces
     virtual void Reduce(const int ncycle, const Real time) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
 
 
@@ -281,6 +310,8 @@ class Surface
 
 class SurfaceCylindrical : public Surface
 {
+  friend SurfacesCylindrical;
+
   public:
     enum class variety_sampling { uniform };
     enum class variety_interpolator { Lagrange };
@@ -358,7 +389,7 @@ class SurfaceCylindrical : public Surface
     void MPI_Reduce();
 
   // output specific ----------------------------------------------------------
-  private:
+  protected:
     virtual void write_hdf5(const Real time) override;
 
 };
@@ -366,6 +397,8 @@ class SurfaceCylindrical : public Surface
 
 class SurfaceCartesian : public Surface
 {
+  friend SurfacesCartesian;
+
   public:
     enum class variety_sampling { uniform, cgl };
     enum class variety_interpolator { Lagrange };
@@ -496,6 +529,8 @@ class SurfaceCartesian : public Surface
 
 class SurfaceSpherical : public Surface
 {
+  friend SurfacesSpherical;
+
   public:
     enum class variety_sampling { uniform };
     enum class variety_interpolator { Lagrange };

@@ -40,6 +40,12 @@ SurfacesCartesian::SurfacesCartesian(
 
 SurfacesCartesian::~SurfacesCartesian()
 {
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
+
   for (auto surf : psurf) {
     delete surf;
   }
@@ -60,6 +66,35 @@ bool SurfacesCartesian::IsActive(const Real time)
   return true;
 };
 
+void SurfacesCartesian::WriteBlock()
+{
+  if (write_future.valid())
+  {
+    write_future.get();
+  }
+}
+
+void SurfacesCartesian::WriteAllSurfaces(const Real time)
+{
+  // launch async write in background
+  write_future = std::async(std::launch::async, [this, time]()
+  {
+    // save incremented file number (in case rst is written during this async)
+    pin->OverwriteParameter(par_block_name, "file_number", file_number+1);
+
+    // each surface can write its own contribution
+    for (auto &surf : psurf)
+    {
+      surf->write_hdf5(time);
+    }
+
+    file_number++;
+
+    // debug
+    std::printf("%s @ time = %.3e async out!\n", par_block_name.c_str(), time);
+  });
+}
+
 void SurfacesCartesian::Reduce(const int ncycle, const Real time)
 {
   // do not perform reduction if we are outside specified ranges --------------
@@ -69,16 +104,21 @@ void SurfacesCartesian::Reduce(const int ncycle, const Real time)
   }
   // --------------------------------------------------------------------------
 
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
+
   for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
   {
     psurf[surf_ix]->Reduce(ncycle, time);
   }
 
-  // Update file number for next write if required
-  if (dump_data)
+  // launch writes in the background asynchronously
+  if (dump_data && can_async && Globals::my_rank == 0)
   {
-    file_number++;
-    pin->OverwriteParameter(par_block_name, "file_number", file_number);
+    WriteAllSurfaces(time);
   }
 }
 
@@ -90,6 +130,12 @@ void SurfacesCartesian::ReinitializeSurfaces(const int ncycle, const Real time)
     return;
   }
   // --------------------------------------------------------------------------
+
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
 
   for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
   {
@@ -586,22 +632,21 @@ void SurfaceCartesian::Reduce(const int ncycle, const Real time)
 
   // use pre-allocated interpolators on desired data --------------------------
   DoInterpolations();
-
   // --------------------------------------------------------------------------
 
   // MPI logic for surface reduction to all ranks -----------------------------
   MPI_Reduce();
-
   // --------------------------------------------------------------------------
 
   // finally write ------------------------------------------------------------
-  if (psurfs->dump_data)
+  if (psurfs->dump_data && !psurfs->can_async)
   {
     if (Globals::my_rank == 0)
     {
       write_hdf5(time);
     }
   }
+  // --------------------------------------------------------------------------
 };
 
 /*
