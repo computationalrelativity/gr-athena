@@ -242,8 +242,22 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
                                       mbi.nn3 + 1, mbi.nn2, mbi.nn1);
 
     SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
-    ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+
+    if (opt.flux_lo_fallback_species)
+    {
+      ev_strat.masks.pp.NewAthenaArray(N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(N_SPCS,
+                                                  mbi.nn3, mbi.nn2, mbi.nn1);
+
+    }
+    else
+    {
+      ev_strat.masks.pp.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+      ev_strat.masks.compute_point.NewAthenaArray(mbi.nn3, mbi.nn2, mbi.nn1);
+    }
   }
+
+  ev_strat.masks.compute_point.Fill(true);
 
   // --------------------------------------------------------------------------
   // general setup
@@ -527,6 +541,12 @@ void M1::StatePrintPoint(
     std::cout << static_cast<int>(GetMaskSourceTreatment(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
+    if (opt.flux_lo_fallback)
+    {
+      std::cout << "opt_flux_lo_fallback: ";
+      std::cout << sources.theta(k,j,i);
+      std::cout << "\n";
+    }
   }
 
   if (terminate)

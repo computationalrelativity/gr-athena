@@ -71,19 +71,28 @@ public:
                   AA & u_pre,
                   AA & u_cur,
 		              AA & u_inh,
-                  AA & sources);
+                  AA & sources,
+                  const int kl, const int ku,
+                  const int jl, const int ju,
+                  const int il, const int iu,
+                  const bool fallback_mode,
+                  const bool dispatch_shortcircuit);
 
   void CalcFluxes(AA & u, const bool use_lo);
   void CalcFluxLimiter(AA & u);
 
-  void HybridizeLOFlux(AA & u_cur);
-
-  // Used to adjust evolution mask in second CalcUpdate call in a substep
-  void AdjustMaskPropertyPreservation();
-
-  void MulAddFluxDivergence(AA & u_inh, const Real fac);
-  void SubFluxDivergence(AA & u_inh);
-  void AddFluxDivergence(AA & u_inh);
+  void MulAddFluxDivergence(AA & u_inh, const Real fac,
+                            const int kl, const int ku,
+                            const int jl, const int ju,
+                            const int il, const int iu);
+  void SubFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
+  void AddFluxDivergence(AA & u_inh,
+                         const int kl, const int ku,
+                         const int jl, const int ju,
+                         const int il, const int iu);
 
   void AddSourceGR(AA & u, AA & u_inh);
 
@@ -161,7 +170,8 @@ public:
                                 HybridizeMinModE,
                                 HybridizeMinMod,
                                 LO,
-                                HO };
+                                HO,
+                                RiemannHLLEmod };
 
   enum class opt_characteristics_variety { approximate,
                                            mixed,
@@ -214,6 +224,12 @@ public:
     bool flux_lo_fallback;
 
     bool flux_lo_fallback_eql_ho;
+
+    bool flux_lo_fallback_first_stage;
+    bool flux_lo_fallback_mask_reset_all_stages;
+
+    // mask per species?
+    bool flux_lo_fallback_species;
 
     // Control the couplings
     bool couple_sources_ADM;
@@ -294,6 +310,10 @@ public:
 
     bool limit_full_radiation;
     Real full_lim;
+
+    Real fb_rat_sl_E;
+    Real fb_rat_sl_F_d;
+    Real fb_rat_sl_nG;
 
     // equilibrium parameters
     bool equilibrium_enforce;
@@ -779,6 +799,7 @@ public:
       AthenaArray<bool>                 excised;
       AA                                flux_limiter;
       AA                                pp;
+      AthenaArray<bool>                 compute_point;
     } masks;
 
     struct {
@@ -804,6 +825,8 @@ public:
         num_radmat_zero = 0;
       }
     } status;
+
+    bool substep_shortcircuit;
   } ev_strat;
 
   typedef evolution_strategy::opt_solution_regime  t_sln_r;
@@ -813,6 +836,16 @@ public:
   {
     // if in eql all species are in eql, just take the val from ix 0
     t_sln_r cur_r = ev_strat.masks.solution_regime(0, 0, k, j, i);
+    return (
+      (cur_r == t_sln_r::equilibrium) ||
+      (cur_r == t_sln_r::equilibrium_wr)
+    );
+  }
+
+  inline bool IsEquilibrium(const int ix_s, const int k, const int j, const int i)
+  {
+    // if in eql all species are in eql, just take the val from ix 0
+    t_sln_r cur_r = ev_strat.masks.solution_regime(0, ix_s, k, j, i);
     return (
       (cur_r == t_sln_r::equilibrium) ||
       (cur_r == t_sln_r::equilibrium_wr)
@@ -888,6 +921,9 @@ public:
 
 // additional methods =========================================================
 public:
+  void HybridizeLOFlux(AA & mask_hyb,
+                       vars_Flux & fluxes_ho,
+                       vars_Flux & fluxes_lo);
   void UpdateGeometry(vars_Geom  & geom,
                       vars_Scratch & scratch);
   void UpdateHydro(vars_Hydro & hydro,
@@ -948,12 +984,26 @@ public:
     return !(ev_strat.masks.excised(k,j,i));
   }
 
-  inline bool MaskGetHybridize(const int k, const int j, const int i)
+  inline bool MaskGetHybridize(const int ix_s,
+                               const int k, const int j, const int i)
   {
-    // if (!opt.flux_lo_fallback)
-    //   return true;
+    if (!opt.flux_lo_fallback)
+      return true;
 
-    return (ev_strat.masks.pp(k,j,i) == 0);
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    return ev_strat.masks.compute_point(ix_ms,k,j,i);
+  }
+
+  inline void MaskSetHybridize(const bool value,
+                               const int ix_s,
+                               const int k, const int j, const int i)
+  {
+    const int ix_ms = (opt.flux_lo_fallback_species)
+      ? ix_s
+      : 0;
+    ev_strat.masks.compute_point(ix_ms,k,j,i) = value;
   }
 
 public:

@@ -1,6 +1,7 @@
 #ifndef MESH_SURFACES_HPP
 #define MESH_SURFACES_HPP
 // C++ standard headers
+#include <future>
 #include <iomanip>
 #include <map>
 #include <string>
@@ -11,6 +12,7 @@
 #include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "mesh.hpp"
+#include "../outputs/hdf5_guard.hpp"
 
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_barycentric.hpp"
@@ -21,6 +23,8 @@ namespace gra::mesh::surfaces {
 // ============================================================================
 
 // Forward declare
+class SurfaceCartesian;
+class SurfaceCylindrical;
 class SurfaceSpherical;
 
 void InitSurfaces(Mesh *pm, ParameterInput *pin);
@@ -34,7 +38,9 @@ void InitSurfaceTriggers(gra::triggers::Triggers & trgs,
 class Surfaces
 {
   public:
-    enum class variety_surface { spherical };
+    enum class variety_surface { cartesian,
+                                 cylindrical,
+                                 spherical };
 
     // Data that can be reduced to surface
     enum class variety_data {
@@ -162,11 +168,70 @@ class Surfaces
     // their associated samplings
     AthenaArray<variety_base_grid> variable_sampling;
 
+    // only use asynchronous writes with thread-safe library
+    const bool can_async = is_hdf5_threadsafe();
+
   public:
+
+    // Check whether a surface is active
+    virtual bool IsActive(const Real time) { return true; };
     // Reduction (call on each surface in Surfaces collection)
     virtual void Reduce(const int ncycle, const Real time) { };
     // Teardown and prepare interpolators on each Surface
-    virtual void ReinitializeSurfaces() {};
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) { };
+};
+
+class SurfacesCartesian : public Surfaces
+{
+  public:
+    SurfacesCartesian(Mesh *pm, ParameterInput *pin, const int par_ix);
+    ~SurfacesCartesian();
+
+  public:
+    const int num_surf;
+
+    std::vector<SurfaceCartesian *> psurf;
+
+  public:
+    virtual bool IsActive(const Real time) override;
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
+};
+
+class SurfacesCylindrical : public Surfaces
+{
+  public:
+    SurfacesCylindrical(Mesh *pm, ParameterInput *pin, const int par_ix);
+    ~SurfacesCylindrical();
+
+  public:
+    const int num_radii;
+
+    std::vector<SurfaceCylindrical *> psurf;
+
+  public:
+    virtual bool IsActive(const Real time) override;
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
 
 class SurfacesSpherical : public Surfaces
@@ -181,9 +246,20 @@ class SurfacesSpherical : public Surfaces
     std::vector<SurfaceSpherical *> psurf;
 
   public:
+    virtual bool IsActive(const Real time) override;
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurfaces() override;
+    virtual void ReinitializeSurfaces(const int ncycle,
+                                      const Real time) override;
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
+
 
 // single surface class -------------------------------------------------------
 class Surface
@@ -232,8 +308,229 @@ class Surface
     const int surf_ix;
 };
 
+class SurfaceCylindrical : public Surface
+{
+  friend SurfacesCylindrical;
+
+  public:
+    enum class variety_sampling { uniform };
+    enum class variety_interpolator { Lagrange };
+
+    SurfaceCylindrical(Mesh *pm,
+                     ParameterInput *pin,
+                     Surfaces *psurfs,
+                     const int surf_ix);
+
+    ~SurfaceCylindrical();
+
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurface() override;
+
+  private:
+
+    Real rad;
+    Real z_min, z_max;
+    int N_ph;
+    int N_z;
+    int N_pts;
+
+    // For storage of grids
+    aliases::AA ph;
+    aliases::AA z;
+    aliases::AA x_o_ph_z;  // (x1(rad,ph,z), x2(rad,ph,z), x3(rad,ph,z))
+
+    variety_sampling vs;
+    variety_interpolator vi;
+
+    // For storage of interpolators / target point masks
+    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+
+    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
+    // that contains (th_i, th_j)
+    AthenaArray<MeshBlock *> mask_mb;
+
+    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
+    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+
+    // have we allocated interpolators for a given grid structure?
+    bool prepared = false;
+
+  private:
+
+    inline void gr_z(aliases::AA & z_in)
+    {
+      const Real dz = (z_max-z_min) / static_cast<Real>(N_z - 1);
+      for (int n=0; n<N_z; ++n)
+      {
+        z_in(n) = z_min + dz * n;
+      }
+    }
+
+    inline void gr_ph(aliases::AA & ph_in)
+    {
+      const Real dph = 2.0 * PI / static_cast<Real>(N_ph);
+      for (int n=0; n<N_ph; ++n)
+      {
+        ph_in(n) = dph * (0.5 + n);
+      }
+    }
+
+  // interpolator specific ----------------------------------------------------
+  private:
+    void PrepareInterpolators();
+    void PrepareInterpolatorAtPoint(MeshBlock * pmb, const int i, const int j);
+    void TearDownInterpolators();
+
+    void DoInterpolations();
+    Real InterpolateAtPoint(aliases::AA & raw_cpt,
+                            Surfaces::variety_base_grid vs,
+                            const int tar_i, const int tar_j);
+
+    void MPI_Reduce();
+
+  // output specific ----------------------------------------------------------
+  protected:
+    virtual void write_hdf5(const Real time) override;
+
+};
+
+
+class SurfaceCartesian : public Surface
+{
+  friend SurfacesCartesian;
+
+  public:
+    enum class variety_sampling { uniform, cgl };
+    enum class variety_interpolator { Lagrange };
+
+    SurfaceCartesian(Mesh *pm,
+                     ParameterInput *pin,
+                     Surfaces *psurfs,
+                     const int surf_ix);
+
+    ~SurfaceCartesian();
+
+    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void ReinitializeSurface() override;
+
+  private:
+
+    Real x_min, x_max;
+    Real y_min, y_max;
+    Real z_min, z_max;
+
+    int N_x;
+    int N_y;
+    int N_z;
+    int N_pts;
+
+    // For storage of grids
+    aliases::AA x;
+    aliases::AA y;
+    aliases::AA z;
+
+    variety_sampling vs;
+    variety_interpolator vi;
+
+    // For storage of interpolators / target point masks
+    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+
+    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
+    // that contains (th_i, th_j)
+    AthenaArray<MeshBlock *> mask_mb;
+
+    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
+    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+
+    // have we allocated interpolators for a given grid structure?
+    bool prepared = false;
+
+  private:
+
+    inline void uniform_gr_x(aliases::AA & x_in)
+    {
+      const Real dx = (x_max-x_min) / static_cast<Real>(N_x - 1);
+      for (int n=0; n<N_x; ++n)
+      {
+        x_in(n) = x_min + dx * n;
+      }
+    }
+
+    inline void uniform_gr_y(aliases::AA & y_in)
+    {
+      const Real dy = (y_max-y_min) / static_cast<Real>(N_y - 1);
+      for (int n=0; n<N_y; ++n)
+      {
+        y_in(n) = y_min + dy * n;
+      }
+    }
+
+    inline void uniform_gr_z(aliases::AA & z_in)
+    {
+      const Real dz = (z_max-z_min) / static_cast<Real>(N_z - 1);
+      for (int n=0; n<N_z; ++n)
+      {
+        z_in(n) = z_min + dz * n;
+      }
+    }
+
+    inline void cgl_gr_x(aliases::AA & x_in)
+    {
+      const Real mi = 0.5 * (x_min + x_max);
+      const Real hr = 0.5 * (x_max - x_min);
+
+      for (int n=0; n<N_x; ++n)
+      {
+        x_in(n) = mi + hr * std::cos(PI * n / (N_x - 1));
+      }
+    }
+
+    inline void cgl_gr_y(aliases::AA & y_in)
+    {
+      const Real mi = 0.5 * (y_min + y_max);
+      const Real hr = 0.5 * (y_max - y_min);
+
+      for (int n=0; n<N_y; ++n)
+      {
+        y_in(n) = mi + hr * std::cos(PI * n / (N_y - 1));
+      }
+    }
+
+    inline void cgl_gr_z(aliases::AA & z_in)
+    {
+      const Real mi = 0.5 * (z_min + z_max);
+      const Real hr = 0.5 * (z_max - z_min);
+
+      for (int n=0; n<N_z; ++n)
+      {
+        z_in(n) = mi + hr * std::cos(PI * n / (N_z - 1));
+      }
+    }
+
+  // interpolator specific ----------------------------------------------------
+  private:
+    void PrepareInterpolators();
+    void PrepareInterpolatorAtPoint(MeshBlock * pmb,
+                                    const int i, const int j, const int k);
+    void TearDownInterpolators();
+
+    void DoInterpolations();
+    Real InterpolateAtPoint(aliases::AA & raw_cpt,
+                            Surfaces::variety_base_grid vs,
+                            const int tar_i, const int tar_j, const int tar_k);
+
+    void MPI_Reduce();
+
+  // output specific ----------------------------------------------------------
+  private:
+    virtual void write_hdf5(const Real time) override;
+
+};
+
 class SurfaceSpherical : public Surface
 {
+  friend SurfacesSpherical;
+
   public:
     enum class variety_sampling { uniform };
     enum class variety_interpolator { Lagrange };

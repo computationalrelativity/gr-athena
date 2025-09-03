@@ -1549,15 +1549,25 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
           }
 #ifdef MPI_PARALLEL
           else { // NOLINT
-            int test;
-            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                       MPI_STATUS_IGNORE);
-            MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
-            if (!static_cast<bool>(test) ) {
-              flag = false;
-              continue;
+            int test = 0;
+            MPI_Status status;
+
+            // If NULL- BoundaryStatus remains waiting
+            if (bd_var_flcor_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
+            {
+              MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, &status);
+              if (!test)
+              {
+                flag = false;
+                continue;
+              }
+
+              bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::arrived;
             }
-            bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::arrived;
+            else
+            {
+              flag = false;
+            }
           }
 #endif
         }
@@ -1587,15 +1597,25 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
         }
 #ifdef MPI_PARALLEL
         else { // NOLINT
-          int test;
-          MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                     MPI_STATUS_IGNORE);
-          MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
-          if (!static_cast<bool>(test)) {
-            flag = false;
-            continue;
+          int test = 0;
+          MPI_Status status;
+
+          // If NULL- BoundaryStatus remains waiting
+          if (bd_var_flcor_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
+          {
+            MPI_Test(&(bd_var_flcor_.req_recv[nb.bufid]), &test, &status);
+            if (!test)
+            {
+              flag = false;
+              continue;
+            }
+
+            bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::arrived;
           }
-          bd_var_flcor_.flag[nb.bufid] = BoundaryStatus::arrived;
+          else
+          {
+            flag = false;
+          }
         }
 #endif
       }
@@ -1616,12 +1636,21 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
 #ifdef MPI_PARALLEL
       else { // NOLINT
         int recv_flag;
-        MPI_Test(&req_flux_north_recv_[n], &recv_flag, MPI_STATUS_IGNORE);
-        if (!recv_flag) {
-          flag = false;
-          continue;
+
+        // If NULL- BoundaryStatus remains waiting
+        if (req_flux_north_recv_[n] != MPI_REQUEST_NULL)
+        {
+          MPI_Test(&req_flux_north_recv_[n], &recv_flag, MPI_STATUS_IGNORE);
+          if (!recv_flag) {
+            flag = false;
+            continue;
+          }
+          flux_north_flag_[n] = BoundaryStatus::arrived;
         }
-        flux_north_flag_[n] = BoundaryStatus::arrived;
+        else
+        {
+          flag = false;
+        }
       }
 #endif
     }
@@ -1636,12 +1665,21 @@ bool FaceCenteredBoundaryVariable::ReceiveFluxCorrection() {
 #ifdef MPI_PARALLEL
       else { // NOLINT
         int recv_flag;
-        MPI_Test(&req_flux_south_recv_[n], &recv_flag, MPI_STATUS_IGNORE);
-        if (!recv_flag) {
-          flag = false;
-          continue;
+
+        // If NULL- BoundaryStatus remains waiting
+        if (req_flux_south_recv_[n] != MPI_REQUEST_NULL)
+        {
+          MPI_Test(&req_flux_south_recv_[n], &recv_flag, MPI_STATUS_IGNORE);
+          if (!recv_flag) {
+            flag = false;
+            continue;
+          }
+          flux_south_flag_[n] = BoundaryStatus::arrived;
         }
-        flux_south_flag_[n] = BoundaryStatus::arrived;
+        else
+        {
+          flag = false;
+        }
       }
 #endif
     }

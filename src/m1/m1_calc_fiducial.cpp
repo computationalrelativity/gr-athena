@@ -34,6 +34,8 @@ void M1::CalcFiducialVelocity()
   {
     case opt_fiducial_velocity::fluid:
     {
+      // In the case that we have fluid then we can slice auxiliaries
+#if FLUID_ENABLED
       M1_GLOOP3(k,j,i)
       {
         fidu.sc_W(k,j,i) = pmb->phydro->derived_ms(IX_LOR,k,j,i);
@@ -62,6 +64,18 @@ void M1::CalcFiducialVelocity()
       }
 
       return;
+#else
+      // computation of, and rescaling by, W below
+      M1_GLOOP2(k,j)
+      for (int a=0; a<M1_NDIM; ++a)
+      {
+        M1_GLOOP1(i)
+        {
+          fidu.sp_v_u(a,k,j,i) = hydro.sp_w_util_u(a,k,j,i);
+        }
+      }
+      break;
+#endif // FLUID_ENABLED
     }
     case opt_fiducial_velocity::mixed:
     {

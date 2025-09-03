@@ -346,6 +346,9 @@ public:
     // For debug
     bool use_tp_trackers_extrema;
 
+    // det < 0 - set det = 1 and proceed with tf imposition regardless?
+    bool tf_force_regularization;
+
     // Impose global regularization on conf / alpha
     bool force_regularization;
 

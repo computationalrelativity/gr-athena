@@ -40,6 +40,9 @@ class Reconstruction {
   ReconstructionVariant xorder_style;
   ReconstructionVariant xorder_style_fb;
 
+  ReconstructionVariant xorder_style_p;
+  ReconstructionVariant xorder_style_p_fb;
+
   Real xorder_eps;                        // epsilon control parameters
   bool xorder_use_fb;                     // try order reduction
   bool xorder_use_fb_unphysical = false;  // try energy conditions

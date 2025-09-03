@@ -92,9 +92,31 @@ void BoundaryVariable::DestroyBoundaryData(BoundaryData<> &bd) {
     delete [] bd.recv[n];
 #ifdef MPI_PARALLEL
     if (bd.req_send[n] != MPI_REQUEST_NULL)
-      MPI_Request_free(&bd.req_send[n]);
+    {
+      int flag = 0;
+      MPI_Test(&(bd.req_send[n]), &flag, MPI_STATUS_IGNORE);
+      if (!flag)
+      {
+        // cancel and wait to be safe
+        MPI_Cancel(&(bd.req_send[n]));
+        MPI_Wait(&(bd.req_send[n]), MPI_STATUS_IGNORE);
+      }
+      MPI_Request_free(&(bd.req_send[n]));
+      bd.req_send[n] = MPI_REQUEST_NULL;
+    }
+
     if (bd.req_recv[n] != MPI_REQUEST_NULL)
-      MPI_Request_free(&bd.req_recv[n]);
+    {
+      int flag = 0;
+      MPI_Test(&(bd.req_recv[n]), &flag, MPI_STATUS_IGNORE);
+      if (!flag)
+      {
+        MPI_Cancel(&(bd.req_recv[n]));
+        MPI_Wait(&(bd.req_recv[n]), MPI_STATUS_IGNORE);
+      }
+      MPI_Request_free(&(bd.req_recv[n]));
+      bd.req_recv[n] = MPI_REQUEST_NULL;
+    }
 #endif
   }
 }
@@ -219,14 +241,25 @@ bool BoundaryVariable::ReceiveBoundaryBuffers() {
       }
 #ifdef MPI_PARALLEL
       else { // NOLINT // MPI boundary
-        int test;
-        MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test, MPI_STATUS_IGNORE);
-        MPI_Test(&(bd_var_.req_recv[nb.bufid]), &test, MPI_STATUS_IGNORE);
-        if (!static_cast<bool>(test)) {
-          bflag = false;
-          continue;
+        int test = 0;
+        MPI_Status status;
+
+        // If NULL- BoundaryStatus remains waiting
+        if (bd_var_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
+        {
+          MPI_Test(&(bd_var_.req_recv[nb.bufid]), &test, &status);
+          if (!test)
+          {
+            bflag = false;
+            continue;
+          }
+
+          bd_var_.flag[nb.bufid] = BoundaryStatus::arrived;
         }
-        bd_var_.flag[nb.bufid] = BoundaryStatus::arrived;
+        else
+        {
+          bflag = false;
+        }
       }
 #endif
     }
@@ -272,7 +305,19 @@ void BoundaryVariable::ReceiveAndSetBoundariesWithWait() {
     NeighborBlock& nb = pbval_->neighbor[n];
 #ifdef MPI_PARALLEL
     if (nb.snb.rank != Globals::my_rank)
-      MPI_Wait(&(bd_var_.req_recv[nb.bufid]),MPI_STATUS_IGNORE);
+    {
+      if (bd_var_.req_recv[nb.bufid] != MPI_REQUEST_NULL)
+      {
+        MPI_Wait(&(bd_var_.req_recv[nb.bufid]), MPI_STATUS_IGNORE);
+      }
+      else
+      {
+        std::stringstream msg;
+        msg << "MPI_Wait called on MPI_REQUEST_NULL ";
+        msg << "in ReceiveAndSetBoundariesWithWait" << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
 #endif
     if (nb.snb.level == mylevel)
       SetBoundarySameLevel(bd_var_.recv[nb.bufid], nb);

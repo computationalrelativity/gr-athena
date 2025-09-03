@@ -96,8 +96,11 @@ void LimiterMaskX3(M1 * pm1,
                    const AT_C_sca & kap_s);
 
 // Riemann solver technology --------------------------------------------------
-
-// ...
+void RiemannHLLEmod(
+  M1 * pm1,
+  AA & u,
+  const bool use_lo
+);
 
 // ============================================================================
 } // namespace M1::Fluxes

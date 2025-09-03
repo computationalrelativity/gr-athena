@@ -215,6 +215,10 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.limit_full_radiation = GoA_bool("limit_full_radiation", false);
   opt_solver.full_lim = GoA_Real("full_lim", -1.0);
 
+  opt_solver.fb_rat_sl_E = GoA_Real("fb_rat_sl_E", -1.0);
+  opt_solver.fb_rat_sl_F_d = GoA_Real("fb_rat_sl_F_d", -1.0);
+  opt_solver.fb_rat_sl_nG = GoA_Real("fb_rat_sl_nG", -1.0);
+
   opt_solver.equilibrium_enforce = GoA_bool("equilibrium_enforce", false);
   opt_solver.equilibrium_initial = GoA_bool("equilibrium_initial", false);
   opt_solver.equilibrium_sources = GoA_bool("equilibrium_sources", false);
@@ -326,6 +330,10 @@ void M1::PopulateOptions(ParameterInput *pin)
     {
       opt.flux_variety = opt_flux_variety::HybridizeMinModE;
     }
+    else if (tmp == "RiemannHLLEmod")
+    {
+      opt.flux_variety = opt_flux_variety::RiemannHLLEmod;
+    }
     else
     {
       msg << "M1/flux_variety unknown" << std::endl;
@@ -404,6 +412,16 @@ void M1::PopulateOptions(ParameterInput *pin)
 
     opt.flux_lo_fallback_eql_ho = pin->GetOrAddBoolean(
       "M1", "flux_lo_fallback_eql_ho", false);
+
+    opt.flux_lo_fallback_first_stage = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_first_stage", true);
+
+    opt.flux_lo_fallback_species = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_species", false);
+
+    opt.flux_lo_fallback_mask_reset_all_stages = pin->GetOrAddBoolean(
+      "M1", "flux_lo_fallback_mask_reset_all_stages", true);
+
   }
 
   { // coupling
@@ -421,9 +439,10 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   }
 
+  // BD: TODO- should remove this option entirely and assume true
   opt.retain_equilibrium = pin->GetOrAddBoolean("M1",
                                                 "retain_equilibrium",
-                                                false);
+                                                true);
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);

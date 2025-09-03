@@ -135,7 +135,10 @@ void Prepare(
   const M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  const M1::vars_Source & U_S)
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   // parameters & aliases------------------------------------------------------
   MeshBlock * pmb = pm1->pmy_block;
@@ -154,7 +157,9 @@ void Prepare(
   theta.Fill(1.0);
   // --------------------------------------------------------------------------
 
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -274,7 +279,9 @@ void Prepare(
   }
 
   // Finally enforce mask to be non-negative ----------------------------------
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -289,7 +296,10 @@ void Apply(
   M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S)
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   using namespace Update;
   using namespace Closures;
@@ -309,7 +319,9 @@ void Apply(
 
     ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (pm1->MaskGet(k, j, i))
     // if (pm1->MaskGetHybridize(k,j,i))
     {
@@ -328,7 +340,7 @@ void Apply(
 
       // Compute closure based on limited (sc_E, sp_F_d)
       if (pm1->opt_solver.equilibrium_use_thick &&
-          pm1->IsEquilibrium(k,j,i))
+          pm1->IsEquilibrium(ix_s,k,j,i))
       {
         // set directly, only 1 rep of closures
         Closures::EddingtonFactors::ThickLimit(
@@ -380,7 +392,10 @@ void PrepareFull(
   const M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  const M1::vars_Source & U_S)
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   // parameters & aliases------------------------------------------------------
   MeshBlock * pmb = pm1->pmy_block;
@@ -393,7 +408,9 @@ void PrepareFull(
   theta.Fill(1.0);
   // --------------------------------------------------------------------------
 
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -431,7 +448,9 @@ void PrepareFull(
   }
 
   // Finally enforce mask to be non-negative ----------------------------------
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   // if (pm1->MaskGetHybridize(k,j,i))
   {
@@ -446,7 +465,10 @@ void ApplyFull(
   M1::vars_Lab & U_C,
   const M1::vars_Lab & U_P,
   const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S)
+  M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
   using namespace Update;
   using namespace Closures;
@@ -466,7 +488,9 @@ void ApplyFull(
 
     ClosureMetaVector CL_C = ConstructClosureMetaVector(*pm1, U_C, ix_g, ix_s);
 
-    M1_MLOOP3(k, j, i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     if (pm1->MaskGet(k, j, i))
     // if (pm1->MaskGetHybridize(k,j,i))
     {
@@ -491,7 +515,7 @@ void ApplyFull(
 
       // Compute closure based on limited (sc_E, sp_F_d)
       if (pm1->opt_solver.equilibrium_use_thick &&
-          pm1->IsEquilibrium(k,j,i))
+          pm1->IsEquilibrium(ix_s,k,j,i))
       {
         // set directly, only 1 rep of closures
         Closures::EddingtonFactors::ThickLimit(
@@ -514,7 +538,10 @@ void ApplyFull(
 void CheckPhysicalFallback(
   M1 * pm1,
   const Real dt,
-  const M1::vars_Source & U_S)
+  const M1::vars_Source & U_S,
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu)
 {
 #if FLUID_ENABLED
   // parameters & aliases------------------------------------------------------
@@ -539,13 +566,30 @@ void CheckPhysicalFallback(
   M1::vars_Source & S = const_cast<M1::vars_Source &>(U_S);
   // --------------------------------------------------------------------------
 
-  M1_MLOOP3(k, j, i)
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
   if (pm1->MaskGet(k, j, i))
   {
-    if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+    if (pm1->opt.flux_lo_fallback_species)
     {
-      // already flagged
-      continue;
+      bool flagged = true;
+      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      {
+        flagged = flagged and (pm1->ev_strat.masks.pp(ix_s,k,j,i) == 1.0);
+      }
+      if (flagged)
+      {
+        continue;
+      }
+    }
+    else
+    {
+      if (pm1->ev_strat.masks.pp(k,j,i) == 1)
+      {
+        // already flagged
+        continue;
+      }
     }
 
     const Real D = (
@@ -613,7 +657,17 @@ void CheckPhysicalFallback(
     // Update flux hybridization mask -----------------------------------------
     if (need_fallback)
     {
-      pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+      if (pm1->opt.flux_lo_fallback_species)
+      {
+        for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+        {
+          pm1->ev_strat.masks.pp(ix_s,k,j,i) = 1.0;
+        }
+      }
+      else
+      {
+        pm1->ev_strat.masks.pp(k,j,i) = 1.0;
+      }
     }
   }
 #endif
