@@ -133,6 +133,24 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
       {
         ph->derived_ms(IX_T,k,j,i) = tar(k,j,i);
       }
+
+      // recompute enthalpy
+      if (peos->recompute_enthalpy)
+      CC_GLOOP3(k,j,i)
+      {
+        Real Y[MAX_SPECIES] = {0.0};
+        for (int l=0; l<NSCALARS; l++)
+        {
+          Y[l] = ps->r(l,k,j,i);
+        }
+
+        Real mb = peos->GetEOS().GetBaryonMass();
+        const Real n = ph->w(IDN,k,j,i) / mb;
+
+        ph->derived_ms(IX_ETH,k,j,i) = peos->GetEOS().GetEnthalpy(
+          n, ph->derived_ms(IX_T,k,j,i), Y
+        );
+      }
     }
 
     // Update w1 to have the state of w

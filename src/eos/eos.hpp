@@ -48,6 +48,7 @@ class EquationOfState {
   bool warn_unrestricted_cs2 = false;
   bool recompute_temperature = true;
   bool smooth_temperature = false;
+  bool recompute_enthalpy = false;
 
   // BD: Avoid messy macro pollution with some polymorphism & interfaces ------
   void PassiveScalarConservedToPrimitive(AthenaArray<Real> &s,
