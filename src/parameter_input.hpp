@@ -24,11 +24,16 @@
 #include "athena_arrays.hpp"
 #include "defs.hpp"
 #include "outputs/io_wrapper.hpp"
+#include "athena_aliases.hpp"
 
 // OpenMP header
 #ifdef OPENMP_PARALLEL
 #include <omp.h>
 #endif
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+//----------------------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------------------
 //! \struct InputLine
@@ -137,7 +142,7 @@ class ParameterInput {
   typedef std::vector<std::string> t_vec_str;
   typedef std::vector<Real> t_vec_Real;
   typedef std::vector<int> t_vec_int;
-  typedef std::vector<bool> t_vec_bool;
+  typedef std::vector<uint8_t> t_vec_bool;
 
   // std::vector varieties
   t_vec_str GetOrAddStringArray(std::string block,
@@ -163,9 +168,9 @@ class ParameterInput {
   AthenaArray<int> GetOrAddIntegerArray(const std::string & block,
                                         const std::string & name,
                                         const AthenaArray<int> & def_values);
-  AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
-                                         const std::string & name,
-                                         const AthenaArray<bool> & def_values);
+  AA_B GetOrAddBooleanArray(const std::string & block,
+                            const std::string & name,
+                            const AA_B & def_values);
   AthenaArray<std::string> GetOrAddStringArray(
     const std::string & block,
     const std::string & name,
@@ -179,10 +184,10 @@ class ParameterInput {
                                         const std::string & name,
                                         const int & def_value,
                                         const int size=1);
-  AthenaArray<bool> GetOrAddBooleanArray(const std::string & block,
-                                         const std::string & name,
-                                         const bool & def_value,
-                                         const int size=1);
+  AA_B GetOrAddBooleanArray(const std::string & block,
+                            const std::string & name,
+                            const bool & def_value,
+                            const int size=1);
   AthenaArray<std::string> GetOrAddStringArray(
     const std::string & block,
     const std::string & name,

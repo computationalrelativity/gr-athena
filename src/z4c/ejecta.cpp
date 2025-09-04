@@ -780,7 +780,7 @@ void Ejecta::SphericalIntegrals()
   Real integrals[n_int];
   Real histvals[n_hist];
   //  AthenaArray<int> count, countaz;
-  AthenaArray<bool> unbound;
+  AA_B unbound;
   //  count.NewAthenaArray(n_unbound);
   //  countaz.NewAthenaArray(n_unbound,ntheta);
   unbound.NewAthenaArray(n_unbound);

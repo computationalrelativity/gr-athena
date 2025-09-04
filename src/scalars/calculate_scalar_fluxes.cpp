@@ -198,8 +198,8 @@ void PassiveScalars::FallbackInadmissibleScalarX_(
 }
 
 void PassiveScalars::FallbackInadmissibleMaskScalarX_(
-  AthenaArray<bool> & mask_l_,
-  AthenaArray<bool> & mask_r_,
+  AA_B & mask_l_,
+  AA_B & mask_r_,
   AthenaArray<Real> & zl_,
   AthenaArray<Real> & zr_,
   const int il, const int iu, const int ivx)

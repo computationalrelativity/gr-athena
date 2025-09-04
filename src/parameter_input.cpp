@@ -49,7 +49,6 @@
 #include <string>     // string
 
 // Athena++ headers
-#include "athena_aliases.hpp"
 #include "athena_arrays.hpp"
 #include "utils/utils.hpp"
 #include "parameter_input.hpp"
@@ -58,7 +57,6 @@
 #ifdef OPENMP_PARALLEL
 #include <omp.h>
 #endif
-
 
 // ----------------------------------------------------------------------------
 // Implement some convenience functions
@@ -1126,10 +1124,10 @@ AthenaArray<int> ParameterInput::GetOrAddIntegerArray(
   return GetOrAddArray(block, name, def_values);
 }
 
-AthenaArray<bool> ParameterInput::GetOrAddBooleanArray(
+AA_B ParameterInput::GetOrAddBooleanArray(
   const std::string & block,
   const std::string & name,
-  const AthenaArray<bool> & def_values)
+  const AA_B & def_values)
 {
   return GetOrAddArray(block, name, def_values);
 }
@@ -1171,13 +1169,13 @@ AthenaArray<int> ParameterInput::GetOrAddIntegerArray(
   return GetOrAddArray(block, name, dv);
 }
 
-AthenaArray<bool> ParameterInput::GetOrAddBooleanArray(
+AA_B ParameterInput::GetOrAddBooleanArray(
   const std::string & block,
   const std::string & name,
   const bool & def_value,
   const int size)
 {
-  AthenaArray<bool> dv(size);
+  AA_B dv(size);
   for (int n=0; n<size; ++n)
   {
     dv(n) = def_value;
