@@ -116,10 +116,21 @@ void SurfacesSpherical::Reduce(const int ncycle, const Real time)
     psurf[surf_ix]->Reduce(ncycle, time);
   }
 
-  // launch writes in the background asynchronously
-  if (dump_data && can_async && Globals::my_rank == 0)
+  if (dump_data)
   {
-    WriteAllSurfaces(time);
+    // launch writes in the background asynchronously
+    if (can_async)
+    {
+      // file_number needs pre-increment internally
+      if (Globals::my_rank == 0)
+        WriteAllSurfaces(time);
+    }
+    else
+    {
+      // immediate, blocking write complete, update file_number here
+      file_number++;
+      pin->OverwriteParameter(par_block_name, "file_number", file_number);
+    }
   }
 }
 
