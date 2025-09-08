@@ -286,17 +286,25 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 //! \fn
 // \brief Setup User work
 
+// BD: TODO- shift to standard enroll?
 void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
 {
-  // Allocate output arrays for fluxes
-#if M1_ENABLED
-  AllocateUserOutputVariables(4);
-#endif // M1_ENABLED
-  return;
+  const bool use_fb = precon->xorder_use_fb;
+  AllocateUserOutputVariables(use_fb + M1_ENABLED * 4);
 }
 
 void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 {
+  MeshBlock * pmb = this;
+
+  const bool use_fb = precon->xorder_use_fb;
+
+  if (use_fb)
+  CC_GLOOP3(k, j, i)
+  {
+    user_out_var(0,k,j,i) = phydro->fallback_mask(k,j,i);
+  }
+
 #if M1_ENABLED
   AA & fl = pm1->ev_strat.masks.flux_limiter;
 
@@ -307,15 +315,17 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
   if (pm1->opt.flux_limiter_use_mask)
   M1_ILOOP3(k, j, i)
   {
-    user_out_var(0,k,j,i) = fl(0,k,j,i);
-    user_out_var(1,k,j,i) = fl(1,k,j,i);
-    user_out_var(2,k,j,i) = fl(2,k,j,i);
+    user_out_var(use_fb + 0,k,j,i) = fl(0,k,j,i);
+    user_out_var(use_fb + 1,k,j,i) = fl(1,k,j,i);
+    user_out_var(use_fb + 2,k,j,i) = fl(2,k,j,i);
   }
 
   if (pm1->opt.flux_lo_fallback)
   M1_ILOOP3(k, j, i)
   {
-    user_out_var(3,k,j,i) = pm1->ev_strat.masks.pp(k,j,i);
+    user_out_var(use_fb + 3,k,j,i) = (
+      pm1->ev_strat.masks.pp(k,j,i)
+    );
   }
 
   /*
