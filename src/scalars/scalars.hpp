@@ -100,8 +100,8 @@ public:  // debug for combined hydro-scalar recon
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
   // 2D scratch arrays
-  AthenaArray<Real> rl_, rr_, rlb_;
-  AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
+  // AthenaArray<Real> rl_, rr_, rlb_;
+  // AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
 
   // 1D scratch arrays
   AthenaArray<Real> dflx_;

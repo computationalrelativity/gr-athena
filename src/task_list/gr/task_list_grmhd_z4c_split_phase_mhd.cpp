@@ -141,8 +141,20 @@ void GRMHD_Z4c_Phase_MHD::StartupTaskList(MeshBlock *pmb, int stage)
     PrepareStageAbscissae(stage, pmb);
 
     // Initialize storage registers
+    Reconstruction *pr = pmb->precon;
     Hydro *ph = pmb->phydro;
     ph->u1.ZeroClear();
+
+    // copy for comparison
+    if (pr->xorder_use_dmp)
+    {
+      ph->u2 = ph->u;
+      if (NSCALARS > 0)
+      {
+        PassiveScalars *ps = pmb->pscalars;
+        ps->s2 = ps->s;
+      }
+    }
 
     if (MAGNETIC_FIELDS_ENABLED)
     {
@@ -200,13 +212,26 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
     {
 
       bool all_valid = true;
-      AthenaArray<bool> mask(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+      AA_B mask(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+      mask.Fill(true);
 
       const Real dt_scaled = this->dt_scaled(stage, pmb);
 
       ph->CheckStateWithFluxDivergence(dt_scaled, ph->u, hflux, sflux,
                                        all_valid, mask,
                                        num_enlarge_layer);
+
+      if (pr->xorder_use_dmp)
+      {
+        ph->CheckStateWithFluxDivergenceDMP(
+          dt_scaled,
+          ph->u, ph->u2,
+          ps->s, ps->s2,
+          hflux, sflux,
+          all_valid, mask,
+          num_enlarge_layer
+        );
+      }
 
       if (!all_valid)
       {
@@ -218,8 +243,12 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
                             pr->xorder_style_fb,
                             num_enlarge_layer);
 
-        // flux hybridization here
-        // ...
+        ph->HybridizeFluxes(hflux, sflux, lo_hflux, lo_sflux, mask);
+      }
+
+      CC_GLOOP3(k, j, i)
+      {
+        ph->fallback_mask(k,j,i) = mask(k,j,i);
       }
     }
 

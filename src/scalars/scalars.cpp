@@ -70,7 +70,9 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4" || STS_ENABLED)
+  if (integrator == "ssprk5_4" ||
+      STS_ENABLED ||
+      (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
     // future extension may add "int nregister" to Hydro class
     s2.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
 
@@ -85,17 +87,6 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
   pmb->pbval->bvars_main_int.push_back(&sbvar);
 
   // Allocate memory for scratch arrays
-  rl_.NewAthenaArray(NSCALARS, nc1);
-  rr_.NewAthenaArray(NSCALARS, nc1);
-  rlb_.NewAthenaArray(NSCALARS, nc1);
-
-  if (pmy_block->precon->xorder_use_fb)
-  {
-    r_rl_.NewAthenaArray(NSCALARS, nc1);
-    r_rr_.NewAthenaArray(NSCALARS, nc1);
-    r_rlb_.NewAthenaArray(NSCALARS, nc1);
-  }
-
   dflx_.NewAthenaArray(NSCALARS, nc1);
 
   if (scalar_diffusion_defined)

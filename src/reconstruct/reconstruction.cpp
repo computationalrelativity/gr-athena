@@ -164,9 +164,30 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
     "time", "xorder_upwind_scalars", true
   );
 
-  xorder_use_auxiliaries = pin->GetOrAddBoolean(
-    "time", "xorder_use_auxiliaries", false
+  xorder_use_dmp = pin->GetOrAddBoolean(
+    "time", "xorder_use_dmp", true
   );
+
+  xorder_use_dmp_scalars = pin->GetOrAddBoolean(
+    "time", "xorder_use_dmp_scalars",
+    (xorder_use_dmp) ? true : false
+  );
+
+  xorder_dmp_min = pin->GetOrAddReal(
+    "time", "xorder_dmp_min", 0.9
+  );
+
+  xorder_dmp_max = pin->GetOrAddReal(
+    "time", "xorder_dmp_max", 1.1
+  );
+
+  if (xorder_use_dmp && !xorder_use_fb)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_dmp requires xorder_use_fb."<< std::endl;
+    ATHENA_ERROR(msg);
+  }
 
   xorder_use_aux_T = pin->GetOrAddBoolean(
     "time", "xorder_use_aux_T", false
@@ -1008,6 +1029,50 @@ void Reconstruction::ReconstructFieldX3(
     default:
     {
       assert(false);
+    }
+  }
+}
+
+void Reconstruction::ReconstructFieldXd(
+  const ReconstructionVariant rv,
+  AthenaArray<Real> &z,
+  AthenaArray<Real> &zl_,
+  AthenaArray<Real> &zr_,
+  const int ivx,
+  const int n_tar,
+  const int n_src,
+  const int k,
+  const int j,
+  const int il, const int iu)
+{
+  switch (ivx)
+  {
+    case 1:
+    {
+      ReconstructFieldX1(
+        rv, z, zl_, zr_,
+        n_tar, n_src,
+        k, j, il, iu
+      );
+      break;
+    }
+    case 2:
+    {
+      ReconstructFieldX2(
+        rv, z, zl_, zr_,
+        n_tar, n_src,
+        k, j, il, iu
+      );
+      break;
+    }
+    case 3:
+    {
+      ReconstructFieldX3(
+        rv, z, zl_, zr_,
+        n_tar, n_src,
+        k, j, il, iu
+      );
+      break;
     }
   }
 }

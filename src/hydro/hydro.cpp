@@ -127,9 +127,17 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
       pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
 
 
+  if (pmb->precon->xorder_use_fb)
+  {
+    fallback_mask.NewAthenaArray(nc3, nc2, nc1);
+  }
+
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4" || STS_ENABLED) {
+  if (integrator == "ssprk5_4" ||
+      STS_ENABLED ||
+      (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
+  {
     // future extension may add "int nregister" to Hydro class
     u2.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
   }
@@ -149,45 +157,24 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   dt2_.NewAthenaArray(nc1);
   dt3_.NewAthenaArray(nc1);
   dxw_.NewAthenaArray(nc1);
+
+  // storage for reconstruction of primitives
   wl_.NewAthenaArray(NWAVE, nc1);
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
+
+#if USETM
+  // storage for reconstruction of passive scalars
+  rl_.NewAthenaArray(NSCALARS, nc1);
+  rr_.NewAthenaArray(NSCALARS, nc1);
+  rlb_.NewAthenaArray(NSCALARS, nc1);
+#endif
 
   if (pmy_block->precon->xorder_use_auxiliaries)
   {
     al_.NewAthenaArray(NDRV_HYDRO, nc1);
     ar_.NewAthenaArray(NDRV_HYDRO, nc1);
     alb_.NewAthenaArray(NDRV_HYDRO, nc1);
-  }
-
-  if (pmy_block->precon->xorder_use_fb)
-  {
-    r_wl_.NewAthenaArray(NWAVE, nc1);
-    r_wr_.NewAthenaArray(NWAVE, nc1);
-    r_wlb_.NewAthenaArray(NWAVE, nc1);
-
-    if (pmy_block->precon->xorder_use_auxiliaries)
-    {
-      r_al_.NewAthenaArray(NDRV_HYDRO, nc1);
-      r_ar_.NewAthenaArray(NDRV_HYDRO, nc1);
-      r_alb_.NewAthenaArray(NDRV_HYDRO, nc1);
-    }
-
-    if (pmy_block->precon->xorder_use_fb_mask)
-    {
-      mask_l_.NewAthenaArray(nc1);
-      mask_lb_.NewAthenaArray(nc1);
-      mask_r_.NewAthenaArray(nc1);
-    }
-  }
-  else
-  {
-#if USETM
-    // Needed for PrimitiveSolver floors
-    rl_.NewAthenaArray(NSCALARS, nc1);
-    rr_.NewAthenaArray(NSCALARS, nc1);
-    rlb_.NewAthenaArray(NSCALARS, nc1);
-#endif
   }
 
   dflx_.NewAthenaArray(NHYDRO, nc1);
