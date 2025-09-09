@@ -537,11 +537,21 @@ void Z4c::ADMConstraints(
     }
     // Momentum constraint (covariant)
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        con.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
+    {
+      ILOOP1(i)
+      {
+        con.M_d(a,k,j,i) = 0;
+      }
+
+      for(int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          con.M_d(a,k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(b,i);
+        }
       }
     }
+
     // Momentum constraint (norm squared)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {

@@ -1041,7 +1041,7 @@ public:
     const Real W = pm1->fidu.sc_W(k,j,i);
     const Real oo_sc_sqrt_det_g = OO(pm1->geom.sc_sqrt_det_g(k,j,i));
 
-    const Real ix_g = 0;  // only 1 group
+    const int ix_g = 0;  // only 1 group
     for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
       const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;

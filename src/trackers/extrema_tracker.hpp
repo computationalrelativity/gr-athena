@@ -42,7 +42,7 @@ class ExtremaTracker
     AthenaArray<int> ref_type;
     AthenaArray<Real> ref_zone_radius;
 
-    AthenaArray<bool> minima;  // T for minima, F for maxima
+    AA_B minima;  // T for minima, F for maxima
     AthenaArray<Real> c_x1;
     AthenaArray<Real> c_x2;
     AthenaArray<Real> c_x3;
