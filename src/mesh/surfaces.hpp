@@ -171,6 +171,10 @@ class Surfaces
     // only use asynchronous writes with thread-safe library
     const bool can_async = is_hdf5_threadsafe();
 
+    // by default we use root rank for writing
+    const bool use_multiple_ranks = true;
+    int write_rank = 0;
+
   public:
 
     // Check whether a surface is active
@@ -317,9 +321,9 @@ class SurfaceCylindrical : public Surface
     enum class variety_interpolator { Lagrange };
 
     SurfaceCylindrical(Mesh *pm,
-                     ParameterInput *pin,
-                     Surfaces *psurfs,
-                     const int surf_ix);
+                       ParameterInput *pin,
+                       Surfaces *psurfs,
+                       const int surf_ix);
 
     ~SurfaceCylindrical();
 

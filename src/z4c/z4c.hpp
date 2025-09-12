@@ -171,7 +171,12 @@ public:
     N_AUX_EXTENDED
   };
   // Names of auxiliary variables
-  static char const * const Aux_Extended_names[N_AUX_EXTENDED];
+  static constexpr char const * const Aux_Extended_names[] = {
+    "aux.gs_sqrt_detgamma"
+#if FLUID_ENABLED
+    , "aux.ms_sqrt_detgamma"
+#endif
+  };
 
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);

@@ -26,6 +26,22 @@ void InitSurfaces(Mesh *pm, ParameterInput *pin)
 {
   // find salient params specifying surfaces
   InputBlock *pib = pin->pfirst_block;
+
+  // count total surfaces -----------------------------------------------------
+  int total_surfaces = 0;
+  while (pib != nullptr)
+  {
+    if (pib->block_name.compare(0, 7, "surface")  == 0)
+    {
+      total_surfaces++;
+    }
+    pib = pib->pnext;
+  }
+  pib = pin->pfirst_block;
+  // --------------------------------------------------------------------------
+
+  int surface_mpi_rank = 0;
+
   while (pib != nullptr)
   {
     if (pib->block_name.compare(0, 7, "surface")  == 0)
@@ -97,6 +113,15 @@ void InitSurfaces(Mesh *pm, ParameterInput *pin)
 
       psurf->vs = vs;
       pm->psurfs.push_back(psurf);
+
+      psurf->write_rank = surface_mpi_rank;
+
+      // Can assign write of different surfaces to different ranks
+      if (psurf->use_multiple_ranks &&
+          (total_surfaces < Globals::nranks))
+      {
+        surface_mpi_rank++;
+      }
     }
 
     pib = pib->pnext;
@@ -131,6 +156,12 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
     file_basename{pin->GetString("job", "problem_id")},
     file_number(pin->GetOrAddInteger(par_block_name, "file_number", 0))
 {
+  // in the case of async the file number will be incremented prior to write
+  if (can_async)
+  {
+    file_number--;
+  }
+
   dt = pin->GetReal(par_block_name, "dt");
   adjust_mesh_dt = pin->GetOrAddBoolean(par_block_name,
                                         "adjust_mesh_dt",

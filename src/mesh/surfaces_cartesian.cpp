@@ -79,16 +79,11 @@ void SurfacesCartesian::WriteAllSurfaces(const Real time)
   // launch async write in background
   write_future = std::async(std::launch::async, [this, time]()
   {
-    // save incremented file number (in case rst is written during this async)
-    pin->OverwriteParameter(par_block_name, "file_number", file_number+1);
-
     // each surface can write its own contribution
     for (auto &surf : psurf)
     {
       surf->write_hdf5(time);
     }
-
-    file_number++;
 
     // debug
     std::printf("%s @ time = %.3e async out!\n", par_block_name.c_str(), time);
@@ -117,21 +112,21 @@ void SurfacesCartesian::Reduce(const int ncycle, const Real time)
 
   if (dump_data)
   {
+    // immediate, blocking write complete, update file_number here;
+    // in the case of async this is also safe as it starts reduced by 1
+    file_number++;
+    pin->OverwriteParameter(par_block_name, "file_number", file_number);
+
     // launch writes in the background asynchronously
     if (can_async)
     {
-      // file_number needs pre-increment internally
-      if (Globals::my_rank == 0)
+      // only write-rank actually does the write
+      if (Globals::my_rank == write_rank)
+      {
         WriteAllSurfaces(time);
-    }
-    else
-    {
-      // immediate, blocking write complete, update file_number here
-      file_number++;
-      pin->OverwriteParameter(par_block_name, "file_number", file_number);
+      }
     }
   }
-
 }
 
 void SurfacesCartesian::ReinitializeSurfaces(const int ncycle, const Real time)
@@ -158,7 +153,7 @@ void SurfacesCartesian::ReinitializeSurfaces(const int ncycle, const Real time)
 void SurfaceCartesian::write_hdf5(const Real T)
 {
 #ifdef HDF5OUTPUT
-  if (Globals::my_rank == 0)
+  if (Globals::my_rank == psurfs->write_rank)
   {
     std::string filename;
     hdf5_get_next_filename(filename);
@@ -653,7 +648,7 @@ void SurfaceCartesian::Reduce(const int ncycle, const Real time)
   // finally write ------------------------------------------------------------
   if (psurfs->dump_data && !psurfs->can_async)
   {
-    if (Globals::my_rank == 0)
+    if (Globals::my_rank == psurfs->write_rank)
     {
       write_hdf5(time);
     }
