@@ -1086,6 +1086,9 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
 
   if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
   {
+    pmesh->ptracker_extrema->EvaluateAndWriteFields(
+      ncycle_end_stage, time_end_stage
+    );
     pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
   }
 }
