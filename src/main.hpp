@@ -586,6 +586,46 @@ inline void MakeOutputs(const bool is_final,
   }
 }
 
+inline void MakeOutputRestart(ParameterInput *pin,
+                              Mesh *pm,
+                              Outputs *pouts,
+                              const std::string & tag)
+{
+  // Record final time as start_time for any restarts
+  pin->SetReal("time", "start_time", pm->time);
+
+#if FLUID_ENABLED
+  pm->presc->FinalizePreOutput();
+#endif
+
+  try
+  {
+    pouts->MakeOutputRestart(pm, pin, tag);
+  }
+  catch(std::bad_alloc& ba)
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "memory allocation failed during output: ";
+    std::cout << ba.what() <<std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
+  catch(std::exception const& ex)
+  {
+    std::cout << ex.what() << std::endl;
+    gra::parallelism::Teardown();
+    std::exit(0);
+  }
+}
+
+inline void MakeOutputRestart(ParameterInput *pin,
+                              Mesh *pm,
+                              Outputs *pouts)
+{
+  // This will write with default tag of "final"
+  MakeOutputRestart(pin, pm, pouts, "");
+}
+
 // General info
 inline void PrintRankZero(std::string msg)
 {

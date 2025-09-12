@@ -123,6 +123,8 @@ class OutputType {
   // following pure virtual function must be implemented in all derived classes
   virtual void WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) = 0;
 
+  std::string restart_tag { "final" };
+
  protected:
   int num_vars_;             // number of variables in output
   // nested doubly linked list of OutputData nodes (of the same OutputType):
@@ -211,6 +213,8 @@ class Outputs {
   ~Outputs();
 
   void MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag=false);
+  void MakeOutputRestart(Mesh *pm, ParameterInput *pin,
+                         const std::string & tag);
   // Returns only first
   Real GetOutputTimeStep(std::string variable);
   // Full scan; here variable can also be "hst", "rst"

@@ -1279,6 +1279,47 @@ void Outputs::MakeOutputs(Mesh *pm, ParameterInput *pin, bool wtflag) {
   }
 }
 
+void Outputs::MakeOutputRestart(
+  Mesh *pm, ParameterInput *pin, const std::string & tag
+)
+{
+  OutputType* ptype = pfirst_type_;
+
+  // To not refactor all the virtual function stuff we can inject the take and use
+  // final flag. Only do this if the string has finite length.
+
+  bool wtflag = false;
+  if (tag.size() > 0)
+  {
+    wtflag = true;
+  }
+
+  while (ptype != nullptr)
+  {
+    if (ptype->output_params.file_type == "rst")
+    {
+      if (wtflag)
+      {
+        ptype->restart_tag = tag;
+      }
+
+      ptype->WriteOutputFile(pm, pin, wtflag);
+
+      // revert to default
+      if (wtflag)
+        ptype->restart_tag = "final";
+
+      // all outputs processed, post-hook
+      if (ptype->pnext_type == nullptr)
+      {
+        pm->ApplyUserWorkAfterOutput(pin);
+      }
+    }
+
+    ptype = ptype->pnext_type; // move to next OutputType node in signly linked list
+  }
+}
+
 //----------------------------------------------------------------------------------------
 //! \fn void Outputs::GetOutputTimeStep(bool wtflag)
 //  \brief scans through singly linked list of OutputTypes returning TimeStep

@@ -194,6 +194,10 @@ int main(int argc, char *argv[])
     {
       // Disable future detection
       pinput->SetBoolean("problem", "detect_bounce", false);
+
+      gra::PrintRankZero("Writing post_bounce restart...");
+      gra::MakeOutputRestart(pinput, pmesh, pouts, "post_bounce");
+
       break;
     }
 

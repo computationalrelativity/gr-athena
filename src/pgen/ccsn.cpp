@@ -522,8 +522,82 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   delete pstar;
 }
 
+namespace {
+
+void Equilibriate_M1(Mesh * pm, ParameterInput *pin)
+{
+#if M1_ENABLED
+  if (Globals::my_rank==0)
+  {
+    std::printf("Imposing M1 equilibrium...\n");
+  }
+
+  int nthreads = pm->GetNumMeshThreads();
+  (void)nthreads;
+
+  int nmb = -1;
+  std::vector<MeshBlock*> pmb_array;
+
+  // initialize a vector of MeshBlock pointers
+  pm->GetMeshBlocksMyRank(pmb_array);
+  nmb = pmb_array.size();
+
+  #pragma omp parallel for num_threads(nthreads)
+  for (int i = 0; i < nmb; ++i)
+  {
+    MeshBlock *pmb = pmb_array[i];
+    M1::M1 * pm1 = pmb->pm1;
+
+    // update internal representations in M1 class
+    pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+    pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+    pm1->CalcFiducialVelocity();
+
+    // prepare equilibrium ------------------------------------------------
+    // Can override the M1_solver specific equilibrium cut density:
+    Real m1_eql_rho_min = pm1->opt_solver.eql_rho_min;
+
+    pm1->opt_solver.eql_rho_min = pin->GetOrAddReal(
+      "problem",
+      "eql_rho_min",
+      m1_eql_rho_min
+    );
+
+    M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+                           {pm1->N_GRPS,pm1->N_SPCS},
+                           {pm1->N_GRPS,pm1->N_SPCS} };
+
+    pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+    M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS} };
+
+    pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
+
+    M1_ILOOP3(k, j, i)
+    {
+      M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+    }
+
+    // revert to M1_solver settings for future equilibriation
+    pm1->opt_solver.eql_rho_min = m1_eql_rho_min;
+    // --------------------------------------------------------------------
+  }
+#endif // M1_ENABLED
+}
+
+}
+
 void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
 {
+  // might be useful to be able to inject equilibrium on an rst
+  if (pin->GetOrAddBoolean("problem", "inject_equilibrium", false))
+  {
+    Equilibriate_M1(this, pin);
+    pin->SetBoolean("problem", "inject_equilibrium", false);
+  }
+
   if (!pin->GetOrAddBoolean("problem", "detect_bounce", false))
   {
     return;
@@ -576,72 +650,14 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
     }
 
     // Enforce M1 equilibrium globally
-#if M1_ENABLED
     const bool equilibriate_post_bounce = pin->GetOrAddBoolean(
       "problem", "equilibriate_post_bounce", true
     );
 
     if (equilibriate_post_bounce)
     {
-      if (Globals::my_rank==0)
-      {
-        std::printf("Imposing M1 equilibrium...\n");
-      }
-
-      int nthreads = GetNumMeshThreads();
-      (void)nthreads;
-
-      int nmb = -1;
-      std::vector<MeshBlock*> pmb_array;
-
-      // initialize a vector of MeshBlock pointers
-      GetMeshBlocksMyRank(pmb_array);
-      nmb = pmb_array.size();
-
-      #pragma omp parallel for num_threads(nthreads)
-      for (int i = 0; i < nmb; ++i)
-      {
-        MeshBlock *pmb = pmb_array[i];
-        M1::M1 * pm1 = pmb->pm1;
-
-        // update internal representations in M1 class
-        pm1->UpdateGeometry(pm1->geom, pm1->scratch);
-        pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-        pm1->CalcFiducialVelocity();
-
-        // prepare equilibrium ------------------------------------------------
-        // Can override the M1_solver specific equilibrium cut density:
-        Real m1_eql_rho_min = pm1->opt_solver.eql_rho_min;
-
-        pm1->opt_solver.eql_rho_min = pin->GetOrAddReal(
-          "problem",
-          "eql_rho_min",
-          m1_eql_rho_min
-        );
-
-        M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
-        {pm1->N_GRPS,pm1->N_SPCS},
-        {pm1->N_GRPS,pm1->N_SPCS} };
-
-        pm1->SetVarAliasesLab(pm1->storage.u, U_C);
-
-        M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
-                  {pm1->N_GRPS,pm1->N_SPCS},
-                  {pm1->N_GRPS,pm1->N_SPCS} };
-
-        pm1->SetVarAliasesSource(pm1->storage.u_sources, U_S);
-
-        M1_ILOOP3(k, j, i)
-        {
-          M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
-        }
-
-        // revert to M1_solver settings for future equilibriation
-        pm1->opt_solver.eql_rho_min = m1_eql_rho_min;
-        // --------------------------------------------------------------------
-      }
+      Equilibriate_M1(this, pin);
     }
-#endif // M1_ENABLED
 
     // Enable M1 evolution
     pin->SetBoolean("problem", "M1_enabled", true);

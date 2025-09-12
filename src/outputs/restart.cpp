@@ -59,7 +59,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   if (!force_write)
     fname.append(number);
   else
-    fname.append("final");
+    fname.append(restart_tag);
   fname.append(".rst");
 
   // increment counters now so values for *next* dump are stored in restart file
