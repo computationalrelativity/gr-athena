@@ -38,13 +38,14 @@ struct HDF5Lock
 
 inline bool is_hdf5_threadsafe()
 {
-#if H5_VERSION_GE(1,12,0)
+  // https://support.hdfgroup.org/documentation/hdf5/latest/group___h5.html#title13
+  // https://docs.hdfgroup.org/archive/support/HDF5/doc/RM/RM_H5.html#Library-IsLibraryThreadsafe
+#if H5_VERSION_GE(1,8,16)
   hbool_t ts = 0;
   herr_t status = H5is_library_threadsafe(&ts);
   return ts > 0;
 #else
-  int status = H5is_library_threadsafe();
-  return status > 0;
+  return false;
 #endif
 }
 
