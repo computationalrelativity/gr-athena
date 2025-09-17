@@ -40,7 +40,7 @@ The code is described in the method papers:
 To cite [GR-Athena++](https://computationalrelativity.github.io/grathenacode/) in your publication, please use the the above BibTeX and add a reference to the code repo in a footnote.
 
 
-## Example: Build and run apple-with-apple (AwA) test [TODO: update to working example!]
+## Example: Build and run apple-with-apple (AwA) test 
 
 Build the code:
 
