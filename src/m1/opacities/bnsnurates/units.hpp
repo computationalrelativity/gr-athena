@@ -155,7 +155,25 @@ static UnitSystem WeakRatesUnits{
   CGS.kb/CGS.MeV, // temperature, MeV
   CGS.kb/CGS.MeV, // chemical potential, MeV
 };
+//! NGS unit system (nanometer, gram, second, used by the bns_nurates library)
+static UnitSystem NGS{
+  CGS.c * 1e7,                                              // c, nm/s
+  CGS.G * CGS.MeV / (CGS.c * CGS.c * CGS.c * CGS.c) * 1e7,  // G, nm
+  1.0,                                                      // kb
+  CGS.Msun * (CGS.c * CGS.c) / CGS.MeV,                     // Msun, MeV
+  1.0,                                                      // MeV
 
+  1e7,               // length, nm
+  1.0,               // time, s
+  1e-21 * CGS.density, // density, g nm^-3
+  1e21,              // volume in nm^3
+  1.0,               // mass, g
+  1.0 / CGS.MeV,     // energy, MeV
+  1e-21 / CGS.MeV,   // pressure, MeV/nm^3
+  CGS.kb / CGS.MeV,  // temperature, MeV
+  1.0 / CGS.MeV,     // chemical potential, MeV
+};
+  
 } // namespace
 
 
