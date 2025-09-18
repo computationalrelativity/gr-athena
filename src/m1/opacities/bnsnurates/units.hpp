@@ -2,9 +2,9 @@
 #define BNSNURATES_UNITS_HPP
 
 //! \file units.hpp
-//  \brief contains unit definitions, conversion, and constants for WeakRates.
+//  \brief contains unit definitions, conversion, and constants for BNSNuRates.
 //  
-//  Each unit system is defined as its own struct inside the WeakRates namespace.
+//  Each unit system is defined as its own struct inside the namespace.
 //  This is mostly a copy of the units from Primitive Solver
 //  This is a copy of the units from WeakRates
 
