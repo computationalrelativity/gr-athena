@@ -113,9 +113,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             hst_data[isum++] += vol(i)*u_my;
             hst_data[isum++] += vol(i)*u_mz;
             // + partitioned KE by coordinate direction:
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mx)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
-            hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
+            const Real reg_oo_u_d = (u_d > 0) ? OO(u_d) : 0;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_mx) * reg_oo_u_d;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_my) * reg_oo_u_d;
+            hst_data[isum++] += vol(i)*0.5*SQR(u_mz) * reg_oo_u_d;
 
             if (NON_BAROTROPIC_EOS) {
               Real& u_e = phyd->u(IEN,k,j,i);;

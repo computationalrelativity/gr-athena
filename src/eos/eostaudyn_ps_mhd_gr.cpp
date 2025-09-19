@@ -251,6 +251,8 @@ void EquationOfState::ConservedToPrimitive(
 
   geom_sliced_cc gsc;
 
+  gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+
   AT_N_sca & alpha_    = gsc.alpha_;
   AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
   AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
@@ -289,6 +291,15 @@ void EquationOfState::ConservedToPrimitive(
           (pmb->ks <= k) && (k <= pmb->ke))
       {
         continue;
+      }
+
+      if (ptrif->opt.hydro.active)
+      {
+        AA_B & mask_nn_hydro = ptrif->GetMaskHydroNN(pmb);
+        if (!mask_nn_hydro(k,j,i))
+        {
+          continue;
+        }
       }
 
       // Check if the state is admissible; if not we reset to atmo.

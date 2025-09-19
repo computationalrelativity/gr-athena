@@ -87,6 +87,13 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
     BoundaryValues *pb = pmb->pbval;
     EquationOfState *peos = pmb->peos;
 
+    // update masks as we have new hydro data on this MeshBlock
+    gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+    if (ptrif->opt.hydro.active)
+    {
+      ptrif->PrepareMask(pmb);
+    }
+
     int il = pmb->is, iu = pmb->ie;
     int jl = pmb->js, ju = pmb->je;
     int kl = pmb->ks, ku = pmb->ke;
@@ -107,6 +114,8 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
     if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
 #endif // DBG_USE_CONS_BC
 
+    pmb->CheckFieldsFinite("pre_prim_ghost", false);
+
     static const int coarseflag = 0;
     static const bool skip_physical = true;
     peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
@@ -114,6 +123,8 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
                                pf->bcc, pmb->pcoord,
                                il, iu, jl, ju, kl, ku,
                                coarseflag, skip_physical);
+
+    pmb->CheckFieldsFinite("post_prim_ghost", false);
 
     // Try to smooth temperature with nn avg:
     if (peos->smooth_temperature)
@@ -242,11 +253,15 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::UpdateSource(MeshBlock *pmb, int stage)
 
     PassiveScalars * ps = pmb->pscalars;
 
+    pmb->CheckFieldsFinite("pre_src", false);
+
     pz4c->GetMatter(pz4c->storage.mat,
                     pz4c->storage.adm,
                     ph->w,
                     ps->r,
                     pf->bcc);
+
+    pmb->CheckFieldsFinite("post_src", false);
 
     return TaskStatus::success;
   }

@@ -167,9 +167,16 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
     BoundaryValues *pb = pmb->pbval;
     EquationOfState *peos = pmb->peos;
 
+    if (pmb->storage.trivialize_fields.hydro.is_trivial)
+    {
+      return TaskStatus::success;
+    }
+
     int il = pmb->is, iu = pmb->ie;
     int jl = pmb->js, ju = pmb->je;
     int kl = pmb->ks, ku = pmb->ke;
+
+    pmb->CheckFieldsFinite("pre_prim_phys", false);
 
     static const int coarseflag = 0;
     peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
@@ -177,6 +184,8 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
                                pf->bcc, pmb->pcoord,
                                il, iu, jl, ju, kl, ku,
                                coarseflag);
+
+    pmb->CheckFieldsFinite("post_prim_phys", false);
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
@@ -268,6 +277,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage
     pmb->SetBoundaryVariablesConserved();
 #endif  // DBG_USE_CONS_BC
     ph->hbvar.SetBoundaries();
+
     return TaskStatus::success;
   }
   return TaskStatus::fail;
@@ -381,6 +391,11 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd(MeshBlock *pmb, int sta
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
+    if (pmb->storage.trivialize_fields.hydro.is_trivial)
+    {
+      return TaskStatus::success;
+    }
+
     // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
     // interface from conserved to primitive formulations:
 #ifndef DBG_USE_CONS_BC
@@ -395,6 +410,13 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd(MeshBlock *pmb, int sta
       pmb->js, pmb->je,
       pmb->ks, pmb->ke,
       NGHOST);
+
+    // update masks as we have new hydro data on this MeshBlock
+    gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+    if (ptrif->opt.hydro.active)
+    {
+      ptrif->PrepareMask(pmb);
+    }
 
     // Compute bcc globally
     if (MAGNETIC_FIELDS_ENABLED)
