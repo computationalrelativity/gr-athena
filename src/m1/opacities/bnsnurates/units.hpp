@@ -21,7 +21,7 @@ struct UnitSystem {
 
   const Real length;            //! Length unit
   const Real time;              //! Time unit
-  const Real density;           //! Number density unit
+  const Real density;           //! Mass density unit
   const Real mass;              //! Mass unit
   const Real energy;            //! Energy unit
   const Real pressure;          //! Pressure unit
@@ -130,7 +130,8 @@ static UnitSystem GeometricSolar{
 
   (CGS.c*CGS.c)/(CGS.G * CGS.Msun), // length, Msun
   POW3( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
-  POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
+  //POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
+  POW2( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // mass density, Msun^-2
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   POW3( CGS.G/(CGS.c*CGS.c) ) * SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
@@ -165,7 +166,8 @@ static UnitSystem NGS{
 
   1e7,               // length, nm
   1.0,               // time, s
-  1e-21 * CGS.density, // density, g nm^-3
+  //1e-21,             // number density nm^-3
+  1e-21 * CGS.density, // mass density, g nm^-3
   1e21,              // volume in nm^3
   1.0,               // mass, g
   1.0 / CGS.MeV,     // energy, MeV
