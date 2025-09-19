@@ -17,11 +17,11 @@ struct UnitSystem {
   const Real G;    //! Gravitational constant
   const Real kb;   //! Boltzmann constant
   const Real Msun; //! Solar mass
-  const Real MeV;  // 10^6 electronvolt
+  const Real MeV;  //! 10^6 electronvolt
 
   const Real length;            //! Length unit
   const Real time;              //! Time unit
-  const Real density;           //! Mass density unit
+  const Real density;           //! Number density unit
   const Real mass;              //! Mass unit
   const Real energy;            //! Energy unit
   const Real pressure;          //! Pressure unit
@@ -37,7 +37,7 @@ struct UnitSystem {
     return b.length/length;
   }
 
-inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per length
+  inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per length
     return length/b.length;
   }
 
@@ -92,9 +92,8 @@ inline constexpr Real OpacityConversion(UnitSystem& b) const { // number per len
   inline constexpr Real EnergyRateConversion(UnitSystem& b) const { // energy per unit time per unit volume
     return (b.energy*time*POW3(length))/(energy*b.time*POW3(b.length));
   }
-  //! \}
 };
-
+  
 // Global static objects for a particular unit system.
 
 //! CGS units
@@ -113,7 +112,7 @@ static UnitSystem CGS{
 
   1.0, // length, cm
   1.0, // time, s
-  1.0, // density, g cm^-3
+  1.0, // number density, cm^-3
   1.0, // mass, g
   1.0, // energy, erg
   1.0, // pressure, erg/cm^3
@@ -130,8 +129,8 @@ static UnitSystem GeometricSolar{
 
   (CGS.c*CGS.c)/(CGS.G * CGS.Msun), // length, Msun
   POW3( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
-  //POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3
-  POW2( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // mass density, Msun^-2
+  POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3 
+  //POW2( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // mass density, Msun^-2
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   POW3( CGS.G/(CGS.c*CGS.c) ) * SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2
@@ -149,7 +148,7 @@ static UnitSystem WeakRatesUnits{
 
   CGS.length, // length, cm
   CGS.time, // time, s
-  CGS.density, // density, g cm^-3
+  CGS.density, // number density, cm^-3
   CGS.mass, // mass, g
   CGS.energy, // energy, erg
   CGS.pressure, // pressure, erg/cm^3
@@ -166,17 +165,14 @@ static UnitSystem NGS{
 
   1e7,               // length, nm
   1.0,               // time, s
-  //1e-21,             // number density nm^-3
-  1e-21 * CGS.density, // mass density, g nm^-3
-  1e21,              // volume in nm^3
+  1e-21,             // number density nm^-3
+  //1e-21 * CGS.density, // mass density, g nm^-3
   1.0,               // mass, g
   1.0 / CGS.MeV,     // energy, MeV
   1e-21 / CGS.MeV,   // pressure, MeV/nm^3
   CGS.kb / CGS.MeV,  // temperature, MeV
   1.0 / CGS.MeV,     // chemical potential, MeV
 };
-  
-} // namespace
 
-
+}
 #endif
