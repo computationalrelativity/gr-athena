@@ -283,6 +283,7 @@ bool Hydro::ConservedDensityWithinFloorThreshold(
 )
 {
   MeshBlock *pmb = pmy_block;
+  gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
 
   // Undensitized conserved density floor
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
@@ -301,6 +302,7 @@ bool Hydro::ConservedDensityWithinFloorThreshold(
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   for (int i=il; i<=iu; ++i)
+  if (!ptrif->CutMaskHydro(pmb, k, j, i))
   {
     ret = ret and (sqrt_detgamma(k,j,i) * d_fac > u(IDN,k,j,i));
 

@@ -19,6 +19,7 @@
 #include "hydro.hpp"
 #include "../eos/eos.hpp"
 #include <cmath>
+#include <cmath>
 #include <limits>
 
 // OpenMP header
@@ -149,6 +150,7 @@ void Hydro::CheckStateWithFluxDivergence(
 
   const int nel = num_enlarge_layer;
 
+
   for (int k=ks-nel; k<=ke+nel; ++k)
   for (int j=js-nel; j<=je+nel; ++j)
   for (int i=is-nel; i<=ie+nel; ++i) // avoid simd here
@@ -273,8 +275,12 @@ void Hydro::CheckStateWithFluxDivergenceDMP(
       const Real D_i = u_old(IDN,kk,jj,ii);
       D_min = std::min(D_min, D_i);
       D_max = std::max(D_max, D_i);
+      D_min = std::min(D_min, D_i);
+      D_max = std::max(D_max, D_i);
 
       const Real tau_i = u_old(IEN,kk,jj,ii);
+      tau_min = std::min(tau_min, tau_i);
+      tau_max = std::max(tau_max, tau_i);
       tau_min = std::min(tau_min, tau_i);
       tau_max = std::max(tau_max, tau_i);
     }
@@ -610,6 +616,7 @@ void Hydro::EnforceFloorsLimits(
 )
 {
   MeshBlock *pmb = pmy_block;
+  gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
 
   // Undensitized conserved density floor
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
@@ -625,6 +632,7 @@ void Hydro::EnforceFloorsLimits(
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   for (int i=il; i<=iu; ++i)
+  if (!ptrif->CutMaskHydro(pmb, k, j, i))
   {
     Real & D = u(IDN,k,j,i);
     Real & tau = u(IEN,k,j,i);
@@ -649,6 +657,7 @@ void Hydro::EnforceFloorsLimits(
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   for (int i=il; i<=iu; ++i)
+  if (!ptrif->CutMaskHydro(pmb, k, j, i))
   {
     const Real D = u(IDN,k,j,i);
     Real & S = s(n,k,j,i);
@@ -662,6 +671,7 @@ void Hydro::EnforceFloorsLimits(
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
   for (int i=il; i<=iu; ++i)
+  if (!ptrif->CutMaskHydro(pmb, k, j, i))
   {
     // const Real D = u(IDN,k,j,i);
     Real & tau = u(IEN,k,j,i);

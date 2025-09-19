@@ -53,6 +53,7 @@
 #include "../z4c/wave_extract.hpp"
 #include "../z4c/wave_extract_rwz.hpp"
 #include "../z4c/ahf.hpp"
+#include "trivialize_fields.hpp"
 
 #if CCE_ENABLED
 #include "../z4c/cce/cce.hpp"
@@ -318,6 +319,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else {
     max_level = 63;
   }
+
+  // for field trivialization
+  ptrif = new gra::trivialize::TrivializeFields(this, pin);
 
   if (use_split_grmhd_z4c)
   {
@@ -650,6 +654,11 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
 
   // Surface init needs to come after MeshBlocks have been initialized
   gra::mesh::surfaces::InitSurfaces(this, pin);
+
+  // debug value of state-vector during run-time?
+  debug_tasklist_state_vector = pin->GetOrAddBoolean(
+    "mesh", "debug_tasklist_state_vector", false
+  );
 }
 
 //----------------------------------------------------------------------------------------
@@ -820,6 +829,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   } else {
     max_level = 63;
   }
+
+  // for field trivialization
+  ptrif = new gra::trivialize::TrivializeFields(this, pin);
 
   if (use_split_grmhd_z4c)
   {
@@ -1185,6 +1197,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   // Surface init needs to come after MeshBlocks have been initialized
   gra::mesh::surfaces::InitSurfaces(this, pin);
+
+  // debug value of state-vector during run-time?
+  debug_tasklist_state_vector = pin->GetOrAddBoolean(
+    "mesh", "debug_tasklist_state_vector", false
+  );
 }
 
 //----------------------------------------------------------------------------------------
@@ -1263,6 +1280,8 @@ Mesh::~Mesh() {
   if (nreal_user_mesh_data_>0) delete [] ruser_mesh_data;
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
   if (EOS_TABLE_ENABLED) delete peos_table;
+
+  delete ptrif;
 
 #if FLUID_ENABLED
   delete presc;
@@ -1754,6 +1773,12 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADMPhysical(pmb_array, enforce_alg);
 
+        // Need to update masks (requires adm data):
+        // This should be a physical-node only call, but for simplicity we just
+        // call it twice (see below); here and later when we have them.
+        if (ptrif->opt.active)
+          ptrif->PrepareMasks();
+
         // reset_floor with PrimitiveSolver adjusts the conserved
         // Put this here to further polish values after global regridding
         static const bool interior_only = true;
@@ -1783,6 +1808,17 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 #ifdef DBG_EARLY_INIT_CONSTOPRIM
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADMGhosts(pmb_array, enforce_alg);
+
+        // Need to update masks (requires adm data):
+        // This should be a ghost-node only call.
+        //
+        // At this point the masks should be correct on the whole block,
+        // so we also perform any cuts
+        if (ptrif->opt.active)
+        {
+          ptrif->PrepareMasks();
+          ptrif->CutMasks();
+        }
 #else
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADM(pmb_array, enforce_alg);
@@ -1991,6 +2027,7 @@ void Mesh::InitializePostFirstInitialize(initialize_style init_style,
 #if FLUID_ENABLED
   presc->Initialize();
 #endif
+
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
                                          M_info.dx_min, M_info.dx_max,
@@ -2002,6 +2039,9 @@ void Mesh::InitializePostFirstInitialize(initialize_style init_style,
   if (init_style == initialize_style::pgen)
     CalculateZ4cInitDiagnostics();
 
+  // Field trivialization (only if activated - internal check)
+  ptrif->Update();
+  ptrif->CutMasks();
 
   // Evaluate values of fields over trackers
   // Needs to be here as various field classes need a first assembly
@@ -2011,16 +2051,22 @@ void Mesh::InitializePostFirstInitialize(initialize_style init_style,
 
 void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 {
-  // Rescale as required
-#if FLUID_ENABLED
-  presc->Apply();
-#endif
   // Whenever we initialize the Mesh, we record global properties
   const bool res = GetGlobalGridGeometry(M_info.x_min, M_info.x_max,
                                          M_info.dx_min, M_info.dx_max,
                                          M_info.max_level);
 
   diagnostic_grid_updated = res || diagnostic_grid_updated;
+
+  // Field trivialization (only if activated - internal check)
+  ptrif->Update();
+  ptrif->CutMasks();
+
+  // Rescale as required
+#if FLUID_ENABLED
+  presc->Apply();
+#endif
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -2533,6 +2579,7 @@ void Mesh::CalculateHydroFieldDerived()
     for (int nix=0; nix<nmb; ++nix)
     {
       MeshBlock *pmb = pmb_array[nix];
+
       Hydro *ph = pmb->phydro;
       Field *pf = pmb->pfield;
       PassiveScalars *ps = pmb->pscalars;

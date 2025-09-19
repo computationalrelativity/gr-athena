@@ -476,9 +476,12 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
       const Real dx3 = pmb->pcoord->dx3v(i);
       const Real w = dx1*dx2*dx3;
 
-      E_kin_ += w * (
-        S_u_x * S_d_x + S_u_y * S_d_y + S_u_z * S_d_z
-      ) / D;
+      if (D > 0)
+      {
+        E_kin_ += w * (
+          S_u_x * S_d_x + S_u_y * S_d_y + S_u_z * S_d_z
+        ) / D;
+      }
 
     }
 

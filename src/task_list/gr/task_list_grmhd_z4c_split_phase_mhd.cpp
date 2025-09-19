@@ -222,6 +222,11 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
     Reconstruction * pr = pmb->precon;
     PassiveScalars *ps = pmb->pscalars;
 
+    if (pmb->storage.trivialize_fields.hydro.is_trivial)
+    {
+      return TaskStatus::next;
+    }
+
     const int num_enlarge_layer = (pr->xorder_use_fb ||
                                    pr->xorder_limit_fluxes) ? 1 : 0;
     AA(& hflux)[3] = ph->flux;
@@ -422,8 +427,16 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock *pmb, int stage)
     PassiveScalars *ps = pmb->pscalars;
     Field * pf = pmb->pfield;
     Coordinates * pc = pmb->pcoord;
+    gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+
+    if (pmb->storage.trivialize_fields.hydro.is_trivial)
+    {
+      return TaskStatus::next;
+    }
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    pmb->CheckFieldsFinite("pre_coord_div", false);
 
     // add coordinate (geometric) source terms
 #if USETM
@@ -440,6 +453,8 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock *pmb, int stage)
 //       pm1->CoupleSourcesHydro(dt_scaled, ph->u);
 //     }
 // #endif
+
+    pmb->CheckFieldsFinite("post_coord_div", false);
 
     return TaskStatus::next;
   }
@@ -483,6 +498,8 @@ TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
     const int num_enlarge_layer = (pr->xorder_use_fb ||
                                    pr->xorder_limit_fluxes) ? 1 : 0;
 
+    pmb->CheckFieldsFinite("pre_integ", false);
+
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
     ave_wghts[1] = stage_wghts[stage-1].delta;
@@ -510,6 +527,9 @@ TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
     }
     // ------------------------------------------------------------------------
 
+
+    pmb->CheckFieldsFinite("post_integ", false);
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -524,13 +544,23 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars(
     Hydro *ph = pmb->phydro;
     PassiveScalars * ps = pmb->pscalars;
     Reconstruction *pr = pmb->precon;
+    gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+
+    if (pmb->storage.trivialize_fields.hydro.is_trivial)
+    {
+      return TaskStatus::next;
+    }
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    pmb->CheckFieldsFinite("pre_flx", false);
 
     ph->AddFluxDivergence(dt_scaled, ph->u);
 
     if (NSCALARS > 0)
       ps->AddFluxDivergence(dt_scaled, ps->s);
+
+    pmb->CheckFieldsFinite("post_flx", false);
 
     // Ensure update does not dip below floor ---------------------------------
     const int num_enlarge_layer = 0;
@@ -541,6 +571,12 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars(
       );
     }
     // ------------------------------------------------------------------------
+
+    // update masks so flux flows into new cells
+    if (ptrif->opt.hydro.active)
+    {
+      ptrif->PrepareMask(pmb);
+    }
 
     return TaskStatus::next;
   }

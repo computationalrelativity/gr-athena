@@ -196,9 +196,14 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
                       ave_wghts);
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
+
+    pmb->CheckFieldsFinite("pre_z4c_add_rhs", false);
+
     pz4c->AddZ4cRHS(pz4c->storage.rhs,
                     dt_scaled,
                     pz4c->storage.u);
+
+    pmb->CheckFieldsFinite("post_z4c_add_rhs", false);
 
     return TaskStatus::next;
   }
@@ -312,7 +317,9 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 #endif // DBG_ALGCONSTR_ALL
 
   Z4c *pz4c = pmb->pz4c;
+  pmb->CheckFieldsFinite("pre_z4c_alg", false);
   pz4c->AlgConstr(pz4c->storage.u);
+  pmb->CheckFieldsFinite("post_z4c_alg", false);
 
   return TaskStatus::success;
 }
@@ -322,7 +329,9 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     Z4c *pz4c = pmb->pz4c;
+    pmb->CheckFieldsFinite("pre_z4c2adm", false);
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
+    pmb->CheckFieldsFinite("post_z4c2adm", false);
     return TaskStatus::success;
   }
 

@@ -30,6 +30,7 @@
 #include "meshblock_tree.hpp"
 #include "../scalars/scalars.hpp"
 #include "../hydro/rescaling.hpp"
+#include "trivialize_fields.hpp"
 
 // Forward declarations
 class ParameterInput;
@@ -292,6 +293,8 @@ public:
   Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
   bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
                         Real const radius);
+  bool SphereContains(Real const Sx0, Real const Sy0, Real const Sz0,
+                      Real const radius, bool const strictly);
 
   bool IsNewFromAMR()
   {
@@ -332,10 +335,29 @@ public:
   void SetBoundaryVariablesConserved();
   void SetBoundaryVariablesPrimitive();
 
+  // storage for various masks
+  struct {
+    struct {
+      struct {
+        bool is_trivial = false;  // whole mask trivial?
+
+        // mask for fluxes and evolution
+        AA_B mask_nn; // 1 if non-trivial -> 0 where it is
+        AA_B mask_pt;
+        AA_B mask_ly; // layer where pt 0 but nn 1
+      } hydro;
+
+      AthenaArray<Real> oo_ms_sqrt_detgamma;
+    } trivialize_fields;
+
+  } storage;
+
   void DebugMeshBlock(
     const Real x, const Real y, const Real z,
     const int ix, const int iy, const int iz,
     std::string txt_head, std::string txt_tail);
+
+  void CheckFieldsFinite(const std::string &tag, const bool is_physical);
 
 private:
   // if AMR *just* created this block, useful to know.
@@ -480,7 +502,10 @@ class Mesh {
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
 
+  gra::trivialize::TrivializeFields * ptrif;
   gra::hydro::rescaling::Rescaling * presc;
+
+  bool debug_tasklist_state_vector;
 
   // functions ----------------------------------------------------------------
 

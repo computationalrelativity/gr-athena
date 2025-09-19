@@ -258,6 +258,8 @@ void EquationOfState::ConservedToPrimitive(
 
   geom_sliced_cc gsc;
 
+  gra::trivialize::TrivializeFields * ptrif = pmb->pmy_mesh->ptrif;
+
   AT_N_sca & alpha_    = gsc.alpha_;
   AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
   AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
@@ -297,8 +299,20 @@ void EquationOfState::ConservedToPrimitive(
         continue;
       }
 
+      // cut the point if the mask says so; short-circuit if cut
+      if (ptrif->CutMaskHydro(pmb, k, j, i))
+      {
+        continue;
+      }
+
       // Check if the state is admissible; if not we reset to atmo.
       bool is_admissible = IsAdmissiblePoint(cons, prim, det_gamma_, k, j, i);
+
+      // satisfies mask, may need floor
+      // if (ptrif->opt.hydro.active)
+      // {
+      //   is_admissible = is_admissible && (cons(IDN,k,j,i) > 0)  && (prim(IDN,k,j,i) > 0);
+      // }
 
       if (ph->opt_excision.excise_c2p)
       {
@@ -326,6 +340,16 @@ void EquationOfState::ConservedToPrimitive(
 
       if (!is_admissible)
       {
+        /*
+        StatePrintPoint(
+          "!is_admissible",
+          pmy_block_,
+          gsc,
+          k, j, i,
+          false
+        );
+        */
+
         SetPrimAtmo(temperature, prim, prim_scalar, k, j, i);
         // SetEuclideanCC(gsc, i);
         PrimitiveToConservedSingle(prim,
@@ -366,6 +390,21 @@ void EquationOfState::ConservedToPrimitive(
       cons_pt[IM2] = cons_old_pt[IM2] = cons(IM2, k, j, i) * oo_sqrt_detgamma;
       cons_pt[IM3] = cons_old_pt[IM3] = cons(IM3, k, j, i) * oo_sqrt_detgamma;
       cons_pt[IEN] = cons_old_pt[IEN] = cons(IEN, k, j, i) * oo_sqrt_detgamma;
+
+      // pre-lim --------------------------------------------------------------
+      /*
+      Real Y__[MAX_SPECIES] = {0.0};
+      for(int n=0; n<NSCALARS; n++)
+      {
+        Y__[n] = cons_scalar(n,k,j,i) / cons(IDN, k, j, i);
+      }
+      ps.GetEOS()->ApplySpeciesLimits(Y__);
+      for(int n=0; n<NSCALARS; n++)
+      {
+        cons_scalar(n,k,j,i) = Y__[n] * cons(IDN, k, j, i);
+      }
+      */
+      // ----------------------------------------------------------------------
 
       // Extract the scalars
       for(int n=0; n<NSCALARS; n++)
@@ -1054,6 +1093,7 @@ static void PrimitiveToConservedSingle(
                                << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "}\n";
     std::cerr << "    detg  = " << detg << "\n";
     std::cerr << "    sdetg = " << sdetg << "\n";
+    std::exit(0);
   }
 
   // Push the densitized conserved variables to Athena.

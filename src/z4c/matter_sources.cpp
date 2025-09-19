@@ -27,7 +27,6 @@ void Z4c::GetMatter(
   ::AA & r,
   ::AA & bb_cc)
 {
-
 #if defined(Z4C_WITH_HYDRO_ENABLED)
 
   using namespace LinearAlgebra;
@@ -263,6 +262,27 @@ void Z4c::GetMatter(
         }
       }
 #endif
+
+      gra::trivialize::TrivializeFields * ptrif = pmy_mesh->ptrif;
+
+      if (ptrif->opt.hydro.active && ptrif->opt.hydro.set_vacuum)
+      {
+        AA_B & mask_nn_hydro = ptrif->GetMaskHydroNN(pmb);
+        AA_B & mask_pt_hydro = ptrif->GetMaskHydroPT(pmb);
+
+        ILOOP1(i)
+        if (!mask_pt_hydro(k,j,i))
+        {
+          w_hrho(i) = 0;
+          w_p(i) = 0;
+          W(i) = 0.0;
+          for (int a=0; a<N; ++a)
+          {
+            v_d(a,i) = 0;
+          }
+        }
+      }
+
 
     //  Update matter variables
 #if MAGNETIC_FIELDS_ENABLED

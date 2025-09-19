@@ -505,6 +505,23 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // pz4c->AlgConstr(pz4c->storage.u);
   // pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
 
+  // trivialization logic [flag vac. if desired] ------------------------------
+  // here the mask is based on the primitives, which are assume 0 outside the
+  // support of the hydro ID
+  gra::trivialize::TrivializeFields * ptrif = pmy_mesh->ptrif;
+  if (ptrif->opt.hydro.active && ptrif->opt.hydro.set_vacuum)
+  {
+    MeshBlock * pmb = this;
+    AA_B & mask_pt_hydro = ptrif->GetMaskHydroPT(pmb);
+    AA_B & mask_nn_hydro = ptrif->GetMaskHydroNN(pmb);
+
+    CC_GLOOP3(k, j, i)
+    {
+      mask_pt_hydro(k,j,i) = phydro->w(IDN,k,j,i) > 0;
+      mask_nn_hydro(k,j,i) = mask_pt_hydro(k,j,i);
+    }
+  }
+  // --------------------------------------------------------------------------
 
   // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(
@@ -536,6 +553,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
+
+  // trivialization logic [set vac. if desired] -------------------------------
+  // now have conserved variables: cut atmo. outside support of hydro ID
+  if (ptrif->opt.hydro.active)
+  {
+    MeshBlock * pmb = this;
+    ptrif->CutMask(pmb);
+  }
+  // --------------------------------------------------------------------------
+
 
   // --------------------------------------------------------------------------
   // The following is now done else-where and is redundant here

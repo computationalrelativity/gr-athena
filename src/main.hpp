@@ -829,6 +829,14 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
     }
 #endif
 
+    // Field trivialization (only if activated - internal check)
+    if (pmesh->ptrif->opt.apply_on_substeps ||
+        (stage == ptlc.grmhd_z4c->nstages))
+    {
+      pmesh->ptrif->Update_();
+      pmesh->ptrif->CutMasks();
+    }
+
 #ifdef DBG_SCATTER_MATTER_GRMHD
     pmesh->ScatterMatter(pmb_array);
 #endif
@@ -1012,6 +1020,9 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
   for (int stage=1; stage<=ptlc.m1n0->nstages; ++stage)
   {
     ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
+
+    // Field trivialization (only if activated - internal check)
+    pmesh->ptrif->Update();
 
     // Last stage performs Con2Prim, scatter this, call GetMatter
     if (Z4C_ENABLED && FLUID_ENABLED && (stage == ptlc.m1n0->nstages))

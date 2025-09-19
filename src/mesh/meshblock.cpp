@@ -10,6 +10,7 @@
 
 // C++ headers
 #include <algorithm>  // sort()
+#include <cmath>
 #include <cstdlib>
 #include <cstring>    // memcpy()
 #include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
@@ -113,6 +114,9 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   {
     pcoord = new GRDynamical(this, pin, false);
   }
+
+  // allocate masks etc for trivialization
+  pmy_mesh->ptrif->AllocateLocal(this);
 
   if (FLUID_ENABLED) {
     // Reconstruction: constructor may implicitly depend on Coordinates, and PPM variable
@@ -258,6 +262,9 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   } else if (std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0) {
     pcoord = new GRDynamical(this, pin, false);
   }
+
+  // allocate masks etc for trivialization
+  pmy_mesh->ptrif->AllocateLocal(this);
 
   if (FLUID_ENABLED) {
     // Reconstruction (constructor may implicitly depend on Coordinates)
@@ -1213,6 +1220,112 @@ void MeshBlock::DebugMeshBlock(
 
     std::printf("%s", txt_tail.c_str());
   }
+}
+
+void MeshBlock::CheckFieldsFinite(const std::string &tag,
+                                  const bool is_physical)
+{
+  // DEBUGGING
+  if (!pmy_mesh->debug_tasklist_state_vector)
+  {
+    return;
+  }
+  MeshBlock * pmb = this;
+
+  auto check_finite = [&](const int k, const int j, const int i)
+  {
+    bool is_finite = true;
+
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      is_finite = is_finite && std::isfinite(phydro->u(n,k,j,i));
+      is_finite = is_finite && std::isfinite(phydro->w(n,k,j,i));
+    }
+
+    for (int n=0; n<NSCALARS; ++n)
+    {
+      is_finite = is_finite && std::isfinite(pscalars->s(n,k,j,i));
+      is_finite = is_finite && std::isfinite(pscalars->r(n,k,j,i));
+    }
+
+    for (int n=0; n<Z4c::N_ADM; ++n)
+    {
+      is_finite = is_finite && std::isfinite(
+        pz4c->storage.adm(n,k,j,i)
+      );
+    }
+
+    for (int n=0; n<Z4c::N_Z4c; ++n)
+    {
+      is_finite = is_finite && std::isfinite(
+        pz4c->storage.u(n,k,j,i)
+      );
+    }
+
+    for (int n=0; n<Z4c::N_MAT; ++n)
+    {
+      is_finite = is_finite && std::isfinite(
+        pz4c->storage.mat(n,k,j,i)
+      );
+    }
+
+    for (int n=0; n<Z4c::N_AUX_EXTENDED; ++n)
+    {
+      is_finite = is_finite && std::isfinite(
+        pz4c->storage.aux_extended(n,k,j,i)
+      );
+    }
+
+    return is_finite;
+  };
+
+  auto check_density = [&](const int k, const int j, const int i)
+  {
+    bool is_nneg = true;
+
+    is_nneg = is_nneg && phydro->u(IDN,k,j,i) >= 0;
+    is_nneg = is_nneg && phydro->w(IDN,k,j,i) >= 0;
+
+    return is_nneg;
+  };
+
+  auto print_point = [&](const int k, const int j, const int i)
+  {
+    bool coarse_flag = false;
+    const bool terminate = true;
+    EquationOfState::geom_sliced_cc gsc;
+    pmb->peos->GeometryToSlicedCC(
+      gsc, k, j, i, i, coarse_flag, pmb->pcoord
+    );
+    pmb->peos->StatePrintPoint(
+      tag, pmb, gsc, k, j, i,
+      terminate
+    );
+  };
+
+  if (is_physical)
+  {
+    CC_ILOOP3(k, j, i)
+    {
+      bool result = check_density(k, j, i);
+      if (!result)
+      {
+        print_point(k, j, i);
+      }
+    }
+  }
+  else
+  {
+    CC_GLOOP3(k, j, i)
+    {
+      bool result = check_density(k, j, i);
+      if (!result)
+      {
+        print_point(k, j, i);
+      }
+    }
+  }
+
 }
 
 //
