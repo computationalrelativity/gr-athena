@@ -25,10 +25,7 @@
 namespace M1::Opacities::BNSNuRates {
   
   struct NuratesParams {
-    Real opacity_tau_trap;      // incl. effects of neutrino trapping above this optical depth
-    Real opacity_tau_delta;     // range of optical depths over which trapping is introduced
-    Real opacity_corr_fac_max;  // maximum correction factor for optically thin regime
-    Real nb_min_cgs;
+    Real rho_min_cgs;
     Real temp_min_mev;
     Real dm_eff;
     Real dU;
@@ -47,7 +44,6 @@ namespace M1::Opacities::BNSNuRates {
     bool neglect_blocking;
     bool use_decay;
     bool use_BRT_brem;
-    //bool use_kirchhoff_law;
 
     // no. of quadrature points in bns_nurates
     int quad_nx_1;  // beta_nucleon_scat
@@ -89,9 +85,11 @@ namespace M1::Opacities::BNSNuRates {
 #endif
 
       // Set the units
-      // my_units ...... CGS + MeV                 -> used by BNSNuRates
-      // code_units .... Geometric + SOlar masses  -> used by Z4c, GRMHD 
+      // my_units ......... CGS + MeV
+      // nurates_units .... CGS + MeV + nm
+      // code_units ....... Geometric + Solar masses
       my_units = &BNSNuRates_Units::WeakRatesUnits;
+      nurates_units = &BNSNuRates_Units::NGS;
       code_units = &BNSNuRates_Units::GeometricSolar;
       
       // BNSNuRates only works for nu_e + nu_ae + nu_x
@@ -123,10 +121,10 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_dm_eff = pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", false);
       nurates_params.dm_eff = pin->GetOrAddReal("bns_nurates", "effective_mass_diff", 0.0); //TODO Set effective mass difference (in MeV) from EOS 
 
-      nurates_params.nb_min_cgs = pin->GetOrAddReal("bns_nurates", "nb_min_cgs", 0.); 
+      nurates_params.rho_min_cgs = pin->GetOrAddReal("bns_nurates", "rho_min_cgs", 0.); 
       nurates_params.temp_min_mev = pin->GetOrAddReal("bns_nurates", "temp_min_mev", 0.); 
 
-      nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", false); 
+      nurates_params.use_equilibrium_distribution = pin->GetOrAddBoolean("bns_nurates", "use_equilibrium_distribution", true); 
 
       // Set quadratures
       nurates_params.quadrature_1.nx = nurates_params.quad_nx_1;
@@ -152,7 +150,7 @@ namespace M1::Opacities::BNSNuRates {
       verbose_warn_weak = pin->GetOrAddBoolean("M1_opacities", "verbose_warn_weak", true);
 
       // This parameter is actually used in the equilibration 
-      use_kirchhoff_law = pin->GetOrAddBoolean("M1_opacities", "use_kirchoff_law", true); //TODO implement the switch, for the moment it is always used
+      use_kirchhoff_law = pin->GetOrAddBoolean("M1_opacities", "use_kirchoff_law", true);
       
       // These are the defaults in THC
       opacity_tau_trap = pin->GetOrAddReal("M1_opacities", "tau_trap", 1.0);
@@ -160,7 +158,7 @@ namespace M1::Opacities::BNSNuRates {
       opacity_corr_fac_max = pin->GetOrAddReal("M1_opacities", "max_correction_factor", 3.0);
 
       // These min values are used at the begining of compute_weak_equilibrium()
-      // Deprecated: "tau"-logic of the equilibration should do the job
+      // Equilibration logic should do the job, may be not needed
       // Alternatively, could experiment with rho(CGS) ~ 1e11 in case.      
       // density below which nothing is done [g/cm^3]
       rho_min = pin->GetOrAddReal("M1_opacities", "equilibration_rho_min_cgs", 0.0); 
@@ -217,7 +215,7 @@ namespace M1::Opacities::BNSNuRates {
     };
 
     // Main opacity computation needed by M1
-    // N.B
+    // N.B.
     // In general it will be faster to slice a fixed
     // choice of ix_g, ix_s and then loop over k,j,i
     inline int CalculateOpacityBNSNuRates(Real const dt, AA &u)
@@ -250,18 +248,18 @@ namespace M1::Opacities::BNSNuRates {
             
             // local undensitized neutrino quantities
             Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
-            Real dens_n[4] = {0.}; // NB we have 3 species
-            Real dens_e[4] = {0.};
+            Real nudens_0[4] = {0.}; // NB we have 3 species
+            Real nudens_1[4] = {0.};
             Real chi_loc[4] = {0.};
             
             for (int nuidx = 0; nuidx < N_SPCS; ++nuidx) {
-              dens_n[nuidx] = pm1->rad.sc_n(0, nuidx)(k, j, i) * invsdetg;
-              dens_e[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i) * invsdetg;
+              nudens_0[nuidx] = pm1->rad.sc_n(0, nuidx)(k, j, i) * invsdetg;
+              nudens_1[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i) * invsdetg;
               chi_loc[nuidx] = pm1->lab_aux.sc_chi(0, nuidx)(k, j, i); 
             }
 	    // Copy 4th species (assume anux = nux)
-	    dens_n[3] = dens_n[2];
-	    dens_e[3] = dens_e[2];
+	    nudens_0[3] = nudens_0[2];
+	    nudens_1[3] = nudens_1[2];
 	    chi_loc[3] = chi_loc[2];
 
             // get emissivities and opacities
@@ -269,15 +267,14 @@ namespace M1::Opacities::BNSNuRates {
             Real abs_0_loc[4]{}, abs_1_loc[4]{};
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
 	    
-
             // Note: everything sent and received are in code units
 		
             int opac_err =
               bns_nurates_wrapper(nb, T, Y_e, mu_n, mu_p, mu_e,
-				  dens_n[0], dens_e[0], chi_loc[0], 
-				  dens_n[1], dens_e[1], chi_loc[1],
-				  dens_n[2], dens_e[2], chi_loc[2],
-				  dens_n[3], dens_e[3], chi_loc[3], 
+				  nudens_0[0], nudens_1[0], chi_loc[0], 
+				  nudens_0[1], nudens_1[1], chi_loc[1],
+				  nudens_0[2], nudens_1[2], chi_loc[2],
+				  nudens_0[3], nudens_1[3], chi_loc[3], 
 				  eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3],
 				  eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3],
 				  abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3],
@@ -287,10 +284,9 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params); 
 	    
             bool is_failing_opacity = (opac_err)? true : false;
-
 	    
             // Dump some information when opacity calculation fails
-		if (is_failing_opacity) {
+	    if (is_failing_opacity) {
 		std::ostringstream msg;
                 msg << "CalculateOpacityBNSNuRates failure: " << opac_err << std::endl;		
 		//msg << "T-conv-fact " << code_units->TemperatureConversion(*my_units) << std::endl;
@@ -304,51 +300,24 @@ namespace M1::Opacities::BNSNuRates {
                 pm1->StatePrintPoint(msg.str(), 0, 1, k, j, i, false);
                 pm1->StatePrintPoint(msg.str(), 0, 2, k, j, i, true); // assert(false)
               }
-
-            // Unpack to variables used below.
-            // this is just to avoid to touch the code below.
-            //TODO WeakRate code has been updated since this branch started.
-            // Some varnames have changed. This code needs to be fixed as well.
-            // Temporarily we copy to old varnames:
-            Real eta_n_nue = eta_0_loc[0];
-            Real eta_n_nua = eta_0_loc[1];
-            Real eta_n_nux = eta_0_loc[2] + eta_0_loc[3]; // sum up anux contrib.
-            Real eta_e_nue = eta_1_loc[0];
-            Real eta_e_nua = eta_1_loc[1];
-            Real eta_e_nux = eta_1_loc[2] + eta_0_loc[3];
-
-            // nu absorption opacities
-            Real kap_a_n_nue = abs_0_loc[0];
-            Real kap_a_n_nua = abs_0_loc[1];
-            Real kap_a_n_nux = 0.5 * (abs_0_loc[2] + abs_0_loc[3]); // avg nux and anux contrib.
-            Real kap_a_e_nue = abs_1_loc[0];
-            Real kap_a_e_nua = abs_1_loc[1];
-            Real kap_a_e_nux = 0.5 * (abs_1_loc[2] + abs_1_loc[3]);
-
-            // nu scattering opacities
-            Real kap_s_n_nue = scat_0_loc[0];
-            Real kap_s_n_nua = scat_0_loc[1];
-            Real kap_s_n_nux = 0.5 * (scat_0_loc[2] + scat_0_loc[3]); // avg nux and anux contrib.
-            Real kap_s_e_nue = scat_1_loc[0];
-            Real kap_s_e_nua = scat_1_loc[1];
-            Real kap_s_e_nux = 0.5 * (scat_1_loc[2] + scat_1_loc[3]);
-            
             
             // Equilibrium logic ----------------------------------------------------
-            // Following is identical to WeakRates, we are duplicating code.
-            
-            Real tau = std::min(
-                                std::sqrt(kap_a_e_nue * (kap_a_e_nue + kap_s_e_nue)),
-                                std::sqrt(kap_a_e_nua * (kap_a_e_nua + kap_s_e_nua))
-                                ) * dt;
-            
-            // Calculate equilibrium blackbody functions with trapped neutrinos
-            Real dens_n_trap[3];
-            Real dens_e_trap[3];
+            // Calculate equilibrium blackbody functions with trapped neutrinos	    
+
+            Real tau{};
+            Real nudens_0_trap[4]{}, nudens_0_thin[4]{};
+            Real nudens_1_thin[4]{}, nudens_1_trap[4]{};
 
             // --------------------------------------------------------------------
-            if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap)
-              {
+	    if (use_kirchhoff_law ||
+		nurates_params.use_equilibrium_distribution) {
+
+	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
+			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
+			     ) * dt;
+	      
+	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
+
                 // Ensure evolution method delegated based on here detected equilibrium
                 const static int ix_g = 0;
                 typedef M1::evolution_strategy::opt_solution_regime osr_r;
@@ -356,174 +325,186 @@ namespace M1::Opacities::BNSNuRates {
                 AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
                 AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
                 
-                for (int ix_s=0; ix_s<3; ++ix_s)
+                for (int nuidx=0; nuidx<N_SPCS; ++nuidx)
                   {
-                    sol_r(ix_g,ix_s,k,j,i) = osr_r::equilibrium;
-                    src_r(ix_g,ix_s,k,j,i) = ost_r::set_zero;
+                    sol_r(ix_g,nuidx,k,j,i) = osr_r::equilibrium;
+                    src_r(ix_g,nuidx,k,j,i) = ost_r::set_zero;
                   }
                 
-                Real T_star;
-                Real Y_e_star;
+                Real T_trap;
+                Real Y_e_trap;
 		
                 // Calculate equilibrated state
                 ierr[0] = WeakEquilibrium(rho, T, Y_e,
-                                          dens_n[0],
-                                          dens_n[1],
-                                          dens_n[2],
-                                          dens_e[0],
-                                          dens_e[1],
-                                          dens_e[2],
-                                          T_star, Y_e_star,
-                                          dens_n_trap[0],
-                                          dens_n_trap[1],
-                                          dens_n_trap[2],
-                                          dens_e_trap[0],
-                                          dens_e_trap[1],
-                                          dens_e_trap[2]);
+                                          nudens_0[0],
+                                          nudens_0[1],
+                                          nudens_0[2]+nudens_0[3], // (assume anux = nux)
+                                          nudens_1[0],
+                                          nudens_1[1],
+                                          nudens_1[2]+nudens_1[3], // (assume anux = nux)
+                                          T_trap, Y_e_trap,
+                                          nudens_0_trap[0],
+                                          nudens_0_trap[1],
+                                          nudens_0_trap[2],
+                                          nudens_1_trap[0],
+                                          nudens_1_trap[1],
+                                          nudens_1_trap[2]);
                 
                 // If we can't get equilibrium, try again but ignore current neutrino
                 // data
-                if (ierr[0])
-                  {
-                    ierr[1] = WeakEquilibrium(rho, T, Y_e,
-                                              0.0, 0.0, 0.0,
-                                              0.0, 0.0, 0.0,
-                                              T_star, Y_e_star,
-                                              dens_n_trap[0],
-                                              dens_n_trap[1],
-                                              dens_n_trap[2],
-                                              dens_e_trap[0],
-                                              dens_e_trap[1],
-                                              dens_e_trap[2]);
-                    
-                    //assert(!ierr[1]); // THC treats this as a warning
+                if (ierr[0]) {
+		  ierr[1] = WeakEquilibrium(rho, T, Y_e,
+					    0.0, 0.0, 0.0,
+					    0.0, 0.0, 0.0,
+					    T_trap, Y_e_trap,
+					    nudens_0_trap[0],
+					    nudens_0_trap[1],
+					    nudens_0_trap[2],
+					    nudens_1_trap[0],
+					    nudens_1_trap[1],
+					    nudens_1_trap[2]);
+		  
+		  //assert(!ierr[1]); // THC treats this as a warning
+		  if (verbose_warn_weak) {
+		    std::printf("M1: can't get equilibrium @ (i,j,k)=(%d,%d,%d) (%.3e,%.3e,%.3e)\n",
+				i, j, k,
+				pmy_block->pcoord->x1v(i),
+				pmy_block->pcoord->x2v(j),
+				pmy_block->pcoord->x3v(k));
+		  }
+		}
 
-                    if (verbose_warn_weak)
-                      {
-                        std::printf("M1: can't get equilibrium @ (i,j,k)=(%d,%d,%d) (%.3e,%.3e,%.3e)\n",
-                                    i, j, k,
-                                    pmy_block->pcoord->x1v(i),
-                                    pmy_block->pcoord->x2v(j),
-                                    pmy_block->pcoord->x3v(k));
-                      }
-                  }
-                
-                assert(isfinite(dens_n_trap[0]));
-                assert(isfinite(dens_n_trap[1]));
-                assert(isfinite(dens_n_trap[2]));
-                assert(isfinite(dens_e_trap[0]));
-                assert(isfinite(dens_e_trap[1]));
-                assert(isfinite(dens_e_trap[2]));
+		Real mu_n_eq;
+		Real mu_p_eq;
+		Real mu_e_eq;
+		ChemicalPotentials_npe(nb, T_trap, Y_e_trap,
+				       mu_n_eq, mu_p_eq, mu_e_eq);
+		
+		NeutrinoDensity_ChemPot(nb, T_trap,
+					mu_n_eq, mu_p_eq, mu_e_eq,
+					nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2],
+					nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
+		
+                assert(isfinite(nudens_0_trap[0]));
+                assert(isfinite(nudens_0_trap[1]));
+                assert(isfinite(nudens_0_trap[2]));
+                assert(isfinite(nudens_1_trap[0]));
+                assert(isfinite(nudens_1_trap[1]));
+                assert(isfinite(nudens_1_trap[2]));
+
+		// Copy 4th species (assume anux = nux) and half 3rd species
+		nudens_0_trap[2] *= 0.5;
+		nudens_1_trap[2] *= 0.5;
+		nudens_0_trap[3] = nudens_0_trap[2];
+		nudens_1_trap[3] = nudens_1_trap[2];
                 
               } // if (opacity_tau_trap ...
-            // --------------------------------------------------------------------
             
-            // Calculate equilibrium blackbody functions with fixed T, Ye
-            Real dens_n_thin[3];
-            Real dens_e_thin[3];
-	    NeutrinoDensity_ChemPot(nb, T,
-				    mu_n, mu_p, mu_e,
-				    dens_n_thin[0], dens_n_thin[1], dens_n_thin[2],
-				    dens_e_thin[0], dens_e_thin[1], dens_e_thin[2]);
-	    
-            // Set the black body function
-            if (opacity_tau_trap < 0 || tau <= opacity_tau_trap)
-              {
-                dens_n[0] = dens_n_thin[0];
-                dens_n[1] = dens_n_thin[1];
-                dens_n[2] = dens_n_thin[2];
-                
-                dens_e[0] = dens_e_thin[0];
-                dens_e[1] = dens_e_thin[1];
-                dens_e[2] = dens_e_thin[2];
-              }
-            else if (tau > opacity_tau_trap + opacity_tau_delta)
-              {
-                dens_n[0] = dens_n_trap[0];
-                dens_n[1] = dens_n_trap[1];
-                dens_n[2] = dens_n_trap[2];
-                
-                dens_e[0] = dens_e_trap[0];
-                dens_e[1] = dens_e_trap[1];
-                dens_e[2] = dens_e_trap[2];
-              }
-            else
-              {
-                Real lam = (tau - opacity_tau_trap) / opacity_tau_delta;
-                
-                dens_n[0] = lam * dens_n_trap[0] + (1 - lam) * dens_n_thin[0];
-                dens_n[1] = lam * dens_n_trap[1] + (1 - lam) * dens_n_thin[1];
-                dens_n[2] = lam * dens_n_trap[2] + (1 - lam) * dens_n_thin[2];
-                
-                dens_e[0] = lam * dens_e_trap[0] + (1 - lam) * dens_e_thin[0];
-                dens_e[1] = lam * dens_e_trap[1] + (1 - lam) * dens_e_thin[1];
-                dens_e[2] = lam * dens_e_trap[2] + (1 - lam) * dens_e_thin[2];
-              }
-            
-            // Calculate correction factors
-            Real corr_fac[3];
-            for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
-              {
-                pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i) =
-                  dens_e[s_idx] / dens_n[s_idx];
-                corr_fac[s_idx] = pm1->rad.sc_J(0, s_idx)(k, j, i) /
-                  (pm1->rad.sc_n(0, s_idx)(k, j, i) *
-                   pm1->radmat.sc_avg_nrg(0, s_idx)(k, j, i));
-                
-                if (!std::isfinite(corr_fac[s_idx])) {
-                  corr_fac[s_idx] = 1.0;
-                  // should never land here (due to flooring prior to call of opac.)
-                  // assert(false);
-                }
-                
-                corr_fac[s_idx] *= corr_fac[s_idx];
-                corr_fac[s_idx] =
-                  std::max(1.0 / opacity_corr_fac_max,
-                           std::min(corr_fac[s_idx], opacity_corr_fac_max));
-              }
-            
-            // Energy scattering
-            pm1->radmat.sc_kap_s(0, 0)(k, j, i) = corr_fac[0] * kap_s_e_nue;
-            pm1->radmat.sc_kap_s(0, 1)(k, j, i) = corr_fac[1] * kap_s_e_nua;
-            pm1->radmat.sc_kap_s(0, 2)(k, j, i) = corr_fac[2] * kap_s_e_nux;
-            
-            // Enforce Kirchhoff's law
-            // For electron lepton neutrinos we change the opacity
-            // For heavy lepton neutrinos we change the emissivity
-	    // NB bns_nurates does not need to impose Kirchoff law
-	    
-	    //TODO if (use_kirchhoff_law) { ...
-	    
-            // Electron neutrinos
-            pm1->radmat.sc_kap_a_0(0, 0)(k, j, i) = corr_fac[0] * kap_a_n_nue;
-            pm1->radmat.sc_kap_a(0, 0)(k, j, i) = corr_fac[0] * kap_a_e_nue;
-            
-            pm1->radmat.sc_eta_0(0, 0)(k, j, i) =
-              pm1->radmat.sc_kap_a_0(0, 0)(k, j, i) * dens_n[0];
-            pm1->radmat.sc_eta(0, 0)(k, j, i) =
-              pm1->radmat.sc_kap_a(0, 0)(k, j, i) * dens_e[0];
-            
-            // Electron anti-neutrinos
-            pm1->radmat.sc_kap_a_0(0, 1)(k, j, i) = corr_fac[1] * kap_a_n_nua;
-            pm1->radmat.sc_kap_a(0, 1)(k, j, i) = corr_fac[1] * kap_a_e_nua;
-            
-            pm1->radmat.sc_eta_0(0, 1)(k, j, i) =
-              pm1->radmat.sc_kap_a_0(0, 1)(k, j, i) * dens_n[1];
-            pm1->radmat.sc_eta(0, 1)(k, j, i) =
-              pm1->radmat.sc_kap_a(0, 1)(k, j, i) * dens_e[1];
-            
-            // Heavy lepton neutrinos
-            pm1->radmat.sc_eta_0(0, 2)(k, j, i) = corr_fac[2] * eta_n_nux;
-            pm1->radmat.sc_eta(0, 2)(k, j, i) = corr_fac[2] * eta_e_nux;
-            
-            pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) =
-              (dens_n[2] > 1e-20 ? pm1->radmat.sc_eta_0(0, 2)(k, j, i) / dens_n[2]
-               : 0.0);
-            pm1->radmat.sc_kap_a(0, 2)(k, j, i) =
-              (dens_e[2] > 1e-20 ? pm1->radmat.sc_eta(0, 2)(k, j, i) / dens_e[2] : 0.0);
+	      // Calculate equilibrium blackbody functions with fixed T, Ye
+	      NeutrinoDensity_ChemPot(nb, T,
+				      mu_n, mu_p, mu_e,
+				      nudens_0_thin[0], nudens_0_thin[1], nudens_0_thin[2],
+				      nudens_1_thin[0], nudens_1_thin[1], nudens_1_thin[2]);
 
-	  }
-      
+	      // Copy 4th species (assume anux = nux) and half 3rd species
+	      nudens_0_thin[2] *= 0.5;
+	      nudens_1_thin[2] *= 0.5;
+	      nudens_0_thin[3] = nudens_0_thin[2];
+	      nudens_1_thin[3] = nudens_1_thin[2];
+
+	    } //  if (use_kirchhoff_law || nurates_params.use_equilibrium_distribution)
+
+	    // Store opacities and emissivities	      
+	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {	      
+	      pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) = eta_0_loc[nuidx];
+	      pm1->radmat.sc_eta(0, nuidx)(k, j, i) = eta_1_loc[nuidx];	      
+	      pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) = abs_0_loc[nuidx];
+	      pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) = abs_1_loc[nuidx];
+	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) = scat_1_loc[nuidx];
+	    }
+	    // Fix for 4th species
+	    pm1->radmat.sc_eta_0(0, 2)(k, j, i) += eta_0_loc[3]; // sum nux and anux emissivities 
+	    pm1->radmat.sc_eta(0, 2)(k, j, i) += eta_1_loc[3]; // sum nus and anux emissivities 
+	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) += abs_0_loc[3]; // avg nux and anux absorbsivities
+	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) *= 0.5;
+	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) += abs_1_loc[3]; // avg nux and anux absorbsivities
+	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) *= 0.5;
+	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) += scat_1_loc[3]; // avg nux and anux scattering
+	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) *= 0.5;
+
+	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {
+	    
+	      Real my_nudens_0{}, my_nudens_1{};
+	      
+	      if (use_kirchhoff_law || nurates_params.use_equilibrium_distribution) {
+		// Combine optically thin and optically thick limits
+		if (opacity_tau_trap < 0 ||
+		    tau <= opacity_tau_trap) {
+		  my_nudens_0 = nudens_0_thin[nuidx];
+		  my_nudens_1 = nudens_1_thin[nuidx];
+		} else if (tau > opacity_tau_trap +
+			   opacity_tau_delta) {
+		  my_nudens_0 = nudens_0_trap[nuidx];
+		  my_nudens_1 = nudens_1_trap[nuidx];
+		} else {
+		  Real const lam = (tau - opacity_tau_trap) /
+		    opacity_tau_delta;
+		  my_nudens_0 = lam * nudens_0_trap[nuidx] +
+		    (1 - lam) * nudens_0_thin[nuidx];
+		  my_nudens_1 = lam * nudens_1_trap[nuidx] +
+		    (1 - lam) * nudens_1_thin[nuidx];
+		}		
+	      }
+
+	      // Correction factor for absorption opacities for non-LTE effects
+	      // (kappa ~ E_nu^2)
+	      Real corr_fac = 1.0;
+	      if (nurates_params.use_equilibrium_distribution) {
+		Real nu_e_avg = my_nudens_1 / my_nudens_0;
+		pm1->radmat.sc_avg_nrg(0, nuidx)(k, j, i) = nu_e_avg;
+		corr_fac = pm1->rad.sc_J(0, nuidx)(k, j, i) /
+                  (pm1->rad.sc_n(0, nuidx)(k, j, i) * nu_e_avg);
+		if (!std::isfinite(corr_fac)) {
+                  corr_fac = 1.0;
+                }
+		corr_fac *= corr_fac;
+		corr_fac = std::max(1.0 / opacity_corr_fac_max,
+				    std::min(corr_fac, opacity_corr_fac_max));
+	      }
+	      
+	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) *= corr_fac;
+
+	      if (use_kirchhoff_law) {
+		// Enforce Kirchhoff's law
+		// For electron lepton neutrinos we change the opacity
+		// For heavy lepton neutrinos we change the emissivity
+		// NB bns_nurates does not need to impose Kirchoff law
+		if (nuidx == 0 || nuidx == 1) {
+		  pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
+		  pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
+		  pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) =
+		    pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) * my_nudens_0;
+		  pm1->radmat.sc_eta(0, nuidx)(k, j, i) =
+		    pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) * my_nudens_1;
+		} else {
+		  pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) =
+                    (my_nudens_0 > pm1->opt.fl_nG //TODO Is this the floor for N?
+                         ? pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) / my_nudens_0
+                         : 0);
+		  pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) =
+                    (my_nudens_1 >  pm1->opt.fl_E
+                         ? pm1->radmat.sc_eta(0, nuidx)(k, j, i) / my_nudens_1
+                         : 0);
+		}	
+	      } else {
+		pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
+		pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
+		pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) *= corr_fac;
+		pm1->radmat.sc_eta(0, nuidx)(k, j, i) *= corr_fac;
+	      }
+	      
+	    } // nuidx
+	  } // Mask      
       return 0;
     };
 
@@ -531,7 +512,7 @@ namespace M1::Opacities::BNSNuRates {
     // Computes the neutrino number and energy density at equilibrium
     // Wraps the chem pot calculation
     // This is needed by M1 in this form, all I/O in code units
-    //TODO There is no error check ATM
+    //TODO There is no error check
     int NeutrinoDensity(Real rho, Real T, Real Y_e, 
 			Real &n_nue, Real &n_anue, Real &n_nux,
 			Real &e_nue, Real &e_anue, Real &e_nux)
@@ -560,31 +541,12 @@ namespace M1::Opacities::BNSNuRates {
     const int N_SPCS;
 
     BNSNuRates_Units::UnitSystem* my_units;
+    BNSNuRates_Units::UnitSystem* nurates_units;
     BNSNuRates_Units::UnitSystem* code_units;
     
     // pars for nurates (choice of reactions, quadratures)
     NuratesParams nurates_params;  
-    
-    // Chem potentials calculation (input & output in code units)
-    void ChemicalPotentials_npe(Real nb, Real T, Real Ye,
-                                Real &mu_n, Real &mu_p, Real &mu_e) {
-      Real Y[1] = {Ye};
-      Real mu_b = pmy_block->peos->GetEOS().GetBaryonChemicalPotential(nb, T, Y);
-      Real mu_q = pmy_block->peos->GetEOS().GetChargeChemicalPotential(nb, T, Y);
-      Real mu_l = pmy_block->peos->GetEOS().GetElectronLeptonChemicalPotential(nb, T, Y);
-      mu_n = mu_b;
-      mu_p = mu_b + mu_q;
-      mu_e = mu_l - mu_q;
-    }
-
-    // Computes the neutrino number and energy density at equilibrium
-    // Implements the computation, given the chemical potentials
-    // (input & output in code units)
-    void NeutrinoDensity_ChemPot(Real nb, Real temp,
-				 Real mu_n, Real mu_p, Real mu_e,
-				 Real &n_nue, Real &n_anue, Real &n_nux,
-				 Real &e_nue, Real &e_anue, Real &e_nux);
-    
+        
     // Main driver for bns_nurates
     // (input & output in code units)
     int bns_nurates_wrapper(Real &nb, Real &temp, Real &ye,
@@ -601,8 +563,6 @@ namespace M1::Opacities::BNSNuRates {
 			    Real &scat_0_anue, Real &scat_0_nux, Real &scat_0_anux,
 			    Real &scat_1_nue, Real &scat_1_anue, Real &scat_1_nux, Real &scat_1_anux,
 			    const NuratesParams nurates_params);
-
-
     
     // Weak equilibrium stuff -----------------------------------------------------------------
 
@@ -642,7 +602,7 @@ namespace M1::Opacities::BNSNuRates {
     const Real mev_to_erg = 1.60217733e-6;     // conversion from MeV to erg
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
 
-    const Real pi2   = SQR(pi);                          // pi**2 [-]
+    const Real pi2   = SQR(pi);                          
     const Real pref1 = 4.0/3.0 *pi/POW3(hc_mevcm);        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
     const Real pref2 = 4.0 *pi*mev_to_erg/POW3(hc_mevcm); // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
     const Real cnst1 = 7.0 *POW4(pi)/20.0;                // 7*pi**4/20 [-]
@@ -652,6 +612,23 @@ namespace M1::Opacities::BNSNuRates {
     const Real cnst3 = 7.0 *POW4(pi)/15.0;                // 7*pi**4/15 [-]
     const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
 
+
+    // Chem potentials calculation (input & output in code units)
+    void ChemicalPotentials_npe(Real nb, Real T, Real Ye,
+                                Real &mu_n, Real &mu_p, Real &mu_e);
+
+    // Wrapper for chem potential calculation in CGS + MeV
+    void ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
+				    Real &mu_n, Real &mu_p, Real &mu_e);
+    
+    // Computes the neutrino number and energy density at equilibrium
+    // Implements the computation, given the chemical potentials
+    // (input & output in code units)
+    void NeutrinoDensity_ChemPot(Real nb, Real temp,
+				 Real mu_n, Real mu_p, Real mu_e,
+				 Real &n_nue, Real &n_anue, Real &n_nux,
+				 Real &e_nue, Real &e_anue, Real &e_nux);
+    
     // Wrapper for weak equilibrium computation
     int WeakEquilibrium(Real rho, Real temp, Real ye,
                         Real n_nue, Real n_nua, Real n_nux,
@@ -659,22 +636,7 @@ namespace M1::Opacities::BNSNuRates {
                         Real& temp_eq, Real& ye_eq,
                         Real& n_nue_eq, Real& n_nua_eq, Real& n_nux_eq,
                         Real& e_nue_eq, Real& e_nua_eq, Real& e_nux_eq);
-
-    // Wrapper for chem potential calculation
-    // working with CGS + MeV units in input/output
-    // (several calls in equilibration code requires this)
-    void ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
-                                    Real &mu_n, Real &mu_p, Real &mu_e) {
-      const Real MeV = code_units->TemperatureConversion(*my_units); 
-      ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
-                              temp / MeV,
-                              Ye,
-                              mu_n, mu_p, mu_n);
-      mu_n *= MeV;
-      mu_p *= MeV;
-      mu_e *= MeV;
-    }
-
+    
     int compute_weak_equilibrium(Real rho,        // [g/cm^3]
                                  Real temp,       // [MeV]
                                  Real ye,         // [-]

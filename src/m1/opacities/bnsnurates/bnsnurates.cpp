@@ -24,7 +24,7 @@
 #if (MWE_TEST)
 #define NORMFACT (1.0)
 #else
-#define NORMFACT (1e50)
+#define NORMFACT (1.0)//(1e50)
 #endif
 
 // Conversion factors cm^-3 <-> nm^-3
@@ -115,25 +115,47 @@ namespace M1::Opacities::BNSNuRates {
   {
     
     int ierr = 0;
-
-    // Conversions factors for opacities from CGS+MeV to code units to be used to finalize opacities
-    // from cm^-3 to code units
-    const Real cgs2code_n = my_units->NumberDensityConversion(*code_units);
-    // = 1.0/( POW3(my_units->LengthConversion(*code_units)) );
-    // from cm^-3 s^-1 to code units
-    const Real cgs2code_R = cgs2code_n / my_units->TimeConversion(*code_units);
-    // from MeV cm^-3 to code units
-    const Real cgs2code_j = MeV_to_erg * my_units->EnergyDensityConversion(*code_units); 
-    // from MeV cm^-3 s^-1 to code units
-    const Real cgs2code_Q = cgs2code_j / my_units->TimeConversion(*code_units);
-    // from cm^-1 to code units
-    const Real cgs2code_kappa = 1.0 / my_units->LengthConversion(*code_units);
+    const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
+    const Real rho_cgs = nb * mb_code * code_units->MassDensityConversion(*my_units);
     
-    // code units to MeV (This conv factor is actually = 1)
-    const Real MeV = code_units->TemperatureConversion(*my_units); 
+    if ( (rho_cgs < nurates_params.rho_min_cgs) ||
+         (temp < nurates_params.temp_min_mev) ) {
+      R_nue = 0.;
+      R_anue = 0.;
+      R_nux = 0.;
+      R_anux = 0.;
+      Q_nue = 0.;
+      Q_anue = 0.;
+      Q_nux = 0.;
+      Q_anux = 0.;
+      sigma_0_nue = 0.;
+      sigma_0_anue = 0.;
+      sigma_0_nux = 0.;
+      sigma_0_anux = 0.;
+      sigma_1_nue = 0.;
+      sigma_1_anue = 0.;
+      sigma_1_nux = 0.;
+      sigma_1_anux = 0.;
+      scat_0_nue = 0.;
+      scat_0_anue = 0.;
+      scat_0_nux = 0.;
+      scat_0_anux = 0.;
+      scat_1_nue = 0.;
+      scat_1_anue = 0.;
+      scat_1_nux = 0.;
+      scat_1_anux = 0.;
+      return ierr;
+    }
 
-    // NB bns_nurates requires CGS + MeV + nm units 
-    // this needs a further rescaling from cm to nm
+    // Conversion factors from code_units to bns_nurates units (CGS + MeV + nm)
+    Real const unit_length = code_units->LengthConversion(*nurates_units); // [nm]
+    Real const unit_time = code_units->TimeConversion(*nurates_units); // [s]
+    //TODO nb should be in EOS units, fm-3. 
+    // need to go from 'code units' (fm-3 ?) to nm-3 CHECK
+    Real const unit_num_dens = NORMFACT * code_units->NumberDensityConversion(*nurates_units); // [nm^-3] 
+    Real const unit_ene_dens = code_units->EnergyDensityConversion(*nurates_units); // [MeV nm^-3]
+    Real const unit_num_dens_dot = unit_num_dens / unit_time;
+    Real const unit_ene_dens_dot = unit_ene_dens / unit_time;
 
 #if (MWE_TEST)
     // DEBUG Single point data, compare bns_nurates/mwe.cpp
@@ -167,95 +189,102 @@ namespace M1::Opacities::BNSNuRates {
     const double _chi_anue  = 1. / 3.;              // Electron antineutrino Eddington factor
     const double _chi_nux   = 1. / 3.;              // Heavy-type neutrino Eddington factor
     const double _chi_anux  = 1. / 3.;              // Heavy-type antineutrino Eddington factor
-    
-    // From (CGS + MeV) units to (CGS + MeV + nm) units
-    const Real nb_nmunits = _nb * oocm3_to_oonm3;
-    const Real temp_mev = _T;
-    const Real mu_e_mev = _mu_e; 
-    const Real mu_p_mev = _mu_p;
-    const Real mu_n_mev = _mu_n;
-    ye = _ye;
-    
-    const Real n_nue_nmunits = _n_nue * oocm3_to_oonm3;
-    const Real n_anue_nmunits = _n_anue * oocm3_to_oonm3;
-    const Real n_nux_nmunits = _n_nux * oocm3_to_oonm3;
-    const Real n_anux_nmunits = _n_anux * oocm3_to_oonm3;
-    
-    const Real j_nue_nmunits = _j_nue * oocm3_to_oonm3;
-    const Real j_anue_nmunits = _j_anue * oocm3_to_oonm3;
-    const Real j_nux_nmunits = _j_nux * oocm3_to_oonm3;
-    const Real j_anux_nmunits = _j_anux * oocm3_to_oonm3;
-    
+        
     chi_nue = _chi_nue;
     chi_anue = _chi_anue;
     chi_nux = _chi_nux;
     chi_anux = _chi_anux;
-    
-#else
 
-    // Convert input from code units to CGS+MeV
-    const Real nb_cgs = nb * code_units->NumberDensityConversion(*my_units); // [baryon/cm^-3]
-    const Real temp_mev = temp * MeV; 
-    const Real mu_n_mev = mu_n * MeV;
-    const Real mu_p_mev = mu_p * MeV;
-    const Real mu_e_mev = mu_e * MeV;
-       
-    if ( (nb_cgs < nurates_params.nb_min_cgs) ||
-         (temp_mev < nurates_params.temp_min_mev) ) {
-      R_nue = 0.;
-      R_anue = 0.;
-      R_nux = 0.;
-      R_anux = 0.;
-      Q_nue = 0.;
-      Q_anue = 0.;
-      Q_nux = 0.;
-      Q_anux = 0.;
-      sigma_0_nue = 0.;
-      sigma_0_anue = 0.;
-      sigma_0_nux = 0.;
-      sigma_0_anux = 0.;
-      sigma_1_nue = 0.;
-      sigma_1_anue = 0.;
-      sigma_1_nux = 0.;
-      sigma_1_anux = 0.;
-      scat_0_nue = 0.;
-      scat_0_anue = 0.;
-      scat_0_nux = 0.;
-      scat_0_anux = 0.;
-      scat_1_nue = 0.;
-      scat_1_anue = 0.;
-      scat_1_nux = 0.;
-      scat_1_anux = 0.;
-      return ierr;
-    }
-    
-    // Convert neutrino quantities from code units to CGS + MeV + nm units
-    // and adjust number densities for NORMFACT
-    const Real n_nue_nmunits = n_nue / (cgs2code_n / NORMFACT) * oocm3_to_oonm3;    // [nm^-3]
-    const Real n_anue_nmunits = n_anue / (cgs2code_n / NORMFACT) * oocm3_to_oonm3;  // [nm^-3]
-    const Real n_nux_nmunits = n_nux / (cgs2code_n / NORMFACT) * oocm3_to_oonm3;    // [nm^-3]
-    const Real n_anux_nmunits = n_anux / (cgs2code_n / NORMFACT) * oocm3_to_oonm3;  // [nm^-3]
-    
-    const Real j_nue_nmunits = j_nue / cgs2code_j * oocm3_to_oonm3;    // [MeV nm^-1]
-    const Real j_anue_nmunits = j_anue / cgs2code_j * oocm3_to_oonm3;  // [MeV nm^-1]
-    const Real j_nux_nmunits = j_nux / cgs2code_j * oocm3_to_oonm3;    // [MeV nm^-1]
-    const Real j_anux_nmunits = j_anux / cgs2code_j * oocm3_to_oonm3;  // [MeV nm^-1]
-
-    // Convert also baryon density
-    const Real nb_nmunits = nb_cgs * oocm3_to_oonm3; // [baryon/nm^-3]
-
-#endif
-    
     // Opacity params structure
     GreyOpacityParams grey_op_params = {0};
 
-#if (MWE_TEST)    
     // MWE starts with default parameters
     // Here we copy nurates_params and some of them might differ, 
     // but we want to enforce the same
     grey_op_params.opacity_flags = opacity_flags_default_none;
     grey_op_params.opacity_pars  = opacity_params_default_none;    
-#endif
+
+    // Select active reactions
+    grey_op_params.opacity_flags.use_abs_em =
+        1; // Activate beta processes
+    grey_op_params.opacity_flags.use_brem =
+        1; // Activate Bremsstrahlung
+    grey_op_params.opacity_flags.use_pair =
+        1; // Activate pair processes
+    grey_op_params.opacity_flags.use_iso =
+        1; // Activate scattering on nucleons
+    grey_op_params.opacity_flags.use_inelastic_scatt =
+        1; // Activate scattering on leptons
+
+    // Select corrections to rates
+    grey_op_params.opacity_pars.use_dm_eff =
+        0; // Do not use effective mass correction to beta processes
+    grey_op_params.opacity_pars.use_dU =
+      0; // Use effective potential correction to beta processes
+    grey_op_params.opacity_pars.use_decay =
+        1; // Include (inverse) nucleon decays to beta processes
+    grey_op_params.opacity_pars.use_WM_ab =
+        1; // Activate beta-processes weak magnetism correction
+    grey_op_params.opacity_pars.use_WM_sc =
+        1; // Activate isoenergetic scattering weak magnetism correction
+    grey_op_params.opacity_pars.use_NN_medium_corr =
+        1; // Activate NN bremsstrahlung medium correction as in Fischer+16
+
+    // Pass thermodynamic conditions
+    grey_op_params.eos_pars.nb = _nb  * 1e-21;  // [baryon/nm^3]
+    grey_op_params.eos_pars.temp = _T;              // [MeV]
+    grey_op_params.eos_pars.yp = _ye;                  // [dimensionless]
+    grey_op_params.eos_pars.yn = 1 - _ye;             // [dimensionless]
+    grey_op_params.eos_pars.mu_e = _mu_e;              // [MeV]
+    grey_op_params.eos_pars.mu_p = _mu_p;              // [MeV]
+    grey_op_params.eos_pars.mu_n = _mu_n;              // [MeV]    
+    grey_op_params.eos_pars.dU =
+      _dU; // Set effective potential difference (in MeV)
+    grey_op_params.eos_pars.dm_eff =
+      _dm; // Set effective mass difference (in MeV)
+
+    printf("unit_num_dens = %.3e\n", unit_num_dens);
+    printf("unit_ene_dens = %.3e\n", unit_ene_dens);
+    printf("\nInput parameters\n");
+    printf("----------------\n");
+    //printf("Neutrino energy (for spectral rates)               : %13.6e (MeV)\n", nu_energy);
+    printf("Baryon number density                              : %13.6e (cm^-3)\n", _nb);
+    printf("Temperature                                        : %13.6e (MeV)\n", _T);
+    printf("Electron fraction                                  : %13.3f\n", _ye);
+    printf("Relativistic electron chemical potential           : %13.6e (MeV)\n", _mu_e);
+    printf("Relativistic proton chemical potential             : %13.6e (MeV)\n", _mu_p);
+    printf("Relativistic neutron chemical potential            : %13.6e (MeV)\n", _mu_n);
+    printf("Effective nucleon mass difference (n - p)          : %13.6e (MeV)\n", _dm);
+    printf("Effective nucleon potential difference (n - p)     : %13.6e (MeV)\n", _dU);
+    printf("Electron neutrinos number density 'n'              : %13.6e (cm^-3)\n", n_nue);
+    printf("Electron antineutrinos number density 'n'          : %13.6e (cm^-3)\n", n_anue);
+    printf("Heavy-type neutrinos number density 'n'            : %13.6e (cm^-3)\n", n_nux);
+    printf("Heavy-type antineutrinos number density 'n'        : %13.6e (cm^-3)\n", n_anux);
+    printf("Electron neutrinos energy density 'J'              : %13.6e (MeV cm^-3)\n", j_nue);
+    printf("Electron antineutrinos energy density 'J'          : %13.6e (MeV cm^-3)\n", j_anue);
+    printf("Heavy-type neutrinos energy density 'J'            : %13.6e (MeV cm^-3)\n", j_nux);
+    printf("Heavy-type antineutrinos energy density 'J'        : %13.6e (MeV cm^-3)\n", j_anux);
+    printf("Electron neutrinos Eddington parameter 'chi'       : %13.11f\n", chi_nue);
+    printf("Electron antineutrinos Eddington parameter 'chi'   : %13.11f\n", chi_anue);
+    printf("Heavy-type neutrinos Eddington parameter 'chi'     : %13.11f\n", chi_nux);
+    printf("Heavy-type antineutrinos Eddington parameter 'chi' : %13.11f\n\n", chi_anux);
+
+    // These are unit converted to nurate units below
+    // plug here the correct 1e-21 factor
+    n_nue = _n_nue * 1e-21 / unit_num_dens;
+    n_anue = _n_anue * 1e-21 / unit_num_dens;
+    n_nux = 2 * _n_nux * 1e-21 / unit_num_dens;  // x2, later they are divided!
+    n_anux = 2 * _n_anux * 1e-21 / unit_num_dens;    
+    
+    j_nue = _j_nue * 1e-21 / unit_ene_dens;
+    j_anue = _j_anue * 1e-21 / unit_ene_dens;
+    j_nux = 2 * _j_nux * 1e-21 / unit_ene_dens; // x2, later they are divided!
+    j_anux = 2 * _j_anux * 1e-21 / unit_ene_dens;
+    
+#else
+          
+    // Opacity params structure
+    GreyOpacityParams grey_op_params = {0};
     
     // reaction flags
     grey_op_params.opacity_flags.use_abs_em = nurates_params.use_abs_em;
@@ -264,7 +293,7 @@ namespace M1::Opacities::BNSNuRates {
     grey_op_params.opacity_flags.use_iso = nurates_params.use_iso;
     grey_op_params.opacity_flags.use_inelastic_scatt =
       nurates_params.use_inelastic_scatt;
-    
+
     // other flags
     grey_op_params.opacity_pars.use_WM_ab = nurates_params.use_WM_ab;
     grey_op_params.opacity_pars.use_WM_sc = nurates_params.use_WM_sc;
@@ -275,96 +304,90 @@ namespace M1::Opacities::BNSNuRates {
     grey_op_params.opacity_pars.use_decay = nurates_params.use_decay;
     grey_op_params.opacity_pars.use_BRT_brem = nurates_params.use_BRT_brem;
 
-    //NB logic for nurates_params.use_dU not implemented.
-    // See THC WeakRates2.
-    
     // populate EOS quantities
-    grey_op_params.eos_pars.nb = nb_nmunits;  // [baryon/nm^3]
-    grey_op_params.eos_pars.temp = temp_mev;  // [MeV]
-    grey_op_params.eos_pars.yp = ye;          // [dimensionless]
-    grey_op_params.eos_pars.yn = 1 - ye;      // [dimensionless]
-    grey_op_params.eos_pars.mu_e = mu_e_mev;  // [MeV]
-    grey_op_params.eos_pars.mu_p = mu_p_mev;  // [MeV]
-    grey_op_params.eos_pars.mu_n = mu_n_mev;  // [MeV]
-
-    grey_op_params.eos_pars.dU = nurates_params.dU;
-    grey_op_params.eos_pars.dm_eff = nurates_params.dm_eff;
+    grey_op_params.eos_pars.nb = nb * unit_num_dens;  // [baryon/nm^3]
+    grey_op_params.eos_pars.temp = temp;              // [MeV]
+    grey_op_params.eos_pars.yp = ye;                  // [dimensionless]
+    grey_op_params.eos_pars.yn = 1 - ye;              // [dimensionless]
+    grey_op_params.eos_pars.mu_e = mu_e;              // [MeV]
+    grey_op_params.eos_pars.mu_p = mu_p;              // [MeV]
+    grey_op_params.eos_pars.mu_n = mu_n;              // [MeV]
     
-    // populate M1 quantities
-    // The factors of 1/2 come from the fact that bns_nurates and THC weight the
-    // heavy neutrinos differently. THC weights them with a factor of 2 (because
-    // "nux" means "mu AND tau"), bns_nurates with a factor of 1 (because "nux"
-    // means "mu OR tau").
-    // GR-Athena++ uses same treatment as THC.
+    //NB logic for nurates_params.use_dU not implemented.
+    // See THC/WeakRates2.
+    grey_op_params.eos_pars.dU = 0;      // [MeV]
+    grey_op_params.eos_pars.dm_eff = 0;  // [MeV]
     
-    grey_op_params.m1_pars.n[id_nue] = n_nue_nmunits;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_nue] = j_nue_nmunits;  // [MeV nm^-3]
-    grey_op_params.m1_pars.chi[id_nue] = chi_nue;
-    grey_op_params.m1_pars.n[id_anue] = n_anue_nmunits;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_anue] = j_anue_nmunits;  // [MeV nm^-3]
-    grey_op_params.m1_pars.chi[id_anue] = chi_anue;
-    grey_op_params.m1_pars.n[id_nux] = n_nux_nmunits * 0.5;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_nux] = j_nux_nmunits * 0.5;  // [MeV nm^-3]
-    grey_op_params.m1_pars.chi[id_nux] = chi_nux;
-    grey_op_params.m1_pars.n[id_anux] = n_anux_nmunits * 0.5;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_anux] = j_anux_nmunits * 0.5;  // [MeV nm^-3]
-    grey_op_params.m1_pars.chi[id_anux] = chi_anux;
-
-#if (MWE_TEST)    
-    // There is no factor 0.5 in MWE:
-    grey_op_params.m1_pars.n[id_nux] = n_nux_nmunits;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_nux] = j_nux_nmunits;  // [MeV nm^-3]
-    grey_op_params.m1_pars.n[id_anux] = n_anux_nmunits;  // [nm^-3]
-    grey_op_params.m1_pars.J[id_anux] = j_anux_nmunits;  // [MeV nm^-3]
 #endif
     
     // Reconstruct distribution function
     if (!nurates_params.use_equilibrium_distribution) {
+      
+      // populate M1 quantities
+      // Note: factor 1/2 comes because in M1 "nux" means "mu & tau" and in bns_nurates
+      // "nux" means "mu or tau"
+      grey_op_params.m1_pars.n[id_nue] = n_nue * unit_num_dens;          // [nm^-3]
+      grey_op_params.m1_pars.n[id_anue] = n_anue * unit_num_dens;        // [nm^-3]
+      grey_op_params.m1_pars.n[id_nux] = 0.5 * n_nux * unit_num_dens;    // [nm^-3]
+      grey_op_params.m1_pars.n[id_anux] = 0.5 * n_anux * unit_num_dens;  // [nm^-3]
+      
+      grey_op_params.m1_pars.J[id_nue] = j_nue * unit_ene_dens;          // [MeV nm^-3]
+      grey_op_params.m1_pars.J[id_anue] = j_anue * unit_ene_dens;        // [MeV nm^-3]
+      grey_op_params.m1_pars.J[id_nux] = 0.5 * j_nux * unit_ene_dens;    // [MeV nm^-3]
+      grey_op_params.m1_pars.J[id_anux] = 0.5 * j_anux * unit_ene_dens;  // [MeV nm^-3]
+      
+      grey_op_params.m1_pars.chi[id_nue] = chi_nue;
+      grey_op_params.m1_pars.chi[id_anue] = chi_anue;
+      grey_op_params.m1_pars.chi[id_nux] = chi_nux;
+      grey_op_params.m1_pars.chi[id_anux] = chi_anux;
+      
       grey_op_params.distr_pars =
-        CalculateDistrParamsFromM1(&grey_op_params.m1_pars,
+	CalculateDistrParamsFromM1(&grey_op_params.m1_pars,
                                    &grey_op_params.eos_pars);
     } else {
+  
       grey_op_params.distr_pars =
-        NuEquilibriumParams(&grey_op_params.eos_pars);
+	NuEquilibriumParams(&grey_op_params.eos_pars);
       
       // compute neutrino number and energy densities
       ComputeM1DensitiesEq(&grey_op_params.eos_pars,
-                           &grey_op_params.distr_pars,
-                           &grey_op_params.m1_pars);
+			   &grey_op_params.distr_pars,
+			   &grey_op_params.m1_pars);
       
       // populate M1 quantities
       grey_op_params.m1_pars.chi[id_nue] = 0.333333333333333333333333333;
       grey_op_params.m1_pars.chi[id_anue] = 0.333333333333333333333333333;
       grey_op_params.m1_pars.chi[id_nux] = 0.333333333333333333333333333;
-      grey_op_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;      
+      grey_op_params.m1_pars.chi[id_anux] = 0.333333333333333333333333333;
+      
     }
-    
+
     // Compute opacities
     M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature_1,
-                                               &nurates_params.quadrature_2,
-                                               &grey_op_params);
-
+					       &nurates_params.quadrature_2,
+					       &grey_op_params);
+    
 #if (MWE_TEST)
     printf("Gray rates (compare mwe.cpp)\n");
     printf("------------------------------\n");
     printf("     eta0          eta1          kappa0        kappa1        scat1\n");
     printf(" nue %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-           opacities.eta_0[id_nue] * oonm3_to_oocm3, opacities.eta[id_nue] * oonm3_to_oocm3,
-           opacities.kappa_0_a[id_nue] * 1e7, opacities.kappa_a[id_nue] * 1e7,
-           opacities.kappa_s[id_nue] * 1e7);
+	   opacities.eta_0[id_nue] * 1e21, opacities.eta[id_nue] * 1e21,
+	   opacities.kappa_0_a[id_nue] * 1e7, opacities.kappa_a[id_nue] * 1e7,
+	   opacities.kappa_s[id_nue] * 1e7);
     printf("anue %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-           opacities.eta_0[id_anue] * oonm3_to_oocm3, opacities.eta[id_anue] * oonm3_to_oocm3,
-           opacities.kappa_0_a[id_anue] * 1e7, opacities.kappa_a[id_anue] * 1e7,
-           opacities.kappa_s[id_anue] * 1e7);
+	   opacities.eta_0[id_anue] * 1e21, opacities.eta[id_anue] * 1e21,
+	   opacities.kappa_0_a[id_anue] * 1e7, opacities.kappa_a[id_anue] * 1e7,
+	   opacities.kappa_s[id_anue] * 1e7);
     printf(" nux %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-           opacities.eta_0[id_nux] * oonm3_to_oocm3, opacities.eta[id_nux] * oonm3_to_oocm3,
-           opacities.kappa_0_a[id_nux] * 1e7, opacities.kappa_a[id_nux] * 1e7,
-           opacities.kappa_s[id_nux] * 1e7);
+	   opacities.eta_0[id_nux] * 1e21, opacities.eta[id_nux] * 1e21,
+	   opacities.kappa_0_a[id_nux] * 1e7, opacities.kappa_a[id_nux] * 1e7,
+	 opacities.kappa_s[id_nux] * 1e7);
     printf("anux %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n\n",
-           opacities.eta_0[id_anux] * oonm3_to_oocm3, opacities.eta[id_anux] * oonm3_to_oocm3,
-           opacities.kappa_0_a[id_anux] * 1e7, opacities.kappa_a[id_anux] * 1e7,
-           opacities.kappa_s[id_anux] * 1e7);
-
+	   opacities.eta_0[id_anux] * 1e21, opacities.eta[id_anux] * 1e21,
+	   opacities.kappa_0_a[id_anux] * 1e7, opacities.kappa_a[id_anux] * 1e7,
+	   opacities.kappa_s[id_anux] * 1e7);  
+  
     std::ostringstream msg;
     msg << "Stop here, DEBUG" << std::endl;	
     ATHENA_ERROR(msg);	        
@@ -376,39 +399,40 @@ namespace M1::Opacities::BNSNuRates {
     // with a factor of 1 (because "nux" means "mu OR tau").
     // GR-Athena++ uses same treatment as THC.
     // We also convert back to code units
-    
+
     // extract emissivities
-    R_nue = opacities.eta_0[id_nue]        * (cgs2code_R / NORMFACT) * oonm3_to_oocm3;
-    R_anue = opacities.eta_0[id_anue]      * (cgs2code_R / NORMFACT) * oonm3_to_oocm3;
-    R_nux = opacities.eta_0[id_nux] * 2.   * (cgs2code_R / NORMFACT) * oonm3_to_oocm3;
-    R_anux = opacities.eta_0[id_anux] * 2. * (cgs2code_R / NORMFACT) * oonm3_to_oocm3;
-    Q_nue = opacities.eta[id_nue]          * cgs2code_Q * oonm3_to_oocm3;
-    Q_anue = opacities.eta[id_anue]        * cgs2code_Q * oonm3_to_oocm3;
-    Q_nux = opacities.eta[id_nux] * 2.     * cgs2code_Q * oonm3_to_oocm3;
-    Q_anux = opacities.eta[id_anux] * 2.   * cgs2code_Q * oonm3_to_oocm3;
+    R_nue = opacities.eta_0[id_nue] / unit_num_dens_dot;
+    R_anue = opacities.eta_0[id_anue] / unit_num_dens_dot;
+    R_nux = opacities.eta_0[id_nux] * 2. / unit_num_dens_dot;
+    R_anux = opacities.eta_0[id_anux] * 2. / unit_num_dens_dot;
+    
+    Q_nue = opacities.eta[id_nue] / unit_ene_dens_dot;
+    Q_anue = opacities.eta[id_anue]  / unit_ene_dens_dot;
+    Q_nux = opacities.eta[id_nux] * 2.  / unit_ene_dens_dot;
+    Q_anux = opacities.eta[id_anux] * 2.  / unit_ene_dens_dot;
     
     // extract absorption inverse mean-free path
-    sigma_0_nue = opacities.kappa_0_a[id_nue]   * cgs2code_kappa * 1e7;
-    sigma_0_anue = opacities.kappa_0_a[id_anue] * cgs2code_kappa * 1e7;
-    sigma_0_nux = opacities.kappa_0_a[id_nux]   * cgs2code_kappa * 1e7;
-    sigma_0_anux = opacities.kappa_0_a[id_anux] * cgs2code_kappa * 1e7;
-    sigma_1_nue = opacities.kappa_a[id_nue]     * cgs2code_kappa * 1e7;
-    sigma_1_anue = opacities.kappa_a[id_anue]   * cgs2code_kappa * 1e7;
-    sigma_1_nux = opacities.kappa_a[id_nux]     * cgs2code_kappa * 1e7;
-    sigma_1_anux = opacities.kappa_a[id_anux]   * cgs2code_kappa * 1e7;
+    sigma_0_nue = opacities.kappa_0_a[id_nue] * unit_length;
+    sigma_0_anue = opacities.kappa_0_a[id_anue] * unit_length;
+    sigma_0_nux = opacities.kappa_0_a[id_nux] * unit_length;
+    sigma_0_anux = opacities.kappa_0_a[id_anux] * unit_length;
+    sigma_1_nue = opacities.kappa_a[id_nue] * unit_length;
+    sigma_1_anue = opacities.kappa_a[id_anue] * unit_length;
+    sigma_1_nux = opacities.kappa_a[id_nux] * unit_length;
+    sigma_1_anux = opacities.kappa_a[id_anux] * unit_length;
     
     // extract scattering inverse mean-free path
     scat_0_nue = 0;
     scat_0_anue = 0;
     scat_0_nux = 0;
     scat_0_anux = 0;
-    scat_1_nue = opacities.kappa_s[id_nue]   * cgs2code_kappa * 1e7;
-    scat_1_anue = opacities.kappa_s[id_anue] * cgs2code_kappa * 1e7;
-    scat_1_nux = opacities.kappa_s[id_nux]   * cgs2code_kappa * 1e7;
-    scat_1_anux = opacities.kappa_s[id_anux] * cgs2code_kappa * 1e7;
+    scat_1_nue = opacities.kappa_s[id_nue] * unit_length;
+    scat_1_anue = opacities.kappa_s[id_anue] * unit_length;
+    scat_1_nux = opacities.kappa_s[id_nux] * unit_length;
+    scat_1_anux = opacities.kappa_s[id_anux] * unit_length;
     
-    // Check for NaNs/Infs
 #if (ASSERT_OPAC_ISFINITE)
+    // Check for NaNs/Infs
     assert(isfinite(R_nue));
     assert(isfinite(R_anue));
     assert(isfinite(R_nux));
@@ -434,9 +458,9 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(scat_1_nux));
     assert(isfinite(scat_1_anux));
 #endif
-
-    // Catch these and return ierr code 1...24
-    // (returns int for the number of failures.)
+    
+  // Catch these and return ierr code 1...24
+  // (returns int for the number of failures.)
     if (!isfinite(R_nue)) ierr++; 
     if (!isfinite(R_anue)) ierr++;
     if (!isfinite(R_nux)) ierr++;
@@ -461,7 +485,7 @@ namespace M1::Opacities::BNSNuRates {
     if (!isfinite(scat_1_anue)) ierr++;
     if (!isfinite(scat_1_nux)) ierr++;
     if (!isfinite(scat_1_anux)) ierr++;
-        
+    
     return ierr;
   }
 
@@ -492,11 +516,12 @@ namespace M1::Opacities::BNSNuRates {
 					   Real &n_nue, Real &n_anue, Real &n_nux,
 					   Real &en_nue, Real &en_anue, Real &en_nux)
   {
-    const Real nb_cgs = nb * code_units->NumberDensityConversion(*my_units); // [baryon/cm^-3]
-    const Real temp_mev = temp * code_units->TemperatureConversion(*my_units);  // [MeV]
+
+    const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
+    const Real rho_cgs = nb * mb_code * code_units->MassDensityConversion(*my_units);
     
-    if ( (nb_cgs < nurates_params.nb_min_cgs) ||
-         (temp_mev < nurates_params.temp_min_mev) ) {
+    if ( (rho_cgs < nurates_params.rho_min_cgs) ||
+	 (temp < nurates_params.temp_min_mev) ) {
       n_nue = 0.;
       n_anue = 0.;
       n_nux = 0.;
@@ -506,13 +531,13 @@ namespace M1::Opacities::BNSNuRates {
       return;
     }
     
-    Real eta_nue = (mu_p + mu_e - mu_n) / temp; // ratio can use code units
+    Real eta_nue = (mu_p + mu_e - mu_n) / temp; 
     Real eta_anue = -eta_nue;
     Real eta_nux = 0.0;
 
     const Real hc_mevcm3 = hc_mevcm * hc_mevcm * hc_mevcm;
-    const Real temp3 = temp_mev * temp_mev * temp_mev;
-    const Real temp4 = temp3 * temp_mev;
+    const Real temp3 = temp * temp * temp;
+    const Real temp4 = temp3 * temp;
 
     n_nue = 4.0 * M_PI / hc_mevcm3 * temp3 * Fermi::fermi2(eta_nue);    // [cm^-3]
     n_anue = 4.0 * M_PI / hc_mevcm3 * temp3 * Fermi::fermi2(eta_anue);  // [cm^-3]
@@ -532,7 +557,7 @@ namespace M1::Opacities::BNSNuRates {
 #endif
     
     // Convert back to code units (adjusting for NORMFACT)
-    const Real n_conv = my_units->NumberDensityConversion(*code_units) / NORMFACT;
+    const Real n_conv = my_units->NumberDensityConversion(*code_units);
     const Real e_conv = MeV_to_erg * my_units->EnergyDensityConversion(*code_units);
 
     n_nue = n_nue * n_conv;
@@ -544,6 +569,34 @@ namespace M1::Opacities::BNSNuRates {
     en_nux = en_nux * e_conv;    
   }
 
+
+  // Chem potentials calculation (input & output in code units)
+  void BNSNuRates::ChemicalPotentials_npe(Real nb, Real T, Real Ye,
+					  Real &mu_n, Real &mu_p, Real &mu_e) {
+    Real Y[1] = {Ye};
+    Real mu_b = pmy_block->peos->GetEOS().GetBaryonChemicalPotential(nb, T, Y);
+    Real mu_q = pmy_block->peos->GetEOS().GetChargeChemicalPotential(nb, T, Y);
+    Real mu_l = pmy_block->peos->GetEOS().GetElectronLeptonChemicalPotential(nb, T, Y);
+    mu_n = mu_b;
+    mu_p = mu_b + mu_q;
+    mu_e = mu_l - mu_q;
+  }
+
+  
+  // Wrapper for chem potential calculation
+  // working with CGS + MeV units in input/output
+  // (several calls in equilibration code requires this)
+  void BNSNuRates::ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
+					      Real &mu_n, Real &mu_p, Real &mu_e) {
+    //const Real MeV = code_units->TemperatureConversion(*my_units); 
+    ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
+			    temp, // / MeV,
+			    Ye,
+			    mu_n, mu_p, mu_n);
+    // mu_n *= MeV;
+    // mu_p *= MeV;
+    // mu_e *= MeV;
+  }
   
   //! \fn int WeakEquilibrium(Real rho, Real temp, Real ye,
   //!                         Real n_nue, Real n_nua, Real n_nux,
