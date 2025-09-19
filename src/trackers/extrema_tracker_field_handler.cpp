@@ -19,6 +19,7 @@
 
 // Athena++
 #include "extrema_tracker.hpp"
+#include "../coordinates/coordinates.hpp"
 
 // for registration of control field..
 #if M1_ENABLED
