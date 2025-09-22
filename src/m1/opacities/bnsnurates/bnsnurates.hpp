@@ -246,7 +246,7 @@ namespace M1::Opacities::BNSNuRates {
             Real mu_n, mu_p, mu_e;
             ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
             
-            // local undensitized neutrino quantities
+            // Local undensitized neutrino quantities
             Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
             Real nudens_0[4] = {0.}; // NB we have 3 species
             Real nudens_1[4] = {0.};
@@ -262,7 +262,7 @@ namespace M1::Opacities::BNSNuRates {
 	    nudens_1[3] = nudens_1[2];
 	    chi_loc[3] = chi_loc[2];
 
-            // get emissivities and opacities
+            // Get emissivities and opacities
             Real eta_0_loc[4]{}, eta_1_loc[4]{};
             Real abs_0_loc[4]{}, abs_1_loc[4]{};
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
@@ -317,20 +317,7 @@ namespace M1::Opacities::BNSNuRates {
 			     ) * dt;
 	      
 	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
-
-                // Ensure evolution method delegated based on here detected equilibrium
-                const static int ix_g = 0;
-                typedef M1::evolution_strategy::opt_solution_regime osr_r;
-                typedef M1::evolution_strategy::opt_source_treatment ost_r;
-                AthenaArray<osr_r> & sol_r = pm1->ev_strat.masks.solution_regime;
-                AthenaArray<ost_r> & src_r = pm1->ev_strat.masks.source_treatment;
-                
-                for (int nuidx=0; nuidx<N_SPCS; ++nuidx)
-                  {
-                    sol_r(ix_g,nuidx,k,j,i) = osr_r::equilibrium;
-                    src_r(ix_g,nuidx,k,j,i) = ost_r::set_zero;
-                  }
-                
+		
                 Real T_trap;
                 Real Y_e_trap;
 		
@@ -424,12 +411,12 @@ namespace M1::Opacities::BNSNuRates {
 	    }
 	    // Fix for 4th species
 	    pm1->radmat.sc_eta_0(0, 2)(k, j, i) += eta_0_loc[3]; // sum nux and anux emissivities 
-	    pm1->radmat.sc_eta(0, 2)(k, j, i) += eta_1_loc[3]; // sum nus and anux emissivities 
+	    pm1->radmat.sc_eta(0, 2)(k, j, i) += eta_1_loc[3]; // sum nux and anux emissivities 
 	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) += abs_0_loc[3]; // avg nux and anux absorbsivities
 	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) *= 0.5;
 	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) += abs_1_loc[3]; // avg nux and anux absorbsivities
 	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) *= 0.5;
-	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) += scat_1_loc[3]; // avg nux and anux scattering
+	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) += scat_1_loc[3]; // avg nux and anux abs scattering
 	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) *= 0.5;
 
 	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {
@@ -476,8 +463,8 @@ namespace M1::Opacities::BNSNuRates {
 
 	      if (use_kirchhoff_law) {
 		// Enforce Kirchhoff's law
-		// For electron lepton neutrinos we change the opacity
-		// For heavy lepton neutrinos we change the emissivity
+		// For electron lepton neutrinos we change the emissivity
+		// For heavy lepton neutrinos we change the opacity
 		// NB bns_nurates does not need to impose Kirchoff law
 		if (nuidx == 0 || nuidx == 1) {
 		  pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
@@ -507,28 +494,6 @@ namespace M1::Opacities::BNSNuRates {
 	  } // Mask      
       return 0;
     };
-
-
-    // Computes the neutrino number and energy density at equilibrium
-    // Wraps the chem pot calculation
-    // This is needed by M1 in this form, all I/O in code units
-    //TODO There is no error check
-    int NeutrinoDensity(Real rho, Real T, Real Y_e, 
-			Real &n_nue, Real &n_anue, Real &n_nux,
-			Real &e_nue, Real &e_anue, Real &e_nux)
-    {
-      int iout = 0;
-      Real mu_n, mu_p, mu_e;
-      const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // [code units]
-      ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
-      NeutrinoDensity_ChemPot(nb, T,
-			      mu_n, mu_p, mu_e,
-			      n_nue, n_anue, n_nux, 
-			      e_nue, e_anue, e_nux);
-
-      return iout;
-    }
-
     
   private:
     
@@ -591,26 +556,28 @@ namespace M1::Opacities::BNSNuRates {
     const Real eps_lim = 1.e-7;  // standard tollerance in 2D NR
     const int n_cut_max = 8;     // number of bisections of dx
     const int n_max_iter = 100;  // Newton-Raphson max number of iterations
-    static const int n_at = 16;  // number of independent initial guesses
+    const int n_at = 16;  // number of independent initial guesses
 
     // deltas to compute numerical derivatives in the EOS tables
     const Real delta_ye = 0.005;
     const Real delta_t  = 0.01;
 
     // Some constants
-    const Real pi = M_PI;                      // 3.14159265358979323846; 
+    const Real pi = M_PI;                      // 3.14159265358979323846;
+    const Real pi2 = SQR(pi);                          
+    const Real pi4 = POW4(pi);                 
     const Real mev_to_erg = 1.60217733e-6;     // conversion from MeV to erg
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
+    const Real oo_hc_mevcm3 = 1.0/POW3(hc_mevcm);
 
-    const Real pi2   = SQR(pi);                          
-    const Real pref1 = 4.0/3.0 *pi/POW3(hc_mevcm);        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
-    const Real pref2 = 4.0 *pi*mev_to_erg/POW3(hc_mevcm); // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
-    const Real cnst1 = 7.0 *POW4(pi)/20.0;                // 7*pi**4/20 [-]
-    const Real cnst5 = 7.0 *POW4(pi)/60.0;                // 7*pi**4/60 [-]
-    const Real cnst6 = 7.0 *POW4(pi)/30.0;                // 7*pi**4/30 [-]
-    const Real cnst2 = 7.0 *POW4(pi)/5.0;                 // 7*pi**4/5 [-]
-    const Real cnst3 = 7.0 *POW4(pi)/15.0;                // 7*pi**4/15 [-]
-    const Real cnst4 = 14.0 *POW4(pi)/15.0;               // 14*pi**4/15 [-]
+    const Real pref1 = 4.0/3.0 * pi * oo_hc_mevcm3;        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
+    const Real pref2 = 4.0 * pi*mev_to_erg * oo_hc_mevcm3; // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
+    const Real cnst1 = 7.0 * pi4 /20.0;                // 7*pi**4/20 [-]
+    const Real cnst5 = 7.0 * pi4 /60.0;                // 7*pi**4/60 [-]
+    const Real cnst6 = 7.0 * pi4 /30.0;                // 7*pi**4/30 [-]
+    const Real cnst2 = 7.0 * pi4 /5.0;                 // 7*pi**4/5 [-]
+    const Real cnst3 = 7.0 * pi4 /15.0;                // 7*pi**4/15 [-]
+    const Real cnst4 = 14.0 *pi4 /15.0;                // 14*pi**4/15 [-]
 
 
     // Chem potentials calculation (input & output in code units)
@@ -627,7 +594,13 @@ namespace M1::Opacities::BNSNuRates {
     void NeutrinoDensity_ChemPot(Real nb, Real temp,
 				 Real mu_n, Real mu_p, Real mu_e,
 				 Real &n_nue, Real &n_anue, Real &n_nux,
-				 Real &e_nue, Real &e_anue, Real &e_nux);
+				 Real &en_nue, Real &en_anue, Real &en_nux);
+    
+    // Computes the neutrino number and energy density at equilibrium
+    // This is needed by M1 in this form, all I/O in code units
+    int NeutrinoDensity(Real rho, Real T, Real Y_e, 
+			Real &n_nue, Real &n_anue, Real &n_nux,
+			Real &e_nue, Real &e_anue, Real &e_nux);
     
     // Wrapper for weak equilibrium computation
     int WeakEquilibrium(Real rho, Real temp, Real ye,

@@ -28,8 +28,8 @@
 #endif
 
 // Conversion factors cm^-3 <-> nm^-3
-#define oocm3_to_oonm3 (1e-21)
-#define oonm3_to_oocm3 (1e+21)
+// #define oocm3_to_oonm3 (1e-21)
+// #define oonm3_to_oocm3 (1e+21)
 
 // Conversion factor MeV to erg
 #define MeV_to_erg (1.6021766339999e-6)    
@@ -324,8 +324,8 @@ namespace M1::Opacities::BNSNuRates {
     if (!nurates_params.use_equilibrium_distribution) {
       
       // populate M1 quantities
-      // Note: factor 1/2 comes because in M1 "nux" means "mu & tau" and in bns_nurates
-      // "nux" means "mu or tau"
+      // Note: factor 1/2 comes because in M1 "nux" means "mu AND tau" while
+      // in bns_nurates "nux" means "mu OR tau"
       grey_op_params.m1_pars.n[id_nue] = n_nue * unit_num_dens;          // [nm^-3]
       grey_op_params.m1_pars.n[id_anue] = n_anue * unit_num_dens;        // [nm^-3]
       grey_op_params.m1_pars.n[id_nux] = 0.5 * n_nux * unit_num_dens;    // [nm^-3]
@@ -511,6 +511,7 @@ namespace M1::Opacities::BNSNuRates {
   //   \param[out] en_nue          energy density electron neutrinos
   //   \param[out] en_anue         energy density electron anti-neutrinos
   //   \param[out] en_nux          energy density mu/tau neutrinos
+  //
   void BNSNuRates::NeutrinoDensity_ChemPot(Real nb, Real temp,
 					   Real mu_n, Real mu_p, Real mu_e,
 					   Real &n_nue, Real &n_anue, Real &n_nux,
@@ -556,7 +557,7 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(en_nux));
 #endif
     
-    // Convert back to code units (adjusting for NORMFACT)
+    // Convert back to code units 
     const Real n_conv = my_units->NumberDensityConversion(*code_units);
     const Real e_conv = MeV_to_erg * my_units->EnergyDensityConversion(*code_units);
 
@@ -569,8 +570,12 @@ namespace M1::Opacities::BNSNuRates {
     en_nux = en_nux * e_conv;    
   }
 
-
+  
+  //! \fn ChemicalPotentials_npe(Real nb, Real T, Real Ye,
+  //!   			 Real &mu_n, Real &mu_p, Real &mu_e)
+  //
   // Chem potentials calculation (input & output in code units)
+  //
   void BNSNuRates::ChemicalPotentials_npe(Real nb, Real T, Real Ye,
 					  Real &mu_n, Real &mu_p, Real &mu_e) {
     Real Y[1] = {Ye};
@@ -582,13 +587,13 @@ namespace M1::Opacities::BNSNuRates {
     mu_e = mu_l - mu_q;
   }
 
-  
   // Wrapper for chem potential calculation
   // working with CGS + MeV units in input/output
   // (several calls in equilibration code requires this)
+  //
   void BNSNuRates::ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
 					      Real &mu_n, Real &mu_p, Real &mu_e) {
-    //const Real MeV = code_units->TemperatureConversion(*my_units); 
+    //const Real MeV = code_units->TemperatureConversion(*my_units); // = 1
     ChemicalPotentials_npe( rho / atomic_mass * my_units->NumberDensityConversion(*code_units), 
 			    temp, // / MeV,
 			    Ye,
@@ -597,7 +602,35 @@ namespace M1::Opacities::BNSNuRates {
     // mu_p *= MeV;
     // mu_e *= MeV;
   }
+
   
+  //! fn NeutrinoDensity_ChemPot(Real nb, Real temp,
+  //!                            Real mu_n, Real mu_p, Real mu_e,
+  //!                            Real &n_nue, Real &n_anue, Real &n_nux,
+  //!                            Real &en_nue, Real &en_anue, Real &en_nux)
+  //
+  // Computes the neutrino number and energy density at equilibrium
+  // Wraps the chem pot calculation
+  // This is needed by M1 in this form, all I/O in code units
+  //TODO There is no error check
+  //
+  int BNSNuRates::NeutrinoDensity(Real rho, Real T, Real Y_e, 
+				  Real &n_nue, Real &n_anue, Real &n_nux,
+				  Real &e_nue, Real &e_anue, Real &e_nux)
+  {
+    int iout = 0;
+    Real mu_n, mu_p, mu_e;
+    const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // [code units]
+    ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
+    NeutrinoDensity_ChemPot(nb, T,
+			    mu_n, mu_p, mu_e,
+			    n_nue, n_anue, n_nux, 
+			    e_nue, e_anue, e_nux);
+    
+    return iout;
+  }
+
+    
   //! \fn int WeakEquilibrium(Real rho, Real temp, Real ye,
   //!                         Real n_nue, Real n_nua, Real n_nux,
   //!                         Real e_nue, Real e_nua, Real e_nux,
@@ -609,6 +642,7 @@ namespace M1::Opacities::BNSNuRates {
   //   and neutrino number and energy densities assuming energy and lepton number conservation.
   //
   //  \note  All input and output quantities are in code units
+  //
   int BNSNuRates::WeakEquilibrium(Real rho, Real temp, Real ye,
                                   Real n_nue, Real n_nua, Real n_nux,
                                   Real e_nue, Real e_nua, Real e_nux,
@@ -619,7 +653,7 @@ namespace M1::Opacities::BNSNuRates {
     // conversion factors from code units to CGS + MeV
     Real n_conv = code_units->NumberDensityConversion(*my_units);  // code units to 1/cm^3
     Real e_conv = code_units->EnergyDensityConversion(*my_units);  // code units to erg/cm^3
-    const Real MeV = code_units->TemperatureConversion(*my_units); // code units to MeV 
+    const Real MeV = code_units->TemperatureConversion(*my_units); // code units to MeV \\ = 1
       
     int ierr = compute_weak_equilibrium(rho * code_units->MassDensityConversion(*my_units),
                                         temp * MeV,
@@ -1390,7 +1424,8 @@ namespace M1::Opacities::BNSNuRates {
     ierr = isnan(detadt) ? 1 : 0 ;
     return;
   }
-    
+
+  
   // inv_jacobi
   //
   //     This subroutine inverts the Jacobian matrix, assuming it to be a
