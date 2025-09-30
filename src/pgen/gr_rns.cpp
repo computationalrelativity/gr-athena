@@ -225,7 +225,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
 
   int imin[3] = {0, 0, 0};
-  int n[3] = {mbi->nn1, mbi->nn1, mbi->nn3};
+  int n[3] = {mbi->nn1, mbi->nn2, mbi->nn3};
   int sz = n[0] * n[1] * n[2];
 
   // temporary variables
