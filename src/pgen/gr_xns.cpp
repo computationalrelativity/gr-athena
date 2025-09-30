@@ -50,7 +50,7 @@ namespace {
   static constexpr char const * const XNS_fields[] = {
     "xns.R", "xns.TH",
     "xns.radius", "xns.theta",
-    "xns.alpha", "xns.betaphi", "xns.psi", 
+    "xns.alpha", "xns.beta", "xns.psi", 
     "xns.rho", "xns.pres", "xns.vphi"
     "xns.bpol", "xns.btor",
     "xns.bpolr", "xns.bpolt",
@@ -131,13 +131,16 @@ namespace {
       
       // Read HDF5 dataset into 2D table
       HDF5TableLoader(h5filename, table, nvar,
-                      fields, NULL, NULL);
+                      fields, "R", "TH");
     }
         
-    Real Interp(int var, Real xp, Real yp, Real zp) {      
+    Real Interp(int var, Real xp, Real yp, Real zp) {
+      //TODO check the grid in interp_table.cpp
       const Real rp = std::sqrt(xp*xp + yp*yp + zp*zp);
       const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
+      // Bilinear interp
       return table.interpolate(var,rp,thetap);
+      //TODO: Add 4th order interp from RNSC
     }
     
     void CartesianMetric(Real alpha, Real beta, Real psi,
@@ -145,28 +148,40 @@ namespace {
                          Real &betax, Real &betay, Real &betaz,
                          Real &gxx, Real &gxy, Real &gxz,
                          Real &gyy, Real &gyz, Real &gzz) {
-      
-      Real rp = std::sqrt(xp*xp + yp*yp + zp*zp);
+      //Real rp = std::sqrt(xp*xp + yp*yp + zp*zp);
       Real rcylp = std::sqrt(xp*xp + yp*yp);
-      Real costhp = zp/rp;
-      Real sinthp = rcylp/rp;
+      //Real costhp = zp/rp;
+      //Real sinthp = rcylp/rp;
       
       Real psi4 = std::pow(psi,4);
+
+      // beta_i
+      beta_x = - psi4 * beta * yp;
+      beta_y =   psi4 * beta * xp;
+      beta_z = 0.0;
       
-      betax = - beta_phi * sinthp; //TODO: check this
-      betay =   beta_phi * costhp;
+      // beta^i = (omega(ZAMO) y, - omega(ZAMO) x, 0)
+      betax = - beta * yp; 
+      betay =   beta * xp;
       betaz = 0.0;
-      
-      gxx = 0.0; //TODO transformation
+
+      // gamma_ij
+      gxx = psi4; 
       gxy = 0.0;
       gxz = 0.0;
-      gyy = 0.0;
+      gyy = psi4;
       gyz = 0.0;
-      gzz = 0.0;
+      gzz = psi4;
     }
 
-    void CartesianVector() {
-      //TODO may be useful for v and B fields ...
+    Real CartesianVector(Real vphi, Real psi,
+                         Real xp, Real yp, Real zp,
+                         Real &vx, Real &vy, Real &vz) {
+      Real rcylp = std::sqrt(xp*xp + yp*yp);
+      vx = - vphi * yp; 
+      vy =   vphi * xp;
+      vz = 0.0;
+      return SQR(psi) * rcylp * std::fabs(omega);
     }
     
   } XNS;
@@ -211,8 +226,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
 void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 {
-  //if (!resume_flag)
-  //delete XNS;
   return;
 }
 
@@ -323,15 +336,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     
     // Interpolate
     Real alpha = XNS.Interp(IXNS_alpha, xp,yp,zp);
-    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); // beta^phi //TODO: CHECK!
+    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); // NB beta^phi = - omega(ZAMO)
     Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
 
-    // Cartesian components
-    Real betax = 0.0;
+    // Get Cartesian components
+    Real betax = 0.0; // beta^i
     Real betay = 0.0;
     Real betaz = 0.0;
 
-    Real gxx = 0.0; 
+    Real gxx = 0.0; // gamma_ij
     Real gxy = 0.0;
     Real gxz = 0.0;
     Real gyy = 0.0;
@@ -343,8 +356,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                         betax,betay,betaz,
                         gxx,gxy,gxz,gyy,gyz,gzz);
     
-    // Store
-    pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = gxx;
+    pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = gxx; // gamma_ij
     pz4c->storage.adm(Z4c::I_ADM_gxy,k,j,i) = gxy;
     pz4c->storage.adm(Z4c::I_ADM_gxz,k,j,i) = gxz;
     pz4c->storage.adm(Z4c::I_ADM_gyy,k,j,i) = gyy;
@@ -359,7 +371,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->storage.adm(Z4c::I_ADM_Kzz,k,j,i) = 0.0;
 
     pz4c->storage.adm(Z4c::I_ADM_alpha,k,j,i) = alpha;
-    pz4c->storage.adm(Z4c::I_ADM_betax,k,j,i) = betax;
+    pz4c->storage.adm(Z4c::I_ADM_betax,k,j,i) = betax; // beta^i
     pz4c->storage.adm(Z4c::I_ADM_betay,k,j,i) = betay;
     pz4c->storage.adm(Z4c::I_ADM_betaz,k,j,i) = betaz;
 
@@ -409,21 +421,17 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real yp = y[j];
     Real zp = z[k];
 
-    // Interpolate
+    // Interpolate fluid
     Real rho = XNS.Interp(IXNS_rho, xp,yp,zp);
     Real pres = XNS.Interp(IXNS_pres, xp,yp,zp); 
-    Real vphi = XNS.Interp(IXNS_psi, xp,yp,zp); // v^\phi TODO: CHECK!
+    Real vphi = XNS.Interp(IXNS_psi, xp,yp,zp); // v^\phi 
 
-    // Cartesian components v^i
-    Real vx = 0.0; //TODO!
-    Real vy = 0.0; //TODO!
-    Real vz = 0.0;
-    
-    // Interpolate metric & Cartesian
+    // Interpolate metric & get Cartesian components
     Real alpha = XNS.Interp(IXNS_alpha, xp,yp,zp);
-    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); // beta^phi TODO: CHECK!
+    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); 
     Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
 
+    // Metric
     Real betax = 0.0;
     Real betay = 0.0;
     Real betaz = 0.0;
@@ -439,17 +447,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                         xp,yp,zp,
                         betax,betay,betaz,
                         gxx,gxy,gxz,gyy,gyz,gzz);
+    
+    // Cartesian components v^i
+    Real vx = 0.0; 
+    Real vy = 0.0; 
+    Real vz = 0.0;
+    Real v2 = XNS.CartesianVector(vphi, psi,
+                                  xp,yp,rp,
+                                  vx, vy, vz);
 
-
-    // v_i & Lorentz factor
-    Real vux = gxx*vx + gxy*vy + gxz*vz;
-    Real vuy = gxy*vx + gyy*vy + gyz*vz;
-    Real vuz = gxz*vx + gyz*vy + gzz*vz; 
-
-    Real v2 = vux*vx + vuy*vy + vuz*vz;
+    // Check //TODO remove
+    Real v_x = gxx*vx + gxy*vy + gxz*vz;
+    Real v_y = gxy*vx + gyy*vy + gyz*vz;
+    Real v_z = gxz*vx + gyz*vy + gzz*vz; 
+    Real _v2 = v_x*vx + v_y*vy + v_z*vz;
     if (fabs(v2) < 1e-20) v2 = 0.;
+    assert(std::abs(v2=_v2)<1e-15); // Some formulas are wrong
 
-    double W = 1.0/std::sqrt(1.0-v2);
+    // Lorentz factor
+    Real W = 1.0/std::sqrt(1.0-v2);
 
     // u^i velocity
     Real ux = W * vx;
