@@ -46,6 +46,8 @@ using namespace std;
 
 namespace {
 
+#define CHECK_V2 (1) // just a check on v^2 computation
+  
   // Names of XNS variables
   static constexpr char const * const XNS_fields[] = {
     "xns.R", "xns.TH",
@@ -53,7 +55,7 @@ namespace {
     "xns.alpha", "xns.beta", "xns.psi", 
     "xns.rho", "xns.pres", "xns.vphi"
     "xns.bpol", "xns.btor",
-    "xns.bpolr", "xns.bpolt",
+    "xns.b3", "xns.bpolr", "xns.bpolt", // B^\phi, B^r, B^\theta
     "xns.btot",
     "xns.chi",
     "xns.epol",
@@ -65,7 +67,7 @@ namespace {
        IXNS_alpha, IXNS_beta, IXNS_psi,
        IXNS_rho, IXNS_pres, IXNS_vphi,
        IXNS_bpol, IXNS_btor,
-       IXNS_bpolr, IXNS_bpolt,
+       IXNS_b3, IXNS_bpolr, IXNS_bpolt, // B^\phi, B^r, B^\theta
        IXNS_btot,
        IXNS_chi,
        IXNS_epol,
@@ -81,8 +83,8 @@ namespace {
     Real mb; // XNS Baryon mass
     
     // Unit conversion from XNS code to CGS
-    Real b_units;   // B-field
-    Real r_units;   // length
+    Real b_units; // B-field
+    Real r_units; // length
     Real rho_units; // mass density
 
   private:
@@ -122,6 +124,7 @@ namespace {
       //TODO: 
       //Attribute attr = root.openAttribute("mb");
       //attr.read(attr.getDataType(), &mb);
+      mb = 1.0;
       
       file.close();
 
@@ -135,36 +138,29 @@ namespace {
     }
         
     Real Interp(int var, Real xp, Real yp, Real zp) {
+      // 2D Interpolate variable at (r,theta) <- (x,y,z) 
       //TODO check the grid in interp_table.cpp
-      const Real rp = std::sqrt(xp*xp + yp*yp + zp*zp);
+      const Real rp = std::sqrt(SQR(xp) + SQR(yp) + SQR(zp));
       const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
       // Bilinear interp
       return table.interpolate(var,rp,thetap);
       //TODO: Add 4th order interp from RNSC
     }
     
-    void CartesianMetric(Real alpha, Real beta, Real psi,
+    Real CartesianMetric(Real beta, Real psi,
                          Real xp, Real yp, Real zp,
                          Real &betax, Real &betay, Real &betaz,
                          Real &gxx, Real &gxy, Real &gxz,
                          Real &gyy, Real &gyz, Real &gzz) {
-      //Real rp = std::sqrt(xp*xp + yp*yp + zp*zp);
-      Real rcylp = std::sqrt(xp*xp + yp*yp);
-      //Real costhp = zp/rp;
-      //Real sinthp = rcylp/rp;
+      // Given the XNS metric functions beta and psi
+      // returns Cartesian components of 3-metric and shift
+      // and conformal factor psi^4
       
       Real psi4 = std::pow(psi,4);
-
-      // beta_i
-      beta_x = - psi4 * beta * yp;
-      beta_y =   psi4 * beta * xp;
-      beta_z = 0.0;
       
-      // beta^i = (omega(ZAMO) y, - omega(ZAMO) x, 0)
-      betax = - beta * yp; 
-      betay =   beta * xp;
-      betaz = 0.0;
-
+      // beta^i and beta^2 = beta_i beta^i
+      Real beta2 = CartesianVector(beta, psi4, xp,yp,zp,
+                                   betax, betay, betaz);
       // gamma_ij
       gxx = psi4; 
       gxy = 0.0;
@@ -172,16 +168,77 @@ namespace {
       gyy = psi4;
       gyz = 0.0;
       gzz = psi4;
+      
+      // beta_i
+      //beta_x = psi4 * betax;
+      //beta_y = psi4 * betay;
+      //beta_z = 0.0;
+      
+      return psi4;
     }
-
-    Real CartesianVector(Real vphi, Real psi,
+        
+    Real CartesianVector(Real vr, Real vtheta, Real vphi,
+                         Real psi4,
                          Real xp, Real yp, Real zp,
                          Real &vx, Real &vy, Real &vz) {
-      Real rcylp = std::sqrt(xp*xp + yp*yp);
-      vx = - vphi * yp; 
-      vy =   vphi * xp;
+      // Given the components v^r, v^\theta, v^\phi and conf. fact.
+      // returns Cartesian components of the 3-vector
+      // and modulus
+
+      Real rcylp2 = SQR(xp) + SQR(yp);
+      if (rcylp2>0.0) {
+        Real rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        Real sinphi = yp/rcylp;
+        Real cosphi = xp/rcylp;
+      } else {
+        Real rcylp = 0.0;
+        Real sinphi = 0.0;
+        Real cosphi = 0.0;
+      }
+
+      Real rp2 = SQR(xp) + SQR(yp) + SQR(zp);
+      if (rp2>0.0) {
+        Real rp = std::sqrt(r2); 
+        Real sintheta = rcylp/rp;
+        Real costheta = zp/rp;
+      } else {
+        Real rp = 0.0;
+        Real sintheta = 0.0;
+        Real costheta = 0.0;
+      }
+
+      // v^i
+      vx = vr * sintheta * cosphi + vtheta * costheta * cosphi - vphi * sinphi;
+      vy = vr * sintheta * sinphi + vtheta * costheta * sinphi + vphi * cosphi;
+      vz = vr * costheta * - vtheta * sintheta;
+
+      // v_i = psi^4 \delta_ij v^j
+      return psi4 *(SQR(vx) + SQR(vy) + SQR(vz));
+    }
+
+    Real CartesianVector(Real vphi,
+                         Real psi4,
+                         Real xp, Real yp, Real zp,
+                         Real &vx, Real &vy, Real &vz) {
+      // Given the non-zero component v^\phi and conf. fact.
+      // returns Cartesian components of the 3-vector
+      // and modulus
+
+      Real rcylp2 = SQR(xp) + SQR(yp);
+      if (rcylp2>0.0) {
+        Real rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        Real sinphi = yp/rcylp;
+        Real cosphi = xp/rcylp;
+      } else {
+        Real rcylp = 0.0;
+        Real sinphi = 0.0;
+        Real cosphi = 0.0;
+      }
+      
+      vx = - vphi * sinphi; 
+      vy =   vphi * cosphi;
       vz = 0.0;
-      return SQR(psi) * rcylp * std::fabs(omega);
+      return psi4 * SQR(vphi);
     }
     
   } XNS;
@@ -212,6 +269,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     // Read XNS data
     string h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
     XNS.ReadData(h5_fname);
+    
 #if USETM
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
     InitColdEOS(ceos, pin);
@@ -311,32 +369,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if(verbose)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
 
-  // Populate coordinates
-  Real *x = new Real[mbi->nn1];
-  Real *y = new Real[mbi->nn2];
-  Real *z = new Real[mbi->nn3];
-
-  for(int i = 0; i < mbi->nn1; ++i) {
-    x[i] = mbi->x1(i);
-  }
-  for(int i = 0; i < mbi->nn2; ++i) {
-    y[i] = mbi->x2(i);
-  }
-  for(int i = 0; i < mbi->nn3; ++i) {
-    z[i] = mbi->x3(i);
-  }
-
   for (int k=0; k<mbi->nn3; ++k)
   for (int j=0; j<mbi->nn2; ++j)
   for (int i=0; i<mbi->nn1; ++i)
   {
-    Real xp = x[i];
-    Real yp = y[j];
-    Real zp = z[k];
+    // Coordinates
+    Real xp = mbi->x1(i);
+    Real yp = mbi->x2(j);
+    Real zp = mbi->x3(k);
     
-    // Interpolate
+    // Interpolate XNS metric funs
     Real alpha = XNS.Interp(IXNS_alpha, xp,yp,zp);
-    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); // NB beta^phi = - omega(ZAMO)
+    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); 
     Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
 
     // Get Cartesian components
@@ -351,13 +395,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real gyz = 0.0;
     Real gzz = 0.0;
 
-    XNS.CartesianMetric(alpha, beta, psi,
-                        xp,yp,zp,
-                        betax,betay,betaz,
-                        gxx,gxy,gxz,gyy,gyz,gzz);
+    Real psi4 = XNS.CartesianMetric(beta, psi,
+                                    xp,yp,zp,
+                                    betax,betay,betaz,
+                                    gxx,gxy,gxz,gyy,gyz,gzz);
     
     pz4c->storage.adm(Z4c::I_ADM_gxx,k,j,i) = gxx; // gamma_ij
-    pz4c->storage.adm(Z4c::I_ADM_gxy,k,j,i) = gxy;
+    pz4c->storage.adm(Z4c::I_ADM_gxy,k,j,i) = gxy; // = psi^4 delta_ij
     pz4c->storage.adm(Z4c::I_ADM_gxz,k,j,i) = gxz;
     pz4c->storage.adm(Z4c::I_ADM_gyy,k,j,i) = gyy;
     pz4c->storage.adm(Z4c::I_ADM_gyz,k,j,i) = gyz;
@@ -371,14 +415,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pz4c->storage.adm(Z4c::I_ADM_Kzz,k,j,i) = 0.0;
 
     pz4c->storage.adm(Z4c::I_ADM_alpha,k,j,i) = alpha;
+    
     pz4c->storage.adm(Z4c::I_ADM_betax,k,j,i) = betax; // beta^i
     pz4c->storage.adm(Z4c::I_ADM_betay,k,j,i) = betay;
     pz4c->storage.adm(Z4c::I_ADM_betaz,k,j,i) = betaz;
 
-    pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = std::pow(psi,4);
+    pz4c->storage.adm(Z4c::I_ADM_psi4,k,j,i) = psi4;
   }
-
-  delete x; delete y; delete z;
 
   //---------------------------------------------------------------------------
   // ADM-to-Z4c
@@ -392,21 +435,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if(verbose)
     std::cout << "Interpolating primitives on current MeshBlock." << std::endl;
 
-  x = new Real[ncells1];
-  y = new Real[ncells2];
-  z = new Real[ncells3];
-
-  // Populate coordinates
-  for(int i = 0; i < ncells1; ++i) {
-    x[i] = pcoord->x1v(i);
-  }
-  for(int i = 0; i < ncells2; ++i) {
-    y[i] = pcoord->x2v(i);
-  }
-  for(int i = 0; i < ncells3; ++i) {
-    z[i] = pcoord->x3v(i);
-  }
-
   Real pres_diff = 0.0;
 
 #if USETM
@@ -417,9 +445,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   for (int j=0; j<ncells2; ++j)
   for (int i=0; i<ncells1; ++i)
   {
-    Real xp = x[i];
-    Real yp = y[j];
-    Real zp = z[k];
+    // Coordinates
+    Real xp = pcoord->x1v(i);
+    Real yp = pcoord->x2v(j);
+    Real zp = pcoord->x3v(k);
 
     // Interpolate fluid
     Real rho = XNS.Interp(IXNS_rho, xp,yp,zp);
@@ -432,39 +461,48 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
 
     // Metric
-    Real betax = 0.0;
+    Real betax = 0.0; // beta^i
     Real betay = 0.0;
     Real betaz = 0.0;
 
-    Real gxx = 0.0; 
+    Real gxx = 0.0; // gamma_ij
     Real gxy = 0.0;
     Real gxz = 0.0;
     Real gyy = 0.0;
     Real gyz = 0.0;
     Real gzz = 0.0;
 
-    XNS.CartesianMetric(alpha, beta, psi,
-                        xp,yp,zp,
-                        betax,betay,betaz,
-                        gxx,gxy,gxz,gyy,gyz,gzz);
+    Real psi4 = XNS.CartesianMetric(beta, psi,
+                                    xp,yp,zp,
+                                    betax,betay,betaz,
+                                    gxx,gxy,gxz,gyy,gyz,gzz);
     
     // Cartesian components v^i
     Real vx = 0.0; 
     Real vy = 0.0; 
     Real vz = 0.0;
-    Real v2 = XNS.CartesianVector(vphi, psi,
-                                  xp,yp,rp,
+    Real v2 = XNS.CartesianVector(vphi, psi4,
+                                  xp,yp,zp,
                                   vx, vy, vz);
-
-    // Check //TODO remove
-    Real v_x = gxx*vx + gxy*vy + gxz*vz;
-    Real v_y = gxy*vx + gyy*vy + gyz*vz;
-    Real v_z = gxz*vx + gyz*vy + gzz*vz; 
+    
+#if (CHECK_V2)
+    // Check 
+    Real v_x = psi4 * vx;
+    Real v_y = psi4 * vy;
+    Real v_z = psi4 * vz; 
     Real _v2 = v_x*vx + v_y*vy + v_z*vz;
-    if (fabs(v2) < 1e-20) v2 = 0.;
-    assert(std::abs(v2=_v2)<1e-15); // Some formulas are wrong
+    assert(std::abs(v2-_v2)<1e-12); // Some formulas are wrong
 
+    v_x = gxx*vx + gxy*vy + gxz*vz;
+    v_y = gxy*vx + gyy*vy + gyz*vz;
+    v_z = gxz*vx + gyz*vy + gzz*vz; 
+    _v2 = v_x*vx + v_y*vy + v_z*vz;
+    assert(std::abs(v2-_v2)<1e-12); // Some formulas are wrong
+#endif
+    
     // Lorentz factor
+    if (std::fabs(v2) < 1e-20) v2 = 0.0;
+    assert(v2<1.0);
     Real W = 1.0/std::sqrt(1.0-v2);
 
     // u^i velocity
@@ -474,10 +512,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     
 #if USETM
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-    rho *= ceos->mb/mb_xns; // adjust for baryon mass
+    rho *= ceos->mb/XNS.mb; // adjust for baryon mass
 #endif
     if (rho > rho_min) {
-      Real pres_eos = ceos->GetPressure(rho[flat_ix]);
+      Real pres_eos = ceos->GetPressure(rho);
       Real pres_diff = max(abs(pres / pres_eos - 1), pres_diff);
       pres = pres_eos;
     }
@@ -496,8 +534,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     // Check hydro is finite
     for (int n=0; n<NHYDRO; ++n)
-    if (!std::isfinite(phydro->w(n,k,j,i)))
-      {
+      if (!std::isfinite(phydro->w(n,k,j,i))) {
         std::cout << "WARNING: Interpolated hydro not finite, applying floors" << std::endl;
 #if USETM
         peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
@@ -511,8 +548,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if (pres_diff > 1e-3)
     std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = "
               << pres_diff << std::endl;
-
-  delete x; delete y; delete z;
 
   //---------------------------------------------------------------------------
   // Initialise conserved variables
@@ -555,30 +590,56 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Initialize magnetic fields
+
+  // The following assumes B^i is defined at cc //TODO: check!
   
   pfield->b.x1f.ZeroClear();
   pfield->b.x2f.ZeroClear();
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
-
+  
   // Construct cell centred B field 
-  //for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
-  //for(int j=pmb->js-1; j<=pmb->je+1; j++)
-  //for(int i=pmb->is-1; i<=pmb->ie+1; i++)
+  /* for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+     for(int j=pmb->js-1; j<=pmb->je+1; j++)
+     for(int i=pmb->is-1; i<=pmb->ie+1; i++)
+  */
   for (int k=0; k<ncells3; k++)
   for (int j=0; j<ncells2; j++)
   for (int i=0; i<ncells1; i++)
   {
+    // Coordinates
+    Real xp = pcoord->x1v(i);
+    Real yp = pcoord->x2v(j);
+    Real zp = pcoord->x3v(k);
 
-    //TODO: check where XNS B is defined
-    //TODO: coords, interp, cartesian components
-    Real bccx= 0.0;
-    Real bccy= 0.0;
-    Real bccz= 0.0;
+    // Interpolate B cc
+    Real Br = XNS.Interp(IXS_bpolr, xp,yp,zp);
+    Real Btheta = XNS.Interp(IXS_bpolt, xp,yp,zp);
+    Real Bphi = XNS.Interp(IXS_b3, xp,yp,zp);
     
+    // Interpolate conf. fact. 
+    Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
+    Real psi4 = std::pow(psi, 4);
+
+    // Cartesian components
+    Real bccx = 0.0;
+    Real bccy = 0.0;
+    Real bccz = 0.0;
+
+    Real B2 = XNS.CartesianVector(Br, Btheta, Bphi,
+                                  psi4, 
+                                  xp,yp,zp,
+                                  bccx, bccy, bccz);
+
     pfield->bcc(0,k,j,i) = bccx;
     pfield->bcc(1,k,j,i) = bccy;
     pfield->bcc(2,k,j,i) = bccz;
+
+    //TODO: Must this be densitized ?
+    Real sqrtdetgam = std::pow(psi4, 6); // = sqrt(det(gamma))
+    pfield->bcc(0,k,j,i) *= sqrtdetgam;
+    pfield->bcc(1,k,j,i) *= sqrtdetgam;
+    pfield->bcc(2,k,j,i) *= sqrtdetgam;
     
   }
 
@@ -606,7 +667,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
                                 pfield->bcc(2,k,j,i));
   }
-
+  
 #endif
 
   return;
