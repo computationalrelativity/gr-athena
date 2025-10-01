@@ -50,10 +50,14 @@ class Reconstruction {
   bool xorder_floor_primitives = false;   // apply floors to reconstructed states?
   bool xorder_limit_species = false;      // limit reconstructed species?
   Real xorder_fb_dfloor_fac = 1;          // multiply dfloor by this to consider fb
+
   bool xorder_upwind_scalars = true;      // should passive scalars be upwinded?
 
   bool xorder_use_dmp = false;            // approximate DMP
   bool xorder_use_dmp_scalars;
+
+  bool xorder_min_tau_zero = false;
+
   Real xorder_dmp_min;                    // fiddle factors controlling decay / growth
   Real xorder_dmp_max;
 

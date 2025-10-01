@@ -189,6 +189,10 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
     ATHENA_ERROR(msg);
   }
 
+  xorder_min_tau_zero = pin->GetOrAddBoolean(
+    "time", "xorder_min_tau_zero", false
+  );
+
   xorder_use_aux_T = pin->GetOrAddBoolean(
     "time", "xorder_use_aux_T", false
   );
