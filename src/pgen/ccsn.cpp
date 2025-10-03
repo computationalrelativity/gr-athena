@@ -646,8 +646,9 @@ void Mesh::UserWorkBeforeLoop(ParameterInput *pin)
     if (Globals::my_rank==0)
     {
       std::printf("Bounce detected... @ %.13e\n", time);
-      pin->SetReal("problem", "t_bounce", time);
     }
+
+    pin->SetReal("problem", "t_bounce", time);
 
     // Enforce M1 equilibrium globally
     const bool equilibriate_post_bounce = pin->GetOrAddBoolean(
