@@ -40,6 +40,13 @@ namespace Primitive {
     /// Calculate the specific enthalpy from the number density
     Real Enthalpy(Real n);
 
+
+    /// Find the index of the piece that the pressure aligns with.
+    int FindPieceFromP(Real P) const;
+
+    /// Calculate the number density from the pressure
+    Real DensityFromPressure(Real P);
+
     /// temperature of the slice
     Real T;
 

@@ -40,8 +40,11 @@
 #   -lorene             enable LORENE
 #   --lorene_path=path  path to LORENE (requires the LORENE library)
 #   -mkl                enable mkl
+#   -openblas           enable openblas
 #   -elliptica          enable Elliptica
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
+#   -sgrid             enable SGRID
+#   --sgrid_path=path  path to SGRID (requires SGRID library)
 #   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
@@ -54,6 +57,7 @@
 #   -ccache             use caching-compiler (prepend command to chosen compiler)
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
+#   -no_flto            avoid some linker problems encountered with old gcc versions
 #
 # S/AMR:
 #   -cons_bc            use _only_ conserved vars at distinct levels
@@ -585,6 +589,11 @@ parser.add_argument(
   "-mkl", action="store_true", default=False, help="use mkl libraries",
 )
 
+# -openblas argument
+parser.add_argument(
+  "-openblas", action="store_true", default=False, help="use openblas libraries",
+)
+
 # -elliptica argument
 parser.add_argument(
   "-elliptica",
@@ -602,6 +611,17 @@ parser.add_argument(
 parser.add_argument('--rns_path',
                     default='',
                     help='path to rns library')
+# -sgrid argument
+parser.add_argument('-sgrid',
+                    action='store_true',
+                    default=False,
+                    help='enable GNU scientific library')
+
+# --sgrid_path argument
+parser.add_argument('--sgrid_path',
+                    default='',
+                    help='path to SGRID libraries')
+
 # -ccache argument
 parser.add_argument(
   "-ccache", action="store_true", default=False, help="enable caching compiler",
@@ -618,6 +638,11 @@ parser.add_argument(
 # -link_gold argument
 parser.add_argument(
   "-link_gold", action="store_true", default=False, help="use gold linker",
+)
+
+# -no_flto argument
+parser.add_argument(
+  "-no_flto", action="store_true", default=False, help="disable flto",
 )
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
@@ -1682,6 +1707,10 @@ if args["lorene"]:
     makefile_options["LIBRARY_FLAGS"] += (
       " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
     )
+  elif args["openblas"]:
+    makefile_options["LIBRARY_FLAGS"] += (
+      " -lopenblas"
+    )
   else:
     makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
 
@@ -1801,6 +1830,41 @@ if args['prob'] == "gr_rns":
             makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
 else:
     definitions['RNS_OPTION'] = 'NO_RNS'
+
+if args['sgrid']:
+    definitions['SGRID_OPTION'] = 'SGRID'
+
+    makefile_options['LIBRARY_FLAGS'] += ' -lsgrid -llapack -lblas'
+
+    # this can be specified as sgrid_path _or_ directly
+    if args['sgrid_path'] != '':
+        definitions['SGRID_OPTION'] = 'SGRID'
+
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
+        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
+        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['sgrid_path'])
+
+else:
+    definitions['SGRID_OPTION'] = 'NO_SGRID'
+
+if 'Sgrid' in args['prob']:
+    if not args['f'] or not args['g'] or not args['z']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-f -g -z.'.format(
+                name=args['prob']
+            )
+        )
+
+    if not args['sgrid']:
+        raise SystemExit(
+            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+            '-sgrid.'.format(
+                name=args['prob']
+            )
+        )
+
+
 # --cflag=[string] argument
 if args["cflag"] is not None:
   makefile_options["COMPILER_FLAGS"] += " " + args["cflag"]
@@ -1862,6 +1926,14 @@ if args["ccache"]:
 # use gold linker
 if args["link_gold"]:
   makefile_options["LIBRARY_FLAGS"] += " -fuse-ld=gold"
+
+# some old linkers give some problems when using flto, we can disable it:
+# -no_flto
+if args["no_flto"]:
+  mk_opt = makefile_options["COMPILER_FLAGS"]
+  mk_opt = mk_opt.replace("-flto=auto", "")
+  mk_opt = mk_opt.replace("-fwhole-program", "")
+  makefile_options["COMPILER_FLAGS"] = mk_opt
 
 # === Trimmed-down SRC_FILES needs treatment here =============================
 
