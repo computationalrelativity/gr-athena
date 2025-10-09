@@ -796,10 +796,10 @@ public:
     struct {
       AthenaArray<opt_solution_regime>  solution_regime;
       AthenaArray<opt_source_treatment> source_treatment;
-      AthenaArray<bool>                 excised;
+      AA_B                 excised;
       AA                                flux_limiter;
       AA                                pp;
-      AthenaArray<bool>                 compute_point;
+      AA_B                 compute_point;
     } masks;
 
     struct {
@@ -989,12 +989,6 @@ public:
   {
     if (!opt.flux_lo_fallback)
       return true;
-
-    // return true;
-    /*
-    if (!opt.flux_lo_fallback)
-      return true;
-    */
 
     const int ix_ms = (opt.flux_lo_fallback_species)
       ? ix_s

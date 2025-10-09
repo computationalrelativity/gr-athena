@@ -171,7 +171,12 @@ public:
     N_AUX_EXTENDED
   };
   // Names of auxiliary variables
-  static char const * const Aux_Extended_names[N_AUX_EXTENDED];
+  static constexpr char const * const Aux_Extended_names[] = {
+    "aux.gs_sqrt_detgamma"
+#if FLUID_ENABLED
+    , "aux.ms_sqrt_detgamma"
+#endif
+  };
 
 public:
   Z4c(MeshBlock *pmb, ParameterInput *pin);
@@ -345,6 +350,9 @@ public:
 
     // For debug
     bool use_tp_trackers_extrema;
+
+    // det < 0 - set det = 1 and proceed with tf imposition regardless?
+    bool tf_force_regularization;
 
     // Impose global regularization on conf / alpha
     bool force_regularization;

@@ -28,6 +28,7 @@ class ExtremaTracker
   public:
     void ReduceTracker();
     void EvolveTracker();
+    void EvaluateAndWriteFields(int iter, Real time);
     void WriteTracker(int iter, Real time) const;
 
   private:
@@ -42,7 +43,7 @@ class ExtremaTracker
     AthenaArray<int> ref_type;
     AthenaArray<Real> ref_zone_radius;
 
-    AthenaArray<bool> minima;  // T for minima, F for maxima
+    AA_B minima;  // T for minima, F for maxima
     AthenaArray<Real> c_x1;
     AthenaArray<Real> c_x2;
     AthenaArray<Real> c_x3;
@@ -67,14 +68,24 @@ class ExtremaTracker
     };
 
     AthenaArray<control_fields> control_field;
+    AA_B evaluate_fields;
+    bool any_evaluate_fields = false;
 
   private:
-    Mesh const * pmesh;
+    Mesh * pmesh;
     std::string output_filename;
     std::string control_field_name;
     bool is_io_process;
 
+    int ndim;
+
     AthenaArray<int> multiplicity_update;
+
+    void TryInterpolateAndWriteFields(
+      MeshBlock * pmb,
+      int num_tracker, int iter, Real time
+    );
+
 
 #ifdef MPI_PARALLEL
     const int rank_root = 0;

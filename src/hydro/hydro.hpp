@@ -792,8 +792,8 @@ public:
 
 
   inline void FallbackInadmissibleMaskPrimitiveX_(
-    AthenaArray<bool> & mask_l_,
-    AthenaArray<bool> & mask_r_,
+    AA_B & mask_l_,
+    AA_B & mask_r_,
     AA & zl_,
     AA & zr_,
     const int il, const int iu, const int ivx)
@@ -876,8 +876,8 @@ public:
   }
 
   inline void FallbackInadmissibleMaskX_(
-    AthenaArray<bool> & mask_l_,
-    AthenaArray<bool> & mask_r_,
+    AA_B & mask_l_,
+    AA_B & mask_r_,
     AA & zl_,
     AA & zr_,
     AA & f_zl_,
@@ -938,9 +938,9 @@ public:
   AA r_al_, r_ar_, r_alb_;
 
   // fall-back mask
-  AthenaArray<bool> mask_l_;
-  AthenaArray<bool> mask_lb_;
-  AthenaArray<bool> mask_r_;
+  AA_B mask_l_;
+  AA_B mask_lb_;
+  AA_B mask_r_;
 
   AA dflx_;
 

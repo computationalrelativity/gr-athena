@@ -1,5 +1,6 @@
 
 // c/c++
+#include <cstddef>
 #include <cstdio>
 #include <iomanip>
 #include <limits>
@@ -7,6 +8,7 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <string>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -29,7 +31,8 @@
 
 ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
                                int res_flag):
-  pmesh(pmesh)
+  pmesh(pmesh),
+  ndim(pmesh->ndim)
 {
   N_tracker = pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0);
 
@@ -260,6 +263,19 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
           assert(false);
       }
     }
+
+
+    // Retain if we should evaluate some fields
+    AA_B ef = pin->GetOrAddBooleanArray("trackers_extrema",
+                                        "evaluate_fields",
+                                        false, N_tracker);
+    evaluate_fields.NewAthenaArray(ef.GetSize());
+
+    for (int n=0; n<N_tracker; ++n)
+    {
+      evaluate_fields(n) = (n < ef.GetSize()) ? ef(n) : false;
+      any_evaluate_fields = any_evaluate_fields or evaluate_fields(n);
+    }
   }
   else
   {
@@ -313,7 +329,7 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
 
 void ExtremaTracker::PrepareTrackerFiles()
 {
-  WriteTracker(0, 0);
+  WriteTracker(pmesh->ncycle, pmesh->time);
   return;
 }
 
@@ -454,6 +470,28 @@ void ExtremaTracker::EvolveTracker()
                           std::min(c_x2(n-1), pmesh->mesh_size.x2max));
     c_x3(n-1) = std::max(pmesh->mesh_size.x3min,
                           std::min(c_x3(n-1), pmesh->mesh_size.x3max));
+  }
+
+}
+
+
+// any rank can write; logic is that only a single MeshBlock on a single
+// rank will contain the extrema location
+void ExtremaTracker::EvaluateAndWriteFields(int iter, Real time)
+{
+  if (!(N_tracker > 0) || !any_evaluate_fields)
+    return;
+
+  MeshBlock * pmb = pmesh->pblock;
+
+  while (pmb != NULL)
+  {
+    for (int n=1; n<=N_tracker; ++n)
+    {
+      TryInterpolateAndWriteFields(pmb, n, iter, time);
+    }
+
+    pmb = pmb->next;
   }
 
 }

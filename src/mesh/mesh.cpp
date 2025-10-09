@@ -2001,6 +2001,12 @@ void Mesh::InitializePostFirstInitialize(initialize_style init_style,
   // Compute diagnostic quantities associated with pgen:
   if (init_style == initialize_style::pgen)
     CalculateZ4cInitDiagnostics();
+
+
+  // Evaluate values of fields over trackers
+  // Needs to be here as various field classes need a first assembly
+  if (init_style == initialize_style::pgen)
+    ptracker_extrema->EvaluateAndWriteFields(ncycle, time);
 }
 
 void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)

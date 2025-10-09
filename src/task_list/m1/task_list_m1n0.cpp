@@ -334,12 +334,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       }
       // ----------------------------------------------------------------------
 
-      // hybridize fluxes based on pp mask ------------------------------------
-      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
-                           pm1->fluxes,
-                           pm1->fluxes_lo);
-      // ----------------------------------------------------------------------
-
       // Retain which points can be propagated --------------------------------
       const int os = !pmb->NeighborBlocksSameLevel();  // will need bnd layer
 
@@ -361,9 +355,17 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       }
       // ----------------------------------------------------------------------
 
-      // Finally revert inhomogeneity on points that can't be propagated
+      // Use the current flux and subtract off the candidate flux-div. --------
+      // N.B. this needs to happen prior to the hybridization
       pm1->SubFluxDivergence(pm1->storage.u_rhs,
                              KL, KU, JL, JU, IL, IU);
+
+      // hybridize fluxes based on pp mask ------------------------------------
+      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
+                           pm1->fluxes,
+                           pm1->fluxes_lo);
+      // ----------------------------------------------------------------------
+
     }
 
     return TaskStatus::next;

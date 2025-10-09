@@ -268,15 +268,26 @@ bool FaceCenteredBoundaryVariable::ReceiveEMFShearingBoxBoundaryCorrection() {
             continue;
           } else { // MPI boundary
 #ifdef MPI_PARALLEL
-            int test;
-            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &test,
-                       MPI_STATUS_IGNORE);
-            MPI_Test(&shear_bd_emf_[upper].req_recv[n], &test, MPI_STATUS_IGNORE);
-            if (!static_cast<bool>(test)) {
-              flag[upper] = false;
-              continue;
+            int test = 0;
+            MPI_Status status;
+
+            // If NULL- BoundaryStatus remains waiting
+            if (shear_bd_emf_[upper].req_recv[n] != MPI_REQUEST_NULL)
+            {
+              MPI_Test(&shear_bd_emf_[upper].req_recv[n], &test, &status);
+              if (!test)
+              {
+                flag[upper] = false;
+                continue;
+              }
+
+              shear_bd_emf_[upper].flag[n] = BoundaryStatus::arrived;
             }
-            shear_bd_emf_[upper].flag[n] = BoundaryStatus::arrived;
+            else
+            {
+              flag[upper] = false;
+            }
+
 #endif
           }
         }

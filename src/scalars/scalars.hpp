@@ -15,6 +15,7 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
+#include "../athena_aliases.hpp"
 #include "../bvals/cc/bvals_cc.hpp"
 // #include "../coordinates/coordinates.hpp"
 // #include "../eos/eos.hpp"
@@ -22,6 +23,7 @@
 // #include "../hydro/hydro.hpp"
 // #include "../reconstruct/reconstruction.hpp"
 
+using namespace gra::aliases;
 
 // class MeshBlock;
 class ParameterInput;
@@ -89,8 +91,8 @@ class PassiveScalars {
     const int il, const int iu, const int ivx);
 
   void FallbackInadmissibleMaskScalarX_(
-    AthenaArray<bool> & mask_l_,
-    AthenaArray<bool> & mask_r_,
+    AA_B & mask_l_,
+    AA_B & mask_r_,
     AthenaArray<Real> & zl_,
     AthenaArray<Real> & zr_,
     const int il, const int iu, const int ivx);

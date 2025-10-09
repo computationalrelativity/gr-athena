@@ -12,6 +12,7 @@
 #include "globals.hpp"
 #include "athena_arrays.hpp"
 #include "athena_tensor.hpp"
+#include <cstdint>
 
 // ----------------------------------------------------------------------------
 // Collect some typedefs to make everything less awful
@@ -22,7 +23,8 @@ static const int D = NDIM + 1;
 static const int N = NDIM;
 
 // Data structures ------------------------------------------------------------
-typedef AthenaArray< Real>                         AA;
+typedef AthenaArray<Real>                          AA;
+typedef AthenaArray<uint8_t>                       AA_B;
 
 // BD: TODO - Replace AT_C_sca -> AT_N_sca
 // scalars feature common treatment as \Sigma x {t*} so container at fixed t*
