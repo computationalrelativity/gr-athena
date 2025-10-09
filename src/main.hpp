@@ -37,6 +37,7 @@
 #include "utils/utils.hpp"
 
 #include "z4c/wave_extract.hpp"
+#include "z4c/wave_extract_rwz.hpp"
 #include "z4c/puncture_tracker.hpp"
 #include "z4c/ahf.hpp"
 #ifdef EJECTA_ENABLED
@@ -881,7 +882,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   }
 
   // Derivatives of ADM metric and other auxiliary computations needed below
-  if (trgs.IsSatisfied(tvar::Z4c_AHF))
+  if (trgs.IsSatisfied(tvar::Z4c_AHF) or trgs.IsSatisfied(tvar::Z4c_RWZ))
   {
     pmesh->CalculateStoreMetricDerivatives();
 
@@ -923,6 +924,17 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
   // RWZ wave extraction
   //TODO
+  if (trgs.IsSatisfied(tvar::Z4c_RWZ))
+  {
+    for (auto prwz : pmesh->pwave_extr_rwz)
+    {
+      //prwz->FlagSpherePointsContainedMesh();
+      prwz->MetricToSphere();
+      prwz->BackgroundReduce();
+      prwz->MultipoleReduce();
+      prwz->Write(ncycle_end_stage, time_end_stage);
+    }
+  }
 
   // AHF
   if (trgs.IsSatisfied(tvar::Z4c_AHF))

@@ -98,6 +98,8 @@ const TaskID SETB_Z4C(61);
 const TaskID PROLONG_Z4C(62);
 const TaskID PHY_BVAL_Z4C(63);
 
+const TaskID CCE_DUMP(64);
+
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
 
 namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Split {

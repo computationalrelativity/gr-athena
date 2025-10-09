@@ -123,6 +123,9 @@ public:
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+#if CCE_ENABLED
+  TaskStatus CCEDump(MeshBlock *pmb, int stage);
+#endif
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);
 
 public:

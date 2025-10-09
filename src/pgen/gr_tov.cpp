@@ -35,6 +35,8 @@
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"          // ParameterInput
 #include "../utils/linear_algebra.hpp"
+#include "../utils/spherical_harmonics.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "../scalars/scalars.hpp"
 #if M1_ENABLED
 #include "../m1/m1.hpp"
@@ -72,6 +74,14 @@ namespace {
 
   // Global variables
   Real v_amp; // velocity amplitude for linear perturbations
+  Real lambda; // amplitude for pressure perturbations
+  Real n_nodes; // number of nodes for the sinusoidal preassure perturbations
+  int l_pert; // l mode for perturbation
+  int m_pert; // m mode for perturbation
+  bool AddMetricPerturbation;
+  int l_pert_odd; // l mode for perturbation
+  int m_pert_odd; // m mode for perturbation
+
 
   // TOV var indexes for ODE integration
   enum{TOV_IRHO,TOV_IMASS,TOV_IPHI,TOV_IINT,TOV_NVAR};
@@ -121,6 +131,75 @@ inline bool Lorentz4Boost(
 
 }
 
+void test_interp() {
+  printf("\n");
+  printf("Testing Interpolator... \n");
+  
+  const int metric_interp_order = 7;
+  const int ndim = 3;
+  const int Nxyz = 100; 
+  const Real dxyz  = 2.0/(Nxyz-1); 
+
+  Real origin[ndim] = {-1.0, -1.0, -1.0};
+  int size[ndim] = {Nxyz, Nxyz, Nxyz};
+  Real delta[ndim] = {dxyz, dxyz, dxyz};
+  Real coord[ndim] = {0.2, -0.1, 0.7};
+
+  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 1> * pinterp1 = nullptr;
+  LagrangeInterpND<metric_interp_order, 2> * pinterp2 = nullptr;
+  
+  Real* func = new Real[Nxyz * Nxyz * Nxyz];
+  Real* func1 = new Real[Nxyz];
+  Real* func2 = new Real[Nxyz*Nxyz];
+
+  pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+  pinterp1 = new LagrangeInterpND<metric_interp_order, 1>(origin, delta, size, coord);
+  pinterp2 = new LagrangeInterpND<metric_interp_order, 2>(origin, delta, size, coord);
+
+  for (int i=0; i<Nxyz; i++){
+    const Real x = origin[0] + i*delta[0]; 
+    func1[i] = 1.0/x; 
+    for (int j=0; j<Nxyz; j++){
+      int ij = i + Nxyz*j;
+      const Real y = origin[1] + j*delta[1]; 
+      func2[ij] = 1.0/sqrt(x*x + y*y); 
+      for (int k=0; k<Nxyz; k++){
+        int ijk = i + Nxyz*j + Nxyz*Nxyz*k;
+        const Real z = origin[2] + k*delta[2]; 
+        func[ijk] = 1.0/sqrt(x*x + y*y + z*z);   
+      }
+    }
+  }
+
+  Real f = pinterp3->eval(func);
+  Real dx_f = pinterp3->eval<Real, 0>(func);
+  Real dy_f = pinterp3->eval<Real, 1>(func);
+  Real dz_f = pinterp3->eval<Real, 2>(func);
+  printf("f = %.8e, dx_f = %.8e, dy_f = %.8e, dz_f = %.8e \n", f, dx_f, dy_f, dz_f);
+  printf("\n");
+  
+  Real f1 = pinterp1->eval(func1);
+  Real dx_f1 = pinterp1->eval<Real, 0>(func1);
+  printf("f1 = %.8e, dx_f1 = %.8e \n", f1, dx_f1);
+  printf("\n");
+
+  Real f2 = pinterp2->eval(func2);
+  Real dx_f2 = pinterp2->eval<Real, 0>(func2);
+  Real dy_f2 = pinterp2->eval<Real, 1>(func2);
+  printf("f2 = %.8e, dx_f2 = %.8e, dy_f2 = %.8e \n", f2, dx_f2, dy_f2);
+  printf("\n");
+
+  delete pinterp3;
+  delete pinterp1;
+  delete pinterp2;
+  delete[] func;
+  delete[] func1;
+  delete[] func2;
+
+}
+
+
 //----------------------------------------------------------------------------------------
 //! \fn
 // \brief  Function for initializing global mesh properties
@@ -129,6 +208,8 @@ inline bool Lorentz4Boost(
 // Outputs: (none)
 
 void Mesh::InitUserMeshData(ParameterInput *pin) {
+  //test_interp();
+
   // Read problem parameters
 
   // Central value of energy density
@@ -150,6 +231,20 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
 
   // surface identification
   tov->surf_dr   = pin->GetOrAddReal(     "problem", "surf_dr",   dr / 1.0e3);
+
+  // velocity perturbation
+  v_amp = pin->GetOrAddReal("problem", "v_amp", 0.0);
+  
+  // pressure perturbation
+  lambda = pin->GetOrAddReal("problem", "lambda", 0.0);
+  n_nodes = pin->GetOrAddInteger("problem", "n_nodes", 1);
+  l_pert = pin->GetOrAddInteger("problem", "l_pert", 2);
+  m_pert = pin->GetOrAddInteger("problem", "m_pert", 0);
+  
+  // metric perturbation
+  AddMetricPerturbation = pin->GetOrAddBoolean("problem", "metric_pert", false);
+  l_pert_odd = pin->GetOrAddInteger("problem", "l_pert_odd", 2);
+  m_pert_odd = pin->GetOrAddInteger("problem", "m_pert_odd", 0);
 
 #if USETM
   // Initialize cold EOS
@@ -975,6 +1070,9 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
   AT_N_sym sp_g_uu_(Nx1);
   AT_N_sym sp_K_dd_(Nx1);
 
+  // Spatial Odd perturbation
+  AT_N_sym h_cart(Nx1);   
+
   AT_N_sca alpha_(  Nx1);
   AT_N_sca dralpha_(Nx1);   // radial cpt.
   AT_N_vec d1alpha_(Nx1);   // Cart. cpts.
@@ -1166,6 +1264,8 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         const Real sinth = rho_pol/r_(i);
         const Real cosphi = x_(i)/rho_pol;
         const Real sinphi = y_(i)/rho_pol;
+        const Real phi = std::asin(sinphi);
+        const Real theta = std::asin(sinth);
 
         if (r_(i)<R)
         {
@@ -1191,9 +1291,30 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #endif
 
 
-          // Add perturbation
+          // Add velocity perturbation
           const Real x_kji = r_(i) / R;
           up_r = (v_amp>0) ? (0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji)) : 0.0;
+         
+          // Add pressure perturbation
+          if (lambda > 0){
+            Real Yr, Yi;
+            Real eps = ceos->GetSpecificInternalEnergy(w_rho_(i));
+            SphHarm_Ylm(l_pert, m_pert, theta, phi, &Yr, &Yi);
+            Real Ylm = Yr;
+            Real H0l = lambda * std::sin((n_nodes+1.)*PI*x_kji/2.);
+            Real dp  = (w_p_(i) + w_rho_(i) * (1 + eps)) * H0l * Ylm;
+            w_p_(i)  += dp;
+
+#if USETM
+            w_rho_(i) = ceos->GetDensityFromPressure(w_p_(i));
+#if NSCALARS > 0
+            for (int l=0; l<NSCALARS; ++l)
+              prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
+#endif
+#else
+            w_rho_(i) = pow(w_p_(i)/k_adi,1./gamma_adi);
+#endif
+          }
         }
         else
         {
@@ -1370,6 +1491,57 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         // Isotropic radius
         r_(i) = std::sqrt(SQR(x_(i))+SQR(y_(i))+SQR(z_(i)));
 
+        // Coordinates and setup for metric perturbation:
+        const Real theta_i = std::acos(z_(i)/r_(i));
+        const Real phi_i = std::acos(x_(i)/std::sqrt(SQR(x_(i))+SQR(y_(i)))) * (y_(i) > 0 ? 1. : -1.);
+        const Real sinth = std::sin(theta_i);
+        const Real costh = std::cos(theta_i);
+        const Real sinph = std::sin(phi_i);
+        const Real cosph = std::cos(phi_i);
+        
+        const Real gaussian_pert = 0.0001 * std::exp( - SQR((r_(i) - 10.0*R)/(0.15*R)) );
+        Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;   
+        SphHarm_Ylm_a(l_pert_odd,m_pert_odd, theta_i,phi_i,
+			&Ylm_thR, &Ylm_thI,
+			&Ylm_phR, &Ylm_phI,
+			&XlmR, &XlmI,
+			&WlmR, &WlmI);
+        //const Real htt = -0.5 * gaussian_pert * XlmI / sinth ;
+        //const Real htp =  0.5 * gaussian_pert * WlmR * sinth ;
+        //const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
+        const Real hrt =  - gaussian_pert * Ylm_phR / sinth ;
+        const Real hrp =  gaussian_pert * Ylm_thR * sinth ;
+        
+        Real Jac[3][3];
+        Real h_sph[3][3];
+
+        h_sph[0][0] = 0.0;
+        h_sph[1][0] = h_sph[0][1] = hrt;
+        h_sph[2][0] = h_sph[0][2] = hrp;
+        h_sph[1][1] = 0.0;
+        h_sph[1][2] = h_sph[2][1] = 0.0;
+        h_sph[2][2] = 0.0;
+
+        Jac[0][0] = sinth * cosph;
+        Jac[0][1] = r_(i) * costh * cosph;
+        Jac[0][2] = - r_(i) * sinth * sinph;
+        Jac[1][0] = sinth * sinph;
+        Jac[1][1] = r_(i) * costh * sinph;
+        Jac[1][2] = r_(i) * sinth * cosph;
+        Jac[2][0] = costh;
+        Jac[2][1] = - r_(i) * sinth;
+        Jac[2][2] = 0.0;
+
+        for (int a = 0; a < NDIM; ++a)
+	for (int b = 0; b < NDIM; ++b) {
+	  h_cart(a,b,i) = 0.0;
+	  for (int c = 0; c < NDIM; ++c)
+	    for (int d = 0; d < NDIM; ++d) {
+	      h_cart(a,b,i) += Jac[a][c] * h_sph[c][d] *  Jac[b][d] ;
+	    }
+	}
+
+ 
         if (r_(i)<R)
         {
           // Interior metric, lapse and conf.fact.
@@ -1408,7 +1580,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
           dralpha_(i) = M/((0.5*M+r_(i))*(0.5*M+r_(i)));
           psi4_(i)    = std::pow((1.+0.5*M/r_(i)),4.);
           drpsi4_(i)  = -2.*M*std::pow(1.+0.5*M/r_(i),3)/(r_(i)*r_(i));
-        }
+        } 
       }
 
       // Untransformed shift is taken as 0 initially
@@ -1421,6 +1593,19 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
       for (int i=il; i<=iu; ++i)
       {
         sp_g_dd_(a,a,i) = psi4_(i);
+      }
+
+      // Add metric perturbation if used
+      if (AddMetricPerturbation) {
+       
+        for (int a=0; a<N; ++a)
+        for (int b=a; b<N; ++b)
+        for (int i=il; i<=iu; ++i)
+        {
+          Real rschw = r_(i) * SQR(psi4_(i));
+          sp_g_dd_(a,b,i) -= h_cart(a,b,i);
+        }
+
       }
 
       // Transform if needed (assemble ambient M quantities here)
