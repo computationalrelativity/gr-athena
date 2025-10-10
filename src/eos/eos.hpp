@@ -230,6 +230,14 @@ class EquationOfState {
     bool is_scratch_allocated = false;
   };
 
+  void StatePrintPoint(
+    const std::string & tag,
+    MeshBlock *pmb,
+    geom_sliced_cc & gsc,
+    const int k, const int j, const int i,
+    const bool terminate);
+
+
   void GeometryToSlicedCC(
     geom_sliced_cc & gsc,
     const int k, const int j, const int il, const int iu,
@@ -277,6 +285,19 @@ class EquationOfState {
                       k, j, il, iu, coarseflag, false);
   }
 
+  bool NeighborsEncloseValue(
+    const AA &src,
+    const int n,
+    const int k,
+    const int j,
+    const int i,
+    const AA_B &mask,
+    const int num_neighbors,
+    const bool exclude_first_extrema,
+    const Real fac_min=1.0,
+    const Real fac_max=1.0
+  );
+
   void NearestNeighborSmooth(
     AA &tar,
     const AA &src,
@@ -284,6 +305,52 @@ class EquationOfState {
     const int jl, const int ju,
     const int il, const int iu,
     bool exclude_first_extrema);
+
+  Real NearestNeighborSmooth(
+    const AA &src,
+    const int n,
+    const int k,
+    const int j,
+    const int i,
+    const AA_B &mask,
+    const int num_neighbors,
+    const bool keep_base_point,
+    const bool exclude_first_extrema,
+    const bool use_hybrid_mean_median,
+    const Real sigma_frac=0.0
+  );
+
+  Real NearestNeighborSmoothWeighted(
+    const AA &src,
+    const int n,
+    const int k,
+    const int j,
+    const int i,
+    const AA_B &mask,
+    const int num_neighbors,
+    const bool keep_base_point,
+    const bool exclude_first_extrema,
+    const bool use_hybrid_mean_median,
+    const Real sigma_frac=0.0,
+    const Real alpha=0.5
+  );
+
+  Real NearestNeighborSmooth(
+    const AA &src,
+    const int n,
+    const int k,
+    const int j,
+    const int i,
+    const AA_B &mask,
+    const int num_neighbors,
+    const bool keep_base_point,
+    const bool exclude_first_extrema,
+    const bool use_robust_weights,   // toggle robust weighting
+    const Real alpha,                // blend factor [0,1]
+    const Real sigma_frac,           // fraction of base value for robust weighting
+    const Real max_dev_frac,         // new: max deviation allowed (e.g. 0.1 = 10%)
+    const Real sigma_s_frac = 0.5    // fraction of num_neighbors for spatial weight
+  );
 
   // BD: TODO - clean up this mess ---v
 

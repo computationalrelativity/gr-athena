@@ -1,4 +1,5 @@
 // C++ standard headers
+#include <iomanip>
 #include <iostream>
 #include <limits>
 
@@ -14,6 +15,102 @@
 
 // External libraries
 // ...
+
+// ----------------------------------------------------------------------------
+void EquationOfState::StatePrintPoint(
+  const std::string & tag,
+  MeshBlock *pmb,
+  EquationOfState::geom_sliced_cc & gsc,
+  const int k, const int j, const int i,
+  const bool terminate)
+{
+  Z4c * pz4c = pmb->pz4c;
+  Hydro *ph = pmb->phydro;
+
+  AT_N_sca sc_chi(pz4c->storage.u, Z4c::I_Z4c_chi);
+
+
+  // conserved hydro
+  AT_N_sca sc_cons_D(  ph->u, IDN);
+  AT_N_sca sc_cons_tau(ph->u, IEN);
+  AT_N_vec sp_cons_S_d(ph->u, IM1);
+
+  // primitive hydro
+  AT_N_sca sc_prim_rho(  ph->w, IDN);
+  AT_N_sca sc_prim_P(ph->w, IPR);
+  AT_N_vec sp_prim_util_u(ph->w, IVX);
+
+  // Auxiliary hydro
+  AT_N_sca sc_aux_T(ph->derived_ms, IX_T);
+  AT_N_sca sc_aux_W(ph->derived_ms, IX_LOR);
+  AT_N_sca sc_aux_h(ph->derived_ms, IX_ETH);
+
+  #pragma omp critical
+  {
+    std::cout << "eos_utils::DebugState" << std::endl;
+    std::cout << "Tag: \n";
+    std::cout << tag << "\n";
+    std::cout << std::setprecision(14) << std::endl;
+    std::cout << "k, j, i:     " << k << ", " << j << ", " << i << "\n";
+
+    std::cout << "x3(k):   " << pmb->pcoord->x3v(k) << "\n";
+    std::cout << "x2(j):   " << pmb->pcoord->x2v(j) << "\n";
+    std::cout << "x1(i):   " << pmb->pcoord->x1v(i) << "\n";
+
+    std::cout << "geometric fields========================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    gsc.sl_adm_sqrt_detgamma.PrintPoint("gsc.sl_adm_sqrt_detgamma", k,j,i);
+    gsc.sl_alpha.PrintPoint("gsc.sl_alpha", k,j,i);
+    sc_chi.PrintPoint("sl_chi", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    gsc.sl_beta_u.PrintPoint("gsc.sl_beta_u", k,j,i);
+
+    std::cout << "sym2===============: " << "\n";
+    gsc.sl_adm_gamma_dd.PrintPoint("geom.sl_adm_gamma_dd", k,j,i);
+
+    std::cout << "geometric fields [sliced]===============: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    gsc.sqrt_det_gamma_.PrintPoint("gsc.sqrt_det_gamma_", i);
+    gsc.det_gamma_.PrintPoint("gsc.det_gamma_", i);
+    gsc.alpha_.PrintPoint("gsc.alpha_", i);
+
+    std::cout << "vec================: " << "\n";
+    gsc.beta_u_.PrintPoint("gsc.beta_u_", i);
+
+    std::cout << "sym2===============: " << "\n";
+    gsc.gamma_dd_.PrintPoint("gsc.gamma_dd_", i);
+    gsc.gamma_uu_.PrintPoint("gsc.gamma_uu_", i);
+
+    std::cout << "hydro fields [prim]=====================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    sc_prim_rho.PrintPoint("sc_prim_rho", k,j,i);
+    sc_prim_P.PrintPoint("sc_prim_P", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    sp_prim_util_u.PrintPoint("sp_prim_util_u", k,j,i);
+
+    std::cout << "hydro fields [cons]=====================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    sc_cons_D.PrintPoint("sc_cons_D", k,j,i);
+    sc_cons_tau.PrintPoint("sc_cons_tau", k,j,i);
+
+    std::cout << "vec================: " << "\n";
+    sp_cons_S_d.PrintPoint("sp_cons_S_d", k,j,i);
+
+    std::cout << "hydro (aux) fields======================: " << "\n\n";
+    std::cout << "sc=================: " << "\n";
+    sc_aux_W.PrintPoint("sc_aux_W", k,j,i);
+    sc_aux_T.PrintPoint("sc_aux_T", k,j,i);
+    sc_aux_h.PrintPoint("sc_aux_h", k,j,i);
+
+  }
+
+  if (terminate)
+  {
+    assert(false);
+  }
+}
 
 // ----------------------------------------------------------------------------
 bool EquationOfState::IsAdmissiblePoint(
@@ -502,11 +599,11 @@ void EquationOfState::DerivedQuantities(
       + (bx*vWz + bz*vWx)*gxz
       + (by*vWz + bz*vWy)*gyz;
 
-    hyd_der_ms(IX_SPB,k,j,i) = GetEOS().GetEntropyPerBaryon(n, T, Y);
-    hyd_der_ms(IX_SEN,k,j,i) = GetEOS().GetSpecificInternalEnergy(n, T, Y);
+    hyd_der_ms(IX_SPB,k,j,i) = (T > 0) ? GetEOS().GetEntropyPerBaryon(n, T, Y) : 0;
+    hyd_der_ms(IX_SEN,k,j,i) = (T > 0) ? GetEOS().GetSpecificInternalEnergy(n, T, Y) : 0;
     hyd_der_ms(IX_HU_d_0,k,j,i) = h/h_inf * hyd_der_ms(IX_U_d_0,k,j,i);
 
-    hyd_der_ms(IX_CS2,k,j,i) = SQR(GetEOS().GetSoundSpeed(n, T, Y));
+    hyd_der_ms(IX_CS2,k,j,i) = (T > 0) ? SQR(GetEOS().GetSoundSpeed(n, T, Y)) : 0;
     hyd_der_ms(IX_CS2,k,j,i) = std::min(
       hyd_der_ms(IX_CS2,k,j,i), max_cs2
     );
@@ -575,6 +672,61 @@ void EquationOfState::DerivedQuantities(
 
 }
 
+bool EquationOfState::NeighborsEncloseValue(
+  const AA &src,
+  const int n,
+  const int k,
+  const int j,
+  const int i,
+  const AA_B &mask,
+  const int num_neighbors,
+  const bool exclude_first_extrema,
+  const Real fac_min,
+  const Real fac_max
+)
+{
+  MeshBlock* pmb = pmy_block_;
+
+  // Calculate average of nearest neighbor vals
+  Real avg_val = 0.0;
+  int count = 0;
+
+  Real min_val = std::numeric_limits<Real>::max();
+  Real max_val = -std::numeric_limits<Real>::max();
+
+  for (int kk = -num_neighbors; kk <= num_neighbors; ++kk)
+  for (int jj = -num_neighbors; jj <= num_neighbors; ++jj)
+  for (int ii = -num_neighbors; ii <= num_neighbors; ++ii)
+  {
+    if (ii == 0 && jj == 0 && kk == 0) continue;
+
+    const int i_ix = i + ii;
+    const int j_ix = j + jj;
+    const int k_ix = k + kk;
+
+    if ((i_ix < 0) || (i_ix > pmb->ncells1-1))
+      continue;
+
+    if ((j_ix < 0) || (j_ix > pmb->ncells2-1))
+      continue;
+
+    if ((k_ix < 0) || (k_ix > pmb->ncells3-1))
+      continue;
+
+    if (!mask(k_ix,j_ix,i_ix)) continue;
+
+    const Real val = src(n,k_ix,j_ix,i_ix);
+
+    min_val = std::min(val, min_val);
+    max_val = std::max(val, max_val);
+  }
+
+  const Real val = src(n,k,j,i);
+
+  bool nn_enclosing = (fac_min * min_val <= val) && (val <= fac_max * max_val);
+  return nn_enclosing;
+}
+
 void EquationOfState::NearestNeighborSmooth(
   AA &tar,
   const AA &src,
@@ -617,7 +769,7 @@ void EquationOfState::NearestNeighborSmooth(
         if ((j_ix < 0) || (j_ix > pmb->ncells2-1))
           continue;
 
-        if ((k_ix < 0) || (k_ix > pmb->ncells2-1))
+        if ((k_ix < 0) || (k_ix > pmb->ncells3-1))
           continue;
 
         const Real val = src(k_ix,j_ix,i_ix);
@@ -649,6 +801,300 @@ void EquationOfState::NearestNeighborSmooth(
   }
 
 }
+
+Real EquationOfState::NearestNeighborSmooth(
+  const AA &src,
+  const int n,
+  const int k,
+  const int j,
+  const int i,
+  const AA_B &mask,
+  const int num_neighbors,
+  const bool keep_base_point,
+  const bool exclude_first_extrema,
+  const bool use_hybrid_mean_median,
+  const Real sigma_frac
+)
+{
+  MeshBlock* pmb = pmy_block_;
+
+  // Collect neighbor values in a fixed-size array
+  const int max_neighbors = (2*num_neighbors+1)*(2*num_neighbors+1)*(2*num_neighbors+1);
+  Real neighbor_vals[max_neighbors];
+  int count = 0;
+
+  Real min_val = std::numeric_limits<Real>::max();
+  Real max_val = -std::numeric_limits<Real>::max();
+
+  for (int kk = -num_neighbors; kk <= num_neighbors; ++kk)
+  for (int jj = -num_neighbors; jj <= num_neighbors; ++jj)
+  for (int ii = -num_neighbors; ii <= num_neighbors; ++ii)
+  {
+    if (!keep_base_point && ii == 0 && jj == 0 && kk == 0) continue;
+
+    const int i_ix = i + ii;
+    const int j_ix = j + jj;
+    const int k_ix = k + kk;
+
+    if ((i_ix < 0) || (i_ix >= pmb->ncells1)) continue;
+    if ((j_ix < 0) || (j_ix >= pmb->ncells2)) continue;
+    if ((k_ix < 0) || (k_ix >= pmb->ncells3)) continue;
+    if (!mask(k_ix,j_ix,i_ix)) continue;
+
+    const Real val = src(n,k_ix,j_ix,i_ix);
+
+    neighbor_vals[count++] = val;
+
+    if (exclude_first_extrema)
+    {
+      min_val = std::min(min_val, val);
+      max_val = std::max(max_val, val);
+    }
+  }
+
+  if (count == 0) return 0.0;  // nothing to average
+
+  // Exclude first extrema if requested
+  if (exclude_first_extrema && count > 2)
+  {
+    int min_idx = 0;
+    int max_idx = 0;
+    for (int m = 0; m < count; ++m)
+    {
+      if (neighbor_vals[m] == min_val) min_idx = m;
+      if (neighbor_vals[m] == max_val) max_idx = m;
+    }
+
+    // Swap extrema to the end and reduce count
+    std::swap(neighbor_vals[min_idx], neighbor_vals[count-1]);
+    std::swap(neighbor_vals[max_idx], neighbor_vals[count-2]);
+    count -= 2;
+  }
+
+  // Hybrid mean-median smoothing
+  if (use_hybrid_mean_median)
+  {
+    // Simple bubble sort for small arrays (fixed-size)
+    for (int m = 0; m < count-1; ++m)
+      for (int n2 = m+1; n2 < count; ++n2)
+        if (neighbor_vals[m] > neighbor_vals[n2]) std::swap(neighbor_vals[m], neighbor_vals[n2]);
+
+    Real median = neighbor_vals[count/2];
+
+    Real sum = 0.0;
+    int n_valid = 0;
+    for (int m = 0; m < count; ++m)
+    {
+      if (fabs(neighbor_vals[m] - median) <= sigma_frac*median)
+      {
+        sum += neighbor_vals[m];
+        n_valid++;
+      }
+    }
+
+    if (n_valid > 0)
+      return sum / n_valid;
+    else
+      return median;  // fallback
+  }
+
+  // Default: simple average
+  Real avg_val = 0.0;
+  for (int m = 0; m < count; ++m) avg_val += neighbor_vals[m];
+  return avg_val / count;
+}
+
+Real EquationOfState::NearestNeighborSmoothWeighted(
+  const AA &src,
+  const int n,
+  const int k,
+  const int j,
+  const int i,
+  const AA_B &mask,
+  const int num_neighbors,
+  const bool keep_base_point,
+  const bool exclude_first_extrema,
+  const bool use_hybrid_mean_median,
+  const Real sigma_frac,
+  const Real alpha
+)
+{
+  MeshBlock* pmb = pmy_block_;
+
+  const int max_neighbors = (2*num_neighbors+1)*(2*num_neighbors+1)*(2*num_neighbors+1);
+  Real neighbor_vals[max_neighbors];
+  Real neighbor_weights[max_neighbors];
+  int count = 0;
+
+  Real min_val = std::numeric_limits<Real>::max();
+  Real max_val = -std::numeric_limits<Real>::max();
+
+  // Collect neighbors and compute distance-based weights
+  for (int kk = -num_neighbors; kk <= num_neighbors; ++kk)
+  for (int jj = -num_neighbors; jj <= num_neighbors; ++jj)
+  for (int ii = -num_neighbors; ii <= num_neighbors; ++ii)
+  {
+    if (!keep_base_point && ii == 0 && jj == 0 && kk == 0) continue;
+
+    const int i_ix = i + ii;
+    const int j_ix = j + jj;
+    const int k_ix = k + kk;
+
+    if ((i_ix < 0) || (i_ix >= pmb->ncells1)) continue;
+    if ((j_ix < 0) || (j_ix >= pmb->ncells2)) continue;
+    if ((k_ix < 0) || (k_ix >= pmb->ncells3)) continue;
+    if (!mask(k_ix,j_ix,i_ix)) continue;
+
+    const Real val = src(n,k_ix,j_ix,i_ix);
+    neighbor_vals[count] = val;
+
+    Real dist2 = ii*ii + jj*jj + kk*kk;
+    Real w = (dist2 == 0.0) ? 1.0 : 1.0/std::sqrt(dist2);
+    neighbor_weights[count] = w;
+
+    if (exclude_first_extrema)
+    {
+      min_val = std::min(min_val, val);
+      max_val = std::max(max_val, val);
+    }
+
+    count++;
+  }
+
+  if (count == 0) return src(n,k,j,i); // fallback if no valid neighbors
+
+  // Exclude first extrema if requested
+  if (exclude_first_extrema && count > 2)
+  {
+    int min_idx = 0;
+    int max_idx = 0;
+    for (int m = 0; m < count; ++m)
+    {
+      if (neighbor_vals[m] == min_val) min_idx = m;
+      if (neighbor_vals[m] == max_val) max_idx = m;
+    }
+    std::swap(neighbor_vals[min_idx], neighbor_vals[count-1]);
+    std::swap(neighbor_vals[max_idx], neighbor_vals[count-2]);
+    std::swap(neighbor_weights[min_idx], neighbor_weights[count-1]);
+    std::swap(neighbor_weights[max_idx], neighbor_weights[count-2]);
+    count -= 2;
+  }
+
+  // Weighted average
+  Real weighted_sum = 0.0;
+  Real total_weight = 0.0;
+
+  if (keep_base_point)
+  {
+    Real base_val = src(n,k,j,i);
+    weighted_sum += alpha * base_val;
+    total_weight += alpha;
+  }
+
+  for (int m = 0; m < count; ++m)
+  {
+    Real w = neighbor_weights[m] * (keep_base_point ? (1.0 - alpha) : 1.0);
+    weighted_sum += w * neighbor_vals[m];
+    total_weight += w;
+  }
+
+  Real avg_val = weighted_sum / total_weight;
+
+  // Hybrid mean-median option
+  if (use_hybrid_mean_median)
+  {
+    // sort neighbors
+    for (int m = 0; m < count-1; ++m)
+      for (int n2 = m+1; n2 < count; ++n2)
+        if (neighbor_vals[m] > neighbor_vals[n2]) std::swap(neighbor_vals[m], neighbor_vals[n2]);
+
+    Real median = neighbor_vals[count/2];
+    Real max_dev = sigma_frac * median;
+
+    avg_val = std::min(std::max(avg_val, median - max_dev), median + max_dev);
+  }
+
+  return avg_val;
+}
+
+Real EquationOfState::NearestNeighborSmooth(
+  const AA &src,
+  const int n,
+  const int k,
+  const int j,
+  const int i,
+  const AA_B &mask,
+  const int num_neighbors,
+  const bool keep_base_point,
+  const bool exclude_first_extrema,
+  const bool use_robust_weights,
+  const Real alpha,
+  const Real sigma_frac,
+  const Real max_dev_frac,
+  const Real sigma_s_frac
+)
+{
+  MeshBlock* pmb = pmy_block_;
+  Hydro * ph     = pmb->phydro;
+  Field * pf     = pmb->pfield;
+
+  Real avg_val = 0.0;
+  Real sum_w   = 0.0;
+
+  Real min_val = std::numeric_limits<Real>::max();
+  Real max_val = -std::numeric_limits<Real>::max();
+  Real w_min = 0.0;
+  Real w_max = 0.0;
+
+  // fallback for distance sigma
+  Real sigma_s = sigma_s_frac * num_neighbors;
+  if (sigma_s <= 0.0) sigma_s = 1.0;
+
+  for (int kk = -num_neighbors; kk <= num_neighbors; ++kk)
+  for (int jj = -num_neighbors; jj <= num_neighbors; ++jj)
+  for (int ii = -num_neighbors; ii <= num_neighbors; ++ii)
+  {
+    if (!keep_base_point && ii == 0 && jj == 0 && kk == 0) continue;
+
+    if (!mask(k,j,i)) continue;
+
+    const int i_ix = i + ii;
+    const int j_ix = j + jj;
+    const int k_ix = k + kk;
+
+    if ((i_ix < 0) || (i_ix >= pmb->ncells1)) continue;
+    if ((j_ix < 0) || (j_ix >= pmb->ncells2)) continue;
+    if ((k_ix < 0) || (k_ix >= pmb->ncells3)) continue;
+
+    const Real val = src(n,k_ix,j_ix,i_ix);
+
+    // --- distance weighting ---
+    Real r2 = static_cast<Real>(ii*ii + jj*jj + kk*kk);
+    Real w = std::exp(-r2 / (2.0 * sigma_s * sigma_s));
+
+    avg_val += w * val;
+    sum_w   += w;
+
+    if (exclude_first_extrema)
+    {
+      if (val < min_val) { min_val = val; w_min = w; }
+      if (val > max_val) { max_val = val; w_max = w; }
+    }
+  }
+
+  if (exclude_first_extrema && sum_w > 0.0)
+  {
+    // Remove min/max contributions (approximate)
+    avg_val -= min_val;
+    avg_val -= max_val;
+    sum_w   -= w_min + w_max;
+  }
+
+  if (sum_w > 0.0) avg_val /= sum_w;
+
+  return avg_val;
+}
+
 
 //
 // :D
