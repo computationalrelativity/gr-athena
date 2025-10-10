@@ -147,8 +147,6 @@ void ReconstructFields(
   if (MAGNETIC_FIELDS_ENABLED)
   {
     int ISA, ISB;
-    const int ix_tar_a = IBY;
-    const int ix_tar_b = IBZ;
 
     switch (ivx)
     {
@@ -559,43 +557,43 @@ void Hydro::CalculateFluxesCombined(AA &w,
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED
 
-      RiemannSolver(
-        IVY, k, j, il, iu,
-        wl_, wr_,
-        rl_, rr_,
-        al_, ar_,
-        alpha_,
-        oo_alpha_,
-        beta_u_,
-        gamma_dd_,
-        detgamma_,
-        oo_detgamma_,
-        sqrt_detgamma_,
-        x2flux, s_x2flux,
-        dxw_, lambda_rescaling
-      );
+        RiemannSolver(
+          IVY, k, j, il, iu,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          x2flux, s_x2flux,
+          dxw_, lambda_rescaling
+        );
 
 #else
         // flx(IBY) = (v2*b3 - v3*b2) = -EMFX
         // flx(IBZ) = (v2*b1 - v1*b2) =  EMFZ
 
-      RiemannSolver(
-        IVY, k, j, il, iu,
-        b2,
-        wl_, wr_,
-        rl_, rr_,
-        al_, ar_,
-        alpha_,
-        oo_alpha_,
-        beta_u_,
-        gamma_dd_,
-        detgamma_,
-        oo_detgamma_,
-        sqrt_detgamma_,
-        x2flux, s_x2flux,
-        e1x2, e3x2, w_x2f,
-        dxw_, lambda_rescaling
-      );
+        RiemannSolver(
+          IVY, k, j, il, iu,
+          b2,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          x2flux, s_x2flux,
+          e1x2, e3x2, w_x2f,
+          dxw_, lambda_rescaling
+        );
 #endif
 
         // swap the arrays for the next step (l<->lb)

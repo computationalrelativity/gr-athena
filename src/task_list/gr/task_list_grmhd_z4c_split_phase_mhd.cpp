@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>   // endl
 #include <limits>
+#include <memory>
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
@@ -198,26 +199,46 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
     Reconstruction * pr = pmb->precon;
     PassiveScalars *ps = pmb->pscalars;
 
-    const int num_enlarge_layer = (pr->xorder_use_fb) ? 1 : 0;
+    const int num_enlarge_layer = (pr->xorder_use_fb ||
+                                   pr->xorder_limit_fluxes) ? 1 : 0;
     AA(& hflux)[3] = ph->flux;
     AA(& sflux)[3] = ps->s_flux;
 
+    // If we can hybridize (fb) and the current block has a density all within
+    // xorder_fb_dfloor_fac then we jump immediately to LO
+    bool xorder_use_fb = pr->xorder_use_fb;
+    Reconstruction::ReconstructionVariant xorder_style = pr->xorder_style;
+
+    if ((xorder_use_fb) &&
+        (pr->xorder_fb_dfloor_fac > 1) &&
+        (ph->ConservedDensityWithinFloorThreshold(ph->u,
+                                                  pr->xorder_fb_dfloor_fac,
+                                                  num_enlarge_layer)))
+    {
+      xorder_style = pr->xorder_style_fb;
+      xorder_use_fb = false;
+    }
+
     ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
                         hflux, sflux,
-                        pr->xorder_style,
+                        xorder_style,
                         num_enlarge_layer);
 
-    // Logic to test candidate state can go here. This is pre-flux-correction.
-    if (pr->xorder_use_fb)
-    {
+    // if we fall-back and the state is all valid, no need to lmit
+    bool skip_limit = false;
 
+    // Logic to test candidate state can go here. This is pre-flux-correction.
+    if (xorder_use_fb)
+    {
       bool all_valid = true;
       AA_B mask(pmb->ncells3, pmb->ncells2, pmb->ncells1);
       mask.Fill(true);
 
       const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-      ph->CheckStateWithFluxDivergence(dt_scaled, ph->u, hflux, sflux,
+      ph->CheckStateWithFluxDivergence(dt_scaled,
+                                       ph->u, ps->s,
+                                       hflux, sflux,
                                        all_valid, mask,
                                        num_enlarge_layer);
 
@@ -250,6 +271,27 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
       {
         ph->fallback_mask(k,j,i) = mask(k,j,i);
       }
+
+      skip_limit = all_valid;
+    }
+
+    if (pr->xorder_limit_fluxes && !skip_limit)
+    {
+      const Real dt_scaled = this->dt_scaled(stage, pmb);
+      AA mask_theta(pmb->ncells3, pmb->ncells2, pmb->ncells1);
+
+      ph->LimitMaskFluxDivergence(
+        dt_scaled,
+        ph->u, ps->s,
+        hflux, sflux,
+        mask_theta,
+        num_enlarge_layer
+      );
+
+      ph->LimitFluxes(
+        mask_theta,
+        hflux, sflux
+      );
     }
 
     return TaskStatus::next;
@@ -413,8 +455,10 @@ TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
     PassiveScalars *ps = pmb->pscalars;
     // Field *pf = pmb->pfield;
     Reconstruction *pr = pmb->precon;
+    EquationOfState *peos = pmb->peos;
 
-    const int num_enlarge_layer = (pr->xorder_use_fb) ? 1 : 0;
+    const int num_enlarge_layer = (pr->xorder_use_fb ||
+                                   pr->xorder_limit_fluxes) ? 1 : 0;
 
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
@@ -434,6 +478,15 @@ TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)
     if (NSCALARS > 0)
       pmb->WeightedAveCC(ps->s, ps->s1, ps->s2, ave_wghts, num_enlarge_layer);
 
+    // Ensure update does not dip below floor ---------------------------------
+    if (pr->enforce_limits_integration)
+    {
+      ph->EnforceFloorsLimits(
+        ph->u, ps->s, num_enlarge_layer
+      );
+    }
+    // ------------------------------------------------------------------------
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -447,6 +500,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars(
   {
     Hydro *ph = pmb->phydro;
     PassiveScalars * ps = pmb->pscalars;
+    Reconstruction *pr = pmb->precon;
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
@@ -454,6 +508,16 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddFluxDivergenceHydroScalars(
 
     if (NSCALARS > 0)
       ps->AddFluxDivergence(dt_scaled, ps->s);
+
+    // Ensure update does not dip below floor ---------------------------------
+    const int num_enlarge_layer = 0;
+    if (pr->enforce_limits_flux_div)
+    {
+      ph->EnforceFloorsLimits(
+        ph->u, ps->s, num_enlarge_layer
+      );
+    }
+    // ------------------------------------------------------------------------
 
     return TaskStatus::next;
   }

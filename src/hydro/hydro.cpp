@@ -267,3 +267,40 @@ Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt) {
   Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
   return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
 }
+
+
+// Check if conserved density is under a floor cutoff factor on the current MeshBlock
+bool Hydro::ConservedDensityWithinFloorThreshold(
+  AA &u,
+  const Real undensitized_dfloor_fac,
+  const int num_enlarge_layer
+)
+{
+  MeshBlock *pmb = pmy_block;
+
+  // Undensitized conserved density floor
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+  const Real dfloor = mb * pmb->peos->GetEOS().GetDensityFloor();
+  const Real d_fac = undensitized_dfloor_fac * dfloor;
+  AA & sqrt_detgamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma.array();
+
+  bool ret = true;
+
+  int il = pmb->is-num_enlarge_layer;
+  int iu = pmb->ie+num_enlarge_layer;
+  int jl = pmb->js-num_enlarge_layer;
+  int ju = pmb->je+num_enlarge_layer;
+  int kl = pmb->ks-num_enlarge_layer;
+  int ku = pmb->ke+num_enlarge_layer;
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  {
+    ret = ret and (sqrt_detgamma(k,j,i) * d_fac > u(IDN,k,j,i));
+
+    if (!ret)
+      break;
+  }
+
+  return ret;
+}

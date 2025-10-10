@@ -344,7 +344,7 @@ void Hydro::RiemannSolver(
   {
     const Real lambda_l = std::min(lambda_m_l(i), lambda_m_r(i));
     const Real lambda_r = std::max(lambda_p_l(i), lambda_p_r(i));
-    lambda(i) = std::max(lambda_r, -lambda_l);
+    lambda(i) = lambda_rescaling * std::max(lambda_r, -lambda_l);
   }
 
   // Calculate conserved quantities in L region incl. factor of sqrt(detgamma)

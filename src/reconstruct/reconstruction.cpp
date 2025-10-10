@@ -160,6 +160,14 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
     "time", "xorder_fb_dfloor_fac", 1.0
   );
 
+  xorder_fb_Y_min_fac = pin->GetOrAddReal(
+    "time", "xorder_fb_Y_min_fac", 1.0
+  );
+
+  xorder_fb_Y_max_fac = pin->GetOrAddReal(
+    "time", "xorder_fb_Y_max_fac", 1.0
+  );
+
   xorder_upwind_scalars = pin->GetOrAddBoolean(
     "time", "xorder_upwind_scalars", true
   );
@@ -207,6 +215,18 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
 
   xorder_use_aux_cs2 = pin->GetOrAddBoolean(
     "time", "xorder_use_aux_cs2", false
+  );
+
+  xorder_limit_fluxes = pin->GetOrAddBoolean(
+    "time", "xorder_limit_fluxes", false
+  );
+
+  enforce_limits_integration = pin->GetOrAddBoolean(
+    "time", "enforce_limits_integration", false
+  );
+
+  enforce_limits_flux_div = pin->GetOrAddBoolean(
+    "time", "enforce_limits_flux_div", false
   );
 
   // Check for incompatible choices with broader solver configuration

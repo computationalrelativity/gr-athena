@@ -50,6 +50,8 @@ class Reconstruction {
   bool xorder_floor_primitives = false;   // apply floors to reconstructed states?
   bool xorder_limit_species = false;      // limit reconstructed species?
   Real xorder_fb_dfloor_fac = 1;          // multiply dfloor by this to consider fb
+  Real xorder_fb_Y_min_fac;               // fiddle factors
+  Real xorder_fb_Y_max_fac;
 
   bool xorder_upwind_scalars = true;      // should passive scalars be upwinded?
 
@@ -66,6 +68,10 @@ class Reconstruction {
   bool xorder_use_aux_h;                     // reconstruct enthalpy?
   bool xorder_use_aux_W;                     // reconstruct lorentz?
   bool xorder_use_aux_cs2;                   // reconstruct cs^2?
+
+  bool xorder_limit_fluxes = false;
+  bool enforce_limits_integration = false;
+  bool enforce_limits_flux_div = false;
 
   bool characteristic_projection; // reconstruct on characteristic or primitive hydro vars
   bool uniform[3], curvilinear[2];

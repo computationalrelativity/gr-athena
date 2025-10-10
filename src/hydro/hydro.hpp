@@ -260,6 +260,7 @@ public:
   void CheckStateWithFluxDivergence(
     const Real wght,
     AA &u,
+    AA &s,
     AA(& hflux)[3],
     AA(& sflux)[3],
     bool &all_valid,
@@ -284,6 +285,34 @@ public:
     AA (&hflux)[3], AA (&sflux)[3],
     AA (&lo_hflux)[3], AA (&lo_sflux)[3],
     const AA_B &mask);
+
+  void LimitMaskFluxDivergence(
+    const Real wght,
+    AA &u,
+    AA &s,
+    AA(& hflux)[3],
+    AA(& sflux)[3],
+    AA &mask,
+    const int num_enlarge_layer
+  );
+
+  void LimitFluxes(
+    AA & mask_theta,
+    AA(& hflux)[3],
+    AA(& sflux)[3]
+  );
+
+  void EnforceFloorsLimits(
+    AA &u,
+    AA &s,
+    const int num_enlarge_layer
+  );
+
+  bool ConservedDensityWithinFloorThreshold(
+    AA &u,
+    const Real undensitized_dfloor_fac,
+    const int num_enlarge_layer
+  );
 
     // BD: TODO- To remove
   void CalculateFluxes_FluxReconstruction(
