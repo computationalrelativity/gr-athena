@@ -615,7 +615,7 @@ parser.add_argument('--rns_path',
 parser.add_argument('-sgrid',
                     action='store_true',
                     default=False,
-                    help='enable GNU scientific library')
+                    help='enable sgrid')
 
 # --sgrid_path argument
 parser.add_argument('--sgrid_path',

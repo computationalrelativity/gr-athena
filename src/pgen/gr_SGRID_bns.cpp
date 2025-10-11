@@ -120,18 +120,10 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if(adaptive==true)
     EnrollUserRefinementCondition(RefinementCondition);
 
-  AllocateUserHistoryOutput(4);
-  EnrollUserHistoryOutput(0, max_rho,   "max-rho",
-    UserHistoryOperation::max);
-  EnrollUserHistoryOutput(1, min_alpha, "min-alpha",
-    UserHistoryOperation::min);
-  EnrollUserHistoryOutput(2, max_abs_con_H, "max-abs-con.H",
-    UserHistoryOperation::max);
-
-#if MAGNETIC_FIELDS_ENABLED
-  // AllocateUserHistoryOutput(1);
-  EnrollUserHistoryOutput(3, DivBface, "divBface");
-#endif
+  EnrollUserStandardHydro(pin);
+  EnrollUserStandardField(pin);
+  EnrollUserStandardZ4c(pin);
+  EnrollUserStandardM1(pin);
 
   //TODO ... Here we might need some preparation for EOS, etc. 
   // #ifdef LORENE_EOS
@@ -407,7 +399,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       }
 #endif
       pre = (rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
-      phydro->temperature(k,j,i) = T_atm;
+      phydro->derived_ms(IX_T,k,j,i) = T_atm;
 #else
       pre = k_adi*pow(w_rho,gamma_adi);
 #endif
