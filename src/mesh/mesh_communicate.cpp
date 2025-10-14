@@ -189,7 +189,7 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
 
 void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
 {
-#if Z4C_ENABLED
+#if defined(Z4C_WITH_HYDRO_ENABLED)
   MeshBlock *pmb = nullptr;
   BoundaryValues *pbval = nullptr;
 
