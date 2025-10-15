@@ -88,6 +88,8 @@ Deleptonization *pdelept = nullptr;
 enum class opt_deleptonization_method { Liebendoerfer, Simple, None };
 opt_deleptonization_method opt_dlp_mtd_;
 
+bool opt_dlp_full_chemical_potential;
+
 // various parameters seeded from input file
 Real opt_E_nu_avg;
 Real opt_rho_trap;
@@ -189,6 +191,12 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
     msg << "problem/deleptonization_method unknown" << std::endl;
     ATHENA_ERROR(msg);
   }
+
+  opt_dlp_full_chemical_potential = pin->GetOrAddBoolean(
+    "problem",
+    "dlp_full_chemical_potential",
+    false
+  );
   // --------------------------------------------------------------------------
 
   // other params
@@ -740,11 +748,33 @@ void Mesh::UserWorkInLoop()
 
           // Prepare chemical potentials (BD: TODO- check)
           // Should read mu_nu := mu_e - mu_n + mu_p
-          const Real mu_nu = (
-            peos->GetEOS().GetElectronLeptonChemicalPotential(n, T, Y) // -
-            // peos->GetEOS().GetBaryonChemicalPotential(n, T, Y) +
-            // peos->GetEOS().GetChargeChemicalPotential(n, T, Y)
-          );
+          Real mu_nu = 0.0;
+          if (opt_dlp_full_chemical_potential)
+          {
+            const Real mu_b = peos->GetEOS().GetBaryonChemicalPotential(
+              n, T, Y
+            );
+            const Real mu_q = peos->GetEOS().GetChargeChemicalPotential(
+              n, T, Y
+            );
+            const Real mu_l = peos->GetEOS().GetElectronLeptonChemicalPotential(
+              n, T, Y
+            );
+
+            const Real mu_n = mu_b;
+            const Real mu_p = mu_b+mu_q;
+            const Real mu_e = mu_l-mu_q;
+
+            mu_nu = mu_e - mu_n + mu_p;
+          }
+          else
+          {
+            mu_nu = (
+              peos->GetEOS().GetElectronLeptonChemicalPotential(n, T, Y) // -
+              // peos->GetEOS().GetBaryonChemicalPotential(n, T, Y) +
+              // peos->GetEOS().GetChargeChemicalPotential(n, T, Y)
+            );
+          }
 
           if ((mu_nu > E_nu_avg) &&  // MeV units
               (rho < rho_trap))      // code units
