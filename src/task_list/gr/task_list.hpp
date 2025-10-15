@@ -123,6 +123,9 @@ public:
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+#if CCE_ENABLED
+  TaskStatus CCEDump(MeshBlock *pmb, int stage);
+#endif
   TaskStatus UpdateSource(MeshBlock *pmb, int stage);
 
 public:
@@ -160,9 +163,7 @@ public:
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
 
-  TaskStatus CalculateHydroFlux(MeshBlock *pmb, int stage);
   TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
-  TaskStatus CalculateScalarFlux(MeshBlock *pmb, int stage);
 
   TaskStatus SendFluxCorrectionHydro(MeshBlock *pmb, int stage);
   TaskStatus SendFluxCorrectionEMF(  MeshBlock *pmb, int stage);
@@ -172,9 +173,11 @@ public:
   TaskStatus ReceiveAndCorrectEMF(MeshBlock *pmb, int stage);
   TaskStatus ReceiveScalarFlux(MeshBlock *pmb, int stage);
 
-  TaskStatus IntegrateHydro(MeshBlock *pmb, int stage);
+  TaskStatus CalculateHydroScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus IntegrateHydroScalars(MeshBlock *pmb, int stage);
+  TaskStatus AddFluxDivergenceHydroScalars(MeshBlock *pmb, int stage);
+
   TaskStatus IntegrateField(MeshBlock *pmb, int stage);
-  TaskStatus IntegrateScalars(MeshBlock *pmb, int stage);
 
   TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
 

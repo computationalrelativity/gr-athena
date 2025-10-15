@@ -21,6 +21,9 @@
 #include "../../scalars/scalars.hpp"
 #include "task_list.hpp"
 #include "task_names.hpp"
+#if CCE_ENABLED
+#include "../../z4c/cce/cce.hpp"
+#endif
 
 // #if M1_ENABLED
 // #include "../../m1/m1.hpp"
@@ -262,6 +265,10 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
 
+#if CCE_ENABLED
+    Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
+#endif
+
     Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
 
@@ -453,6 +460,10 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
 
+#if CCE_ENABLED
+    Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
+#endif
+
     Add(USERWORK, ADM_CONSTR, &GRMHD_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GRMHD_Z4c::NewBlockTimeStep);
 
@@ -538,15 +549,14 @@ TaskStatus GRMHD_Z4c::CalculateHydroFlux(MeshBlock *pmb, int stage)
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     Reconstruction * pr = pmb->precon;
+    PassiveScalars *ps = pmb->pscalars;
 
-    int xorder = pmb->precon->xorder;
+    AA(& hflux)[3] = ph->flux;
+    AA(& sflux)[3] = ps->s_flux;
 
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      xorder = 1;
-    }
-
-    ph->CalculateFluxes(ph->w, pf->b, pf->bcc, xorder);
+    ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
+                        hflux, sflux,
+                        pr->xorder_style);
 
     return TaskStatus::next;
   }
@@ -951,22 +961,8 @@ TaskStatus GRMHD_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c::CalculateScalarFlux(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
-  {
-    PassiveScalars *ps = pmb->pscalars;
-
-    if ((stage == 1) && (integrator == "vl2"))
-    {
-      ps->CalculateFluxes(ps->r, 1);
-      return TaskStatus::next;
-    }
-    else
-    {
-      ps->CalculateFluxes(ps->r, pmb->precon->xorder);
-      return TaskStatus::next;
-    }
-  }
-  return TaskStatus::fail;
+  // BD: TODO- remove (handled in hydro now)
+  return TaskStatus::next;
 }
 
 
@@ -1311,6 +1307,26 @@ TaskStatus GRMHD_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 
   return TaskStatus::success;
 }
+
+#if CCE_ENABLED
+TaskStatus GRMHD_Z4c::CCEDump(MeshBlock *pmb, int stage)
+{
+  // only do on last stage
+  if (stage != nstages) return TaskStatus::success;
+
+  Mesh *pm = pmb->pmy_mesh;
+
+  for (auto cce : pm->pcce)
+  {
+    if (pm->ncycle % cce->freq == 0)
+    {
+      cce->Interpolate(pmb);
+    }
+  }
+
+  return TaskStatus::success;
+}
+#endif
 
 TaskStatus GRMHD_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {

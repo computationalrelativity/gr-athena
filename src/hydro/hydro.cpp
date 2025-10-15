@@ -44,6 +44,21 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
            (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
             AthenaArray<Real>::DataStatus::empty)}
     },
+    lo_flux {
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1+1)
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+             (pmb->pmy_mesh->f2 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NHYDRO, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+             (pmb->pmy_mesh->f3 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA()
+    },
     coarse_cons_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
@@ -112,9 +127,17 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
       pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
 
 
+  if (pmb->precon->xorder_use_fb)
+  {
+    fallback_mask.NewAthenaArray(nc3, nc2, nc1);
+  }
+
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4" || STS_ENABLED) {
+  if (integrator == "ssprk5_4" ||
+      STS_ENABLED ||
+      (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
+  {
     // future extension may add "int nregister" to Hydro class
     u2.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
   }
@@ -134,45 +157,24 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   dt2_.NewAthenaArray(nc1);
   dt3_.NewAthenaArray(nc1);
   dxw_.NewAthenaArray(nc1);
+
+  // storage for reconstruction of primitives
   wl_.NewAthenaArray(NWAVE, nc1);
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
+
+#if USETM
+  // storage for reconstruction of passive scalars
+  rl_.NewAthenaArray(NSCALARS, nc1);
+  rr_.NewAthenaArray(NSCALARS, nc1);
+  rlb_.NewAthenaArray(NSCALARS, nc1);
+#endif
 
   if (pmy_block->precon->xorder_use_auxiliaries)
   {
     al_.NewAthenaArray(NDRV_HYDRO, nc1);
     ar_.NewAthenaArray(NDRV_HYDRO, nc1);
     alb_.NewAthenaArray(NDRV_HYDRO, nc1);
-  }
-
-  if (pmy_block->precon->xorder_use_fb)
-  {
-    r_wl_.NewAthenaArray(NWAVE, nc1);
-    r_wr_.NewAthenaArray(NWAVE, nc1);
-    r_wlb_.NewAthenaArray(NWAVE, nc1);
-
-    if (pmy_block->precon->xorder_use_auxiliaries)
-    {
-      r_al_.NewAthenaArray(NDRV_HYDRO, nc1);
-      r_ar_.NewAthenaArray(NDRV_HYDRO, nc1);
-      r_alb_.NewAthenaArray(NDRV_HYDRO, nc1);
-    }
-
-    if (pmy_block->precon->xorder_use_fb_mask)
-    {
-      mask_l_.NewAthenaArray(nc1);
-      mask_lb_.NewAthenaArray(nc1);
-      mask_r_.NewAthenaArray(nc1);
-    }
-  }
-  else
-  {
-#if USETM
-    // Needed for PrimitiveSolver floors
-    rl_.NewAthenaArray(NSCALARS, nc1);
-    rr_.NewAthenaArray(NSCALARS, nc1);
-    rlb_.NewAthenaArray(NSCALARS, nc1);
-#endif
   }
 
   dflx_.NewAthenaArray(NHYDRO, nc1);
@@ -264,4 +266,41 @@ Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt) {
   Real v_over_c = (1024.0)* dt * dflx / (dx * (rhol + rhor));
   Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
   return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
+}
+
+
+// Check if conserved density is under a floor cutoff factor on the current MeshBlock
+bool Hydro::ConservedDensityWithinFloorThreshold(
+  AA &u,
+  const Real undensitized_dfloor_fac,
+  const int num_enlarge_layer
+)
+{
+  MeshBlock *pmb = pmy_block;
+
+  // Undensitized conserved density floor
+  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+  const Real dfloor = mb * pmb->peos->GetEOS().GetDensityFloor();
+  const Real d_fac = undensitized_dfloor_fac * dfloor;
+  AA & sqrt_detgamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma.array();
+
+  bool ret = true;
+
+  int il = pmb->is-num_enlarge_layer;
+  int iu = pmb->ie+num_enlarge_layer;
+  int jl = pmb->js-num_enlarge_layer;
+  int ju = pmb->je+num_enlarge_layer;
+  int kl = pmb->ks-num_enlarge_layer;
+  int ku = pmb->ke+num_enlarge_layer;
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  for (int i=il; i<=iu; ++i)
+  {
+    ret = ret and (sqrt_detgamma(k,j,i) * d_fac > u(IDN,k,j,i));
+
+    if (!ret)
+      break;
+  }
+
+  return ret;
 }

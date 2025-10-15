@@ -36,6 +36,21 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
              (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
               AthenaArray<Real>::DataStatus::empty)}
     },
+    lo_s_flux {
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NSCALARS, pmb->ncells3, pmb->ncells2, pmb->ncells1+1)
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NSCALARS, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
+             (pmb->pmy_mesh->f2 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA(),
+      pin->GetOrAddBoolean("time", "xorder_use_fb", false)
+        ? AA(NSCALARS, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
+             (pmb->pmy_mesh->f3 ? AA::DataStatus::allocated
+                                : AA::DataStatus::empty))
+        : AA()
+    },
     coarse_s_(NSCALARS, pmb->ncc3, pmb->ncc2, pmb->ncc1,
               (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                AthenaArray<Real>::DataStatus::empty)),
@@ -55,7 +70,9 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
 
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
-  if (integrator == "ssprk5_4" || STS_ENABLED)
+  if (integrator == "ssprk5_4" ||
+      STS_ENABLED ||
+      (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
     // future extension may add "int nregister" to Hydro class
     s2.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
 
@@ -70,17 +87,6 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
   pmb->pbval->bvars_main_int.push_back(&sbvar);
 
   // Allocate memory for scratch arrays
-  rl_.NewAthenaArray(NSCALARS, nc1);
-  rr_.NewAthenaArray(NSCALARS, nc1);
-  rlb_.NewAthenaArray(NSCALARS, nc1);
-
-  if (pmy_block->precon->xorder_use_fb)
-  {
-    r_rl_.NewAthenaArray(NSCALARS, nc1);
-    r_rr_.NewAthenaArray(NSCALARS, nc1);
-    r_rlb_.NewAthenaArray(NSCALARS, nc1);
-  }
-
   dflx_.NewAthenaArray(NSCALARS, nc1);
 
   if (scalar_diffusion_defined)

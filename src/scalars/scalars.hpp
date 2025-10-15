@@ -44,6 +44,7 @@ class PassiveScalars {
   // "primitive vars" = (density-normalized) mass fraction/concentration of each species
   AthenaArray<Real> r;  // , r1;
   AthenaArray<Real> s_flux[3];  // face-averaged flux vector
+  AthenaArray<Real> lo_s_flux[3];
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
@@ -55,8 +56,6 @@ class PassiveScalars {
   // public functions:
   // KGF: use inheritance for these functions / overall class?
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out);
-  void CalculateFluxes(AthenaArray<Real> &s, const int order);
-  void CalculateFluxesRef(AthenaArray<Real> &s, const int order);
   void CalculateFluxes_STS();
 
   // NOTE: for now, not creating subfolder "scalars_diffusion/", nor class ScalarDiffusion
@@ -101,8 +100,8 @@ public:  // debug for combined hydro-scalar recon
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
   // 2D scratch arrays
-  AthenaArray<Real> rl_, rr_, rlb_;
-  AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
+  // AthenaArray<Real> rl_, rr_, rlb_;
+  // AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
 
   // 1D scratch arrays
   AthenaArray<Real> dflx_;
