@@ -157,17 +157,19 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   // Grid and quadrature weights
   std::string quadrature = pin->GetOrAddString("ahf","quadrature","gausslegendre");
   SetGridWeights(quadrature);
-  
+
   // Initialize last & found
-  last_a0 = -1;
-  ah_found = false;
+  parname = "last_a0_";
+  parname += n_str;
+  last_a0 = pin->GetOrAddReal("ahf", parname, -1);
+
+  parname = "ah_found_a0_";
+  parname += n_str;
+  ah_found = pin->GetOrAddBoolean("ahf", parname, false);
 
   parname = "time_first_found_";
   parname += n_str;
   time_first_found = pin->GetOrAddReal("ahf", parname, -1.0);
-
-  //TODO guess from file
-  // * if found, set ah_found to true & store the guess
 
   // Points for sph harm l>=1
   lmpoints = lmax1*lmax1; // SB this could/should be lmax^2: check all loop ranges, fix index map before changing.
@@ -1113,6 +1115,18 @@ void AHF::Find(int iter, Real time)
   }
   InitialGuess();
   FastFlowLoop();
+
+  // Retain `last_a0` in restart: this serves as primary ini. guess.
+  if (ah_found)
+  {
+    std::string parname;
+    parname = "last_a0_" + std::to_string(nh); // nh: horizon index
+
+    pin->SetReal("ahf", parname, last_a0);
+
+    parname = "ah_found_a0_" + std::to_string(nh);
+    pin->SetBoolean("ahf", parname, ah_found);
+  }
 }
 
 //----------------------------------------------------------------------------------------
