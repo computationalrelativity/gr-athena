@@ -2,27 +2,29 @@
 // Athena++ astrophysical MHD code
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
-//! \file gr_SGRID_bns.cpp
+//! \file gr_Lorene_BinNSs.cpp
 //  \brief Initial conditions for binary neutron stars.
-//         Interpolation of SGRID initial data.
-//         Requires SGRID library:
-//         https://github.com/sgridsource
+//         Interpolation of Lorene initial data.
+//         Requires the library:
+//         https://lorene.obspm.fr/
 
+#include <algorithm>
+#include <cstring> // strcmp()
 #include <cassert>
+#include <iomanip>
 #include <iostream>
-#include <cstring>
+#include <limits>
+#include <sstream>
+#include <streambuf>
+#include <cmath>
 #include <filesystem>
 
-// libsgrid
-// Functions protoypes are "SGRID_*"
-// #include "DNSdataReader.h"
-
 // Athena++ headers
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../globals.hpp"
+#include "../athena_aliases.hpp"
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../z4c/ahf.hpp"
 #include "../z4c/z4c.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
@@ -33,7 +35,19 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
-#include "../globals.hpp"
+
+#if M1_ENABLED
+#include "../m1/m1.hpp"
+#include "../m1/m1_set_equilibrium.hpp"
+#endif  // M1_ENABLED
+
+
+//----------------------------------------------------------------------------------------
+using namespace gra::aliases;
+#if USETM
+using namespace Primitive;
+#endif
+//----------------------------------------------------------------------------------------
 
 extern "C" {
   int libsgrid_main(int argc, char **argv);
@@ -83,20 +97,22 @@ enum{idvar_alpha,
 namespace {
   int RefinementCondition(MeshBlock *pmb);
 
-  Real linear_interp(Real *f, Real *x, int n, Real xv);
-  int interp_locate(Real *x, int Nx, Real xval);
-
-#if MAGNETIC_FIELDS_ENABLED
-  Real DivBface(MeshBlock *pmb, int iout);
+#if USETM
+  // Global variables
+  ColdEOS<COLDEOS_POLICY> * ceos = NULL;
+#else
+  Real k_adi;
+  Real gamma_adi;
 #endif
 
-  Real max_rho(      MeshBlock *pmb, int iout);
-  Real min_alpha(    MeshBlock *pmb, int iout);
-  Real max_abs_con_H(MeshBlock *pmb, int iout);
+  Real sep;
+  Real pgasmax_1;
+  Real pgasmax_2;
 
-  // Global variables
-  //TODO ... EOS etc.
-
+  // constants ----------------------------------------------------------------
+  Real const B_unit = 8.351416e19; // almost the same as athenaB * 1.0e4;
+  // --------------------------------------------------------------------------
+  
   // Utilities wrapping various SGRID DNS calls (DNS_*)
   void DNS_init_sgrid(ParameterInput *pin);
   int DNS_position_fileptr_after_str(FILE *in, const char *str);
@@ -104,15 +120,130 @@ namespace {
   int DNS_call_sgrid(const char *command);
 }
 
-namespace fs = std::filesystem;
+namespace {
 
-// void SGRIDHistory(HistoryData *pdata, Mesh *pm);
+void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
+{
+  GRDynamical * pcoord { static_cast<GRDynamical*>(pmb->pcoord) };
+  Field * pfield { pmb->pfield };
+  Hydro * phydro { pmb->phydro };
+
+  // Prepare CC index bounds
+  const int il = 0;
+  const int iu = (pmb->ncells1>1)? pmb->ncells1-1: 0;
+
+  const int jl = 0;
+  const int ju = (pmb->ncells2>1)? pmb->ncells2-1: 0;
+
+  const int kl = 0;
+  const int ku = (pmb->ncells3>1)? pmb->ncells3-1: 0;
+
+
+  // B field ------------------------------------------------------------------
+  // Assume stars are located on x axis
+
+  Real pcut_1 = pin->GetReal("problem","pcut_1") * pgasmax_1;
+  Real pcut_2 = pin->GetReal("problem","pcut_2") * pgasmax_2;
+
+  // Real b_amp = pin->GetReal("problem","b_amp");
+  // Scaling taken from project_bnsmhd
+  Real ns_1 = pin->GetReal("problem","ns_1");
+  Real ns_2 = pin->GetReal("problem","ns_2");
+
+  // Read b_amp and rescale it from gaus to code units
+  Real A_amp_1 = pin->GetReal("problem","b_amp_1") *
+    0.5/std::pow(pgasmax_1-pcut_1, ns_1)/B_unit;
+  Real A_amp_2 = pin->GetReal("problem","b_amp_2") *
+    0.5/std::pow(pgasmax_2-pcut_2, ns_2)/B_unit;
+
+  pfield->b.x1f.ZeroClear();
+  pfield->b.x2f.ZeroClear();
+  pfield->b.x3f.ZeroClear();
+  pfield->bcc.ZeroClear();
+
+  AthenaArray<Real> Acc(NFIELD,pmb->ncells3,pmb->ncells2,pmb->ncells1);
+
+  // Initialize cell centred potential
+  for (int k=0; k<pmb->ncells3; k++)
+  for (int j=0; j<pmb->ncells2; j++)
+  for (int i=0; i<pmb->ncells1; i++)
+  {
+    const Real x1 = pcoord->x1v(i);
+    const Real x2 = pcoord->x2v(j);
+
+    const Real w_p   = phydro->w(IPR,k,j,i);
+    const Real w_rho = phydro->w(IDN,k,j,i);
+
+    if(x1 > 0)
+    {
+      Real A_amp =
+          A_amp_2 * std::max(std::pow(w_p - pcut_2, ns_2), 0.0);
+      Acc(0,k,j,i) = -x2 * A_amp;
+      Acc(1,k,j,i) = (x1 - sep) * A_amp;
+      Acc(2,k,j,i) = 0.0;
+    }
+    else
+    {
+      Real A_amp =
+          A_amp_1 * std::max(std::pow(w_p - pcut_1, ns_1), 0.0);
+      Acc(0,k,j,i) = -x2 * A_amp;
+      Acc(1,k,j,i) = (x1 + sep) * A_amp;
+      Acc(2,k,j,i) = 0.0;
+    }
+  }
+
+  // Construct cell centred B field from cell centred potential
+  for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+  for(int j=pmb->js-1; j<=pmb->je+1; j++)
+  for(int i=pmb->is-1; i<=pmb->ie+1; i++)
+  {
+    const Real dx1 = pcoord->dx1v(i);
+    const Real dx2 = pcoord->dx2v(j);
+    const Real dx3 = pcoord->dx3v(k);
+
+    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+
+  }
+
+  // Initialise face centred field by averaging cc field
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie+1; i++)
+  {
+  	pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
+                                pfield->bcc(0,k,j,i));
+  }
+
+  for(int k=pmb->ks; k<=pmb->ke;   k++)
+  for(int j=pmb->js; j<=pmb->je+1; j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
+  {
+  	pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
+                                pfield->bcc(1,k,j,i));
+  }
+
+  for(int k=pmb->ks; k<=pmb->ke+1; k++)
+  for(int j=pmb->js; j<=pmb->je;   j++)
+  for(int i=pmb->is; i<=pmb->ie;   i++)
+  {
+	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
+                                pfield->bcc(2,k,j,i));
+  }
+
+}
+
+} // namespace
+
+namespace fs = std::filesystem;
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
-//  \brief Function to initialize problem-specific data in mesh class. Can also be used
+//  \brief Function to initialize problem-specific data in mesh class.  Can also be used
 //  to initialize variables which are global to (and therefore can be passed to) other
-//  functions in this file. Called in Mesh constructor.
+//  functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -125,60 +256,157 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserStandardZ4c(pin);
   EnrollUserStandardM1(pin);
 
-  //TODO ... Here we might need some preparation for EOS, etc. 
-  // #ifdef LORENE_EOS
-  //   LORENE_EoS_fname   = pin->GetString("hydro", "lorene");
-  // #if EOS_POLICY_CODE == 2
-  //   LORENE_EoS_fname_Y = pin->GetString("hydro", "lorene_Y");
-  // #endif
-  //   LORENE_EoS_Table = new LoreneTable;
-  //   ReadLoreneTable(LORENE_EoS_fname, LORENE_EoS_Table);
-  // #if EOS_POLICY_CODE == 2
-  //   ReadLoreneFractions(LORENE_EoS_fname_Y, LORENE_EoS_Table);
-  // #endif
-  //   ConvertLoreneTable(LORENE_EoS_Table);
-  //   LORENE_EoS_Table->rho_atm = pin->GetReal("hydro", "dfloor"); 
-  // #endif
- 
-  if (!resume_flag) {
-    // Check on some input parameters
-    std::string datadir = pin->GetOrAddString("problem", "datadir", "");
-    if (datadir.empty()) {
-          std::stringstream msg;
-	  msg << "### FATAL ERROR parameter datadir: " << datadir << " "
-	      << " not found. This is needed.";
-	  ATHENA_ERROR(msg);
-    }
-    std::string outdir  = pin->GetOrAddString("problem", "outdir", "SGRID");
-    // Check if the directory exists and create it if it doesn't
-    if (!fs::exists(outdir)) {
-        if (!fs::create_directory(outdir)) {
-            std::cerr << "Failed to create directory!" << std::endl;
-        }
-    }
+  /*
+  // New outputs can now be specified with the form:
+  EnrollUserHistoryOutput(
+    [&](MeshBlock *pmb, int iout){ return 1.0; },
+    "some_name",
+    UserHistoryOperation::min
+  );
+  */
 
-     // Alloc memory and read data
-    // Alloc memory and read data
-    DNS_init_sgrid(pin);
-    // Read SGRID parameters from BNSdata_properties.txt file
-    DNS_parameters(pin);
+  if (resume_flag)
+    return;
+
+  // Check on some input parameters
+  std::string datadir = pin->GetOrAddString("problem", "datadir", "");
+  if (datadir.empty()) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR parameter datadir: " << datadir << " "
+            << " not found. This is needed.";
+        ATHENA_ERROR(msg);
   }
-  
+  std::string outdir  = pin->GetOrAddString("problem", "outdir", "SGRID");
+  // Check if the directory exists and create it if it doesn't
+  if (!fs::exists(outdir)) {
+      if (!fs::create_directory(outdir)) {
+          std::cerr << "Failed to create directory!" << std::endl;
+      }
+  }
+
+   // Alloc memory and read data
+  // Alloc memory and read data
+  DNS_init_sgrid(pin);
+  // Read SGRID parameters from BNSdata_properties.txt file
+  DNS_parameters(pin);
+
+  sep = pin->GetReal("problem", "DNSdata_b");
+  const Real sgrid_x_CM = pin->GetReal("problem", "x_CM");
+
+#if USETM
+  // initialize the cold EOS
+  ceos = new ColdEOS<COLDEOS_POLICY>();
+  InitColdEOS(ceos, pin);
+#else
+  k_adi = pin->GetReal("hydro", "k_adi");
+  gamma_adi = pin->GetReal("hydro", "gamma");
+#endif
+
+  // read it in again to get the central densities
+  Real xyz1[3] = {sep + sgrid_x_CM, 0.0, 0.0};
+  Real xyz2[3] = {-sep + sgrid_x_CM, 0.0, 0.0};
+  Real IDvars[idvar_NDATAMAX];
+
+  Real rho_1 = 0.0;
+  Real pre_1 = 0.0;
+  Real eps_1 = 0.0;
+  SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz1, IDvars, 0);
+  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_1, &pre_1, &eps_1);
+
+  Real rho_2 = 0.0;
+  Real pre_2 = 0.0;
+  Real eps_2 = 0.0;
+  SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz2, IDvars, 0);
+  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_2, &pre_2, &eps_2);
+
+
+  // for tabulated EOS need to convert baryon mass
+//#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+//  Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+//  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+//#endif
+
+#if USETM
+  pgasmax_1 = ceos->GetPressure(rho_1);
+  pgasmax_2 = ceos->GetPressure(rho_2);
+#else
+  pgasmax_1 = k_adi * pow(rho_1, gamma_adi);
+  pgasmax_2 = k_adi * pow(rho_2, gamma_adi);
+#endif
+
+  // sanity check if the internal energy matches the eos
+//#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+//  eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
+//#endif
+
+#if USETM
+  Real eps_ceos = ceos->GetSpecificInternalEnergy(rho_1);
+#else
+  Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
+#endif
+  Real eps_err = std::abs(eps_ceos/eps_1 - 1);
+
+#ifdef MPI_PARALLEL
+  int rank;
+  int root = pin->GetOrAddInteger("problem", "mpi_root", 0);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  bool ioproc = (root == rank);
+#else
+  bool ioproc = true;
+#endif
+
+  if (ioproc && (eps_err > 1.0e-5))
+  {
+    printf("Warning: Internal energy in SGRID data and eos do not match "
+           "in the center of star 1!\n");
+    printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
+           rho_1, eps_1, eps_ceos, eps_err);
+  }
+
+  return;
+}
+
+// BD: TODO- shift to standard enroll?
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
+  const bool use_fb = precon->xorder_use_fb;
+  AllocateUserOutputVariables(use_fb + M1_ENABLED * 4);
+}
+
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  MeshBlock * pmb = this;
+
+  const bool use_fb = precon->xorder_use_fb;
+
+  if (use_fb)
+  CC_GLOOP3(k, j, i)
+  {
+    user_out_var(0,k,j,i) = phydro->fallback_mask(k,j,i);
+  }
+}
+
+void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
+  // Reset the status
+  AA c2p_status;
+  c2p_status.InitWithShallowSlice(phydro->derived_ms, IX_C2P, 1);
+  c2p_status.Fill(0);
   return;
 }
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
-//  \brief Interpolate SGRID DNS data onto the grid.
-//         Assumes SGRID parameters are read correctly from SGRID's BNSdata_properties.txt
+//  \brief Sets the initial conditions.
 //========================================================================================
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-  //if (resume_flag) 
-    //return;
+  using namespace LinearAlgebra;
 
-  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
-//
+  // Interpolate Lorene data onto the grid.
+
+  // settings -----------------------------------------------------------------
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
+
   // Initialize the data reader
   DNS_init_sgrid(pin);
   DNS_parameters(pin);
@@ -226,52 +454,40 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   //
 
   Real const tol_det_zero = pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
-  
+
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
 
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
+  // --------------------------------------------------------------------------
   // Set some aliases for the variables.
   AT_N_sca alpha( pz4c->storage.adm, Z4c::I_ADM_alpha);
   AT_N_vec beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
   AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
   AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  // Stuff for matter grid
+
+  // matter grid idx limits ---------------------------------------------------
   const int il = 0;
   const int iu = ncells1-1;
+
   const int jl = 0;
   const int ju = ncells2-1;
+
   const int kl = 0;
   const int ku = ncells3-1;
 
-  // Atmosphere and EOS parameters
-  //TODO ...
-#if USETM
-    Real rho_atm = pin->GetReal("hydro", "dfloor");
-    Real T_atm = pin->GetReal("hydro", "tfloor");
-    Real mb = peos->GetEOS().GetBaryonMass();
-    Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2
-    Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
-#endif
-#else
-    Real k_adi = pin->GetReal("hydro", "k_adi");
-    Real gamma_adi = pin->GetReal("hydro","gamma");
-#endif
-  
-  //
-  // Interpolate on spacetime grid 
-  //
-  
-  for (int k=0; k<mbi->nn3; ++k)
-  for (int j=0; j<mbi->nn2; ++j)
-  for (int i=0; i<mbi->nn1; ++i)
+
+  // --------------------------------------------------------------------------
+  #pragma omp critical
+  {
+
+    //
+    // Interpolate on spacetime grid 
+    //
+    
+    for (int k=0; k<mbi->nn3; ++k)
+    for (int j=0; j<mbi->nn2; ++j)
+    for (int i=0; i<mbi->nn1; ++i)
     {
       Real zb = mbi->x3(k);
       Real yb = mbi->x2(j) * s180; // multiply by -1 if 180 degree rotation
@@ -311,19 +527,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       K_dd(1, 1, k, j, i) = IDvars[idvar_Kyy];
       K_dd(1, 2, k, j, i) = IDvars[idvar_Kyz];
       K_dd(2, 2, k, j, i) = IDvars[idvar_Kzz];
-
-      const Real det = LinearAlgebra::Det3Metric(g_dd, k, j, i);
+      const Real det = Det3Metric(g_dd,k,j,i);
       assert(std::fabs(det) > tol_det_zero);
 
     }
-  
-  //
-  // Interpolate on matter grid 
-  //
+    // ------------------------------------------------------------------------
+    // Interpolate on matter grid 
+    //
+    
+    AthenaArray<Real> & w = phydro->w;
+#if NSCALARS > 0
+    AthenaArray<Real> & r = pscalars->r;
+    AthenaArray<Real> & s = pscalars->s;
+    r.Fill(0.0);
+    s.Fill(0.0);
+#endif
 
-  for (int k = kl; k <= ku; ++k)
-  for (int j = jl; j <= ju; ++j)
-  for (int i = il; i <= iu; ++i)
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
     {
       Real zb = pcoord->x3v(k);
       Real yb = pcoord->x2v(j) * s180; // multiply by -1 if 180 degree rotation
@@ -377,33 +599,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 	v_u_z = (vIz + IDvars[idvar_Bz])/IDvars[idvar_alpha];
       }
 
-      // If scalars are on we should initialise to zero
-      Real Y[MAX_SPECIES];
-#if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = 0.;
-        pscalars->s(r,k,j,i) = 0.;
-        Y[r] = 0.0;
-      }
-#endif
-
-      // Deal with atmosphere
-      //TODO this needs to be re-written with proper EOS call etc.
-      //     together with above blocks of code on EOS call
-#if USETM
-      rho = (rho > rho_atm ? rho : 0.0);
-      Real nb = rho/mb;
-#if NSCALARS > 0
-      for (int l=0; l<NSCALARS; ++l) {
-        // Y[l] = (rho > rho_atm ? linear_interp(LORENE_EoS_Table->Y[l], LORENE_EoS_Table->data[tab_logrho], LORENE_EoS_Table->size, log(w_rho)) : Y_atm[l]);
-      }
-#endif
-      pre = (rho > rho_atm ? peos->GetEOS().GetPressure(nb, T_atm, Y) : 0.0);
-      phydro->derived_ms(IX_T,k,j,i) = T_atm;
-#else
-      pre = k_adi*pow(w_rho,gamma_adi);
-#endif
-
       // Lorentz factor
       const Real vsq = (
         2.0*(v_u_x * v_u_y * IDvars[idvar_gxy]  +
@@ -417,139 +612,171 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
       // Fill primitive storage
-      phydro->w(IDN, k, j, i) = rho;
-      phydro->w(IVX, k, j, i) = W * v_u_x;
-      phydro->w(IVY, k, j, i) = W * v_u_y;
-      phydro->w(IVZ, k, j, i) = W * v_u_z;
-      phydro->w(IPR, k, j, i) = pre;
+      w(IDN, k, j, i) = rho;
+      w(IVX, k, j, i) = W * v_u_x;
+      w(IVY, k, j, i) = W * v_u_y;
+      w(IVZ, k, j, i) = W * v_u_z;
+      w(IPR, k, j, i) = 0.0;
+
+  }
+
+  } // OMP Critical
+
+  // --------------------------------------------------------------------------
+
+  // Treat EOS derived quantities ---------------------------------------------
+  {
+    // Split into two blocks:
+    // PrimitiveSolver (useful for physics) & Reprimand (useful for debug)
+
+    AthenaArray<Real> & w  = phydro->w;
+#if NSCALARS > 0
+    AthenaArray<Real> & r = pscalars->r;
+    r.Fill(0.0);
+#endif
+
+#if !USETM
+    // Reprimand --------------------------------------------------------------
+    // Reprimand fill
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
+    }
+
+#else
+    // PrimitiveSolver --------------------------------------------------------
+    Real w_rho_atm = pin->GetReal("hydro", "dfloor");
+    Real rho_cut = std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm),
+                            w_rho_atm);
 
 #if NSCALARS > 0
-      for (int r=0;r<NSCALARS;r++) {
-        pscalars->r(r,k,j,i) = Y[r];
-      }
-#endif
-      
-    } // k,j,i loop
-
-  // Copy primitive stack
-  phydro->w1 = phydro->w;
-  
-  //
-  // Add magnetic field as needed
-  //
-  
-  if (MAGNETIC_FIELDS_ENABLED)
+    Real Y_atm[NSCALARS] = {0.0};
+    for (int iy=0; iy<NSCALARS; ++iy)
     {
-      // Assume stars are located on x axis
-      
-      const Real pgasmax = pin->GetReal("problem","pmax");
-      const Real pcut = pin->GetReal("problem","pcut") * pgasmax;
-      const Real b_amp = pin->GetReal("problem","b_amp");
-      const int magindex = pin->GetInteger("problem","magindex");
-      const Real sep = pin->GetReal("problem","DNSdata_b");
-      
-      const int nx1 = (ie-is)+1 + 2*(NGHOST); //TODO Shouldn't this be ncell[123]?
-      const int nx2 = (je-js)+1 + 2*(NGHOST);
-      const int nx3 = (ke-ks)+1 + 2*(NGHOST);
-      
-      pfield->b.x1f.ZeroClear();
-      pfield->b.x2f.ZeroClear();
-      pfield->b.x3f.ZeroClear();
-      pfield->bcc.ZeroClear();
-      
-      AthenaArray<Real> bxcc,bycc,bzcc;
-      bxcc.NewAthenaArray(nx3,nx2,nx1);
-      bycc.NewAthenaArray(nx3,nx2,nx1);
-      bzcc.NewAthenaArray(nx3,nx2,nx1);
-      
-      AthenaArray<Real> Atot;
-      Atot.NewAthenaArray(3,nx3,nx2,nx1);
-      
-      for (int k = kl; k <= ku; ++k)
-      for (int j = jl; j <= ju; ++j)
-      for (int i = il; i <= iu; ++i)
-	{
-	  if(pcoord->x1v(i) > 0){
-	    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	    Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	    Atot(2,k,j,i) = 0.0;
-	  } else {
-	    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	    Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-	    Atot(2,k,j,i) = 0.0;
-	  }
-	}
-      
-      for(int k = ks-1; k<=ke+1; k++)
-      for(int j = js-1; j<=je+1; j++)
-      for(int i = is-1; i<=ie+1; i++)
-	{
+      Y_atm[iy] = pin->GetReal("hydro", "y" + std::to_string(iy) + "_atmosphere");
+    }
+#endif
 
-      bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
-                    - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
-	}
+    // USETM fill
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+      // Check if density admissible first -
+      // This controls velocity reset & Y interpolation (if applicable)
+      if (w(IDN,k,j,i) > rho_cut)
+      {
+        w(IPR,k,j,i) = ceos->GetPressure(w(IDN,k,j,i));
 
-      for(int k = ks; k<=ke; k++)
-      for(int j = js; j<=je; j++)
-      for(int i = is; i<=ie+1; i++)
-	{
+#if NSCALARS > 0
+        for (int iy=0; iy<NSCALARS; ++iy)
+          r(iy,k,j,i) = ceos->GetY(w(IDN,k,j,i), iy);
+#endif
+      }
+      else
+      {
+        // Reset primitives
+        w(IPR,k,j,i) = 0;
 
-      pfield->b.x1f(k,j,i) = 0.5*(bxcc(k,j,i-1) + bxcc(k,j,i));
-	}
+#if NSCALARS > 0
+        for (int iy=0; iy<NSCALARS; ++iy)
+          r(iy,k,j,i) = Y_atm[iy];
+#endif
 
-      for(int k = ks; k<=ke; k++)
-      for(int j = js; j<=je+1; j++)
-      for(int i = is; i<=ie; i++)
-	{
-	  pfield->b.x2f(k,j,i) = 0.5*(bycc(k,j-1,i) + bycc(k,j,i));
-	}
+        // Assume that we always have (IVX, IVY, IVZ)
+        for (int ix=0; ix<3; ++ix)
+          w(IVX+ix,k,j,i) = 0;
+      }
+    }
 
-      for(int k = ks; k<=ke+1; k++)
-      for(int j = js; j<=je; j++)
-      for(int i = is; i<=ie; i++)
-	{
-	  pfield->b.x3f(k,j,i) = 0.5*(bzcc(k-1,j,i) + bzcc(k,j,i));
-	}
+    // ------------------------------------------------------------------------
+#endif // !USETM
+  }
+  // --------------------------------------------------------------------------
 
-      pfield->CalculateCellCenteredField(pfield->b, pfield->bcc, pcoord, il,iu,jl,ju,kl,ku);
-    } // MAGNETIC_FIELDS_ENABLED
-  
-  
-  //
-  // Construct Z4c vars from ADM vars
-  //
-    
+  // --------------------------------------------------------------------------
+#if MAGNETIC_FIELDS_ENABLED
+  // Regularize prims
+  for (int k=0; k<ncells3; k++)
+  for (int j=0; j<ncells2; j++)
+  for (int i=0; i<ncells1; i++)
+  {
+    for (int n=0; n<NHYDRO; ++n)
+    if (!std::isfinite(phydro->w(n,k,j,i)))
+    {
+#if USETM
+      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
+#else
+      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+#endif
+      continue;
+    }
+  }
+
+  SeedMagneticFields(this, pin);
+#endif
+  //  -------------------------------------------------------------------------
+
+  // Construct Z4c vars from ADM vars ------------------------------------------
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
-  
-  //
-  // Allow override of SGRID gauge
-  //
 
-  bool fix_gauge_precollapsed = pin->GetOrAddBoolean("problem", "fix_gauge_precollapsed", false);
-  
+  // Allow override of Lorene gauge -------------------------------------------
+  bool fix_gauge_precollapsed = pin->GetOrAddBoolean(
+    "problem", "fix_gauge_precollapsed", false);
+
   if (fix_gauge_precollapsed)
   {
     // to construct psi4
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
     pz4c->GaugePreCollapsedLapse(pz4c->storage.adm, pz4c->storage.u);
   }
+  // --------------------------------------------------------------------------
 
+  // Have geom & primitive hydro
+  /*
+#if M1_ENABLED
+  // Mesh::Initialize calls FinalizeM1 which contains the following 3 lines;
+  // We need it here if we want to equilibriate @ ID
   //
-  // Consistent pressure atmosphere
-  //
-  
+  // Note that a call of ConservedToPrimitive should be made prior to this
+  // That is required to populate auxiliary vars. (not currently done)
+  pm1->UpdateGeometry(pm1->geom, pm1->scratch);
+  pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
+  pm1->CalcFiducialVelocity();
+
+  if (pm1->opt_solver.equilibrium_initial)
+  {
+    M1::M1::vars_Lab U_C { {pm1->N_GRPS,pm1->N_SPCS},
+                          {pm1->N_GRPS,pm1->N_SPCS},
+                          {pm1->N_GRPS,pm1->N_SPCS} };
+
+    pm1->SetVarAliasesLab(pm1->storage.u, U_C);
+
+    M1::M1::vars_Source U_S { {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS},
+                              {pm1->N_GRPS,pm1->N_SPCS} };
+
+
+    M1_ILOOP3(k, j, i)
+    {
+      M1::Equilibrium::SetEquilibrium(*pm1, U_C, U_S, k, j, i);
+    }
+  }
+#endif  // M1_ENABLED
+  */
+  // consistent pressure atmosphere -------------------------------------------
   bool id_floor_primitives = pin->GetOrAddBoolean(
     "problem", "id_floor_primitives", false);
 
   if (id_floor_primitives)
   {
 
-    for (int k = 0; k <= ncells3-1; ++k)
-    for (int j = 0; j <= ncells2-1; ++j)
-    for (int i = 0; i <= ncells1-1; ++i)
+    for (int k=0; k<=ncells3-1; ++k)
+    for (int j=0; j<=ncells2-1; ++j)
+    for (int i=0; i<=ncells1-1; ++i)
     {
 #if USETM
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
@@ -559,55 +786,51 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
   }
+  // --------------------------------------------------------------------------
 
-  //
+
   // Initialise conserved variables
-  //
-  
-#if USETM
-  peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, pcoord,
+  peos->PrimitiveToConserved(phydro->w,
+                             pscalars->r,
+                             pfield->bcc,
+                             phydro->u,
+                             pscalars->s,
+                             pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
                              0, ncells3-1);
-#else
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1-1,
-                             0, ncells2-1,
-                             0, ncells3-1);
-#endif
-  //TODO Check if the momentum and velocity are finite.
 
-  // Set up the matter tensor in the Z4c variables.
-  // TODO: BD - this needs to be fixed properly
-  // No magnetic field, pass dummy or fix with overload
-  //  AthenaArray<Real> null_bb_cc;
-#if USETM
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pscalars->r, pfield->bcc);
-#else
-  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, phydro->w, pfield->bcc);
-#endif
+  // --------------------------------------------------------------------------
+  // The following is now done else-where and is redundant here
+  /*
+  // Set up ADM matter variables
+  pz4c->GetMatter(pz4c->storage.mat,
+                  pz4c->storage.adm,
+                  phydro->w,
+                  pscalars->r,
+                  pfield->bcc);
 
   pz4c->ADMConstraints(pz4c->storage.con,
                        pz4c->storage.adm,
                        pz4c->storage.mat,
                        pz4c->storage.u);
-
+  */
+  // --------------------------------------------------------------------------
   return;
 }
 
-//========================================================================================
-//! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
-//  \brief Free SGRID memory as soon as possible
-//========================================================================================
+
 void Mesh::DeleteTemporaryUserMeshData()
 {
-  if (!resume_flag && SGRID_grid_exists()) {
+ if (!resume_flag && SGRID_grid_exists()) {
     SGRID_free_everything();
   }
+#if USETM
+  // Free cold EOS data
+  delete ceos;
+#endif
   return;
 }
-
-
 
 namespace {
 
@@ -992,18 +1215,33 @@ int DNS_position_fileptr_after_str(FILE *in, const char *str)
   }
   return EOF;
 }
-  
+
+
 //----------------------------------------------------------------------------------------
 //! \fn
 //  \brief refinement condition: extrema based
 // 1: refines, -1: de-refines, 0: does nothing
 int RefinementCondition(MeshBlock *pmb)
 {
+  /*
+  // BD: TODO in principle this should be possible
+  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
+
+  // ensure we actually have a tracker
+  if (pmb->pmy_mesh->ptracker_extrema->N_tracker > 0)
+  {
+    return 0;
+  }
+
+  return pz4c_amr->ShouldIRefine(pmb);
+  */
+
   Mesh * pmesh = pmb->pmy_mesh;
   ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
 
   int root_level = ptracker_extrema->root_level;
   int mb_physical_level = pmb->loc.level - root_level;
+
 
   // Iterate over refinement levels offered by trackers.
   //
@@ -1033,6 +1271,49 @@ int RefinementCondition(MeshBlock *pmb)
           ptracker_extrema->ref_zone_radius(n-1)
         );
       }
+      else if (ptracker_extrema->ref_type(n-1) == 2)
+      {
+        // If any excision; activate this refinement
+        bool use = false;
+
+        // Get the minimal radius over all apparent horizons
+        Real horizon_radius = std::numeric_limits<Real>::infinity();
+
+        for (auto pah_f : pmesh->pah_finder)
+        {
+          if (not pah_f->ah_found)
+            continue;
+
+          if (pah_f->rr_min < horizon_radius)
+          {
+            horizon_radius = pah_f->rr_min;
+          }
+          else
+          {
+            continue;
+          }
+
+          // populate the tracker with AHF based information
+          // ptracker_extrema->c_x1(n-1) = pah_f->center[0];
+          // ptracker_extrema->c_x2(n-1) = pah_f->center[1];
+          // ptracker_extrema->c_x3(n-1) = pah_f->center[2];
+          ptracker_extrema->ref_zone_radius(n-1) = (
+            pah_f->rr_min
+          );
+
+          use = true;
+        }
+
+        if (use)
+        {
+          is_contained = pmb->SphereIntersects(
+            ptracker_extrema->c_x1(n-1),
+            ptracker_extrema->c_x2(n-1),
+            ptracker_extrema->c_x3(n-1),
+            ptracker_extrema->ref_zone_radius(n-1)
+          );
+        }
+      }
     }
 
     if (is_contained)
@@ -1056,146 +1337,4 @@ int RefinementCondition(MeshBlock *pmb)
 
 }
 
-#if MAGNETIC_FIELDS_ENABLED
-Real DivBface(MeshBlock *pmb, int iout) {
-  Real divB = 0.0;
-  Real vol,dx,dy,dz;
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks, ke = pmb->ke;
-
-  for (int k=ks; k<=ke; k++) {
-    for (int j=js; j<=je; j++) {
-      for (int i=is; i<=ie; i++) {
-        dx = pmb->pcoord->dx1v(i);
-        dy = pmb->pcoord->dx2v(j);
-        dz = pmb->pcoord->dx3v(k);
-        vol = dx*dy*dz;
-        divB += ((pmb->pfield->b.x1f(k,j,i+1) - pmb->pfield->b.x1f(k,j,i))/ dx +
-                 (pmb->pfield->b.x2f(k,j+1,i) - pmb->pfield->b.x2f(k,j,i))/ dy +
-                 (pmb->pfield->b.x3f(k+1,j,i) - pmb->pfield->b.x3f(k,j,i))/ dz) * vol;
-      }
-    }
-  }
-  return divB;
-}
-#endif
-
-Real max_rho(MeshBlock *pmb, int iout)
-{
-  Real max_rho = -std::numeric_limits<Real>::infinity();
-  int is = pmb->is, ie = pmb->ie;
-  int js = pmb->js, je = pmb->je;
-  int ks = pmb->ks, ke = pmb->ke;
-
-  AthenaArray<Real> &w = pmb->phydro->w;
-  for (int k=ks; k<=ke; k++)
-  for (int j=js; j<=je; j++)
-  for (int i=is; i<=ie; i++)
-  {
-    max_rho = std::max(std::abs(w(IDN,k,j,i)), max_rho);
-  }
-
-  return max_rho;
-}
-
-Real min_alpha(MeshBlock *pmb, int iout)
-{
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-  // --------------------------------------------------------------------------
-  // Set some aliases for the variables.
-  AT_N_sca alpha(pmb->pz4c->storage.u, Z4c::I_Z4c_alpha);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pmb->pz4c->mbi);
-
-  Real m_alpha = std::numeric_limits<Real>::infinity();
-
-  for (int k=mbi->kl; k<=mbi->ku; k++)
-  for (int j=mbi->jl; j<=mbi->ju; j++)
-  for (int i=mbi->il; i<=mbi->iu; i++)
-  {
-    m_alpha = std::min(alpha(k,j,i), m_alpha);
-  }
-
-  return m_alpha;
-}
-
-Real max_abs_con_H(MeshBlock *pmb, int iout)
-{
-
-  const int N = NDIM;
-
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 0> AT_N_sca;
-  typedef AthenaTensor<Real, TensorSymm::NONE, N, 1> AT_N_vec;
-  typedef AthenaTensor<Real, TensorSymm::SYM2, N, 2> AT_N_sym;
-
-  // --------------------------------------------------------------------------
-  // Set some aliases for the variables.
-  AT_N_sca con_H(pmb->pz4c->storage.con, Z4c::I_CON_H);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pmb->pz4c->mbi);
-
-  Real m_abs_con_H = -std::numeric_limits<Real>::infinity();
-
-  for (int k=mbi->kl; k<=mbi->ku; k++)
-  for (int j=mbi->jl; j<=mbi->ju; j++)
-  for (int i=mbi->il; i<=mbi->iu; i++)
-  {
-    m_abs_con_H = std::max(std::abs(con_H(k,j,i)), m_abs_con_H);
-  }
-
-  return m_abs_con_H;
-}
-
-//TODO ... following is LORENE_EOS block in gr_Lorene_bns.cpp, might need something similar
-#if (0) 
-  //--------------------------------------------------------------------------------------
-  //! \fn Real linear_interp(Real *f, Real *x, int n, Real xv)
-  // \brief linearly interpolate f(x), compute f(xv)
-  Real linear_interp(Real *f, Real *x, int n, Real xv)
-  {
-    int i = interp_locate(x,n,xv);
-    if (i < 0)  i=1;
-    if (i == n) i=n-1;
-    int j;
-    if(xv < x[i]) j = i-1;
-    else j = i+1;
-    Real xj = x[j]; Real xi = x[i];
-    Real fj = f[j]; Real fi = f[i];
-    Real m = (fj-fi)/(xj-xi);
-    Real df = m*(xv-xj)+fj;
-    return df;
-  }
-
-  //-----------------------------------------------------------------------------------------
-  //! \fn int interp_locate(Real *x, int Nx, Real xval)
-  // \brief Bisection to find closest point in interpolating table
-  // 
-  int interp_locate(Real *x, int Nx, Real xval) {
-    int ju,jm,jl;
-    int ascnd;
-    jl=-1;
-    ju=Nx;
-    if (xval <= x[0]) {
-      return 0;
-    } else if (xval >= x[Nx-1]) {
-      return Nx-1;
-    }
-    ascnd = (x[Nx-1] >= x[0]);
-    while (ju-jl > 1) {
-      jm = (ju+jl) >> 1;
-      if (xval >= x[jm] == ascnd)
-  jl=jm;
-      else
-  ju=jm;
-    }
-    return jl;
-  }
-#endif
 }
