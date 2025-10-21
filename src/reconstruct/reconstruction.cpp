@@ -173,7 +173,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
   );
 
   xorder_use_dmp = pin->GetOrAddBoolean(
-    "time", "xorder_use_dmp", true
+    "time", "xorder_use_dmp", false
   );
 
   xorder_use_dmp_scalars = pin->GetOrAddBoolean(
