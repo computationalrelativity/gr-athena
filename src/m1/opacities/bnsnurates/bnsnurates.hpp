@@ -12,6 +12,20 @@
 #include "units.hpp"
 #include "fermi.hpp"
 
+// shielding macros definitions
+#ifdef POW2
+  #pragma push_macro("POW2")
+  #undef POW2
+#endif
+#ifdef POW3
+  #pragma push_macro("POW3")
+  #undef POW3
+#endif
+#ifdef POW4
+  #pragma push_macro("POW4")
+  #undef POW4
+#endif
+
 // bns_nurates headers from:
 // https://github.com/RelNucAs/bns_nurates
 #include "bns_nurates/include/bns_nurates.hpp"
@@ -20,6 +34,17 @@
 #include "bns_nurates/include/functions.hpp"
 #include "bns_nurates/include/integration.hpp"
 #include "bns_nurates/include/m1_opacities.hpp"
+
+// restoring shielded macros
+#ifdef POW2
+  #pragma pop_macro("POW2")
+#endif
+#ifdef POW3
+  #pragma pop_macro("POW3")
+#endif
+#ifdef POW4
+  #pragma pop_macro("POW4")
+#endif
 
 
 namespace M1::Opacities::BNSNuRates {
