@@ -631,21 +631,64 @@ void GRDynamical::AddCoordTermsDivergence(
       CC_PCO_ILOOP1(i)
       {
         const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
-        // 1 if not excising, 0 if excising
-        const Real ef = ph->excision_mask(k,j,i);
 
         cons(IEN,k,j,i) += w_vol * Stau_(i);
         cons(IM1,k,j,i) += w_vol * SS_d_(0,i);
         cons(IM2,k,j,i) += w_vol * SS_d_(1,i);
         cons(IM3,k,j,i) += w_vol * SS_d_(2,i);
 
-        const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
-        const Real gam_w_vol = gam * w_vol;
-        cons(IDN,k,j,i) -= gam_w_vol * ph->u(IDN,k,j,i);
-        cons(IM1,k,j,i) -= gam_w_vol * ph->u(IM1,k,j,i);
-        cons(IM2,k,j,i) -= gam_w_vol * ph->u(IM2,k,j,i);
-        cons(IM3,k,j,i) -= gam_w_vol * ph->u(IM3,k,j,i);
-        cons(IEN,k,j,i) -= gam_w_vol * ph->u(IEN,k,j,i);
+        // 1 if not excising, 0 if excising
+        const Real ef = ph->excision_mask(k,j,i);
+
+        if (ef < 1)
+        {
+          const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
+          // const Real gam_w_vol = dt * alpha_(i) * sqrt_detgamma_(i) * gam;
+
+          Real gam_w_vol = gam * (
+            dt // * alpha_(i) * sqrt_detgamma_(i)
+          );
+
+          // debug
+          // hyd_der_ms(IX_OM,k,j,i) in EOS_UTILS commented out!
+          ph->derived_ms(IX_OM,k,j,i) = gam_w_vol;
+
+#if USETM
+          // scale update to land at or above floor:
+          const Real den_new = cons(IDN,k,j,i) - gam_w_vol * ph->u(IDN,k,j,i);
+          const Real tau_new = cons(IEN,k,j,i) - gam_w_vol * ph->u(IEN,k,j,i);
+
+          const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+          const Real den_flr = (
+            mb * pmb->peos->GetEOS().GetDensityFloor() * sqrt_detgamma_(i)
+          );
+          const Real tau_flr = 0;
+
+          if (den_new < den_flr)
+          {
+            gam_w_vol = std::min(
+              gam_w_vol,
+              (cons(IDN,k,j,i) - den_flr) / ph->u(IDN,k,j,i)
+            );
+          }
+
+          if (tau_new < tau_flr)
+          {
+            gam_w_vol = std::min(
+              gam_w_vol,
+              (cons(IEN,k,j,i) - tau_flr) / ph->u(IEN,k,j,i)
+            );
+          }
+
+#endif // USETM
+
+          cons(IDN,k,j,i) -= gam_w_vol * ph->u(IDN,k,j,i);
+          cons(IM1,k,j,i) -= gam_w_vol * ph->u(IM1,k,j,i);
+          cons(IM2,k,j,i) -= gam_w_vol * ph->u(IM2,k,j,i);
+          cons(IM3,k,j,i) -= gam_w_vol * ph->u(IM3,k,j,i);
+          cons(IEN,k,j,i) -= gam_w_vol * ph->u(IEN,k,j,i);
+
+        }
       }
     }
     else
@@ -673,6 +716,7 @@ void GRDynamical::AddCoordTermsDivergence(
     }
 
   } // j, k
+
 
 }
 

@@ -342,6 +342,14 @@ public:
     bool verbose;
   } opt_solver;
 
+  struct
+  {
+    bool excise_m1_damping;   // state vector based damping inside ahf
+    Real m1_damping_factor;   // state vector factor
+    bool m1_disable_ahf_eql;  // overwrite eql flag within horizon
+    bool m1_disable_ahf_opac; // zero opacities in horizon
+  } opt_excision;
+
 // variable alias / storage ===================================================
 public:
   // Conventions for fields:

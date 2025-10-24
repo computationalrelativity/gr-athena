@@ -14,6 +14,7 @@
 
 #if FLUID_ENABLED
 #include "../eos/eos.hpp"
+#include "../hydro/hydro.hpp"
 #endif
 
 // External libraries
@@ -457,6 +458,16 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+    // overwrite internal eql. params.
+    if (opt_excision.m1_disable_ahf_eql &&
+        (pmy_block->phydro->excision_mask(k,j,i) < 1))
+    {
+      mask_sln_r(ix_g, ix_s, k, j, i) = t_sln_r::noop;
+      mask_src_t(ix_g, ix_s, k, j, i) = t_src_t::noop;
+    }
+#endif // Z4C_WITH_HYDRO_ENABLED
+
     const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
     const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
 
@@ -596,6 +607,13 @@ void M1::CalcUpdate(const int stage,
   {
     DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S,
                               kl, ku, jl, ju, il, iu);
+  }
+
+  // optional excision / field taper logic ------------------------------------
+  if (!fallback_mode)
+  if (pm1->opt_excision.excise_m1_damping)
+  {
+    ApplyExcision(*this, dt, U_C, kl, ku, jl, ju, il, iu);
   }
 
   // for candidate solution construction --------------------------------------

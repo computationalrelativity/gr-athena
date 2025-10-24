@@ -253,6 +253,20 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   );
 
   opt_solver.verbose = GoA_bool("verbose", false);
+
+
+  // options related to solver (excision)
+  opt_excision.excise_m1_damping =
+      pin->GetOrAddBoolean("excision", "excise_m1_damping", false);
+
+  opt_excision.m1_damping_factor =
+    pin->GetOrAddReal("excision", "m1_damping_factor", 0.69);
+
+  opt_excision.m1_disable_ahf_eql =
+    pin->GetOrAddBoolean("excision", "m1_disable_ahf_eql", false);
+
+  opt_excision.m1_disable_ahf_opac =
+    pin->GetOrAddBoolean("excision", "m1_disable_ahf_opac", false);
 }
 
 void M1::PopulateOptions(ParameterInput *pin)

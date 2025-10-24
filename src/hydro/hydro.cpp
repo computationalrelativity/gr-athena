@@ -120,6 +120,12 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   opt_excision.taper_pow =
       pin->GetOrAddReal("excision", "taper_pow", 1.0);
 
+  opt_excision.taper_min =
+      pin->GetOrAddReal("excision", "taper_min", 0.0);
+
+  opt_excision.taper_dt_response =
+      pin->GetOrAddReal("excision", "taper_dt_response", 0.0);
+
   opt_excision.excise_hydro_freeze_evo =
       pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
 

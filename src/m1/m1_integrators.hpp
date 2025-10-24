@@ -37,6 +37,15 @@ void DispatchIntegrationMethod(
   const int il, const int iu
 );
 
+void ApplyExcision(
+  M1 & pm1,
+  const Real dt,
+  M1::vars_Lab & U_C,        // current (target) step
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
+
 // ============================================================================
 namespace Explicit {
 // ============================================================================

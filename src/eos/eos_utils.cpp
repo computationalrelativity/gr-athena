@@ -293,6 +293,7 @@ bool EquationOfState::CanExcisePoint(
           );
           */
 
+          /*
           // enforce (numerically feasible) range
           const Real ef = pmb->pz4c->opt.eps_floor;
           const Real d = std::max(
@@ -313,6 +314,54 @@ bool EquationOfState::CanExcisePoint(
             : (f_arg > 1.0 - ef)
               ? 1.0
               : std::pow(1.0 / (1.0 + std::exp(1.0 + 2.0 / f_arg)), p);
+          */
+          // parameters
+          const Real ef = pmb->pz4c->opt.eps_floor;
+          const Real p = ph->opt_excision.taper_pow;
+          const Real dt_response = ph->opt_excision.taper_dt_response;
+          const Real min_x = ph->opt_excision.taper_min;
+
+          // smooth taper (time)
+          const Real tf = pah_f->time_first_found;
+          const Real t_elapsed = pmb->pmy_mesh->time - tf;
+          const Real t_arg = (dt_response > 0)
+            ? std::max(
+                std::min(1.0, t_elapsed / dt_response),
+                0.0
+              )
+            : 1.0;
+
+          const Real min_t = 0; // minimum value of taper in time
+
+          // const Real t_excision_factor = (t_arg < ef)
+          //   ? 0.0
+          //   : (t_arg > 1.0 - ef)
+          //     ? 1.0
+          //     : (
+          //       (1.0-min_t) *
+          //       std::pow(1.0 - std::exp(1.0 + 1.0 / (SQR(t_arg) - 1)), p) +
+          //       min_t
+          //     );
+
+          // smooth taper (spatial)
+          // Real m = std::max(1 - t_excision_factor, min_x);
+          Real m = std::max(1 - t_arg, min_x);
+
+          // argument on [0,1]
+          const Real f_arg = std::max(
+            std::min(1.0, dist_ahf / horizon_radius),
+            0.0);
+
+          excision_factor = (f_arg < ef)
+            ? 0.0
+            : (f_arg > 1.0 - ef)
+              ? 1.0
+              : (
+                (1.0-m) *
+                std::pow(1.0 - std::exp(1.0 + 1.0 / (SQR(f_arg) - 1)), p) +
+                m
+              );
+
         }
         else
         {

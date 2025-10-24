@@ -1314,7 +1314,17 @@ public:
 
     M1_FLOOP3(k, j, i)
     {
+      // check for density cut / ahf based cuts
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+      bool ahf_cut = (
+        pm1->opt_excision.m1_disable_ahf_opac &&
+        (pm1->pmy_block->phydro->excision_mask(k,j,i) < 1)
+      );
+
+      if (!(pm1->MaskGet(k, j, i) && AboveCutoff(k,j,i)) || ahf_cut)
+#else
       if (!(pm1->MaskGet(k, j, i) && AboveCutoff(k,j,i)))
+#endif  // Z4C_WITH_HYDRO_ENABLED
       {
         calc_state(k,j,i) = cstate::none;
         SetZeroRadMatAtPoint(k, j, i);

@@ -4,6 +4,10 @@
 #include "m1_set_equilibrium.hpp"
 #include "m1_sources.hpp"
 
+#if FLUID_ENABLED
+#include "../hydro/hydro.hpp"
+#endif // FLUID_ENABLED
+
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
@@ -399,7 +403,98 @@ void DispatchIntegrationMethod(
       {
         pm1->opt_closure.variety = opt_cl_variety;
       }
+    }
+  }
 
+}
+
+void ApplyExcision(
+  M1 & pm1_,
+  const Real dt,
+  M1::vars_Lab & U_C,        // current (target) step
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+)
+{
+  using namespace Update;
+  using namespace Sources;
+  using namespace Closures;
+  using namespace Equilibrium;
+
+  using namespace Explicit;
+  using namespace Implicit;
+
+  // Work-around for ptr to utilize e.g. M1_ILOOP macro
+  M1 * pm1 = &pm1_;
+
+  for (int ix_g=0; ix_g<pm1_.N_GRPS; ++ix_g)
+  for (int ix_s=0; ix_s<pm1_.N_SPCS; ++ix_s)
+  {
+    StateMetaVector C = ConstructStateMetaVector(pm1_, U_C,  ix_g, ix_s);
+
+    // For use in computation of closure based on P or C state
+    ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
+
+    for (int k=kl; k<=ku; ++k)
+    for (int j=jl; j<=ju; ++j)
+    for (int i=il; i<=iu; ++i)
+    {
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+      // 1 if not excising, 0 if excising
+      const Real ef = pm1->pmy_block->phydro->excision_mask(k,j,i);
+
+      if (ef < 1)
+      {
+        const Real sc_alpha = pm1->geom.sc_alpha(k,j,i);
+        const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+        // const Real w_vol = dt * sc_alpha;
+
+        const Real gam = (1 - ef) * pm1->opt_excision.m1_damping_factor;
+        // // const Real gam_w_vol = dt * sc_alpha * sc_sqrt_det_g * gam;
+        // const Real gam_w_vol = dt * gam; //  * sc_sqrt_det_g;
+
+        Real gam_w_vol = gam * (
+          dt // * sc_alpha * sc_sqrt_det_g
+        );
+
+        // scale update to land at or above floor:
+        const Real nG_new = C.sc_nG(k,j,i) - gam_w_vol * C.sc_nG(k,j,i);
+        const Real E_new  = C.sc_E(k,j,i) - gam_w_vol * C.sc_E(k,j,i);
+
+        const Real nG_flr = pm1_.opt.fl_nG;
+        const Real E_flr = pm1_.opt.fl_E;
+
+        if (nG_new < nG_flr)
+        {
+          gam_w_vol = std::min(
+            gam_w_vol,
+            (C.sc_nG(k,j,i) - nG_flr) / C.sc_nG(k,j,i)
+          );
+        }
+
+        if (E_flr < E_flr)
+        {
+          gam_w_vol = std::min(
+            gam_w_vol,
+            (C.sc_E(k,j,i) - nG_flr) / C.sc_E(k,j,i)
+          );
+        }
+
+        C.sc_nG(k,j,i) -= gam_w_vol * C.sc_nG(k,j,i);
+        C.sc_E(k,j,i)  -= gam_w_vol * C.sc_E(k,j,i);
+        for (int a=0; a<N; ++a)
+        {
+          C.sp_F_d(a,k,j,i) -= gam_w_vol * C.sp_F_d(a,k,j,i);
+        }
+
+        // Ensure update preserves energy non-negativity
+        EnforcePhysical_E_F_d(pm1_, C, k, j, i);
+
+        // Compute closure & construct fiducial frame:
+        CL_C.Closure(k, j, i);
+      }
+#endif // FLUID_ENABLED
     }
   }
 
