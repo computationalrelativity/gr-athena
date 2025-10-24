@@ -138,7 +138,7 @@ namespace M1::Opacities::BNSNuRates {
       nurates_params.use_NN_medium_corr = pin->GetOrAddBoolean("bns_nurates", "use_NN_medium_corr", false); // correction to bremstralhung
       nurates_params.neglect_blocking = pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
       nurates_params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false); // inverse beta
-      nurates_params.use_BRT_brem = pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", false); // alternative bremstralung
+      nurates_params.use_BRT_brem = pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", true); // alternative bremstralung
      
       nurates_params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false); //TODO Not implemented!
       nurates_params.dU = pin->GetOrAddReal("bns_nurates", "dU", 0.0); //TODO Set effective potential difference (in MeV) from EOS
