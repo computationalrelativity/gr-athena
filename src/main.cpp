@@ -212,7 +212,8 @@ int main(int argc, char *argv[])
     }
 
     gra::evolve::TrackerExtrema(ptlc, trgs, pmesh);
-    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh);
+    const bool is_final = false;
+    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh, is_final);
 
     //-------------------------------------------------------------------------
     // Update triggers as required
@@ -301,6 +302,7 @@ int main(int argc, char *argv[])
   {
     const bool is_final = true;
     gra::MakeOutputs(is_final, pinput, pmesh, pouts);
+    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh, is_final);
   }
 
   // BD: TODO - what is even the logic here?

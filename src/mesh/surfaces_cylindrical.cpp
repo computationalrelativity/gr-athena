@@ -91,7 +91,8 @@ void SurfacesCylindrical::WriteAllSurfaces(const Real time)
   });
 }
 
-void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
+void SurfacesCylindrical::Reduce(const int ncycle, const Real time,
+                                 const bool is_final)
 {
   // do not perform reduction if we are outside specified ranges --------------
   if (!IsActive(time))
@@ -99,6 +100,13 @@ void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
     return;
   }
   // --------------------------------------------------------------------------
+
+  // filename update for final write
+  this->is_final = is_final;
+  if (is_final && !write_final)
+  {
+    return;
+  }
 
   if (can_async)
   {
@@ -116,8 +124,11 @@ void SurfacesCylindrical::Reduce(const int ncycle, const Real time)
   {
     // immediate, blocking write complete, update file_number here;
     // in the case of async this is also safe as it starts reduced by 1
-    file_number++;
-    pin->OverwriteParameter(par_block_name, "file_number", file_number);
+    if (!is_final)
+    {
+      file_number++;
+      pin->OverwriteParameter(par_block_name, "file_number", file_number);
+    }
 
     // launch writes in the background asynchronously
     if (can_async)

@@ -1107,17 +1107,25 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
 
 inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
                               gra::triggers::Triggers &trgs,
-                              Mesh *pmesh)
+                              Mesh *pmesh,
+                              const bool is_final)
 {
   // Extrema tracker is based on propagated state vector
-  const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  Real time_end_stage   = pmesh->time;
+  Real ncycle_end_stage = pmesh->ncycle;
+
+  if (!is_final)
+  {
+    time_end_stage += pmesh->dt;
+    ncycle_end_stage += 1;
+  }
 
   for (auto psurf : pmesh->psurfs)
   {
-    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix))
+    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix) ||
+        is_final)
     {
-      psurf->Reduce(ncycle_end_stage, time_end_stage);
+      psurf->Reduce(ncycle_end_stage, time_end_stage, is_final);
     }
   }
 }

@@ -154,7 +154,8 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
     par_ix(par_ix),
     par_block_name{"surface" + std::to_string(par_ix)},
     file_basename{pin->GetString("job", "problem_id")},
-    file_number(pin->GetOrAddInteger(par_block_name, "file_number", 0))
+    file_number(pin->GetOrAddInteger(par_block_name, "file_number", 0)),
+    write_final(pin->GetOrAddBoolean(par_block_name, "write_final", false))
 {
   // in the case of async the file number will be incremented prior to write
   if (can_async)
@@ -812,20 +813,28 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
 
 void Surface::hdf5_get_next_filename(std::string & filename)
 {
-  const int iter = psurfs->file_number;
+  if (psurfs->is_final)
+  {
+    filename = psurfs->file_basename + "." + psurfs->par_block_name + ".";
+    filename += "final.hdf5";
+  }
+  else
+  {
+    const int iter = psurfs->file_number;
 
-  std::stringstream ss_i;
+    std::stringstream ss_i;
 
-  // One file per shell:
-  // ss_i << std::setw(2) << std::setfill('0') << std::to_string(ix_rad);
-  // ss_i << "_";
-  // filename = file_basename + ".shell." + ss_i.str() + ".hdf5";
+    // One file per shell:
+    // ss_i << std::setw(2) << std::setfill('0') << std::to_string(ix_rad);
+    // ss_i << "_";
+    // filename = file_basename + ".shell." + ss_i.str() + ".hdf5";
 
-  // Coalesce all shells into single file:
-  ss_i << std::setw(6) << std::setfill('0') << iter;
-  // filename = psurfs->file_basename + ".shells." + ss_i.str() + ".hdf5";
-  filename = psurfs->file_basename + "." + psurfs->par_block_name + ".";
-  filename += ss_i.str() + ".hdf5";
+    // Coalesce all shells into single file:
+    ss_i << std::setw(6) << std::setfill('0') << iter;
+    // filename = psurfs->file_basename + ".shells." + ss_i.str() + ".hdf5";
+    filename = psurfs->file_basename + "." + psurfs->par_block_name + ".";
+    filename += ss_i.str() + ".hdf5";
+  }
 }
 
 // ============================================================================

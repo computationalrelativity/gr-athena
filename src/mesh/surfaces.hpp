@@ -175,12 +175,16 @@ class Surfaces
     const bool use_multiple_ranks = true;
     int write_rank = 0;
 
+    bool write_final;
+    bool is_final = false;
+
   public:
 
     // Check whether a surface is active
     virtual bool IsActive(const Real time) { return true; };
     // Reduction (call on each surface in Surfaces collection)
-    virtual void Reduce(const int ncycle, const Real time) { };
+    virtual void Reduce(const int ncycle, const Real time,
+                        const bool is_final) { };
     // Teardown and prepare interpolators on each Surface
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) { };
@@ -199,7 +203,8 @@ class SurfacesCartesian : public Surfaces
 
   public:
     virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce(const int ncycle, const Real time,
+                        const bool is_final) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
 
@@ -225,7 +230,8 @@ class SurfacesCylindrical : public Surfaces
 
   public:
     virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce(const int ncycle, const Real time,
+                        const bool is_final) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
 
@@ -251,7 +257,8 @@ class SurfacesSpherical : public Surfaces
 
   public:
     virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce(const int ncycle, const Real time,
+                        const bool is_final) override;
     virtual void ReinitializeSurfaces(const int ncycle,
                                       const Real time) override;
 
