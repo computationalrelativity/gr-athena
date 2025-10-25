@@ -649,10 +649,6 @@ void GRDynamical::AddCoordTermsDivergence(
             dt // * alpha_(i) * sqrt_detgamma_(i)
           );
 
-          // debug
-          // hyd_der_ms(IX_OM,k,j,i) in EOS_UTILS commented out!
-          ph->derived_ms(IX_OM,k,j,i) = gam_w_vol;
-
 #if USETM
           // scale update to land at or above floor:
           const Real den_new = cons(IDN,k,j,i) - gam_w_vol * ph->u(IDN,k,j,i);
