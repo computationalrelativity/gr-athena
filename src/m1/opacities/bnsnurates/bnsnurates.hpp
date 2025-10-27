@@ -46,6 +46,9 @@
   #pragma pop_macro("POW4")
 #endif
 
+// Point-test to test units
+#define M1_UNITS_TEST (0) 
+
 
 namespace M1::Opacities::BNSNuRates {
   
@@ -269,7 +272,7 @@ namespace M1::Opacities::BNSNuRates {
        
             // Chem potentials (code units)
             Real mu_n, mu_p, mu_e;
-            ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
+            ChemicalPotentials_npe(nb, T, Y_e, mu_n, mu_p, mu_e);
             
             // Local undensitized neutrino quantities
             Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
@@ -306,8 +309,32 @@ namespace M1::Opacities::BNSNuRates {
 				  abs_1_loc[0], abs_1_loc[1], abs_1_loc[2], abs_1_loc[3],
 				  scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3],
 				  scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3],
-				  nurates_params); 
-	    
+				  nurates_params);
+
+#if (M1_UNITS_TEST)
+            printf(" nb, T, Y_e, mb_code, rho, mb_code*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nb, T, Y_e, mb_code, rho, mb_code*nb);
+            printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
+	            mu_n, mu_p, mu_e);
+            printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nudens_0[0], nudens_0[1], nudens_0[2], nudens_0[3]);
+            printf(" nudens_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nudens_1[0], nudens_1[1], nudens_1[2], nudens_1[3]);
+            printf(" eta_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3]);
+            printf(" eta_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3]);
+            printf(" abs_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3]);
+            printf(" abs_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            abs_1_loc[0], abs_1_loc[1], abs_1_loc[2], abs_1_loc[3]);
+            printf(" scat_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3]);
+            printf(" scat_1 %-13.6e %-13.6e %-13.6e %-13.6e\n\n",
+	            scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3]);
+            assert(false);
+#endif
+
             bool is_failing_opacity = (opac_err)? true : false;
 	    
             // Dump some information when opacity calculation fails
@@ -340,7 +367,10 @@ namespace M1::Opacities::BNSNuRates {
 	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
 			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
 			     ) * dt;
-	      
+	    
+#if (M1_UNITS_TEST)  
+          printf(" opacity_tau_trap, tau %-13.6e %-13.6e\n\n", opacity_tau_trap, tau);
+#endif
 	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
 		
                 Real T_trap;
@@ -361,7 +391,18 @@ namespace M1::Opacities::BNSNuRates {
                                           nudens_1_trap[0],
                                           nudens_1_trap[1],
                                           nudens_1_trap[2]);
-                
+
+#if (M1_UNITS_TEST)
+                printf("   nudens_0 %-13.6e %-13.6e %-13.6e\n",
+	                nudens_0[0], nudens_0[1], nudens_0[2]+nudens_0[3]);
+                printf("   nudens_1 %-13.6e %-13.6e %-13.6e\n",
+	                nudens_1[0], nudens_1[1], nudens_1[2]+nudens_1[3]);
+                printf("   nudens_0_trap %-13.6e %-13.6e %-13.6e\n",
+	                nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2]);
+                printf("   nudens_1_trap %-13.6e %-13.6e %-13.6e\n\n",
+	                nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
+#endif
+
                 // If we can't get equilibrium, try again but ignore current neutrino
                 // data
                 if (ierr[0]) {
