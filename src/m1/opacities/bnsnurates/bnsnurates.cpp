@@ -312,6 +312,9 @@ namespace M1::Opacities::BNSNuRates {
     grey_op_params.eos_pars.mu_e = mu_e;              // [MeV]
     grey_op_params.eos_pars.mu_p = mu_p;              // [MeV]
     grey_op_params.eos_pars.mu_n = mu_n;              // [MeV]
+    //grey_op_params.eos_pars.mu_e = 187.1814489;       // [MeV] debug: check vs mwe
+    //grey_op_params.eos_pars.mu_p = 1011.01797737;     // [MeV] debug: check vs mwe
+    //grey_op_params.eos_pars.mu_n = 1221.59013681;     // [MeV] debug: check vs mwe
     
     //NB logic for nurates_params.use_dU not implemented.
     // See THC/WeakRates2.
