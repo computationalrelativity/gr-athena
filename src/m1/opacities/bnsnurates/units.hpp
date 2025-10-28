@@ -130,7 +130,6 @@ static UnitSystem GeometricSolar{
   (CGS.c*CGS.c)/(CGS.G * CGS.Msun), // length, Msun
   POW3( CGS.c)/(CGS.G * CGS.Msun), // time, Msun
   POW3( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // number density, Msun^-3 
-  //POW2( (CGS.G * CGS.Msun)/(CGS.c*CGS.c) ), // mass density, Msun^-2
   1.0 / CGS.Msun, // mass, Msun
   1.0 / (CGS.Msun * CGS.c*CGS.c), // energy, Msun
   POW3( CGS.G/(CGS.c*CGS.c) ) * SQR( CGS.Msun/(CGS.c) ), // pressure, Msun^-2

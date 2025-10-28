@@ -113,10 +113,10 @@ namespace M1::Opacities::BNSNuRates {
 #endif
 
       // Set the units
-      // my_units ......... CGS + MeV
+      // wr_units ......... CGS + MeV
       // nurates_units .... CGS + MeV + nm
       // code_units ....... Geometric + Solar masses
-      my_units = &BNSNuRates_Units::WeakRatesUnits;
+      wr_units = &BNSNuRates_Units::WeakRatesUnits;
       nurates_units = &BNSNuRates_Units::NGS;
       code_units = &BNSNuRates_Units::GeometricSolar;
       
@@ -194,7 +194,7 @@ namespace M1::Opacities::BNSNuRates {
       temp_min = pin->GetOrAddReal("M1_opacities", "equilibration_temp_min_mev", 0.0);
 
       // EOS limits
-      // NB These values need to be in my_units (CGS+MeV) 
+      // NB These values need to be in cgs_units (CGS+MeV) 
       Real infty = std::numeric_limits<Real>::infinity();
 
       // Set maximal ranges (default)
@@ -210,13 +210,13 @@ namespace M1::Opacities::BNSNuRates {
 
       if (enforce_table_limits) {
         eos_rho_min = pmy_block->peos->GetEOS().GetMinimumDensity()
-          * code_units->MassDensityConversion(*my_units);
+          * code_units->MassDensityConversion(*wr_units);
         eos_rho_max = pmy_block->peos->GetEOS().GetMaximumDensity()
-          * code_units->MassDensityConversion(*my_units);
+          * code_units->MassDensityConversion(*wr_units);
         eos_temp_min = pmy_block->peos->GetEOS().GetMinimumTemperature()
-          * code_units->TemperatureConversion(*my_units);
+          * code_units->TemperatureConversion(*wr_units);
         eos_temp_max = pmy_block->peos->GetEOS().GetMaximumTemperature()
-          * code_units->TemperatureConversion(*my_units);
+          * code_units->TemperatureConversion(*wr_units);
         eos_ye_min = pmy_block->peos->GetEOS().GetMinimumSpeciesFraction(0);
         eos_ye_max = pmy_block->peos->GetEOS().GetMaximumSpeciesFraction(0);
       }
@@ -227,15 +227,15 @@ namespace M1::Opacities::BNSNuRates {
 
       if (enforce_rho_floor)
         eos_rho_min = pmy_block->peos->GetDensityFloor()
-          * code_units->MassDensityConversion(*my_units);
+          * code_units->MassDensityConversion(*wr_units);
 
       if (enforce_temp_floor)
         eos_temp_min = pmy_block->peos->GetTemperatureFloor()
-          * code_units->TemperatureConversion(*my_units);
+          * code_units->TemperatureConversion(*wr_units);
       
       // mb [g] 
       atomic_mass = pmy_block->peos->GetEOS().GetRawBaryonMass()
-        * code_units->MassConversion(*my_units); 
+        * code_units->MassConversion(*wr_units); 
 
     };
     
@@ -341,7 +341,7 @@ namespace M1::Opacities::BNSNuRates {
 	    if (is_failing_opacity) {
 		std::ostringstream msg;
                 msg << "CalculateOpacityBNSNuRates failure: " << opac_err << std::endl;		
-		//msg << "T-conv-fact " << code_units->TemperatureConversion(*my_units) << std::endl;
+		//msg << "T-conv-fact " << code_units->TemperatureConversion(*wr_units) << std::endl;
 		msg << "nb " << nb << std::endl;
 		msg << "T " << T << std::endl;
 		msg << "Ye " << Y_e << std::endl;
@@ -571,7 +571,7 @@ namespace M1::Opacities::BNSNuRates {
     const int N_GRPS;
     const int N_SPCS;
 
-    BNSNuRates_Units::UnitSystem* my_units;
+    BNSNuRates_Units::UnitSystem* wr_units;
     BNSNuRates_Units::UnitSystem* nurates_units;
     BNSNuRates_Units::UnitSystem* code_units;
     
