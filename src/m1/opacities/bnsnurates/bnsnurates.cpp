@@ -115,8 +115,8 @@ namespace M1::Opacities::BNSNuRates {
   {
     
     int ierr = 0;
-    const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
-    const Real rho_cgs = nb * mb_code * code_units->MassDensityConversion(*wr_units);
+    const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+    const Real rho_cgs = nb * mb * code_units->MassDensityConversion(*wr_units);
     
     if ( (rho_cgs < nurates_params.rho_min_cgs) ||
          (temp < nurates_params.temp_min_mev) ) {
@@ -521,8 +521,8 @@ namespace M1::Opacities::BNSNuRates {
 					   Real &en_nue, Real &en_anue, Real &en_nux)
   {
 
-    const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
-    const Real rho_cgs = nb * mb_code * code_units->MassDensityConversion(*wr_units);
+    const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+    const Real rho_cgs = nb * mb * code_units->MassDensityConversion(*wr_units);
     
     if ( (rho_cgs < nurates_params.rho_min_cgs) ||
 	 (temp < nurates_params.temp_min_mev) ) {
@@ -562,7 +562,8 @@ namespace M1::Opacities::BNSNuRates {
     
     // Convert back to code units 
     const Real n_conv = wr_units->NumberDensityConversion(*code_units);
-    const Real e_conv = MeV_to_erg * wr_units->EnergyDensityConversion(*code_units);
+    //const Real e_conv = MeV_to_erg * wr_units->EnergyDensityConversion(*code_units);
+    const Real e_conv = wr_units->EnergyDensityConversion(*code_units);
 
     n_nue = n_nue * n_conv;
     n_anue = n_anue * n_conv;
@@ -623,7 +624,7 @@ namespace M1::Opacities::BNSNuRates {
   {
     int iout = 0;
     Real mu_n, mu_p, mu_e;
-    const Real nb = rho / pmy_block->peos->GetEOS().GetRawBaryonMass(); // [code units]
+    const Real nb = rho / pmy_block->peos->GetEOS().GetBaryonMass();
     ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
     NeutrinoDensity_ChemPot(nb, T,
 			    mu_n, mu_p, mu_e,
