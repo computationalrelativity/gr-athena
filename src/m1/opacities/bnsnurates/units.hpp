@@ -136,6 +136,23 @@ static UnitSystem GeometricSolar{
   CGS.kb/CGS.MeV, // temperature, MeV
   CGS.kb/CGS.MeV, // chemical potential, MeV
 };
+//! Nuclear units
+static UnitSystem Nuclear{
+  1.0, // c
+  CGS.G * CGS.MeV/(CGS.c*CGS.c*CGS.c*CGS.c)*1e13, // G, fm
+  1.0, // kb
+  CGS.Msun * (CGS.c*CGS.c) / CGS.MeV, // Msun, MeV
+  1.0, // MeV
+
+  1e13, // length, fm
+  CGS.c * 1e13, // time, fm
+  1e-39, // number density, fm^-3
+  (CGS.c*CGS.c) / CGS.MeV, // mass, MeV
+  1.0/CGS.MeV, // energy, MeV
+  1e-39/CGS.MeV, // pressure, MeV/fm^3
+  CGS.kb/CGS.MeV, // temperature, MeV
+  CGS.kb/CGS.MeV, // chemical potential, MeV
+};
 //! Units used in neutrino calculations: mostly CGS but with 
 //  temperature and chemical potential in MeV
 static UnitSystem WeakRatesUnits{
