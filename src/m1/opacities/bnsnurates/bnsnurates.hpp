@@ -123,9 +123,12 @@ namespace M1::Opacities::BNSNuRates {
       // wr_units ......... CGS + MeV
       // nurates_units .... CGS + MeV + nm
       // code_units ....... Geometric + Solar masses
+      // eos_units ........ fm + MeV + fm
       wr_units = &BNSNuRates_Units::WeakRatesUnits;
       nurates_units = &BNSNuRates_Units::NGS;
       code_units = &BNSNuRates_Units::GeometricSolar;
+      //eos_units = code_units;
+      eos_units = &BNSNuRates_Units::Nuclear; // as in AthenaK
       
       // BNSNuRates only works for nu_e + nu_ae + nu_x
       assert(N_SPCS==3);
@@ -582,6 +585,7 @@ namespace M1::Opacities::BNSNuRates {
     BNSNuRates_Units::UnitSystem* wr_units;
     BNSNuRates_Units::UnitSystem* nurates_units;
     BNSNuRates_Units::UnitSystem* code_units;
+    BNSNuRates_Units::UnitSystem* eos_units;
     
     // pars for nurates (choice of reactions, quadratures)
     NuratesParams nurates_params;  
