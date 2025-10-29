@@ -12,18 +12,23 @@
 #include "units.hpp"
 #include "fermi.hpp"
 
+// shields POW macros to avoid compilation warnings
+#define SHIELD_MACROS (0)
+
 // shielding macros definitions
-#ifdef POW2
-  #pragma push_macro("POW2")
-  #undef POW2
-#endif
-#ifdef POW3
-  #pragma push_macro("POW3")
-  #undef POW3
-#endif
-#ifdef POW4
-  #pragma push_macro("POW4")
-  #undef POW4
+#if (SHIELD_MACROS)
+  #ifdef POW2
+    #pragma push_macro("POW2")
+    #undef POW2
+  #endif
+  #ifdef POW3
+    #pragma push_macro("POW3")
+    #undef POW3
+  #endif
+  #ifdef POW4
+    #pragma push_macro("POW4")
+    #undef POW4
+  #endif
 #endif
 
 // bns_nurates headers from:
@@ -36,14 +41,16 @@
 #include "bns_nurates/include/m1_opacities.hpp"
 
 // restoring shielded macros
-#ifdef POW2
-  #pragma pop_macro("POW2")
-#endif
-#ifdef POW3
-  #pragma pop_macro("POW3")
-#endif
-#ifdef POW4
-  #pragma pop_macro("POW4")
+#if (SHIELD_MACROS)
+  #ifdef POW2
+    #pragma pop_macro("POW2")
+  #endif
+  #ifdef POW3
+    #pragma pop_macro("POW3")
+  #endif
+  #ifdef POW4
+    #pragma pop_macro("POW4")
+  #endif
 #endif
 
 // Point-test to test units
@@ -256,14 +263,15 @@ namespace M1::Opacities::BNSNuRates {
       const int NUM_COEFF = 3;
       int ierr[NUM_COEFF];
 
-      const Real mb_code = pmy_block->peos->GetEOS().GetRawBaryonMass();
+      // using GetBaryonMass instead of GetRawBaryonMass seems to fix mu_n, mu_p, mu_e
+      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
       
       M1_FLOOP3(k, j, i)
         if (pm1->MaskGet(k, j, i))
           {
             Real rho = pm1->hydro.sc_w_rho(k, j, i);
             Real press = pm1->hydro.sc_w_p(k, j, i);
-            Real nb = rho / mb_code; // baryon num dens 
+            Real nb = rho / mb; // baryon num dens 
             Real T = pm1->hydro.sc_T(k,j,i);
             
             Real Y[MAX_SPECIES] = {0.0};
@@ -312,8 +320,8 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params);
 
 #if (M1_UNITS_TEST)
-            printf(" nb, T, Y_e, mb_code, rho, mb_code*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            nb, T, Y_e, mb_code, rho, mb_code*nb);
+            printf(" nb, T, Y_e, mb, rho, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nb, T, Y_e, mb, rho, mb*nb);
             printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
 	            mu_n, mu_p, mu_e);
             printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
