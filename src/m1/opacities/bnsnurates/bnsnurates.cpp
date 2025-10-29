@@ -152,7 +152,7 @@ namespace M1::Opacities::BNSNuRates {
     Real const unit_time = code_units->TimeConversion(*nurates_units); // [s]
     //TODO nb should be in EOS units, fm-3. 
     // need to go from 'code units' (fm-3 ?) to nm-3 CHECK
-    Real const unit_num_dens = NORMFACT * code_units->NumberDensityConversion(*nurates_units); // [nm^-3] 
+    Real const unit_num_dens = NORMFACT * eos_units->NumberDensityConversion(*nurates_units); // [nm^-3] 
     Real const unit_ene_dens = code_units->EnergyDensityConversion(*nurates_units); // [MeV nm^-3]
     Real const unit_num_dens_dot = unit_num_dens / unit_time;
     Real const unit_ene_dens_dot = unit_ene_dens / unit_time;
