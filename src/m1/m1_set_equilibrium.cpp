@@ -160,17 +160,6 @@ void SetEquilibrium(
 
     // Fix strategy / sources -------------------------------------------------
     pm1.SetMaskSolutionRegime(M1::M1::t_sln_r::equilibrium,ix_g,ix_s,k,j,i);
-    if (pm1.opt_solver.equilibrium_sources)
-    {
-      // source terms (entering coupling)
-      pm1.SetMaskSourceTreatment(M1::M1::t_src_t::full,ix_g,ix_s,k,j,i);
-      ::M1::Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-      ::M1::Sources::PrepareMatterSource_nG(   pm1, C, S, k, j, i);
-    }
-    else
-    {
-      pm1.SetMaskSourceTreatment(M1::M1::t_src_t::set_zero,ix_g,ix_s,k,j,i);
-    }
   }
 
 #endif // FLUID_ENABLED

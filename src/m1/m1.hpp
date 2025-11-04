@@ -802,7 +802,7 @@ public:
                                      N};
     struct {
       AthenaArray<opt_solution_regime>  solution_regime;
-      AthenaArray<opt_source_treatment> source_treatment;
+      // AthenaArray<opt_source_treatment> source_treatment;
       AA_B                 excised;
       AA                                flux_limiter;
       AA                                pp;
@@ -872,20 +872,6 @@ public:
     }
   }
 
-  inline t_src_t GetMaskSourceTreatment(const int ix_g, const int ix_s,
-                                        const int k, const int j, const int i)
-  {
-    if (opt_solver.solver_reduce_to_common)
-    {
-      return ev_strat.masks.source_treatment(ix_g, k, j, i);
-    }
-    else
-    {
-      return ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i);
-    }
-
-  }
-
   inline void SetMaskSolutionRegime(t_sln_r sol_r,
                                     const int ix_g, const int ix_s,
                                     const int k, const int j, const int i)
@@ -899,19 +885,6 @@ public:
       ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i) = sol_r;
     }
   }
-  inline void SetMaskSourceTreatment(t_src_t src_t,
-                                     const int ix_g, const int ix_s,
-                                     const int k, const int j, const int i)
-  {
-    if (opt_solver.solver_reduce_to_common)
-    {
-      ev_strat.masks.source_treatment(ix_g, k, j, i) = src_t;
-    }
-    else
-    {
-      ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i) = src_t;
-    }
-  }
 
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks
@@ -921,8 +894,7 @@ public:
                                 const Real kap_a,
                                 const Real kap_s,
                                 const Real rho,
-                                t_sln_r & mask_sln_r,
-                                t_src_t & mask_src_t);
+                                t_sln_r & mask_sln_r);
   void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);
 

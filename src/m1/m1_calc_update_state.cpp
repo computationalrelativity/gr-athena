@@ -285,30 +285,19 @@ namespace M1 {
 void M1::ResetEvolutionStrategy()
 {
   AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
-  AthenaArray<t_src_t> & mask_src_t = pm1->ev_strat.masks.source_treatment;
   mask_sln_r.Fill(t_sln_r::noop);
-  mask_src_t.Fill(t_src_t::noop);
 }
 
 void M1::PrepareEvolutionStrategy(const Real dt,
                                   const Real kap_a,
                                   const Real kap_s,
                                   const Real rho,
-                                  t_sln_r & mask_sln_r,
-                                  t_src_t & mask_src_t)
+                                  t_sln_r & mask_sln_r)
 {
   // Equilibrium detected in Weak-rates; short-circuit
   if ((mask_sln_r == t_sln_r::equilibrium) ||
       (mask_sln_r == t_sln_r::equilibrium_wr))
   {
-    if (pm1->opt_solver.equilibrium_sources)
-    {
-      mask_src_t = t_src_t::full;
-    }
-    else
-    {
-      mask_src_t = t_src_t::set_zero;
-    }
     return;
   }
 
@@ -319,41 +308,29 @@ void M1::PrepareEvolutionStrategy(const Real dt,
      (rho >= pm1->opt_solver.eql_rho_min))
   {
     mask_sln_r = t_sln_r::equilibrium;
-    if (pm1->opt_solver.equilibrium_sources)
-    {
-      mask_src_t = t_src_t::full;
-    }
-    else
-    {
-      mask_src_t = t_src_t::set_zero;
-    }
   }
   // scattering regime
   else if((opt_solver.src_lim_scattering > 0) &&
           (dt * kap_s > opt_solver.src_lim_scattering))
   {
     mask_sln_r = t_sln_r::scattering;
-    mask_src_t = t_src_t::set_zero;
   }
   // Non-stiff regime
   else if ((dt * kap_a < 1) &&
            (dt * kap_s < 1))
   {
     mask_sln_r = t_sln_r::non_stiff;
-    mask_src_t = t_src_t::full;
   }
   // stiff refime
   else
   {
     mask_sln_r = t_sln_r::stiff;
-    mask_src_t = t_src_t::full;
   }
 }
 
 void M1::PrepareEvolutionStrategyCommon(const Real dt)
 {
   AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
-  AthenaArray<t_src_t> & mask_src_t = pm1->ev_strat.masks.source_treatment;
 
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
   {
@@ -364,14 +341,6 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       if ((mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium) ||
           (mask_sln_r(ix_g, k, j, i) == t_sln_r::equilibrium_wr))
       {
-        if (pm1->opt_solver.equilibrium_sources)
-        {
-          mask_src_t(ix_g, k, j, i) = t_src_t::full;
-        }
-        else
-        {
-          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
-        }
         continue;
       }
 
@@ -408,33 +377,22 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
           (rho >= pm1->opt_solver.eql_rho_min))
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::equilibrium;
-        if (pm1->opt_solver.equilibrium_sources)
-        {
-          mask_src_t(ix_g, k, j, i) = t_src_t::full;
-        }
-        else
-        {
-          mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
-        }
       }
       // Check scattering regime
       else if ((opt_solver.src_lim_scattering > 0) &&
                (dt * max_kap_s > opt_solver.src_lim_scattering))
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::scattering;
-        mask_src_t(ix_g, k, j, i) = t_src_t::set_zero;
       }
       // Check non-stiff regime
       else if (non_stiff)
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::non_stiff;
-        mask_src_t(ix_g, k, j, i) = t_src_t::full;
       }
       // stiff regime
       else
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::stiff;
-        mask_src_t(ix_g, k, j, i) = t_src_t::full;
       }
     }
   }
@@ -450,7 +408,6 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   }
 
   AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
-  AthenaArray<t_src_t> & mask_src_t = pm1->ev_strat.masks.source_treatment;
 
   // Revert to stiff / kill sources, as required ------------------------------
   for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
@@ -464,7 +421,6 @@ void M1::PrepareEvolutionStrategy(const Real dt)
         (pmy_block->phydro->excision_mask(k,j,i) < 1))
     {
       mask_sln_r(ix_g, ix_s, k, j, i) = t_sln_r::noop;
-      mask_src_t(ix_g, ix_s, k, j, i) = t_src_t::noop;
     }
 #endif // Z4C_WITH_HYDRO_ENABLED
 
@@ -473,8 +429,7 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
     PrepareEvolutionStrategy(dt, kap_a, kap_s,
                              hydro.sc_w_rho(k,j,i),
-                             mask_sln_r(ix_g, ix_s, k, j, i),
-                             mask_src_t(ix_g, ix_s, k, j, i));
+                             mask_sln_r(ix_g, ix_s, k, j, i));
   }
 
   // Treat species uniformly, if required -------------------------------------

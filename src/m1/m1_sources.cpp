@@ -37,17 +37,6 @@ void PrepareMatterSource_E_F_d(
   Update::SourceMetaVector & S,
   const int k, const int j, const int i)
 {
-  // Extract source mask value for potential short-circuit treatment ----------
-  typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
-
-  if (st == ost::set_zero)
-  {
-    SetMatterSourceZero(S, k, j, i);
-    return;
-  }
-  // --------------------------------------------------------------------------
-
   Assemble::Frames::sources_sc_E_sp_F_d(
     pm1,
     S.sc_E,
@@ -68,17 +57,6 @@ void PrepareMatterSource_nG(
   Update::SourceMetaVector & S,
   const int k, const int j, const int i)
 {
-  // Extract source mask value for potential short-circuit treatment ----------
-  typedef M1::evolution_strategy::opt_source_treatment ost;
-  ost st = pm1.GetMaskSourceTreatment(0,0,k,j,i);
-
-  if (st == ost::set_zero)
-  {
-    S.sc_nG(k,j,i) = 0;
-    return;
-  }
-  // --------------------------------------------------------------------------
-
   Assemble::Frames::sources_sc_nG(
     pm1,
     S.sc_nG,
