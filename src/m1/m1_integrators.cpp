@@ -315,53 +315,44 @@ void DispatchIntegrationMethod(
         }
         case M1::t_sln_r::non_stiff:
         {
-          // std::printf("DEBUG: non-stiff @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.non_stiff;
           break;
         }
         case M1::t_sln_r::stiff:
         {
-          // std::printf("DEBUG: stiff @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.stiff;
           break;
         }
         case M1::t_sln_r::scattering:
         {
-          // std::printf("DEBUG: scattering @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
           opt_is = pm1->opt_solver.solvers.scattering;
           break;
         }
         case M1::t_sln_r::equilibrium:
-        {
-          // std::printf("DEBUG: equilibrium @ (%d, %d; %d, %d, %d)\n",
-          //             ix_g, ix_s, k, j, i);
-
-          if (pm1->opt_solver.equilibrium_E_F_d)
-          {
-            use_eql_E_F_d = true;
-          }
-
-          // Optionally flag solution for n directly from equilibrium;
-          // remainder of (E,F_d) state-vector takes prescribed method
-          if (pm1->opt_solver.equilibrium_n_nG)
-          {
-            use_eql_n_nG = true;
-          }
-
-          if (pm1->opt_solver.equilibrium_use_thick)
-          {
-            pm1->opt_closure.variety = M1::opt_closure_variety::thick;
-          }
-
-          opt_is = pm1->opt_solver.solvers.equilibrium;
-          break;
-        }
         case M1::t_sln_r::equilibrium_wr:
         {
-          opt_is = M1::opt_integration_strategy::do_nothing;
+          // only enable special handling for "do_nothing"
+          if (pm1->opt_solver.solvers.equilibrium ==
+              M1::opt_integration_strategy::do_nothing)
+          {
+            if (pm1->opt_solver.equilibrium_E_F_d)
+            {
+              use_eql_E_F_d = true;
+            }
+
+            // Optionally flag solution for n directly from equilibrium;
+            // remainder of (E,F_d) state-vector takes prescribed method
+            if (pm1->opt_solver.equilibrium_n_nG)
+            {
+              use_eql_n_nG = true;
+            }
+
+            if (pm1->opt_solver.equilibrium_use_thick)
+            {
+              pm1->opt_closure.variety = M1::opt_closure_variety::thick;
+            }
+          }
+          opt_is = pm1->opt_solver.solvers.equilibrium;
           break;
         }
         default:

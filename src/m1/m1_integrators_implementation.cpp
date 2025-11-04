@@ -1,6 +1,7 @@
 // C++ standard headers
 // Athena++ headers
 #include "m1.hpp"
+#include "m1_calc_update.hpp"
 #include "m1_integrators.hpp"
 #include "m1_set_equilibrium.hpp"
 #include "m1_sources.hpp"
@@ -66,6 +67,48 @@ void StepExplicit_nG(
   EnforcePhysical_nG(pm1, C, k, j, i);
 }
 
+void Advect_E_F_d(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,         // current (target) step
+  const Update::StateMetaVector & P,   // previous step data
+  const Update::StateMetaVector & I,   // inhomogeneity
+  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
+  const int k, const int j, const int i)
+{
+  using namespace Update;
+
+  // C := P
+  Copy_E_F_d(C, P, k, j, i);
+
+  // C := P + dt * (I + S)
+  InPlaceScalarMulAdd_E_F_d(dt, C, I, k, j, i);
+  EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+  Copy_E_F_d(S, C, k, j, i);
+}
+
+void Advect_nG(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,         // current (target) step
+  const Update::StateMetaVector & P,   // previous step data
+  const Update::StateMetaVector & I,   // inhomogeneity
+  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
+  const int k, const int j, const int i)
+{
+  using namespace Update;
+
+  // C := P
+  Copy_nG(C, P, k, j, i);
+
+  // C = P + dt * (I + S)
+  InPlaceScalarMulAdd_nG(dt, C, I, k, j, i);
+  EnforcePhysical_nG(pm1, C, k, j, i);
+
+  Copy_nG(S, C, k, j, i);
+}
+
 void PrepareApproximateFirstOrder_E_F_d(
   M1 & pm1,
   const Real dt,
@@ -80,10 +123,9 @@ void PrepareApproximateFirstOrder_E_F_d(
 
   // ------------------------------------------------------------------------
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
-  SetMatterSourceZero(S, k, j, i);
 
   // Explicit step, no sources; applies floors internally
-  StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
+  Advect_E_F_d(pm1, dt, C, P, I, S, k, j, i);
 
   // Compute closure & construct fiducial frame:
   CL_C.Closure(k, j, i);
@@ -159,120 +201,15 @@ void PrepareApproximateFirstOrder_E_F_d(
 
   // Ensure physical state ----------------------------------------------------
   EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+  // Update sources to contain (C - (P + dt * I)) / dt ------------------------
+  // This can be done due to advection above.
+  using namespace Update;
+
+  const Real oo_dt = OO(dt);
+  InPlaceScalarMul_E_F_d(-oo_dt, S, k, j, i);
+  InPlaceScalarMulAdd_E_F_d(oo_dt, S, C, k, j, i);
 }
-
-/*
-void PrepareApproximateFirstOrder_E_F_d(
-  M1 & pm1,
-  const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i)
-{
-  using namespace Sources;
-
-  // ------------------------------------------------------------------------
-  // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
-  SetMatterSourceZero(S, k, j, i);
-
-  // Explicit step, no sources; applies floors internally
-  StepExplicit_E_F_d(pm1, dt, C, P, I, S, k, j, i);
-
-  // Compute closure & construct fiducial frame:
-  CL_C.Closure(k, j, i);
-
-  // Evolve fiducial frame; prepare (J, H^alpha):
-  // We write:
-  // sc_J   = J_0
-  // st_H^a = H_n n^a + H_v v^a + H_F F^a
-  const Real W  = pm1.fidu.sc_W(k,j,i);
-  const Real W2 = SQR(W);
-
-  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
-  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
-
-  const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
-  const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
-
-  Real J_0, H_n, H_v, H_F;
-
-  Assemble::Frames::ToFiducialExpansionCoefficients(
-    pm1,
-    J_0, H_n, H_v, H_F,
-    C.sc_chi, C.sc_E, C.sp_F_d,
-    k, j, i
-  );
-
-  // J_0 = std::max(
-  //   (
-  //     (J_0 * W + dt * C.sc_eta(k,j,i)) /
-  //     (W + dt * C.sc_kap_a(k,j,i))
-  //   ),
-  //   pm1.opt.fl_J
-  // );
-
-  J_0 = (J_0 * W + dt * C.sc_eta(k,j,i)) /
-        (W + dt * C.sc_kap_a(k,j,i));
-
-  const Real fac_ev_H = W / (
-    W + dt * (C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i))
-  );
-
-  H_n *= fac_ev_H;
-  H_v *= fac_ev_H;
-  H_F *= fac_ev_H;
-
-  // Transform back, assuming thick closure:
-
-  // Contract on ST idx:
-  // v_a H^a = v_i beta^i H^0 + v_i H^i
-  //         = v^a H_a
-  //         = v^i H_i
-  // where:
-  // H^a = H_n n^a + H_v v^a + H_F F^a
-  // H_i = H_n n_i + H_v v_i + H_F F_i
-  //     =    0    + H_v v_i + H_F F_i
-
-  Real dotHv (0);
-  for (int a=0; a<N; ++a)
-  {
-    dotHv += sp_v_u(a,k,j,i) * (
-      H_v * sp_v_d(a,k,j,i) +
-      H_F * C.sp_F_d(a,k,j,i)
-    );
-  }
-
-  const Real dotHn = -H_n;
-
-  C.sc_E(k,j,i) = (
-    4.0 * ONE_3RD * W2 * J_0 +
-    2.0 * W * dotHv -
-    ONE_3RD * J_0
-  );
-
-  for (int a=0; a<N; ++a)
-  {
-    C.sp_F_d(a,k,j,i) = (
-      4.0 * ONE_3RD * W2 * J_0 * sp_v_d(a,k,j,i) +
-      W * (
-        H_v * sp_v_d(a,k,j,i) +
-        H_F * C.sp_F_d(a,k,j,i)
-      ) -
-      W * dotHn * sp_v_d(a,k,j,i)
-    );
-  }
-
-  Closures::EddingtonFactors::ThickLimit(
-    CL_C.sc_xi(k,j,i), CL_C.sc_chi(k,j,i)
-  );
-
-  // Ensure physical state
-  EnforcePhysical_E_F_d(pm1, C, k, j, i);
-}
-*/
 
 // ============================================================================
 } // namespace M1::Integrators::Explicit
@@ -282,7 +219,9 @@ void PrepareApproximateFirstOrder_E_F_d(
 namespace Implicit {
 // ============================================================================
 
-void StepImplicitPrepareInitialGuess(
+// Prepares initial guess. If "accurate-enough" returns true to short-circuit
+// implicit solver where this is used
+bool StepImplicitPrepareInitialGuess(
   M1 & pm1,
   const Real dt,
   Update::StateMetaVector & C,        // current step
@@ -299,36 +238,25 @@ void StepImplicitPrepareInitialGuess(
   C.FallbackStore(k, j, i);
 
   // prepare initial guess for iteration --------------------------------------
-  // See \S3.2.4 of [1]
-
-  // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) _without_ matter sources
-  SetMatterSourceZero(S, k, j, i);
-
-  // try a nearest-neighbour guess?
-  if (pm1.opt_solver.use_Neighbor &&
-      (i > pm1.mbi.il))
-  {
-    C.sc_E(k,j,i) = C.sc_E(k,j,i-1);
-    for (int a=0; a<N; ++a)
-      C.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i-1);
-
-    CL_C.Closure(k, j, i);
-  }
-  // Previous state as guess
-  // {
-  //   C.sc_E(k,j,i) = P.sc_E(k,j,i);
-  //   for (int a=0; a<N; ++a)
-  //     C.sp_F_d(a,k,j,i) = P.sp_F_d(a,k,j,i);
-
-  //   CL_C.Closure(k, j, i);
-  // }
-  else
-  {
-    // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*)
-    // With approximate solution of _implicit_ system at O(v)
-    PrepareApproximateFirstOrder_E_F_d(pm1, dt, C, P, I, S, CL_C, k, j, i);
-  }
+  // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*)
+  // With approximate solution of _implicit_ system at O(v)
+  PrepareApproximateFirstOrder_E_F_d(pm1, dt, C, P, I, S, CL_C, k, j, i);
   // --------------------------------------------------------------------------
+
+  const bool eql_short_circuit = (
+    !pm1.opt_solver.equilibrium_src_E_F_d &&
+    pm1.IsEquilibrium(C.ix_s,k,j,i)
+  );
+
+  if (eql_short_circuit)
+  {
+    return true;
+  }
+
+  // Some other criteria indicating "accurate-enough" go here
+  // ...
+
+  return false;
 }
 
 // ============================================================================
@@ -375,11 +303,6 @@ struct gsl_params
 
   // For Jacobian-based methods
   AA & J;
-
-  // Equilibrium logic
-  bool use_eql;
-  AA & eq_E__;
-  AA & eq_F_d__;
 
   const int i;
   const int j;
@@ -444,41 +367,6 @@ int Z_E_F_d(const gsl_vector *U, void * par_, gsl_vector *Z)
   gsl_V2T_E_F_d(C, U, k, j, i);                   // U->C
 
   Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-  /*
-  if (par->use_eql)
-  {
-    const Real dE = C.sc_E(k,j,i) - par->eq_E__(0);
-    const Real alpha = pm1.geom.sc_alpha(k,j,i);
-    const Real zeta = pm1.opt_solver.equilibrium_zeta;
-
-    S.sc_E(k,j,i) -= alpha * zeta * dE;
-
-    for (int a=0; a<N; ++a)
-    {
-      const Real dF_d = C.sp_F_d(a,k,j,i) - par->eq_F_d__(a);
-      S.sp_F_d(a,k,j,i) -= alpha * zeta * dF_d;
-    }
-  }
-  */
-
-  /*
-  if (par->use_eql)
-  {
-    const Real alpha = pm1.geom.sc_alpha(k,j,i);
-    const Real W = pm1.fidu.sc_W(k,j,i);
-    const Real kap_a = C.sc_kap_a(k,j,i);
-
-    S.sc_E(k,j,i) += alpha * W * kap_a * pm1.eql.sc_J(C.ix_g,C.ix_s)(k,j,i);
-
-    for (int a=0; a<N; ++a)
-    {
-      S.sp_F_d(a,k,j,i) += alpha * W * kap_a * (
-        pm1.eql.sc_J(C.ix_g,C.ix_s)(k,j,i) * pm1.fidu.sp_v_d(a,k,j,i)
-      );
-    }
-  }
-  */
-
   System::Z_E_F_d(pm1, dt, C, P, I, S, k, j, i);  // updates C.Z_E, C.Z_F_d
 
   gsl_TZ2V_E_F_d(Z, C);                           // C.Z -> Z
@@ -524,19 +412,6 @@ int dZ_E_F_d(const gsl_vector *U, void * par_, gsl_matrix *J_)
     J(a,b) = (a==b) - dt * J(a,b);
   }
 
-  /*
-  if (par->use_eql)
-  {
-    const Real alpha = pm1.geom.sc_alpha(k,j,i);
-    const Real zeta = pm1.opt_solver.equilibrium_zeta;
-
-    for (int a=0; a<N_SYS; ++a)
-    {
-      J(a,a) += dt * alpha * zeta;
-    }
-  }
-  */
-
   for (int a=0; a<N_SYS; ++a)
   for (int b=0; b<N_SYS; ++b)
   {
@@ -571,9 +446,12 @@ void StepImplicitHybrids(
 {
   using namespace Sources;
 
-  StepImplicitPrepareInitialGuess(pm1, dt, C, P, I, S, CL_C, k, j, i);
+  const bool need_implicit = !StepImplicitPrepareInitialGuess(
+    pm1, dt, C, P, I, S, CL_C, k, j, i
+  );
 
   // GSL specific -------------------------------------------------------------
+  if (need_implicit)
   {
     const size_t N_SYS = 1 + N;
 
@@ -584,12 +462,8 @@ void StepImplicitHybrids(
     // select function & solver -----------------------------------------------
     AA _J;  // unused in this method
 
-    AA _eq_E__;   // unused in this method
-    AA _eq_F_d__; // unused in this method
-
-    const bool use_eql = false;
     struct gsl_params par = {pm1, dt, C, P, I, S, _J,
-                             use_eql, _eq_E__, _eq_F_d__, i, j, k};
+                             i, j, k};
     gsl_multiroot_function mrf = {&Z_E_F_d, N_SYS, &par};
     gsl_multiroot_fsolver *slv = gsl_multiroot_fsolver_alloc(
       gsl_multiroot_fsolver_hybrids,
@@ -719,10 +593,10 @@ void StepImplicitHybrids(
     // cleanup ----------------------------------------------------------------
     gsl_multiroot_fsolver_free(slv);
     gsl_vector_free(U_i);
-  }
 
-  // Ensure update preserves energy non-negativity
-  EnforcePhysical_E_F_d(pm1, C, k, j, i);
+    // Ensure update preserves energy non-negativity
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
+  }
 }
 
 void StepImplicitHybridsJ(
@@ -735,38 +609,15 @@ void StepImplicitHybridsJ(
   Closures::ClosureMetaVector & CL_C,
   const int k, const int j, const int i)
 {
-
-  // Extract source mask value for potential short-circuit treatment ----------
-  // DEBUG:
-  // typedef M1::evolution_strategy::opt_source_treatment ost;
-  // if (ost::set_zero ==  pm1.ev_strat.masks.source_treatment(C.ix_g,C.ix_s,k,j,i))
-  // {
-  //   std::cout << static_cast<int>(pm1.opt_solver.solvers.equilibrium) << "\n";
-  //   pm1.StatePrintPoint("Debug SemiImplicit", C.ix_g, C.ix_s, k, j, i, true);
-  // }
-  // --------------------------------------------------------------------------
-
   using namespace Implicit;
   using namespace Sources;
 
-  M1::t_sln_r sln_r = pm1.GetMaskSolutionRegime(C.ix_g, C.ix_s, k, j, i);
-  // const bool use_eql = (
-  //   pm1.opt.retain_equilibrium && (sln_r == M1::t_sln_r::equilibrium)
-  // );
-
-  const bool use_eql = false;
-
-  if (use_eql)
-  {
-    // Take equilibrium as initial guess
-    Equilibrium::MapReferenceEquilibrium(pm1, pm1.eql, C, k, j, i);
-  }
-  else
-  {
-    StepImplicitPrepareInitialGuess(pm1, dt, C, P, I, S, CL_C, k, j, i);
-  }
+  const bool need_implicit = !StepImplicitPrepareInitialGuess(
+    pm1, dt, C, P, I, S, CL_C, k, j, i
+  );
 
   // GSL specific -------------------------------------------------------------
+  if (need_implicit)
   {
     const size_t N_SYS = 1 + N;
 
@@ -777,20 +628,7 @@ void StepImplicitHybridsJ(
     // select function & solver -----------------------------------------------
     AA J(N_SYS,N_SYS);
 
-    AA eq_E__(1);
-    AA eq_F_d__(N);
-
-    if (use_eql)
-    {
-      eq_E__(0) = C.sc_E(k,j,i);
-      for (int a=0; a<N; ++a)
-      {
-        eq_F_d__(a) = C.sp_F_d(a,k,j,i);
-      }
-    }
-
     struct gsl_params par = {pm1, dt, C, P, I, S, J,
-                             use_eql, eq_E__, eq_F_d__,
                              i, j, k};
 
     gsl_multiroot_function_fdf mrf = {&Z_E_F_d,
@@ -815,8 +653,6 @@ void StepImplicitHybridsJ(
     // solver loop ------------------------------------------------------------
     int iter = 0;
 
-    // Real xi_avg = CL_C.sc_xi(k,j,i);
-    // Real xi_min = std::numeric_limits<Real>::infinity();
 
     // if (gsl_status!=GSL_SUCCESS)
     do
@@ -834,26 +670,6 @@ void StepImplicitHybridsJ(
 
       // Ensure update preserves energy non-negativity
       EnforcePhysical_E_F_d(pm1, C, k, j, i);
-      /*
-      if (iter > 10 && (C.sc_E(k,j,i) < 0))
-      {
-        std::ostringstream msg;
-        msg << "Panic: 0 > C.sc_E(k,j,i) = ";
-        msg << std::setprecision(3);
-        msg << C.sc_E(k,j,i);
-        pm1.StatePrintPoint(msg.str(),
-                            C.ix_g, C.ix_s, k, j, i, true);
-      }
-
-      if (C.sc_E(k,j,i) < 0)
-      {
-        C.sc_E(k,j,i) = 0;
-        for (int a=0; a<N; ++a)
-        {
-          C.sp_F_d(a,k,j,i) = 0;
-        }
-      }
-      */
 
       // compute closure with updated state
       CL_C.Closure(k,j,i);
@@ -867,10 +683,6 @@ void StepImplicitHybridsJ(
                                             pm1.opt_solver.eps_a_tol,
                                             pm1.opt_solver.eps_r_tol);
 
-      // xi_avg += CL_C.sc_xi(k,j,i);
-      // xi_min = std::min(CL_C.sc_xi(k,j,i), xi_min);
-      // if ((xi_min < 1e-6) && pm1.opt_closure.variety != M1::opt_closure_variety::thick)
-      //   gsl_status = GSL_ENOPROG;
     }
     while (gsl_status == GSL_CONTINUE && iter < pm1.opt_solver.iter_max);
 
@@ -901,9 +713,6 @@ void StepImplicitHybridsJ(
         std::cout << "): iter " << iter << " \n";
         std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
         std::printf("|.-1/3|=%.3g ", std::abs(C.sc_chi(k,j,i) - ONE_3RD));
-        // std::cout << "xi_avg : " << xi_avg / (iter + 1) << " ";
-        // std::cout << "xi_min : " << xi_min << " ";
-        // std::cout << "xi_min : " << xi_min << " ";
         std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
@@ -979,16 +788,9 @@ void StepImplicitHybridsJ(
     gsl_multiroot_fdfsolver_free(slv);
     gsl_vector_free(U_i);
 
-    /*
-    if (use_eql && pm1.opt.retain_equilibrium_src)
-    {
-      Sources::PrepareMatterSource_E_F_d(pm1, C, S, k, j, i);
-    }
-    */
+    // Ensure update preserves energy non-negativity
+    EnforcePhysical_E_F_d(pm1, C, k, j, i);
   }
-
-  // Ensure update preserves energy non-negativity
-  EnforcePhysical_E_F_d(pm1, C, k, j, i);
 }
 
 // ============================================================================
@@ -1006,19 +808,12 @@ void SolveImplicitNeutrinoCurrent(
   Update::SourceMetaVector & S,       // carry source contribution
   const int k, const int j, const int i)
 {
-  // Extract source mask value for potential short-circuit treatment ----------
-  typedef M1::evolution_strategy::opt_source_treatment ost;
-  const bool non_zero_src = !(
-    ost::set_zero ==  pm1.GetMaskSourceTreatment(0,0,k,j,i)
-  );
-  // --------------------------------------------------------------------------
+  using namespace Explicit;
 
-  M1::t_sln_r sln_r = pm1.GetMaskSolutionRegime(C.ix_g, C.ix_s, k, j, i);
-  // const bool use_eql = (
-  //   pm1.opt.retain_equilibrium && (sln_r == M1::t_sln_r::equilibrium)
-  // );
-
-  const bool use_eql = false;
+  // sources either always on, or, if we are at equilibrium they are off
+  const bool non_zero_src = (pm1.opt_solver.equilibrium_src_nG)
+    ? true
+    : !pm1.IsEquilibrium(C.ix_s, k, j, i);
 
   AT_C_sca & sc_alpha = pm1.geom.sc_alpha;
   AT_C_sca & sc_sqrt_det_g = pm1.geom.sc_sqrt_det_g;
@@ -1030,16 +825,22 @@ void SolveImplicitNeutrinoCurrent(
     k, j, i
   );
 
-  const Real fac_eql_num = (use_eql)
-    ? C.sc_kap_a_0(k,j,i) * pm1.eql.sc_n(C.ix_g,C.ix_s)(k,j,i)
-    : 0.0;
+  // const Real num = (
+  //   P.sc_nG(k,j,i) + dt * (
+  //     I.sc_nG(k,j,i) +
+  //     non_zero_src * sc_alpha(k,j,i) * (
+  //       sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i)
+  //     )
+  //   )
+  // );
+
+  // store advected state (P + dt * I) in S
+  Advect_nG(pm1, dt, C, P, I, S, k, j, i);
 
   const Real num = (
-    P.sc_nG(k,j,i) + dt * (
-      I.sc_nG(k,j,i) +
+    S.sc_nG(k,j,i) + dt * (
       non_zero_src * sc_alpha(k,j,i) * (
-        sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) +
-        fac_eql_num
+        sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i)
       )
     )
   );
@@ -1058,61 +859,23 @@ void SolveImplicitNeutrinoCurrent(
   // Derived quantities & source retention
   C.sc_n(k,j,i) = C.sc_nG(k,j,i) / sc_G__;
 
-  const Real fac_eql_src = (use_eql && non_zero_src)
-    ? pm1.eql.sc_n(C.ix_g,C.ix_s)(k,j,i)
-    : 0.0;
+  // S.sc_nG(k,j,i) = non_zero_src * sc_alpha(k,j,i) * (
+  //   sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
+  //   C.sc_kap_a_0(k,j,i) * C.sc_n(k,j,i)
+  // );
 
-  S.sc_nG(k,j,i) = non_zero_src * sc_alpha(k,j,i) * (
-    sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
-    C.sc_kap_a_0(k,j,i) * (C.sc_n(k,j,i) - fac_eql_src)
-  );
-
-  /*
-  // Equilibrium::MapReferenceEquilibrium needs to have been previously called
-  const Real eql_sc_nG = C.sc_nG(k,j,i);
-
-  const Real fac_eql_num = (use_eql)
-    ? pm1.opt_solver.equilibrium_zeta * eql_sc_nG
-    : 0.0;
-
-  const Real num = (
-    P.sc_nG(k,j,i) + dt * (
-      I.sc_nG(k,j,i) +
-      non_zero_src * sc_alpha(k,j,i) * (
-        sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) +
-        fac_eql_num
-      )
-    )
-  );
-
-  const Real fac_eql_den = (use_eql)
-    ? pm1.opt_solver.equilibrium_zeta
-    : 0.0;
-
-  const Real den = (
-    1.0 + dt * non_zero_src * sc_alpha(k,j,i) * (
-      C.sc_kap_a_0(k,j,i) / sc_G__ + fac_eql_den
-    )
-  );
-
-  C.sc_nG(k,j,i) = num / den;
-
-  // Ensure update preserves non-negativity
-  EnforcePhysical_nG(pm1, C, k, j, i);
-
-  // Derived quantities & source retention
-  C.sc_n(k,j,i) = C.sc_nG(k,j,i) / sc_G__;
-
-  const Real fac_eql_src = (use_eql && pm1.opt.retain_equilibrium_src)
-    ? pm1.opt_solver.equilibrium_zeta * (C.sc_nG(k,j,i) - eql_sc_nG)
-    : 0.0;
-
-  S.sc_nG(k,j,i) = non_zero_src * sc_alpha(k,j,i) * (
-    sc_sqrt_det_g(k,j,i) * C.sc_eta_0(k,j,i) -
-    C.sc_kap_a_0(k,j,i) * C.sc_n(k,j,i)
-    + fac_eql_src
-  );
-  */
+  // Update sources to contain (C - (P + dt * I)) / dt ------------------------
+  // This can be done due to advection above.
+  if (non_zero_src)
+  {
+    const Real oo_dt = OO(dt);
+    InPlaceScalarMul_nG(-oo_dt, S, k, j, i);
+    InPlaceScalarMulAdd_nG(oo_dt, S, C, k, j, i);
+  }
+  else
+  {
+    S.sc_nG(k,j,i) = 0;
+  }
 }
 
 // ============================================================================

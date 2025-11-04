@@ -197,14 +197,10 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.iter_max     = GoA_int("iter_max", 128);
   opt_solver.iter_max_rst = GoA_int("iter_max_rst", 10);
 
-  opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
-
   opt_solver.src_lim = GoA_Real("src_lim", -1.0);
 
   opt_solver.limit_src_fluid = GoA_bool("limit_src_fluid",  false);
   opt_solver.limit_src_radiation = GoA_bool("limit_src_radiation",  false);
-
-  opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
 
   opt_solver.src_lim_Ye_min = GoA_Real("src_lim_Ye_min", -1.0);
   opt_solver.src_lim_Ye_max = GoA_Real("src_lim_Ye_max", -1.0);

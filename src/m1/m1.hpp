@@ -297,8 +297,6 @@ public:
     int iter_max;
     int iter_max_rst;
 
-    bool use_Neighbor;
-
     // source settings
     bool limit_src_fluid;
     bool limit_src_radiation;

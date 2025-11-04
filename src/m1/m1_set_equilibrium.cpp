@@ -303,9 +303,10 @@ void SetEquilibrium_n_nG(
 
 
       // Evolve fluid frame quantities
+      const Real sqrt_deg_g__ = pm1.geom.sc_sqrt_det_g(k,j,i);
       const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
 
-      J_0 = (J_0 * W + dt * C.sc_eta(k,j,i)) /
+      J_0 = (J_0 * W + dt * sqrt_deg_g__ * C.sc_eta(k,j,i)) /
             (W + dt * C.sc_kap_a(k,j,i));
 
       Real H_n__ = W * H_n / (W + dt * kap_as);

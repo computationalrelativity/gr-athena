@@ -93,7 +93,8 @@ SourceMetaVector ConstructSourceMetaVector(
   const int ix_g, const int ix_s);
 
 // For components (E, F_d) perform tar <- src
-inline void Copy_E_F_d(StateMetaVector &dst,
+template<typename T>
+inline void Copy_E_F_d(T &dst,
                        const StateMetaVector &src,
                        const int k, const int j, const int i)
 {
@@ -105,7 +106,8 @@ inline void Copy_E_F_d(StateMetaVector &dst,
 }
 
 // For components (nG, ) perform tar <- src
-inline void Copy_nG(StateMetaVector &dst,
+template<typename T>
+inline void Copy_nG(T &dst,
                     const StateMetaVector &src,
                     const int k, const int j, const int i)
 {
@@ -113,7 +115,8 @@ inline void Copy_nG(StateMetaVector &dst,
 }
 
 // For components (nG, E, F_d) perform tar <- src
-inline void Copy_nG_E_F_d(StateMetaVector &dst,
+template<typename T>
+inline void Copy_nG_E_F_d(T &dst,
                           const StateMetaVector &src,
                           const int k, const int j, const int i)
 {
@@ -122,9 +125,9 @@ inline void Copy_nG_E_F_d(StateMetaVector &dst,
 }
 
 // For components (E, F_d) perform V <- V + sca * S
-template <class T>
+template <class T, class W>
 inline void InPlaceScalarMulAdd_E_F_d(const Real sca,
-                                      StateMetaVector &V,
+                                      W &V,
                                       const T &S,
                                       const int k, const int j, const int i)
 {
@@ -136,9 +139,9 @@ inline void InPlaceScalarMulAdd_E_F_d(const Real sca,
 }
 
 // For components (nG, ) perform V <- V + sca * S
-template <class T>
+template <class T, class W>
 inline void InPlaceScalarMulAdd_nG(const Real sca,
-                                   StateMetaVector &V,
+                                   W &V,
                                    const T &S,
                                    const int k, const int j, const int i)
 {
@@ -146,9 +149,9 @@ inline void InPlaceScalarMulAdd_nG(const Real sca,
 }
 
 // For components (nG, E, F_d) perform V <- V + sca * S
-template <class T>
+template <class T, class W>
 inline void InPlaceScalarMulAdd_nG_E_F_d(const Real sca,
-                                         StateMetaVector &V,
+                                         W &V,
                                          const T &S,
                                          const int k, const int j, const int i)
 {
@@ -157,9 +160,9 @@ inline void InPlaceScalarMulAdd_nG_E_F_d(const Real sca,
 }
 
 // For components (nG, E, F_d) perform V <- V + sca * (X + Y)
-template <class T, class U>
+template <class T, class U, class W>
 inline void InPlaceScalarMulAdd_nG_E_F_d(const Real sca,
-                                         StateMetaVector &V,
+                                         W &V,
                                          const T &X,
                                          const U &Y,
                                          const int k, const int j, const int i)
