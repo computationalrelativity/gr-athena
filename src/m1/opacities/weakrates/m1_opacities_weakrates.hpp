@@ -97,6 +97,11 @@ public:
                            "correction_adjust_upward",
                            false)
     ),
+    correct_emissivity_nux(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correct_emissivity_nux",
+                           false)
+    ),
     fix_num_passes(
       pin->GetOrAddInteger("M1_opacities",
                            "wr_fix_num_passes",
@@ -1119,8 +1124,11 @@ public:
       if (ix_s == NUX)
       {
         // Heavy lepton
-        eta_0 = cf * eta_0;
-        eta = cf * eta;
+        if (correct_emissivity_nux)
+        {
+          eta_0 = cf * eta_0;
+          eta = cf * eta;
+        }
 
         kap_a_0 = (n > 0) ? eta_0 / n : 0.0;
         kap_a   = (J > 0) ? eta / J : 0.0;
@@ -1661,6 +1669,7 @@ private:
   const bool wr_flag_equilibrium_species;
   const bool wr_flag_equilibrium_nue_equals_nua;
   const bool wr_flag_equilibrium_no_nux;
+  const bool correct_emissivity_nux;
   const bool correction_adjust_upward;
 
   // Options for controlling weakrates opacities
