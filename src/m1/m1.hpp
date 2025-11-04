@@ -243,6 +243,7 @@ public:
 
     // debugging:
     bool value_inject;
+    bool disable_fluxes;
 
     // if flooring was too strict, we can still save the source (set zero)
     bool zero_fix_sources;

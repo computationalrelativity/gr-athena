@@ -461,6 +461,8 @@ void M1::PopulateOptions(ParameterInput *pin)
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
 
+  opt.disable_fluxes = pin->GetOrAddBoolean("M1", "disable_fluxes", false);
+
   // fix issues
   opt.zero_fix_sources = pin->GetOrAddBoolean("M1", "zero_fix_sources", true);
 }
