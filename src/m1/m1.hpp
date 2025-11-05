@@ -254,7 +254,11 @@ public:
     opt_closure_variety variety;
     opt_closure_method method;
 
-    Real eps_tol;
+    Real abs_tol;
+    Real fcn_tol;
+
+    Real bnd_xi_delta;
+
     Real eps_Z_o_E;
     Real fac_Z_o_E;
     Real w_opt_ini;
@@ -263,8 +267,8 @@ public:
     int iter_max;
     int iter_max_rst;
 
+    bool fail_on_npg;
     bool fallback_brent;
-
     bool fallback_thin;
     bool use_Ostrowski;
     bool use_Neighbor;

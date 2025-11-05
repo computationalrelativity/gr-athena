@@ -1,4 +1,5 @@
 // c++
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <algorithm>
@@ -216,7 +217,13 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
     //     (ss == status_sol::fail_bracket) ||
     //     (ss == status_sol::fail_value))
     {
-      // std::printf("%d\n", static_cast<int>(ss));
+
+      if (ss == status_sol::fail_tolerance_not_met &&
+          !pm1.opt_closure.fail_on_npg)
+      {
+        return;
+      }
+
       solvers::Fallback_Xi_Chi_Limits(pm1, *this, k, j, i);
       return;
     }
@@ -606,7 +613,7 @@ status gsl_Brent(M1 & pm1,
         gsl_status = gsl_root_test_interval(
           loc_xi_min,
           loc_xi_max,
-          pm1.opt_closure.eps_tol,
+          pm1.opt_closure.abs_tol,
           0
         );
       } while (iter<=pm1.opt_closure.iter_max &&
@@ -697,7 +704,7 @@ status gsl_Newton(M1 & pm1,
 
         gsl_status = gsl_root_test_delta(
           loc_xi, loc_xim1,
-          pm1.opt_closure.eps_tol,
+          pm1.opt_closure.abs_tol,
           0
         );
 
@@ -744,95 +751,147 @@ status custom_NB(
 {
   using namespace EddingtonFactors;
 
-  const Real tol = pm1.opt_closure.eps_tol;
+  const Real abs_tol = pm1.opt_closure.abs_tol;
+  const Real fcn_tol = pm1.opt_closure.fcn_tol;
+  const Real dXI = pm1.opt_closure.bnd_xi_delta;
   const int max_iter = pm1.opt_closure.iter_max;
 
   Real &xi = C.sc_xi(k,j,i);
-  Real Z, dZ;
-  int iter = 0;
-  bool converged = false;
 
-  // Newton-Raphson phase
+  // Newton method ------------------------------------------------------------
+  int iter = 0;
+  bool newton_success = false;
+
+  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  if (std::abs(Z) <= fcn_tol)  // can we break-fast?
+  {
+    return status::success;
+  }
+
+  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
+
   while (iter < max_iter)
   {
-    ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+    if (iter > 0) // init. already takes care of this
+      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
 
-    if (std::abs(dZ) < 1e-14)
-      break;
-
-    Real dx = Z / dZ;
-    xi -= dx;
-
-    if (std::abs(dx) < tol)
+    if (std::abs(Z) <= fcn_tol)
     {
-      converged = true;
+      newton_success = true;
       break;
     }
 
-    if (Enforce_Xi_Limits(xi))
+    // if (std::abs(dZ) < 1e-14)
+    // {
+    //   // could also check for NAN
+    //   break;
+    // }
+
+    Real dxi = Z / dZ;
+    Real xi_ = xi - dxi;  // candidate update
+
+    if ((xi_ < XI_MIN - dXI) || (xi_ > XI_MAX + dXI))
+    {
       break;
+    }
+
+    xi = xi_;  // propagate update
+
+    if (std::abs(dxi) < abs_tol)
+    {
+      newton_success = true;
+      break;
+    }
 
     ++iter;
   }
 
-  // Bisection fallback (always with XI_MIN/XI_MAX)
-  if (!converged)
+  if (newton_success)
+    return status::success;
+
+  // Bisection fallback -------------------------------------------------------
+  Real a = XI_MIN, b = XI_MAX;
+
+  // We also have a point from the prior iter
+  Real c = xi;
+  Real fc = Z;
+
+  // Check short-circuit
+  Real fa = Z_xi(a, pm1, C, k, j, i);
+  if (std::abs(fa) <= fcn_tol)
   {
-    Real a = XI_MIN;
-    Real b = XI_MAX;
-
-    Real fa = Z_xi(a, pm1, C, k, j, i);
-    Real fb = Z_xi(b, pm1, C, k, j, i);
-
-    if (fa * fb > 0.0)
-    {
-      // No sign change; cannot bracket
-      return status::fail_bracket;
-    }
-
-    Real lo = a, hi = b;
-    for (int b_iter = 0; b_iter < max_iter; ++b_iter)
-    {
-      Real mid = 0.5 * (lo + hi);
-      Real fmid = Z_xi(mid, pm1, C, k, j, i);
-
-      if (std::abs(fmid) < tol || (hi - lo) < tol)
-      {
-        xi = mid;
-        converged = true;
-        break;
-      }
-
-      if (fa * fmid < 0.0)
-      {
-        hi = mid;
-        fb = fmid;
-      }
-      else
-      {
-        lo = mid;
-        fa = fmid;
-      }
-    }
-
-    if (!converged)
-    {
-      if (pm1.opt_closure.verbose)
-      {
-        #pragma omp critical
-        std::cerr << "gsl_Newton bisection fallback max_iter exceeded\n";
-      }
-      return status::fail_tolerance_not_met;
-    }
+    xi = a;
+    return status::success;
   }
 
-  if (Enforce_Xi_Limits(xi))
+  Real fb = Z_xi(b, pm1, C, k, j, i);
+  if (std::abs(fb) <= fcn_tol)
   {
-    // Solution outside [0,1]
-    return status::fail_value;
+    xi = b;
+    return status::success;
   }
 
-  return status::success;
+  // Narrow the interval using the three points:
+  if (fa * fc > 0.0)
+  {
+    // fa and fc have same sign
+    fa = fc;
+    a = c;
+  }
+  else if (fb * fc > 0.0)
+  {
+    fb = fc;
+    b = c;
+  }
+
+  if (std::abs(b - a) < abs_tol)
+  {
+    return status::success;
+  }
+
+  if (fa * fb > 0.0)
+  {
+    // No sign change; cannot bracket
+    return status::fail_bracket;
+  }
+
+  Real xi_a = a, xi_b = b;
+  Real f_a = fa, f_b = fb;
+
+  int fallback_iter = 0;
+  while (fallback_iter < max_iter)
+  {
+    Real xi_m = 0.5 * (xi_a + xi_b);
+    Real f_m = Z_xi(xi_m, pm1, C, k, j, i);
+
+    if (std::abs(f_m) < fcn_tol || (xi_b - xi_a) < abs_tol)
+    {
+      xi = xi_m;
+      return status::success;
+      break;
+    }
+
+    if (f_a * f_m < 0.0)
+    {
+      xi_b = xi_m;
+      f_b = f_m;
+    }
+    else
+    {
+      xi_a = xi_m;
+      f_a = f_m;
+    }
+
+    ++fallback_iter;
+  }
+
+  if (pm1.opt_closure.verbose)
+  {
+    #pragma omp critical
+    std::cerr << "custom_Newton Bisection: max_iter exceeded\n";
+  }
+
+  return status::fail_tolerance_not_met;
 }
 
 status custom_NAB(
@@ -842,33 +901,57 @@ status custom_NAB(
 {
   using namespace EddingtonFactors;
 
-  Real &xi = C.sc_xi(k,j,i);
-  const Real tol = pm1.opt_closure.eps_tol;
+  const Real abs_tol = pm1.opt_closure.abs_tol;
+  const Real fcn_tol = pm1.opt_closure.fcn_tol;
+  const Real dXI = pm1.opt_closure.bnd_xi_delta;
   const int max_iter = pm1.opt_closure.iter_max;
 
-  // --- Newton-Raphson Phase ---
+  Real &xi = C.sc_xi(k,j,i);
+
+  // Newton method ------------------------------------------------------------
   int iter = 0;
   bool newton_success = false;
 
+  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  if (std::abs(Z) <= fcn_tol)  // can we break-fast?
+  {
+    return status::success;
+  }
+
+  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
+
   while (iter < max_iter)
   {
-    Real Z, dZ;
-    ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+    if (iter > 0) // init. already takes care of this
+      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
 
-    if (std::abs(dZ) < 1e-14)
-      break;
-
-    Real dx = Z / dZ;
-    xi -= dx;
-
-    if (std::abs(dx) < tol)
+    if (std::abs(Z) <= fcn_tol)
     {
       newton_success = true;
       break;
     }
 
-    if (Enforce_Xi_Limits(xi))
+    // if (std::abs(dZ) < 1e-14)
+    // {
+    //   // could also check for NAN
+    //   break;
+    // }
+
+    Real dxi = Z / dZ;
+    Real xi_ = xi - dxi;  // candidate update
+
+    if ((xi_ < XI_MIN - dXI) || (xi_ > XI_MAX + dXI))
+    {
       break;
+    }
+
+    xi = xi_;  // propagate update
+
+    if (std::abs(dxi) < abs_tol)
+    {
+      newton_success = true;
+      break;
+    }
 
     ++iter;
   }
@@ -876,10 +959,45 @@ status custom_NAB(
   if (newton_success)
     return status::success;
 
-  // --- Anderson-Björck False Position Fallback ---
+  // Anderson-Bjorck fallback -------------------------------------------------
   Real a = XI_MIN, b = XI_MAX;
+
+  // We also have a point from the prior iter
+  Real c = xi;
+  Real fc = Z;
+
+  // Check short-circuit
   Real fa = Z_xi(a, pm1, C, k, j, i);
+  if (std::abs(fa) <= fcn_tol)
+  {
+    xi = a;
+    return status::success;
+  }
+
   Real fb = Z_xi(b, pm1, C, k, j, i);
+  if (std::abs(fb) <= fcn_tol)
+  {
+    xi = b;
+    return status::success;
+  }
+
+  // Narrow the interval using the three points:
+  if (fa * fc > 0.0)
+  {
+    // fa and fc have same sign
+    fa = fc;
+    a = c;
+  }
+  else if (fb * fc > 0.0)
+  {
+    fb = fc;
+    b = c;
+  }
+
+  if (std::abs(b - a) < abs_tol)
+  {
+    return status::success;
+  }
 
   if (fa * fb > 0.0)
   {
@@ -896,7 +1014,7 @@ status custom_NAB(
     Real xi_r = xi_b - f_b * (xi_b - xi_a) / (f_b - f_a);
     Real f_r = Z_xi(xi_r, pm1, C, k, j, i);
 
-    if (std::abs(f_r) < tol || std::abs(xi_b - xi_a) < tol)
+    if (std::abs(f_r) < fcn_tol || std::abs(xi_b - xi_a) < abs_tol)
     {
       xi = xi_r;
       return status::success;
@@ -935,7 +1053,8 @@ status custom_ONAB(
   using namespace EddingtonFactors;
 
   Real &xi = C.sc_xi(k, j, i);
-  const Real tol = pm1.opt_closure.eps_tol;
+  const Real abs_tol = pm1.opt_closure.abs_tol;
+  const Real fcn_tol = pm1.opt_closure.fcn_tol;
   const int max_iter = pm1.opt_closure.iter_max;
 
   int iter = 0;
@@ -963,7 +1082,7 @@ status custom_ONAB(
     if (Enforce_Xi_Limits(xi))
       break;
 
-    if (std::abs(dx) < tol)
+    if (std::abs(dx) < abs_tol)
     {
       converged = true;
       break;
@@ -976,7 +1095,7 @@ status custom_ONAB(
     return status::success;
 
   // If Ostrowski did not converge, fallback
-  return custom_NAB(pm1, C, k, j, i);
+  return custom_NB(pm1, C, k, j, i);
 }
 
 // ============================================================================

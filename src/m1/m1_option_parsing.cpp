@@ -88,10 +88,15 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
   }
 
   // various settings for methods
-  opt_closure.eps_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_closure.abs_tol     = GoA_Real("abs_tol",     1e-10);
+  opt_closure.fcn_tol     = GoA_Real("fcn_tol",     0.0);
+
+  opt_closure.bnd_xi_delta = GoA_Real("bnd_xi_delta", 0.0);
+
   opt_closure.eps_Z_o_E   = GoA_Real("eps_Z_o_E",   1e-20);
   opt_closure.fac_Z_o_E   = GoA_Real("fac_Z_o_E",   0.01);
 
+  opt_closure.fail_on_npg = GoA_bool("fail_on_npg", false);
   opt_closure.fallback_brent = GoA_bool("fallback_brent", true);
   opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
 
