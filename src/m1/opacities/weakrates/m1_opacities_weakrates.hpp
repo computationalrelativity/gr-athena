@@ -521,7 +521,8 @@ public:
     const Real dt,
     const Real rho, const Real T, const Real Y_e,
     const Real tau,
-    const cmp_eql_dens_ini initial_guess
+    const cmp_eql_dens_ini initial_guess,
+    const bool using_averaging_fix  // call with true to prevent inf. rec.
   )
   {
     int ierr_we = 0;
@@ -632,7 +633,9 @@ public:
       if (ierr_we)
       {
         // Try averaging fix if applicable
-        if (!use_averages && use_averaging_fix)
+        if (!use_averages &&
+            use_averaging_fix &&
+            !using_averaging_fix)
         {
           Real rho, T, Y_e;
           GetHydroAveraged(k, j, i, rho, T, Y_e);
@@ -642,7 +645,8 @@ public:
             dt,
             rho, T, Y_e,
             tau,
-            initial_guess
+            initial_guess,
+            true
           );
         }
         return ierr_we;
@@ -1391,7 +1395,8 @@ public:
           dt,
           rho, T, Y_e,
           tau,
-          cmp_eql_dens_ini::current_sv
+          cmp_eql_dens_ini::current_sv,
+          false
         );
 
         // BD: TODO- DEBUG
@@ -1448,7 +1453,8 @@ public:
               dt,
               rho, T, Y_e,
               tau,
-              ini_method
+              ini_method,
+              false
             );
 
             // BD: TODO- DEBUG
