@@ -552,7 +552,9 @@ void Hydro::RiemannSolver(
           {
             s_flux(n,k,j,i) = (
               (lam_r__ * flx_l__ -  lam_l__ * flx_r__) +
-              lam_l__ * lam_r__ * (cons_r_(n,i) - cons_l_(n,i))
+              lam_l__ * lam_r__ * (
+                cons_r_(IDN,i) * pscalars_r_(n,i) -
+                cons_l_(IDN,i) * pscalars_l_(n,i))
             ) / (lam_r__ - lam_l__);
           }
 
