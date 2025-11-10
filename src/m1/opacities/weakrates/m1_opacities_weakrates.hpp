@@ -47,6 +47,11 @@ public:
                         "wr_dfloor",
                         0.0)
     ),
+    wr_rho_floor(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_rho_floor",
+                        0.0)
+    ),
     wr_equilibrium_fallback_thin(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_equilibrium_fallback_thin",
@@ -368,6 +373,7 @@ public:
 #if FLUID_ENABLED
     Real D = pmy_block->phydro->u(IDN,k,j,i);
     need_calc = need_calc and (pmy_block->phydro->u(IDN,k,j,i) > wr_dfloor);
+    need_calc = need_calc and (pm1->hydro.sc_w_rho(k,j,i) > wr_rho_floor);
 #endif // FLUID_ENABLED
 
     return need_calc;
@@ -1665,6 +1671,7 @@ private:
   enum {NUE=0, NUA=1, NUX=2};
 
   const Real wr_dfloor;
+  const Real wr_rho_floor;
   const bool wr_equilibrium_fallback_thin;
   const bool wr_equilibrium_fallback_zero;
   const bool wr_fix_nn_densities;
