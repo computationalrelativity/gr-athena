@@ -82,6 +82,10 @@ Real EOSCompOSE::s_min_T = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSE::s_max_Y[MAX_SPECIES] = {0};
 Real EOSCompOSE::s_min_Y[MAX_SPECIES] = {0};
 
+Real EOSCompOSE::s_mn = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSE::s_mp = numeric_limits<Real>::quiet_NaN();
+
+
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
   Real e_min = MinimumEnergy(n, Y);
@@ -275,7 +279,6 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       ierr = H5LTread_dataset_double(file_id, "mn", scratch);
         MYH5CHECK(ierr);
       mb = scratch[0];
-      // mb = 9.223158894119980e+02;
 
       // Read other thermodynamics quantities
       // -------------------------------------------------------------------------
@@ -379,6 +382,17 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
         m_table[index(ECYH, in, iy, it)] = AN * YN;
       }}}
 
+      // couple of final constants
+      Real mn;  // neutron mass (note also used as baryonic)
+      ierr = H5LTread_dataset_double(file_id, "mn", scratch);
+        MYH5CHECK(ierr);
+      mn = scratch[0];
+
+      Real mp;
+      ierr = H5LTread_dataset_double(file_id, "mp", scratch);
+        MYH5CHECK(ierr);
+      mp = scratch[0];
+
       // Mark table as read
       m_initialized = true;
 
@@ -419,6 +433,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       s_max_Y[0] = max_Y[0];
       s_min_Y[0] = min_Y[0];
 
+      s_mn = mn;
+      s_mp = mp;
     } // if (sm_initialized==false)
   } // omp critical (EOSCompOSE_ReadTable)
 

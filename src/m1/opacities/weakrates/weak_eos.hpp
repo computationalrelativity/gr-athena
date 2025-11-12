@@ -141,6 +141,14 @@ class WeakEoSMod {
       return e;
     }
 
+    inline Real GetDegeneracyParameter()
+    {
+      // CompOSE already stores these values in MeV
+      return (
+        PS_EoS->GetTableNeutronMass() - PS_EoS->GetTableProtonMass()
+      );
+    }
+
     void GetFracs(
       Real rho, Real temp, Real ye,
       Real &xn, Real &xp, Real &xh,
@@ -166,7 +174,8 @@ class WeakEoSMod {
         // The following suppresses coherent neutrinos nucleus scattering
         // i.e. dodging a zero-division.
         //
-        // It appears that stellarcollapse tables handle this by setting 1 in the values
+        // It appears that stellarcollapse tables handle this by setting 1 in the values;
+        // PyCompOSE tables don't have this.
         if (xh==0.0)
         {
           Ab = 1;
@@ -242,8 +251,8 @@ class WeakEoSMod {
 
       // Difference in the degeneracy parameters without
       // neutron-proton rest mass difference
-      // Real Qnp = 1.293333; // neutron-proton mass difference in MeV - in principle should come from the EoS
-      Real Qnp = 1.2933399999999438;
+      // Real Qnp = 1.293333; // neutron-proton mass difference in MeV
+      Real Qnp = GetDegeneracyParameter();
       Real eta_hat = eta_n - eta_p  - Qnp / temp;
 
       // !Janka takes into account the Pauli blocking effect for

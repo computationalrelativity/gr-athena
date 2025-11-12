@@ -55,8 +55,6 @@ class WeakEquilibriumMod {
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
     const Real pi    = 3.14159265358979323846; // pi
 
-    //.....TODO: these should come from the EoS  // TODO: mass_fact is set in the table read
-    const Real mass_fact = 9.223158894119980e2;
     Real eos_rhomin;
     Real eos_rhomax;
     Real eos_tempmin;

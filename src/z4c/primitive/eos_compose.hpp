@@ -155,6 +155,17 @@ class EOSCompOSE : public EOSPolicyInterface {
       max_T = T_max;
     }
 
+    // N.B. non-converted
+    Real GetTableProtonMass()
+    {
+      return s_mp;
+    }
+
+    Real GetTableNeutronMass()
+    {
+      return s_mn;
+    }
+
   private:
     /// Low level function, not intended for outside use
     Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
@@ -198,6 +209,9 @@ class EOSCompOSE : public EOSPolicyInterface {
     static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
     // these correspond to defined but unused vars in EOSPolicy
     // static Real s_max_P, s_min_P, s_max_e, s_min_e;
+
+    // storage for neutron and proton mass resp.
+    static Real s_mn, s_mp;
 };
 
 } // namespace Primitive
