@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <cmath>
 
 #include "../../../athena.hpp"
 #include "../../../defs.hpp"
@@ -20,11 +21,13 @@ class WeakEoSMod {
                bool enforced_limits_fail,
                bool wr_use_eos_dfloor,
                bool wr_use_eos_tfloor,
+               bool tabulated_particle_fractions,
                Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
       : apply_table_limits_internally(apply_table_limits_internally),
         enforced_limits_fail(enforced_limits_fail),
         wr_use_eos_dfloor(wr_use_eos_dfloor),
         wr_use_eos_tfloor(wr_use_eos_tfloor),
+        tabulated_particle_fractions(tabulated_particle_fractions),
         PS_EoS(PS_EoS)
     {
       my_units = &WeakRates_Units::WeakRatesUnits;
@@ -73,6 +76,13 @@ class WeakEoSMod {
       Real mb_code = PS_EoS->GetRawBaryonMass();
       Real mb_cgs  = mb_code * code_units->MassConversion(*my_units);
       return mb_cgs;
+
+      // Original THC factor (there hard-coded units)
+      // Real mass_fact = 9.223158894119980e+02;
+      // Real mev_to_erg = 1.60217733e-6;
+      // Real clight = 2.99792458e10;
+      // Real mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight);
+      // return mass_fact_cgs;
     }
 
     // EoS calls required by Weak Rates and others
@@ -131,51 +141,83 @@ class WeakEoSMod {
       return e;
     }
 
-    void GetEtas(Real rho, Real temp, Real ye, Real& eta_nue, Real& eta_nua, Real& eta_nux, Real& eta_e, Real& eta_np, Real& eta_pn) {
+    void GetFracs(
+      Real rho, Real temp, Real ye,
+      Real &xn, Real &xp, Real &xh,
+      Real &Ab, Real &Zb
+    )
+    {
+      if (tabulated_particle_fractions)
+      {
+        // Input:
+        // rho: CGS
+        // temp: MeV
+        const Real rho_conv_factor = (
+          my_units->MassDensityConversion(*code_units)
+        );
+        const Real nb = rho * rho_conv_factor / PS_EoS->GetBaryonMass();
+
+        Real Y[1] = {ye};
+
+        xp = PS_EoS->GetYp(nb, temp, Y);
+        xn = PS_EoS->GetYn(nb, temp, Y);
+        xh = PS_EoS->GetYh(nb, temp, Y);
+
+        // The following suppresses coherent neutrinos nucleus scattering
+        // i.e. dodging a zero-division.
+        //
+        // It appears that stellarcollapse tables handle this by setting 1 in the values
+        if (xh==0.0)
+        {
+          Ab = 1;
+          Zb = 1;
+        }
+        else
+        {
+          Ab = PS_EoS->GetAN(nb, temp, Y);
+          Zb = PS_EoS->GetZN(nb, temp, Y);
+        }
+      }
+      else
+      {
+        // Debug:
+        xp = ye;
+        xn = 1-ye;
+        Ab = 1.0;
+        Zb = 1.0;
+        xh = 0.0;
+      }
+    }
+
+    void GetEtas(Real rho, Real temp, Real ye,
+                 Real& eta_nue, Real& eta_nua, Real& eta_nux,
+                 Real& eta_e, Real& eta_np, Real& eta_pn) {
+
       // Turning include into function
       /*
       #ifndef WEAK_RATES_ITS_ME
       #error "This file should not be included by the end user!"
       #endif
       */
-    
+
       // !Density is assumed to be in cgs units and
       // !the temperature in MeV
 
-      // lrho  = log10(rho)
-      // ltemp = log10(temp)
-
       // !Compute the baryon number density (mass_fact is given in MeV)
-      // mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight)
-      // nb = rho / mass_fact_cgs
       Real nb = rho/AtomicMassImpl();
 
-      // !Interpolate the chemical potentials (stored in MeV in the table)
-      // mu_n = lkLinearInterpolation3d(lrho, ltemp, ye, MU_N)
-      // mu_p = lkLinearInterpolation3d(lrho, ltemp, ye, MU_P)
-      // mu_e = lkLinearInterpolation3d(lrho, ltemp, ye, MU_E)
       Real mu_n = GetNeutronChemicalPotential(rho, temp, ye);
       Real mu_p = GetProtonChemicalPotential(rho, temp, ye);
       Real mu_e = GetElectronChemicalPotential(rho, temp, ye);
 
-      // !Interpolate the fractions
-      /* TODO? Our EoS does not currently implement nuclei fractions, and we
-               don't intend to use this opacity lib anyway, so I'm not 
-               bothering to implement them, and just setting the heavy 
-               nuclei to zero and the proton/neutron fractions with ye.
-  
-      abar = lkLinearInterpolation3d(lrho, ltemp, ye, ABAR)
-      zbar = lkLinearInterpolation3d(lrho, ltemp, ye, ZBAR)
-      xp   = lkLinearInterpolation3d(lrho, ltemp, ye, XP)
-      xn   = lkLinearInterpolation3d(lrho, ltemp, ye, XN)
-      xh   = lkLinearInterpolation3d(lrho, ltemp, ye, XH)
-      */
+      Real xn, xp, xh;
+      Real abar, zbar;
 
-      Real abar = 1.0;
-      Real zbar = 1.0;
-      Real xp = ye;
-      Real xn = 1-ye;
-      Real xh = 0.0;
+      GetFracs(
+        rho, temp, ye,
+        xn, xp, xh,
+        abar, zbar
+      );
 
       /*
       !Compute the neutrino degeneracy assuming that neutrons and
@@ -183,25 +225,26 @@ class WeakEoSMod {
       ! eta_nue = (mu_p + mu_e - mu_n - Qnp) / temp
       */
 
-      /*    
+      /*
       !Compute the neutrino degeneracy assuming that neutrons and
       !protons chemical potentials includes the rest mass density
       !This is the correct formula for stellarcollapse.org tables
       */
-      
+
       eta_nue = (mu_p + mu_e - mu_n) / temp;
       eta_nua = -eta_nue;
       eta_nux = 0.0;
       eta_e   = mu_e / temp;
 
       // Neutron and proton degeneracy
-      Real eta_n   = mu_n / temp;
-      Real eta_p   = mu_p / temp;
-          
+      Real eta_n = (mu_n) / temp;
+      Real eta_p = (mu_p) / temp;
+
       // Difference in the degeneracy parameters without
       // neutron-proton rest mass difference
-      Real Qnp = 1.293333; // neutron-proton mass difference in MeV - in principle should come from the EoS
-      Real eta_hat = eta_n - eta_p - Qnp / temp;
+      // Real Qnp = 1.293333; // neutron-proton mass difference in MeV - in principle should come from the EoS
+      Real Qnp = 1.2933399999999438;
+      Real eta_hat = eta_n - eta_p  - Qnp / temp;
 
       // !Janka takes into account the Pauli blocking effect for
       // !degenerate nucleons as in Bruenn (1985). Ruffert et al. Eq. (A8)
@@ -217,8 +260,9 @@ class WeakEoSMod {
 
       // eta takes into account the nucleon final state blocking
       // (at high density)
-      eta_np = nb * (xp-xn) / (exp(-eta_hat) - 1.0);
-      eta_pn = nb * (xn-xp) / (exp(eta_hat) - 1.0);
+
+      eta_np = nb * (xp-xn) / (std::exp(-eta_hat) - 1.0);
+      eta_pn = nb * (xn-xp) / (std::exp(eta_hat) - 1.0);
 
       // !There is no significant defferences between Rosswog (prev. formula)
       // !and Janka's prescriptions
@@ -234,7 +278,6 @@ class WeakEoSMod {
       // !Consistency Eqs (A9) (Rosswog's paper) they should be positive
       eta_pn = std::max(eta_pn, 0.0);
       eta_np = std::max(eta_np, 0.0);
-
 }
 
     void GetTableLimits(Real& rho_min, Real& rho_max, Real& temp_min, Real& temp_max, Real& ye_min, Real& ye_max) {
@@ -297,6 +340,7 @@ class WeakEoSMod {
     const bool enforced_limits_fail;
     const bool wr_use_eos_dfloor;
     const bool wr_use_eos_tfloor;
+    const bool tabulated_particle_fractions;
 
     Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
 

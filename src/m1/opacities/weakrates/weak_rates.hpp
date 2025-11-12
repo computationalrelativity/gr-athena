@@ -36,6 +36,7 @@ class WeakRates {
                 enforced_limits_fail,
                 wr_use_eos_dfloor,
                 wr_use_eos_tfloor,
+                pin->GetOrAddBoolean("M1_opacities", "tabulated_particle_fractions", true),
                 PS_EoS}
     {
       // my_units (of WeakRates) vs code_units (of GR(M)HD)
@@ -155,10 +156,10 @@ class WeakRates {
 
       Real k_conv = my_units->OpacityConversion(*code_units);
       abs_n_nue = abs_n_nue*k_conv;
-      abs_n_nua = abs_n_nua*k_conv; 
-      abs_n_nux = abs_n_nux*k_conv; 
-      abs_e_nue = abs_e_nue*k_conv; 
-      abs_e_nua = abs_e_nua*k_conv; 
+      abs_n_nua = abs_n_nua*k_conv;
+      abs_n_nux = abs_n_nux*k_conv;
+      abs_e_nue = abs_e_nue*k_conv;
+      abs_e_nua = abs_e_nua*k_conv;
       abs_e_nux = abs_e_nux*k_conv;
 
       return ierr;
@@ -179,10 +180,10 @@ class WeakRates {
 
       Real k_conv = my_units->OpacityConversion(*code_units);
       sct_n_nue = sct_n_nue*k_conv;
-      sct_n_nua = sct_n_nua*k_conv; 
-      sct_n_nux = sct_n_nux*k_conv; 
-      sct_e_nue = sct_e_nue*k_conv; 
-      sct_e_nua = sct_e_nua*k_conv; 
+      sct_n_nua = sct_n_nua*k_conv;
+      sct_n_nux = sct_n_nux*k_conv;
+      sct_e_nue = sct_e_nue*k_conv;
+      sct_e_nua = sct_e_nua*k_conv;
       sct_e_nux = sct_e_nux*k_conv;
 
       return ierr;

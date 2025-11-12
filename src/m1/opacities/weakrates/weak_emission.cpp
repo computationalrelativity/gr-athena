@@ -87,11 +87,14 @@ int WeakEmissionMod::Emissions_cgs(Real rho, Real temp, Real ye, Real& emi_n_nue
   Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
   EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
 
-  Real xp = ye;
-  Real xn = 1-ye;
-  Real abar = 1.0;
-  Real zbar = 1.0;
-  Real xh = 0.0;
+  Real xn, xp, xh;
+  Real abar, zbar;
+
+  EoS->GetFracs(
+    rho, temp, ye,
+    xn, xp, xh,
+    abar, zbar
+  );
 
   // B5 B6 B7 Energy moments of electron and positrons
   Real hc_3 = WR_CUBE(hc_mevcm);
