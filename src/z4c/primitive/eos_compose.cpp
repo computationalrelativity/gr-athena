@@ -136,6 +136,31 @@ Real EOSCompOSE::SoundSpeed(Real n, Real T, Real *Y) {
   return eval_at_nty(ECCS, n, T, Y[0]);
 }
 
+Real EOSCompOSE::FrYn(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECYN, n, T, Y[0]);
+}
+
+Real EOSCompOSE::FrYp(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECYP, n, T, Y[0]);
+}
+
+Real EOSCompOSE::FrYh(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECYH, n, T, Y[0]);
+}
+
+Real EOSCompOSE::AN(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECAN, n, T, Y[0]);
+}
+
+Real EOSCompOSE::ZN(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECZN, n, T, Y[0]);
+}
+
 Real EOSCompOSE::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return Energy(n, T, Y)/(mb*n) - 1;
 }
@@ -250,6 +275,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       ierr = H5LTread_dataset_double(file_id, "mn", scratch);
         MYH5CHECK(ierr);
       mb = scratch[0];
+      // mb = 9.223158894119980e+02;
 
       // Read other thermodynamics quantities
       // -------------------------------------------------------------------------
@@ -308,6 +334,50 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
         m_table[index(ECCS, in, iy, it)] = sqrt(scratch[index(0, in, iy, it)]);
       }}}
 
+      ierr = H5LTread_dataset_double(file_id, "Y[n]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        m_table[index(ECYN, in, iy, it)] = scratch[index(0, in, iy, it)];
+      }}}
+
+      ierr = H5LTread_dataset_double(file_id, "Y[p]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        m_table[index(ECYP, in, iy, it)] = scratch[index(0, in, iy, it)];
+      }}}
+
+      ierr = H5LTread_dataset_double(file_id, "A[N]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        m_table[index(ECAN, in, iy, it)] = scratch[index(0, in, iy, it)];
+      }}}
+
+      ierr = H5LTread_dataset_double(file_id, "Z[N]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        m_table[index(ECZN, in, iy, it)] = scratch[index(0, in, iy, it)];
+      }}}
+
+      // The following requires Abar?:
+      ierr = H5LTread_dataset_double(file_id, "Y[N]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+
+        const Real YN = scratch[index(0, in, iy, it)];
+        const Real AN = m_table[index(ECAN, in, iy, it)];
+
+        m_table[index(ECYH, in, iy, it)] = AN * YN;
+      }}}
 
       // Mark table as read
       m_initialized = true;

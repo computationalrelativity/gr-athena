@@ -123,6 +123,26 @@ Real PiecewisePolytrope::SoundSpeed(Real n, Real T, Real *Y) {
   return std::sqrt((csq_cold_w + csq_th_w)/(h_th + h_cold));
 }
 
+Real PiecewisePolytrope::FrYn(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::FrYn not currently implemented.");
+}
+
+Real PiecewisePolytrope::FrYp(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::FrYp not currently implemented.");
+}
+
+Real PiecewisePolytrope::FrYh(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::FrYh not currently implemented.");
+}
+
+Real PiecewisePolytrope::AN(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::AN not currently implemented.");
+}
+
+Real PiecewisePolytrope::ZN(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::ZN not currently implemented.");
+}
+
 Real PiecewisePolytrope::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   int p = FindPiece(n);
   Real eps_cold = GetColdEnergy(n, p)/(n*mb) - 1.0;

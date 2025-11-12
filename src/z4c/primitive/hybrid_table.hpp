@@ -75,17 +75,18 @@ class HybridTable : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
-    /// Calculate the baryon chemical potential
+    /// Species fractions
     [[ noreturn ]]
-    Real BaryonChemicalPotential(Real n, Real T, Real *Y);
+    Real FrYn(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYp(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYh(Real n, Real T, Real *Y);
 
-    /// Calculate the charge chemical potential
     [[ noreturn ]]
-    Real ChargeChemicalPotential(Real n, Real T, Real *Y);
-
-    /// Calculate the electron-lepton chemical potential
+    Real AN(Real n, Real T, Real *Y);
     [[ noreturn ]]
-    Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+    Real ZN(Real n, Real T, Real *Y);
 
     /// Get the minimum enthalpy per baryon.
     Real MinimumEnthalpy();

@@ -66,6 +66,19 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     /// Get the minimum enthalpy per baryon according to the ideal gas law.
     Real MinimumEnthalpy();
 
+    /// Species fractions
+    [[ noreturn ]]
+    Real FrYn(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYp(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYh(Real n, Real T, Real *Y);
+
+    [[ noreturn ]]
+    Real AN(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real ZN(Real n, Real T, Real *Y);
+
     /// Calculate the sound speed for an ideal gas.
     Real SoundSpeed(Real n, Real T, Real *Y);
 

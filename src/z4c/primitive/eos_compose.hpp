@@ -29,7 +29,12 @@ class EOSCompOSE : public EOSPolicyInterface {
       ECMUL   = 4,  //! lepton chemical potential [MeV]
       ECLOGE  = 5,  //! log (total energy density / 1 MeV fm^-3)
       ECCS    = 6,  //! sound speed [c]
-      ECNVARS = 7
+      ECYN    = 7,  //! Y[n]
+      ECYP    = 8,  //! Y[p]
+      ECYH    = 9,  //! (Y[N] read) what would be Y[h] (name schematic, we assemble)
+      ECAN    = 10, //! A[N]
+      ECZN    = 11, //! Z[N]
+      ECNVARS = 12
     };
 
   protected:
@@ -62,6 +67,14 @@ class EOSCompOSE : public EOSPolicyInterface {
 
     /// Calculate the sound speed.
     Real SoundSpeed(Real n, Real T, Real *Y);
+
+    /// Species fractions
+    Real FrYn(Real n, Real T, Real *Y);
+    Real FrYp(Real n, Real T, Real *Y);
+    Real FrYh(Real n, Real T, Real *Y);
+
+    Real AN(Real n, Real T, Real *Y);
+    Real ZN(Real n, Real T, Real *Y);
 
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);

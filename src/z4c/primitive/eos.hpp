@@ -80,6 +80,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::MinimumEnergy;
     using EOSPolicy::MaximumEnergy;
 
+    using EOSPolicy::FrYn;
+    using EOSPolicy::FrYp;
+    using EOSPolicy::FrYh;
+
+    using EOSPolicy::AN;
+    using EOSPolicy::ZN;
+
     // EOSPolicy member variables
     // The number of particle species used by the EOS.
     using EOSPolicy::n_species;
@@ -269,7 +276,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     }
 
     //! \fn Real GetSoundSpeed(Real n, Real T, Real *Y)
-    //  \brief Get the sound speed from the number density, temperature, and 
+    //  \brief Get the sound speed from the number density, temperature, and
     //         particle fractions.
     //
     //  \param[in] n  The number density
@@ -280,6 +287,33 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       return SoundSpeed(n, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->VelocityConversion(*code_units);
     }
+
+    // Extract fractions: N.B. check units etc if used outside of weak-rates
+    inline Real GetYn(Real n, Real T, Real *Y)
+    {
+      return FrYn(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
+    inline Real GetYp(Real n, Real T, Real *Y)
+    {
+      return FrYp(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
+    inline Real GetYh(Real n, Real T, Real *Y)
+    {
+      return FrYh(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
+    inline Real GetAN(Real n, Real T, Real *Y)
+    {
+      return AN(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
+    inline Real GetZN(Real n, Real T, Real *Y)
+    {
+      return ZN(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
 
     //! \fn Real GetSpecificInternalEnergy(Real n, Real T, Real *Y)
     //  \brief Get the energy per mass from the number density, temperature,

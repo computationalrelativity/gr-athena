@@ -60,6 +60,26 @@ Real IdealGas::SoundSpeed(Real n, Real T, Real *Y) {
   return std::sqrt(gamma*gammam1*T/(gammam1*mb + gamma*T));
 }
 
+Real IdealGas::FrYn(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::FrYn not currently implemented.");
+}
+
+Real IdealGas::FrYp(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::FrYp not currently implemented.");
+}
+
+Real IdealGas::FrYh(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::FrYh not currently implemented.");
+}
+
+Real IdealGas::AN(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::AN not currently implemented.");
+}
+
+Real IdealGas::ZN(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::ZN not currently implemented.");
+}
+
 Real IdealGas::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   return T/(mb*gammam1);
 }

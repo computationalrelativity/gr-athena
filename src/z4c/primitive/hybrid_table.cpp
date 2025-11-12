@@ -119,6 +119,26 @@ Real HybridTable::SoundSpeed(Real n, Real T, Real *Y) {
   return std::sqrt((Hcs2_cold + Hcs2_th)/(H_cold + H_th));
 }
 
+Real HybridTable::FrYn(Real n, Real s, Real *Y) {
+  throw std::logic_error("HybridTable::FrYn not currently implemented.");
+}
+
+Real HybridTable::FrYp(Real n, Real s, Real *Y) {
+  throw std::logic_error("HybridTable::FrYp not currently implemented.");
+}
+
+Real HybridTable::FrYh(Real n, Real s, Real *Y) {
+  throw std::logic_error("HybridTable::FrYh not currently implemented.");
+}
+
+Real HybridTable::AN(Real n, Real s, Real *Y) {
+  throw std::logic_error("HybridTable::AN not currently implemented.");
+}
+
+Real HybridTable::ZN(Real n, Real s, Real *Y) {
+  throw std::logic_error("HybridTable::ZN not currently implemented.");
+}
+
 Real HybridTable::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   assert (m_initialized);
   return Energy(n, T, Y)/(mb*n) - 1;
