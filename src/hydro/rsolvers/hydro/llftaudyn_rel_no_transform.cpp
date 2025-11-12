@@ -467,9 +467,9 @@ void Hydro::RiemannSolver(
   }
 
   // Set fluxes ---------------------------------------------------------------
-  const bool use_hll = pmy_block->precon->xorder_use_hll;
+  const bool use_hlle = pmy_block->precon->xorder_use_hlle;
 
-  if (use_hll)
+  if (use_hlle)
   {
     for (int n=0; n<NHYDRO; ++n)
     {
@@ -498,7 +498,7 @@ void Hydro::RiemannSolver(
           ) / (lam_r__ - lam_l__);
         }
 
-        // probably better with a floor
+        // LLF fallback - probably better with a floor
         if (!std::isfinite(flux(n,k,j,i)))
         {
           flux(n,k,j,i) = 0.5 * (
@@ -527,7 +527,7 @@ void Hydro::RiemannSolver(
 
   if (!pmy_block->precon->xorder_upwind_scalars)
   {
-    if (use_hll)
+    if (use_hlle)
     {
       for (int n=0; n<NSCALARS; ++n)
       {

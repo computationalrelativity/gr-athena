@@ -53,7 +53,7 @@ class Reconstruction {
   Real xorder_fb_Y_min_fac;               // fiddle factors
   Real xorder_fb_Y_max_fac;
 
-  bool xorder_use_hll = false;            // promote LLF solver?
+  bool xorder_use_hlle = false;           // promote LLF solver?
   bool xorder_upwind_scalars = true;      // should passive scalars be upwinded?
 
   bool xorder_use_dmp = false;            // approximate DMP

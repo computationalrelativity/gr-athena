@@ -604,43 +604,196 @@ void Hydro::RiemannSolver(
          alpha_w_vtil_u_r_(ivz - 1, i));  // check these indices
   }
 
+  // Set fluxes ---------------------------------------------------------------
+  const bool use_hlle = pmy_block->precon->xorder_use_hlle;
 
-  for (int n = 0; n < NHYDRO; ++n)
+  // probably cleaner to condense into single block, but verbose also works
+
+  // hydro --------------------------------------------------------------------
+  if (use_hlle)
+  {
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        const Real lam_l__ = std::min(lambda_m_l(i), lambda_m_r(i));
+        const Real lam_r__ = std::max(lambda_p_l(i), lambda_p_r(i));
+
+        const Real flx_l__ = flux_l_(n,i);
+        const Real flx_r__ = flux_r_(n,i);
+
+        if (lam_l__ >= 0.0)
+        {
+          flux(n,k,j,i) = flx_l__;
+        }
+        else if (lam_r__ <= 0.0)
+        {
+          flux(n,k,j,i) = flx_r__;
+        }
+        else
+        {
+          flux(n,k,j,i) = (
+            (lam_r__ * flx_l__ -  lam_l__ * flx_r__) +
+            lam_l__ * lam_r__ * (cons_r_(n,i) - cons_l_(n,i))
+          ) / (lam_r__ - lam_l__);
+        }
+
+        // probably better with a floor
+        if (!std::isfinite(flux(n,k,j,i)))
+        {
+          flux(n,k,j,i) = 0.5 * (
+            (flux_l_(n,i) + flux_r_(n,i)) -
+            lambda(i) * (cons_r_(n,i) - cons_l_(n,i))
+          );
+        }
+      }
+    }
+  }
+  else
+  {
+    for (int n=0; n<NHYDRO; ++n)
+    {
+      #pragma omp simd
+      for (int i=il; i<=iu; ++i)
+      {
+        flux(n,k,j,i) = 0.5 * (
+          (flux_l_(n,i) + flux_r_(n,i)) -
+          lambda(i) * (cons_r_(n,i) - cons_l_(n,i))
+        );
+      }
+    }
+  }
+
+  // B_YZ ---------------------------------------------------------------------
+  if (use_hlle)
+  {
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      const Real lam_l__ = std::min(lambda_m_l(i), lambda_m_r(i));
+      const Real lam_r__ = std::max(lambda_p_l(i), lambda_p_r(i));
+
+      const int N_BCPT = 2;
+      Real flx__[N_BCPT];
+
+      for (int I=0; I<N_BCPT; ++I)
+      {
+
+        if (lam_l__ >= 0.0)
+        {
+          flx__[I] = flux_l_(IBY+I,i);
+        }
+        else if (lam_r__ <= 0.0)
+        {
+          flx__[I] = flux_r_(IBY+I,i);
+        }
+        else
+        {
+          flx__[I] = (
+            (lam_r__ * flux_l_(IBY+I,i) -
+             lam_l__ * flux_r_(IBY+I,i)) +
+            lam_l__ * lam_r__ * (cons_r_(IBY+I,i) -
+                                 cons_l_(IBY+I,i))
+          ) / (lam_r__ - lam_l__);
+        }
+
+        // LLF fallback - probably better with a floor
+        if (!std::isfinite(flx__[I]))
+        {
+          flx__[I] = 0.5 * (
+            (flux_l_(IBY+I,i) + flux_r_(IBY+I,i)) -
+            lambda(i) * (cons_r_(IBY+I,i) - cons_l_(IBY+I,i))
+          );
+        }
+      }
+
+      // deal with CT
+      ey(k, j, i) = -flx__[0];
+      ez(k, j, i) = flx__[1];
+
+      wct(k, j, i) = GetWeightForCT(flux(IDN, k, j, i), prim_l_(IDN, i),
+                                    prim_r_(IDN, i), dxw_(i), dt);
+    }
+  }
+  else
   {
     #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      flux(n, k, j, i) = 0.5 * (flux_l_(n, i) + flux_r_(n, i) -
-                                lambda(i) * (cons_r_(n, i) - cons_l_(n, i)));
+      ey(k, j, i) =
+        -0.5 * (flux_l_(IBY, i) + flux_r_(IBY, i) -
+                lambda(i) * (cons_r_(IBY, i) - cons_l_(IBY, i)));
+      ez(k, j, i) =
+        0.5 * (flux_l_(IBZ, i) + flux_r_(IBZ, i) -
+                lambda(i) * (cons_r_(IBZ, i) - cons_l_(IBZ, i)));
+
+      wct(k, j, i) = GetWeightForCT(flux(IDN, k, j, i), prim_l_(IDN, i),
+                                    prim_r_(IDN, i), dxw_(i), dt);
     }
   }
 
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    ey(k, j, i) =
-      -0.5 * (flux_l_(IBY, i) + flux_r_(IBY, i) -
-              lambda(i) * (cons_r_(IBY, i) - cons_l_(IBY, i)));
-    ez(k, j, i) =
-      0.5 * (flux_l_(IBZ, i) + flux_r_(IBZ, i) -
-              lambda(i) * (cons_r_(IBZ, i) - cons_l_(IBZ, i)));
-
-    wct(k, j, i) = GetWeightForCT(flux(IDN, k, j, i), prim_l_(IDN, i),
-                                  prim_r_(IDN, i), dxw_(i), dt);
-  }
-
+  // passive scalars ----------------------------------------------------------
   if (!pmy_block->precon->xorder_upwind_scalars)
   {
-    for (int n=0; n<NSCALARS; ++n)
-    #pragma omp simd
-    for (int i=il; i<=iu; ++i)
+    if (use_hlle)
     {
-      s_flux(n,k,j,i) = 0.5 * (
-        (flux_l_(IDN,i) * pscalars_l_(n,i) +
-         flux_r_(IDN,i) * pscalars_r_(n,i)) -
-        lambda(i) * (cons_r_(IDN,i) * pscalars_r_(n,i) -
-                     cons_l_(IDN,i) * pscalars_l_(n,i))
-      );
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        #pragma omp simd
+        for (int i=il; i<=iu; ++i)
+        {
+          const Real lam_l__ = std::min(lambda_m_l(i), lambda_m_r(i));
+          const Real lam_r__ = std::max(lambda_p_l(i), lambda_p_r(i));
+
+          const Real flx_l__ = flux_l_(IDN,i) * pscalars_l_(n,i);
+          const Real flx_r__ = flux_r_(IDN,i) * pscalars_r_(n,i);
+
+          if (lam_l__ >= 0.0)
+          {
+            s_flux(n,k,j,i) = flx_l__;
+          }
+          else if (lam_r__ <= 0.0)
+          {
+            s_flux(n,k,j,i) = flx_r__;
+          }
+          else
+          {
+            s_flux(n,k,j,i) = (
+              (lam_r__ * flx_l__ -  lam_l__ * flx_r__) +
+              lam_l__ * lam_r__ * (
+                cons_r_(IDN,i) * pscalars_r_(n,i) -
+                cons_l_(IDN,i) * pscalars_l_(n,i))
+            ) / (lam_r__ - lam_l__);
+          }
+
+          if (!std::isfinite(s_flux(n,k,j,i)))
+          {
+             s_flux(n,k,j,i) = 0.5 * (
+               (flux_l_(IDN,i) * pscalars_l_(n,i) +
+                flux_r_(IDN,i) * pscalars_r_(n,i)) -
+               lambda(i) * (cons_r_(IDN,i) * pscalars_r_(n,i) -
+                            cons_l_(IDN,i) * pscalars_l_(n,i))
+             );
+          }
+        }
+      }
+    }
+    else
+    {
+      for (int n=0; n<NSCALARS; ++n)
+      {
+        #pragma omp simd
+        for (int i=il; i<=iu; ++i)
+        {
+          s_flux(n,k,j,i) = 0.5 * (
+            (flux_l_(IDN,i) * pscalars_l_(n,i) +
+             flux_r_(IDN,i) * pscalars_r_(n,i)) -
+            lambda(i) * (cons_r_(IDN,i) * pscalars_r_(n,i) -
+                         cons_l_(IDN,i) * pscalars_l_(n,i))
+          );
+        }
+      }
     }
   }
   else
