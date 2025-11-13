@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include <limits>
 
 #include "../../../athena.hpp"
 #include "../../../defs.hpp"
@@ -22,12 +23,14 @@ class WeakEoSMod {
                bool wr_use_eos_dfloor,
                bool wr_use_eos_tfloor,
                bool tabulated_particle_fractions,
+               bool tabulated_degeneracy_parameter,
                Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
       : apply_table_limits_internally(apply_table_limits_internally),
         enforced_limits_fail(enforced_limits_fail),
         wr_use_eos_dfloor(wr_use_eos_dfloor),
         wr_use_eos_tfloor(wr_use_eos_tfloor),
         tabulated_particle_fractions(tabulated_particle_fractions),
+        tabulated_degeneracy_parameter(tabulated_degeneracy_parameter),
         PS_EoS(PS_EoS)
     {
       my_units = &WeakRates_Units::WeakRatesUnits;
@@ -143,10 +146,23 @@ class WeakEoSMod {
 
     inline Real GetDegeneracyParameter()
     {
-      // CompOSE already stores these values in MeV
-      return (
-        PS_EoS->GetTableNeutronMass() - PS_EoS->GetTableProtonMass()
-      );
+      // This is the neutron-proton mass difference in MeV.
+      Real Qnp = std::numeric_limits<Real>::quiet_NaN();
+
+      if (tabulated_degeneracy_parameter)
+      {
+        Qnp = PS_EoS->GetTableNeutronMass() - PS_EoS->GetTableProtonMass();
+      }
+      else
+      {
+        // CompOSE value:
+        Qnp = 1.2933399999999438;
+
+        // THC value:
+        Qnp = 1.293333;
+      }
+
+      return Qnp;
     }
 
     void GetFracs(
@@ -251,7 +267,6 @@ class WeakEoSMod {
 
       // Difference in the degeneracy parameters without
       // neutron-proton rest mass difference
-      // Real Qnp = 1.293333; // neutron-proton mass difference in MeV
       Real Qnp = GetDegeneracyParameter();
       Real eta_hat = eta_n - eta_p  - Qnp / temp;
 
@@ -350,6 +365,7 @@ class WeakEoSMod {
     const bool wr_use_eos_dfloor;
     const bool wr_use_eos_tfloor;
     const bool tabulated_particle_fractions;
+    const bool tabulated_degeneracy_parameter;
 
     Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
 

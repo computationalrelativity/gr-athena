@@ -37,6 +37,7 @@ class WeakRates {
                 wr_use_eos_dfloor,
                 wr_use_eos_tfloor,
                 pin->GetOrAddBoolean("M1_opacities", "tabulated_particle_fractions", true),
+                pin->GetOrAddBoolean("M1_opacities", "tabulated_degeneracy_parameter", true),
                 PS_EoS}
     {
       // my_units (of WeakRates) vs code_units (of GR(M)HD)
