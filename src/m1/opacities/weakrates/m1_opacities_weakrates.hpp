@@ -102,6 +102,11 @@ public:
                            "correction_adjust_upward",
                            false)
     ),
+    correction_uses_fiducial_frame(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correction_uses_fiducial_frame",
+                           false)
+    ),
     correct_emissivity_nux(
       pin->GetOrAddBoolean("M1_opacities",
                            "correct_emissivity_nux",
@@ -1066,29 +1071,41 @@ public:
     const int ix_g = 0;  // only 1 group
     for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
-      const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
+      // const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
+      // const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
 
-      // equilibrium and incoming energies
-      Real avg_nrg_eql = sc_J / sc_n;
-      avg_nrg_eql = (!std::isfinite(avg_nrg_eql) || avg_nrg_eql < 0.0)
-        ? 0.0
-        : avg_nrg_eql;
-
-      // Compute directly  ----------------------------------------------------
-      AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
-      AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
-      AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
-
-      Real dotFv (0.0);
-      for (int a=0; a<N; ++a)
-      {
-        dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
-      }
-      Real avg_nrg_inc = std::max(
-        W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
-        0.0
+      // equilibrium and incoming energies ------------------------------------
+      Real avg_nrg_eql = (
+        pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
+        pm1->eql.sc_n(ix_g,ix_s)(k,j,i)
       );
+
+      Real avg_nrg_inc;
+
+      if (correction_uses_fiducial_frame)
+      {
+        avg_nrg_inc = std::max(
+          pm1->rad.sc_J(ix_g,ix_s)(k,j,i) /
+          pm1->rad.sc_n(ix_g,ix_s)(k,j,i),
+          0.0
+        );
+      }
+      else
+      {
+        AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
+        AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+        AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
+
+        Real dotFv (0.0);
+        for (int a=0; a<N; ++a)
+        {
+          dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+        }
+        avg_nrg_inc = std::max(
+          W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
+          0.0
+        );
+      }
       // ----------------------------------------------------------------------
 
       // Prepare correction factors
@@ -1691,6 +1708,7 @@ private:
   const bool wr_flag_equilibrium_no_nux;
   const bool correct_emissivity_nux;
   const bool correction_adjust_upward;
+  const bool correction_uses_fiducial_frame;
 
   // Options for controlling weakrates opacities
   Real opacity_tau_trap;
