@@ -166,6 +166,13 @@ public:
     // Weakrates only works for 1 group
     assert(N_GRPS==1);
 
+    // logic simplified with retained eql; needs a patch otherwise:
+    // TODO: BD- could be fixed to not need this (minor)
+    if (!pm1->opt.retain_equilibrium)
+    {
+      assert(false);
+    }
+
     // Create instance of WeakRatesNeutrinos::WeakRates
     // Set EoS from PS
     pmy_weakrates = new WeakRatesNeutrinos::WeakRates(pin,
