@@ -13,12 +13,141 @@
 #include "../../../field/field.hpp"
 
 // Weakrates header
+#include "unit_convert.hpp"
 #include "error_codes.hpp"
 #include "weak_rates.hpp"
 #include <cmath>
 #include <iomanip>
 #include <limits>
 #include <locale>
+
+// dump debug -----------------------------------------------------------------
+
+#include <cstdio>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <sys/stat.h>
+
+// control whether to dump on diagnostic index
+#define USE_DIAGNOSTIC true
+#define PRINT_DIAGNOSTIC false
+#define WRITE_DIAGNOSTIC true
+
+#define DIAGNOSTIC if (USE_DIAGNOSTIC) if ((i == 2) && (j == 2) && (k == 2))
+#define NSPCS 3
+
+
+struct {
+    double time;
+    double dt;
+    double rho;
+    double Y_e;
+    double T;
+    double P;
+
+    // raw transport rates
+    double raw_kap_0[NSPCS];
+    double raw_kap_1[NSPCS];
+
+    double raw_abs_0[NSPCS];
+    double raw_abs_1[NSPCS];
+
+    double raw_eta_0[NSPCS];
+    double raw_eta_1[NSPCS];
+
+    double raw_sca_0[NSPCS]; // filled but unused
+    double raw_sca_1[NSPCS];
+
+    // pos-correction transport rates
+    double corr_fac[NSPCS];
+
+    double corr_abs_0[NSPCS];
+    double corr_abs_1[NSPCS];
+
+    double corr_eta_0[NSPCS];
+    double corr_eta_1[NSPCS];
+
+    double corr_sca_0[NSPCS]; // unused
+    double corr_sca_1[NSPCS];
+
+    // eql. info.
+    double nudens_0[NSPCS];
+    double nudens_1[NSPCS];
+    double eavg[NSPCS];
+} DATA_DIAG;
+
+
+#define PRINT_DD_SPCS(a) for (int ix_s=0; ix_s<NSPCS; ++ix_s) {std::printf("%.16e\n", a[ix_s]);}
+#define PRINT_DD(a) std::printf("%.16e\n", a);
+
+inline bool file_exists(const std::string& name) {
+    struct stat buffer;
+    return (stat(name.c_str(), &buffer) == 0);
+}
+
+inline void write_diagnostic_csv(const std::string& filename) {
+    bool newfile = !file_exists(filename);
+    std::ofstream ofs(filename, std::ios::app);
+    ofs << std::scientific << std::setprecision(16);
+
+    if (newfile) {
+        ofs << "# time dt rho Y_e T";
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_kap_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_kap_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_abs_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_abs_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_eta_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_eta_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_sca_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " raw_sca_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_fac_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_abs_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_abs_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_eta_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_eta_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_sca_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " corr_sca_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " nudens_0_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " nudens_1_" << n;
+        for (int n = 0; n < NSPCS; ++n) ofs << " eavg_" << n;
+        ofs << "\n";
+    }
+
+    // data line
+    ofs << DATA_DIAG.time << " " << DATA_DIAG.dt << " " << DATA_DIAG.rho << " "
+        << DATA_DIAG.Y_e << " " << DATA_DIAG.T;
+
+    auto write_array = [&](const double* arr) {
+        for (int n = 0; n < NSPCS; ++n) ofs << " " << arr[n];
+    };
+
+    write_array(DATA_DIAG.raw_kap_0);
+    write_array(DATA_DIAG.raw_kap_1);
+    write_array(DATA_DIAG.raw_abs_0);
+    write_array(DATA_DIAG.raw_abs_1);
+    write_array(DATA_DIAG.raw_eta_0);
+    write_array(DATA_DIAG.raw_eta_1);
+    write_array(DATA_DIAG.raw_sca_0);
+    write_array(DATA_DIAG.raw_sca_1);
+    write_array(DATA_DIAG.corr_fac);
+    write_array(DATA_DIAG.corr_abs_0);
+    write_array(DATA_DIAG.corr_abs_1);
+    write_array(DATA_DIAG.corr_eta_0);
+    write_array(DATA_DIAG.corr_eta_1);
+    write_array(DATA_DIAG.corr_sca_0);
+    write_array(DATA_DIAG.corr_sca_1);
+    write_array(DATA_DIAG.nudens_0);
+    write_array(DATA_DIAG.nudens_1);
+    write_array(DATA_DIAG.eavg);
+    ofs << "\n";
+
+    ofs.close();
+}
+
+
+// ----------------------------------------------------------------------------
+
 
 namespace M1::Opacities::WeakRates {
 
@@ -195,12 +324,29 @@ public:
         pin->GetOrAddBoolean("M1_opacities", "use_averages", false);
     use_averaging_fix =
         pin->GetOrAddBoolean("M1_opacities", "use_averaging_fix", false);
+
+    // Debug unit conversions:
+    puc = new UnitConvert::UnitConvert(pin, pmy_block);
+
+    puc->print_once(&puc->gra_to_gra_wr_impl);
+    puc->print_once(&puc->gra_wr_impl_to_gra);
+
+    puc->print_once(&puc->thc_to_thc_wr_impl);
+    puc->print_once(&puc->thc_wr_impl_to_thc);
+
+    puc->print_once(&puc->gra_wr_impl_to_thc_wr_impl);
+    puc->print_once(&puc->thc_wr_impl_to_gra_wr_impl);
+
+    puc->print_once(&puc->gra_to_thc);
+    puc->print_once(&puc->thc_to_gra);
   };
 
   ~WeakRates() {
     if (pmy_weakrates!= nullptr) {
       delete pmy_weakrates;
     }
+
+    delete puc;
   };
 
   inline void GetNearestNeighborAverage(int k, int j, int i,
@@ -485,6 +631,20 @@ public:
       rm.sc_eta(ix_g,NUX)(k,j,i)    // eta_e[NUX]
     );
 
+    # pragma omp critical
+    if ((k==2) && (j==2) && (i==2))
+    {
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("rm.sc_eta_0->eta_0[%d] = %.3e; rm.sc_eta->eta_1[%d] = %.3e;\n",
+          ix_s,
+          rm.sc_eta_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.number_rate,
+          ix_s,
+          rm.sc_eta(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.energy_rate
+        );
+      }
+    }
+
     iab = pmy_weakrates->NeutrinoAbsorptionOpacity(
       rho, T, Y_e,
       rm.sc_kap_a_0(ix_g,NUE)(k,j,i), // kap_a_n[NUE]
@@ -495,6 +655,20 @@ public:
       rm.sc_kap_a(ix_g,NUX)(k,j,i)    // kap_a_e[NUX]
     );
 
+    # pragma omp critical
+    if ((k==2) && (j==2) && (i==2))
+    {
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("abs_0->sc_kap_a_0[%d] = %.3e; abs_1->sc_kap_a[%d] = %.3e;\n",
+          ix_s,
+          rm.sc_kap_a_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity,
+          ix_s,
+          rm.sc_kap_a(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity
+        );
+      }
+    }
+
     Real kap_s_n[N_SPCS];
     isc = pmy_weakrates->NeutrinoScatteringOpacity(
       rho, T, Y_e,
@@ -503,6 +677,18 @@ public:
       rm.sc_kap_s(ix_g,NUA)(k,j,i),   // kap_s_e[NUA]
       rm.sc_kap_s(ix_g,NUX)(k,j,i)    // kap_s_e[NUX]
     );
+
+    # pragma omp critical
+    if ((k==2) && (j==2) && (i==2))
+    {
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("kappa_0-abs_0->kap_s[%d] = %.3e\n",
+          ix_s, rm.sc_kap_s(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity
+        );
+
+      }
+    }
 
     int res = iem || iab || isc;
     return res;
@@ -741,7 +927,19 @@ public:
       }
     }
 
+
     // finally, retain the equilibrium ----------------------------------------
+
+    // // DEBUG: inject THC
+    // dens_n[NUE] = OO(puc->gra_to_thc.number_density) * 2.0659967865689624e-07;
+    // dens_n[NUA] = OO(puc->gra_to_thc.number_density) * 0.046439961184408386;
+    // dens_n[NUX] = OO(puc->gra_to_thc.number_density) * 0.0018210136383791068;
+
+    // dens_e[NUE] = OO(puc->gra_to_thc.energy_density) * 5.885788546019523e-17;
+    // dens_e[NUA] = OO(puc->gra_to_thc.energy_density) * 2.9674663342741075e-11;
+    // dens_e[NUX] = OO(puc->gra_to_thc.energy_density) * 5.449420666110643e-13;
+    // // -------------
+
     const int ix_g = 0;
     const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
 
@@ -749,6 +947,28 @@ public:
     {
       pm1->eql.sc_n(ix_g,ix_s)(k,j,i) = sc_sqrt_det_g * dens_n[ix_s];
       pm1->eql.sc_J(ix_g,ix_s)(k,j,i) = sc_sqrt_det_g * dens_e[ix_s];
+
+    }
+
+    if ((k == 2) && (j==2) && i == 2)
+    {
+      for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+      {
+        std::printf("WE: [%d] nudens_0 -> n, nudens_1 -> J = %.3e, %.3e\n",
+          ix_s,
+          dens_n_trap[ix_s] * puc->gra_to_thc.number_density,
+          dens_e_trap[ix_s] * puc->gra_to_thc.energy_density
+        );
+      }
+    }
+
+    DIAGNOSTIC
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+    {
+
+        DATA_DIAG.nudens_0[ix_s] = dens_n[ix_s] * puc->gra_to_thc.number_density;
+        DATA_DIAG.nudens_1[ix_s] = dens_e[ix_s] * puc->gra_to_thc.energy_density;
+        DATA_DIAG.eavg[ix_s] = DATA_DIAG.nudens_1[ix_s] / DATA_DIAG.nudens_0[ix_s];
     }
 
     return 0;
@@ -1114,7 +1334,7 @@ public:
       if (!std::isfinite(corr_fac[ix_s]))
         corr_fac[ix_s] = 1.0;
 
-      rm.sc_avg_nrg(ix_g, ix_s)(k, j, i) = avg_nrg_eql;
+      rm.sc_avg_nrg(ix_g, ix_s)(k, j, i) = avg_nrg_inc;
 
       if (correction_adjust_upward)
       {
@@ -1182,6 +1402,92 @@ public:
         eta   = kap_a * J;
       }
     }
+
+    # pragma omp critical
+    if ((k==2) && (j==2) && (i==2))
+    {
+      std::printf("corrected:\n");
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("corr_fac[%d] = %.3e;\n",
+          ix_s,
+          corr_fac[ix_s]
+        );
+      }
+
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("rm.sc_eta_0->eta_0[%d] = %.3e; rm.sc_eta->eta_1[%d] = %.3e;\n",
+          ix_s,
+          rm.sc_eta_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.number_rate,
+          ix_s,
+          rm.sc_eta(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.energy_rate
+        );
+      }
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("abs_0->sc_kap_a_0[%d] = %.3e; abs_1->sc_kap_a[%d] = %.3e;\n",
+          ix_s,
+          rm.sc_kap_a_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity,
+          ix_s,
+          rm.sc_kap_a(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity
+        );
+      }
+      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+      {
+        std::printf("kappa_0-abs_0->kap_s[%d] = %.3e\n",
+          ix_s, rm.sc_kap_s(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity
+        );
+
+      }
+      std::printf(
+        "rho = %.3e, Y_e = %.3e, T = %.3e\n",
+        pm1->hydro.sc_w_rho(k,j,i),
+        pm1->hydro.sc_w_Ye(k,j,i),
+        pm1->hydro.sc_T(k,j,i)
+      );
+      std::printf("GetBaryonMass [code,raw]: %.6e %.6e\n",
+        pm1->pmy_block->peos->GetEOS().GetBaryonMass(),
+        pm1->pmy_block->peos->GetEOS().GetRawBaryonMass()
+      );
+
+      std::printf("AtomicMassImpl [gra] %.6e\n",
+        pm1->pmy_block->peos->GetEOS().GetRawBaryonMass() *
+        puc->gra_to_gra_wr_impl.mass
+      );
+
+      std::printf("mb [thc] %.6e\n",
+        9.223158894119980e+02 *
+        puc->thc_constants.normfact *
+        puc->thc_constants.cgs2cactusMass *
+        puc->thc_constants.mev_to_erg /
+        SQR(puc->thc_constants.clight)
+      );
+      // assert(false);
+    }
+
+    DIAGNOSTIC
+    for (int ix_s=0; ix_s<NSPCS; ++ix_s)
+    {
+      typedef M1::vars_RadMat RM;
+      RM & rm = pm1->radmat;
+
+      const int ix_g = 0;
+
+      DATA_DIAG.corr_fac[ix_s] = corr_fac[ix_s];
+
+      DATA_DIAG.corr_abs_0[ix_s] = rm.sc_kap_a_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+      DATA_DIAG.corr_abs_1[ix_s] = rm.sc_kap_a(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+
+      DATA_DIAG.corr_eta_0[ix_s] = rm.sc_eta_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.number_rate;
+      DATA_DIAG.corr_eta_1[ix_s] = rm.sc_eta(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.energy_rate;
+
+      // DATA_DIAG.corr_sca_0[ix_s] = scat_0[i4D];
+      DATA_DIAG.corr_sca_1[ix_s] = rm.sc_kap_s(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+
+    }
+
+
   }
 
   // set solution mask for equilibrium points;
@@ -1383,6 +1689,74 @@ public:
       GetHydro(k, j, i, rho, T, Y_e);
       ierr(k,j,i) = CalculateOpacityCoefficients(k,j,i,rho,T,Y_e);
 
+      DIAGNOSTIC
+      {
+        DATA_DIAG.time = pm1->pmy_mesh->time;
+        DATA_DIAG.dt = dt;
+        DATA_DIAG.rho = rho;
+        DATA_DIAG.Y_e = Y_e;
+        DATA_DIAG.T = T;
+      }
+
+
+      // DEBUG: inject THC
+      typedef M1::vars_RadMat RM;
+      RM & rm = pm1->radmat;
+
+      // std::printf("%.7e, %.7e\n",
+      //   rm.sc_kap_a_0(0,NUE)(k,j,i),
+      //   OO(puc->gra_to_thc.opacity) * 0.00029638418858200885
+      // );
+
+      // std::printf("%.7e, %.7e\n",
+      //   rm.sc_kap_a_0(0,NUA)(k,j,i),
+      //   OO(puc->gra_to_thc.opacity) * 2.481865705853874e-08
+      // );
+      // assert(false);
+
+//      rm.sc_kap_a_0(0,NUE)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0.00029638418858200885;
+//      rm.sc_kap_a_0(0,NUA)(k,j,i) = OO(puc->gra_to_thc.opacity) * 2.481865705853874e-08;
+//      rm.sc_kap_a_0(0,NUX)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0;
+
+
+
+//      rm.sc_kap_a(0,NUE)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0.000493950996039487;
+//      rm.sc_kap_a(0,NUA)(k,j,i) = OO(puc->gra_to_thc.opacity) * 2.9954120198877046e-08;
+//      rm.sc_kap_a(0,NUX)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0;
+
+      // rm.sc_kap_s(0,NUE)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0.005444927448546642;
+      // rm.sc_kap_s(0,NUA)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0.01653809148505109;
+      // rm.sc_kap_s(0,NUX)(k,j,i) = OO(puc->gra_to_thc.opacity) * 0.005665793763486812;
+
+      // rm.sc_eta_0(0,NUE)(k,j,i) = OO(puc->gra_to_thc.number_rate) * 1.1389654107308485e-09;
+      // rm.sc_eta_0(0,NUA)(k,j,i) = OO(puc->gra_to_thc.number_rate) * 6.941227831334981e-11;
+      // rm.sc_eta_0(0,NUX)(k,j,i) = OO(puc->gra_to_thc.number_rate) * 3.946309523055648e-11;
+
+      // rm.sc_eta(0,NUE)(k,j,i) = OO(puc->gra_to_thc.energy_rate) * 8.720131148068049e-19;
+      // rm.sc_eta(0,NUA)(k,j,i) = OO(puc->gra_to_thc.energy_rate) * 3.1472582209491336e-20;
+      // rm.sc_eta(0,NUX)(k,j,i) = OO(puc->gra_to_thc.energy_rate) * 1.3303279074340825e-20;
+      // -------------
+
+
+      DIAGNOSTIC
+      for (int ix_s=0; ix_s<NSPCS; ++ix_s)
+      {
+        typedef M1::vars_RadMat RM;
+        RM & rm = pm1->radmat;
+
+        const int ix_g = 0;
+
+        // DATA_DIAG.raw_kap_0[ix_s] = UNUSED;
+        // DATA_DIAG.raw_kap_1[ix_s] = UNUSED;
+        DATA_DIAG.raw_abs_0[ix_s] = rm.sc_kap_a_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+        DATA_DIAG.raw_abs_1[ix_s] = rm.sc_kap_a(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+        // DATA_DIAG.raw_sca_0[ix_s] = UNUSED
+        DATA_DIAG.raw_sca_1[ix_s] = rm.sc_kap_s(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.opacity;
+        DATA_DIAG.raw_eta_0[ix_s] = rm.sc_eta_0(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.number_rate;
+        DATA_DIAG.raw_eta_1[ix_s] = rm.sc_eta(ix_g,ix_s)(k,j,i) * puc->gra_to_thc.energy_rate;
+      }
+
+
       if (ierr(k,j,i))
       {
         calc_state(k,j,i) = cstate::failed;
@@ -1426,6 +1800,7 @@ public:
           rho, T, Y_e,
           tau,
           cmp_eql_dens_ini::current_sv,
+          // cmp_eql_dens_ini::prev_eql,
           false
         );
 
@@ -1613,6 +1988,8 @@ public:
     if (calc_state(k,j,i) == cstate::need)
     {
       ApplyOpacityCorrections(k, j, i);
+
+
     }
     // ========================================================================
 
@@ -1679,6 +2056,12 @@ public:
     }
     // ========================================================================
 
+    M1_FLOOP3(k, j, i)
+    if (WRITE_DIAGNOSTIC)
+    DIAGNOSTIC
+    {
+        write_diagnostic_csv("diagnostic.csv");
+    }
     return 0;
   };
 
@@ -1688,6 +2071,7 @@ private:
   MeshBlock *pmy_block;
   Coordinates *pmy_coord;
   WeakRatesNeutrinos::WeakRates *pmy_weakrates = nullptr;
+  UnitConvert::UnitConvert * puc;
 
   const int N_GRPS;
   const int N_SPCS;
