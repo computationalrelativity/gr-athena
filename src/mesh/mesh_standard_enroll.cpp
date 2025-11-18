@@ -1027,6 +1027,28 @@ Real m1_num_radmat_zero_with_clear(MeshBlock *pmb, int iout)
   return to_ret;
 }
 
+#if NSCALARS > 0
+Real src_Y_e(const int ix_g, MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+  const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
+
+  CC_ILOOP3(k, j, i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(i);
+    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real w = dx1*dx2*dx3;
+    const Real src = mb_raw * (
+      pmb->pm1->sources.sc_nG(ix_g,1)(k,j,i) -
+      pmb->pm1->sources.sc_nG(ix_g,0)(k,j,i)
+    );
+    sum_Q += src;
+  }
+  return sum_Q;
+}
+#endif // NSCALARS > 0
+
 }
 #endif
 
@@ -1084,6 +1106,22 @@ void Mesh::EnrollUserStandardM1(ParameterInput * pin)
     );
 
   }
+
+#if NSCALARS > 0
+  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  {
+    auto sum_src_Y_e = [ig=ix_g](MeshBlock *pmb, int iout)
+    {
+      return src_Y_e(ig, pmb, iout);
+    };
+
+    EnrollUserHistoryOutput(
+      sum_src_Y_e,
+      ("sum_src_DY_e_" + std::to_string(ix_g)).c_str(),
+      UserHistoryOperation::sum
+    );
+  }
+#endif // NSCALARS > 0
 
   if (pin->GetOrAddBoolean("M1", "ev_strat_status", false))
   {
