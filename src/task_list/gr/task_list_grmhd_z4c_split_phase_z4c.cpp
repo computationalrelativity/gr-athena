@@ -50,6 +50,11 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
+#ifdef USE_COMM_DEPENDENCY
+  // Accumulate MPI communication tasks:
+  TaskID COMM = NONE;
+#endif
+
   // Z4c sub-system logic ---------------------------------------------------
   Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
   Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c_Phase_Z4c::IntegrateZ4c);
@@ -57,6 +62,9 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   // Should be able to do this
   Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c_Phase_Z4c::SendZ4c);
   Add(RECV_Z4C, NONE, &GRMHD_Z4c_Phase_Z4c::ReceiveZ4c);
+#ifdef USE_COMM_DEPENDENCY
+  COMM = COMM | SEND_Z4C | RECV_Z4C;
+#endif
 
   Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c);
 
@@ -73,8 +81,14 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr);
   Add(Z4C_TO_ADM, ALG_CONSTR,   &GRMHD_Z4c_Phase_Z4c::Z4cToADM);
 
+#ifdef USE_COMM_DEPENDENCY
+  // We are done with MPI communication
+  Add(CLEAR_ALLBND, COMM, &GRMHD_Z4c_Phase_Z4c::ClearAllBoundary);
+#else
   // We are done for the z4c phase
   Add(CLEAR_ALLBND, Z4C_TO_ADM, &GRMHD_Z4c_Phase_Z4c::ClearAllBoundary);
+#endif
+
 }
 
 // ----------------------------------------------------------------------------

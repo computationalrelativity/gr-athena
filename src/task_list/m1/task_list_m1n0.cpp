@@ -41,6 +41,11 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
+#ifdef USE_COMM_DEPENDENCY
+  // Accumulate MPI communication tasks:
+  TaskID COMM = NONE;
+#endif
+
   // Now assemble list of tasks for each stage of time integrator
   {
     Add(UPDATE_BG,    NONE,      &M1N0::UpdateBackground);
@@ -64,6 +69,10 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     {
       Add(SEND_FLUX, CALC_FLUX, &M1N0::SendFluxCorrection);
       Add(RECV_FLUX, CALC_FLUX, &M1N0::ReceiveAndCorrectFlux);
+#ifdef USE_COMM_DEPENDENCY
+      COMM = COMM | SEND_FLUX | RECV_FLUX;
+#endif
+
       Add(CALC_UPDATE, (RECV_FLUX|ADD_FLX_DIV),
                        &M1N0::CalcUpdate);
 
@@ -75,6 +84,9 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 
     Add(SEND, CALC_UPDATE, &M1N0::SendM1);
     Add(RECV, CALC_UPDATE, &M1N0::ReceiveM1);
+#ifdef USE_COMM_DEPENDENCY
+    COMM = COMM | SEND | RECV;
+#endif
 
     Add(SETB, RECV, &M1N0::SetBoundaries);
 
@@ -95,6 +107,14 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(USERWORK, ANALYSIS, &M1N0::UserWork);
     Add(NEW_DT,   USERWORK, &M1N0::NewBlockTimeStep);
 
+#ifdef USE_COMM_DEPENDENCY
+    if (adaptive)
+      Add(FLAG_AMR, USERWORK, &M1N0::CheckRefinement);
+
+    // We are done with MPI communication
+    Add(CLEAR_ALLBND, COMM, &M1N0::ClearAllBoundary);
+#else
+    // We are done for the m1 phase
     if (adaptive)
     {
       Add(FLAG_AMR,     USERWORK, &M1N0::CheckRefinement);
@@ -104,6 +124,9 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     {
       Add(CLEAR_ALLBND, NEW_DT, &M1N0::ClearAllBoundary);
     }
+#endif
+
+
   } // namespace
 }
 

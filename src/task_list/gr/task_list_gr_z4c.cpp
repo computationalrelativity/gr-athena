@@ -43,12 +43,20 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
+#ifdef USE_COMM_DEPENDENCY
+  // Accumulate MPI communication tasks:
+  TaskID COMM = NONE;
+#endif
+
   {
     Add(CALC_Z4CRHS, NONE,        &GR_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GR_Z4c::IntegrateZ4c);
 
     Add(SEND_Z4C, INT_Z4C, &GR_Z4c::SendZ4c);
     Add(RECV_Z4C, NONE,    &GR_Z4c::ReceiveZ4c);
+#ifdef USE_COMM_DEPENDENCY
+    COMM = COMM | SEND_Z4C | RECV_Z4C;
+#endif
 
     Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GR_Z4c::SetBoundariesZ4c);
 
@@ -76,6 +84,14 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(USERWORK, ADM_CONSTR, &GR_Z4c::UserWork);
     Add(NEW_DT,   USERWORK,   &GR_Z4c::NewBlockTimeStep);
 
+#ifdef USE_COMM_DEPENDENCY
+    if (adaptive)
+      Add(FLAG_AMR, USERWORK, &GR_Z4c::CheckRefinement);
+
+    // We are done with MPI communication
+    Add(CLEAR_ALLBND, COMM, &GR_Z4c::ClearAllBoundary);
+#else
+    // We are done for the z4c phase
     if (adaptive)
     {
       Add(FLAG_AMR,     USERWORK, &GR_Z4c::CheckRefinement);
@@ -85,6 +101,7 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     {
       Add(CLEAR_ALLBND, NEW_DT,   &GR_Z4c::ClearAllBoundary);
     }
+#endif
 
     // Add(ASSERT_FIN, CLEAR_ALLBND, &GR_Z4c::AssertFinite);
   } // namespace

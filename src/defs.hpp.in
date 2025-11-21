@@ -64,6 +64,9 @@
 // BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
 #define @DBG_FALLBACK_NO_TABLE_LIMITS@
 
+// BD: If enabled, task-list completion of comm is barrier prior to clear_allbnd
+#define @USE_COMM_DEPENDENCY@
+
 // BD: If enabled, allow for idempotency check in C2P
 #define NO_DBG_IDEMPOTENT_C2P
 
