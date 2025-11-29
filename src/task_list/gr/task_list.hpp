@@ -277,6 +277,9 @@ public:
   TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage);
   TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
+#if CCE_ENABLED
+  TaskStatus CCEDump(MeshBlock *pmb, int stage);
+#endif
 
 public:
   using TaskList::nstages;

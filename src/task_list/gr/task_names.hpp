@@ -89,16 +89,16 @@ const TaskID SEND_SCLR(53);
 const TaskID RECV_SCLR(54);
 const TaskID SETB_SCLR(55);
 
-const TaskID CALC_Z4CRHS(57);
-const TaskID INT_Z4C(58);
-const TaskID SEND_Z4C(59);
-const TaskID RECV_Z4C(60);
-const TaskID SETB_Z4C(61);
+const TaskID CALC_Z4CRHS(56);
+const TaskID INT_Z4C(57);
+const TaskID SEND_Z4C(58);
+const TaskID RECV_Z4C(59);
+const TaskID SETB_Z4C(60);
 
-const TaskID PROLONG_Z4C(62);
-const TaskID PHY_BVAL_Z4C(63);
+const TaskID PROLONG_Z4C(61);
+const TaskID PHY_BVAL_Z4C(62);
 
-const TaskID CCE_DUMP(64);
+const TaskID CCE_DUMP(63);
 
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
 
@@ -173,6 +173,8 @@ const TaskID PHY_BVAL_Z4C(32);
 const TaskID ALG_CONSTR(40);
 
 const TaskID Z4C_TO_ADM(50);
+
+const TaskID CCE_DUMP(52);
 
 const TaskID CLEAR_ALLBND(60);
 
