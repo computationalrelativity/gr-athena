@@ -1233,6 +1233,7 @@ if args["cxx"] == "g++":
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -std=c++17 -fwhole-program -flto=auto -fprefetch-loop-arrays -march=native "
+    "-fno-strict-aliasing "
     # '-O3 -std=c++17 -fprefetch-loop-arrays -march=native '
     "-ffp-contract=off "  # disables FMA
     # '-finline-limit=2048 '
@@ -1248,6 +1249,7 @@ if args["cxx"] == "g++-simd_O2":
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O2 -std=c++17 -fwhole-program -flto=auto "
+    "-fno-strict-aliasing "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
     # The following is to avoid linker issue (LRZ)
@@ -1280,6 +1282,7 @@ if args["cxx"] == "g++-simd":
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -std=c++17 -fwhole-program -flto=auto "
+    "-fno-strict-aliasing "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
     # '-Wunknown-pragmas '
