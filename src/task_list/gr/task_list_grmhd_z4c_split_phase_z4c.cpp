@@ -335,6 +335,10 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
   // only do on last stage
   if (stage != nstages) return TaskStatus::success;
 
+  using namespace gra::triggers;
+  typedef Triggers::TriggerVariant tvar;
+  typedef Triggers::OutputVariant ovar;
+
   Mesh *pm = pmb->pmy_mesh;
 
   for (auto cce : pm->pcce)
