@@ -426,7 +426,7 @@ WaveExtractRWZ::~WaveExtractRWZ() {
   Qplus_dr.DeleteAthenaArray();
   Qstar_dr.DeleteAthenaArray();
 
-  delete integrals_multipoles;
+  delete[] integrals_multipoles;
 
 }
 
@@ -3051,8 +3051,8 @@ void WaveExtractRWZ::MasterFuns() {
         const Real dr_term1_hG = - div_r * term1_hG
                                  - 2.0*div_r*( g_dr_uu(1,1)*( h1(lm,c) - 0.5*r2*G_dr(lm,c) )
 					+ g_dr_uu(0,1)*( h0(lm,c) - 0.5*r2*G_dot(lm,c) ) 
-                                        + g_uu(1,1)*(h1_dr(lm,c) - r*G_dr(lm) - 0.5*r2*G_dr2(lm,c))
-                                        + g_uu(0,1)*(h0_dr(lm,c) - r*G_dot(lm) - 0.5*r2*G_dr_dot(lm,c)));	
+                                        + g_uu(1,1)*(h1_dr(lm,c) - r*G_dr(lm,c) - 0.5*r2*G_dr2(lm,c))
+                                        + g_uu(0,1)*(h0_dr(lm,c) - r*G_dot(lm,c) - 0.5*r2*G_dr_dot(lm,c)));
         const Real dr_term_hAB = SQR(g_uu(0,1))*h00_dr(lm,c) + 2.0*g_uu(0,1)*g_dr_uu(0,1)*h00(lm,c)
                                + 2.0*g_uu(0,1)*g_uu(1,1)*h01_dr(lm,c)
                                + 2.0*(g_dr_uu(0,1)*g_uu(1,1) + g_uu(0,1)*g_dr_uu(1,1))*h01(lm,c)
@@ -3358,9 +3358,14 @@ void WaveExtractRWZ::SphOrthogonality() {
   // Zeros the integrals
   Real integrals_sphl0[2] = {0.0};
   Real integrals_sphl1[6] = {0.0};
-  Real integrals_sph[2*lmpoints] = {0.0};
+  Real integrals_sph[2*lmpoints];
   Real YlmR, YlmI;
- 
+
+  for (int i=0; i<2*lmpoints; ++i)
+  {
+    integrals_sph[i] = 0;
+  }
+
   for (int i=0; i<Ntheta; i++) {
     const Real theta = th_grid(i);
     //const Real sinth = std::sin(theta);
