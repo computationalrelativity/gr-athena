@@ -1318,8 +1318,19 @@ TaskStatus GRMHD_Z4c::CCEDump(MeshBlock *pmb, int stage)
 
   for (auto cce : pm->pcce)
   {
-    if (pm->ncycle % cce->freq == 0)
+    // BD: TODO- double check the following
+    const Real dt_cce = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
+
+    if (dt_cce > 0)
     {
+      const Real time = pm->time;
+
+      // Trigger when time is (within tolerance) an integer multiple of dt_cce
+      if (std::fabs(std::fmod(time, dt_cce)) > 1e-12)
+      {
+        continue;
+      }
+
       cce->Interpolate(pmb);
     }
   }

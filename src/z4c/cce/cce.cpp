@@ -66,9 +66,6 @@ CCE::CCE(Mesh *const pm, ParameterInput *const pin, std::string name, int rn):
     rn(rn),
     count_interp_pnts(0)
 {
-  freq = pin->GetReal("task_triggers","dt_Z4c_CCE_dump_freq");
-  assert(freq != 0);
-  
   bitant     = pin->GetOrAddBoolean("mesh", "bitant", false);
   output_dir = pin->GetString("cce","output_dir");
   rin  = pin->GetReal("cce", "rin_"  + std::to_string(rn));

@@ -913,17 +913,31 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 #if CCE_ENABLED
   for (auto cce : pmesh->pcce)
   {
-    if (pmesh->ncycle % cce->freq != 0) continue;
+    // BD: TODO- double check the following
+    const Real dt_cce = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
 
-    int cce_iter = pmesh->ncycle / cce->freq;
+    if (dt_cce > 0)
+    {
+      // if (pmesh->ncycle % cce->freq != 0) continue;
+      // int cce_iter = pmesh->ncycle / cce->freq;
 
-    cce->ReduceInterpolation();
-    cce->DecomposeAndWrite(cce_iter, time_end_stage);
+      const Real time = pmesh->time;
+
+      // Trigger when time is (within tolerance) an integer multiple of dt_cce
+      if (std::fabs(std::fmod(time, dt_cce)) > 1e-12)
+      {
+        continue;
+      }
+
+      int cce_iter = static_cast<int>(std::round(time / dt_cce));
+
+      cce->ReduceInterpolation();
+      cce->DecomposeAndWrite(cce_iter, time_end_stage);
+    }
   }
 #endif
 
   // RWZ wave extraction
-  //TODO
   if (trgs.IsSatisfied(tvar::Z4c_RWZ))
   {
     for (auto prwz : pmesh->pwave_extr_rwz)
