@@ -92,8 +92,8 @@ TaskStatus PostAMR_M1N0::CalcOpacity(MeshBlock *pmb, int stage)
     return TaskStatus::success;
   }
 
-  const Real dt = 0;
-  pm1->CalcOpacity(0, pm1->storage.u);
+  const Real dt = pmb->pmy_mesh->dt;
+  pm1->CalcOpacity(dt, pm1->storage.u);
 
   return TaskStatus::success;
 }
