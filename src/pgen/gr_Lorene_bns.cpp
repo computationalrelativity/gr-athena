@@ -68,6 +68,9 @@ namespace {
   Real sep;
   Real pgasmax_1;
   Real pgasmax_2;
+  Real mass_m, mass_p;
+  Real centre_m,centre_p;
+
 
   // constants ----------------------------------------------------------------
 #if defined(LORENE_HARDCODED_UNITS)
@@ -188,7 +191,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
       Real A_amp =
           A_amp_2 * std::max(std::pow(w_p - pcut_2, ns_2), 0.0);
       Acc(0,k,j,i) = -x2 * A_amp;
-      Acc(1,k,j,i) = (x1 - 0.5*sep) * A_amp;
+      Acc(1,k,j,i) = (x1 - centre_p) * A_amp;
       Acc(2,k,j,i) = 0.0;
     }
     else
@@ -196,7 +199,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
       Real A_amp =
           A_amp_1 * std::max(std::pow(w_p - pcut_1, ns_1), 0.0);
       Acc(0,k,j,i) = -x2 * A_amp;
-      Acc(1,k,j,i) = (x1 + 0.5*sep) * A_amp;
+      Acc(1,k,j,i) = (x1 - centre_m) * A_amp;
       Acc(2,k,j,i) = 0.0;
     }
   }
@@ -324,10 +327,18 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     std::cout.rdbuf(dmp_buf.rdbuf());
   }
 
-  // Get the separation
+  // Get the separation - adjust for mass ratio != 1
   bns = new Lorene::Bin_NS(1, crd, crd, crd,
                            fn_ini_data.c_str());
   sep = bns->dist / coord_unit;
+
+  mass_m = bns->mass1;
+  mass_p = bns->mass2;
+
+  // +/- sep/2.0 for equal mass
+  centre_m = -sep*mass_p/(2.0*(mass_m + mass_p));
+  centre_p = sep*mass_m/(2.0*(mass_m + mass_p));
+
 
   delete bns;
   delete[] crd;
