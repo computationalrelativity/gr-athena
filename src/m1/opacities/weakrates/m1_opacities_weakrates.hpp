@@ -1075,10 +1075,10 @@ public:
       // const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
 
       // equilibrium and incoming energies ------------------------------------
-      Real avg_nrg_eql = (
-        pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
-        pm1->eql.sc_n(ix_g,ix_s)(k,j,i)
-      );
+      Real avg_nrg_eql = (pm1->eql.sc_n(ix_g,ix_s)(k,j,i) > 0)
+        ? (pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
+           pm1->eql.sc_n(ix_g,ix_s)(k,j,i))
+        : 0.0;
 
       Real avg_nrg_inc;
 
@@ -1270,6 +1270,18 @@ public:
               << pm1->rad.sc_J(0, NUA)(k, j, i) << ";\n"
               << "  pm1->rad.sc_J(0,NUX)(k,j,i) = "
               << pm1->rad.sc_J(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUE)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUA)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUX)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUE)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUA)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUX)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUX)(k, j, i) << ";\n"
               << "  pm1->geom.sc_oo_sqrt_det_g(k, j, i) = "
               << pm1->geom.sc_oo_sqrt_det_g(k, j, i) << ";\n";
 
