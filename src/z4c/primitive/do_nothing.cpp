@@ -45,7 +45,7 @@ void DoNothing::EnergyLimits(Real& e, Real e_min, Real e_max) {
 }
 
 bool DoNothing::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species) {
-  return;
+  return false;
 }
 
 bool DoNothing::FailureResponse(Real prim[NPRIM])
