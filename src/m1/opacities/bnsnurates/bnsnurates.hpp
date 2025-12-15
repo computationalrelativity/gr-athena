@@ -323,8 +323,8 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params);
 
 #if (M1_UNITS_TEST)
-            printf(" nb, T, Y_e, mb, rho, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            nb, T, Y_e, mb, rho, mb*nb);
+            printf(" rho, T, Y_e, nb, mb, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            rho, T, Y_e, nb, mb, mb*nb);
             printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
 	            mu_n, mu_p, mu_e);
             printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
