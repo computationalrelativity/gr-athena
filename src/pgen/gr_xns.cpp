@@ -46,39 +46,37 @@ using namespace std;
 
 namespace {
 
-#define CHECK_V2 (1) // just a check on v^2 computation
   
-  // Names of XNS variables
-  static constexpr char const * const XNS_fields[] = {
-    "xns.R", "xns.TH",
-    "xns.radius", "xns.theta",
-    "xns.alpha", "xns.beta", "xns.psi", 
-    "xns.rho", "xns.pres", "xns.vphi"
-    "xns.bpol", "xns.btor",
-    "xns.b3", "xns.bpolr", "xns.bpolt", // B^\phi, B^r, B^\theta
-    "xns.btot",
-    "xns.chi",
-    "xns.epol",
-    "xns.jpol", "xns.jtor",
+#define CHECK_V2 (1) // just a check on v^2 computation
+
+  
+  // Names of XNS 2D fields (HDF5 Datasets) 
+  static constexpr char const * const XNS_dataset[] = {
+    "alpha", "beta", "psi", 
+    "rho", "pres", "vphi"
+    "bpol", "btor",
+    "b3", "bpolr", "bpolt", // B^\phi, B^r, B^\theta
+    "btot",
+    "chi",
+    "epol",
+    "jpol", "jtor",
   };
-  // Indexes of XNS variables
-  enum{IXNS_R, IXNS_TH,
-       IXNS_radius, IXNS_theta,
-       IXNS_alpha, IXNS_beta, IXNS_psi,
+  // Indexes of XNS 2D fields
+  enum{IXNS_alpha, IXNS_beta, IXNS_psi,
        IXNS_rho, IXNS_pres, IXNS_vphi,
        IXNS_bpol, IXNS_btor,
        IXNS_b3, IXNS_bpolr, IXNS_bpolt, // B^\phi, B^r, B^\theta
        IXNS_btot,
        IXNS_chi,
        IXNS_epol,
-       IXNS_jpol,
-       IXNS_jtor,
+       IXNS_jpol, IXNS_jtor,
        NXNSVars,
   };
 
+  
   class XNSData {
   public:
-    InterpTable2D * table;
+
     int NTH, NR; // XNS grid points
     Real mb; // XNS Baryon mass
     
@@ -87,17 +85,24 @@ namespace {
     Real r_units; // length
     Real rho_units; // mass density
 
+    static const int matter_interp_order = 2;
+    static const int metric_interp_order = 2*NGHOST-1;
+    
   private:
-    const int nvar = NXNSVars;
-    const char *fields = XNS_fields;
-
+    AA xnsdata[NXNSVars];
+    AA xns_radius, xns_theta;
+  
+    LagrangeInterpND<matter_interp_order, 2> * pinterp2_matter = nullptr;
+    LagrangeInterpND<metric_interp_order, 2> * pinterp2_metric = nullptr;
+    
   public:
-    XNSData() {
+    XNSData() {      
     }
     
     ~XNSData() {
-      if(table)
-        delete table;
+      for (int v = 0; v < NXNSVars; ++v) {
+        xnsdata[v].DeleteAthenaArray();
+      }
     }
     
     void ReadData(string h5filename) {
@@ -121,30 +126,140 @@ namespace {
       Attribute attr = root.openAttribute("rho_units");
       attr.read(attr.getDataType(), &rho_units);
 
-      //TODO: 
+      //TODO: Add this attribute to the XNS HDF5 (xns.py)
       //Attribute attr = root.openAttribute("mb");
       //attr.read(attr.getDataType(), &mb);
       mb = 1.0;
+
+      
+      // Read radial coordinate
+      DataSet dataset = file.openDataSet("R");
+      DataSpace dataspace = dataset.getSpace();
+
+      int rank = dataspace.getSimpleExtentNdims();
+      assert(rank == 1);
+
+      hsize_t dims[1];
+      dataspace.getSimpleExtentDims(dims, nullptr);
+      assert(NR == static_cast<int>(dims[0]));
+      
+      std::vector<double> rbuffer(NR);
+      dataset.read(rbuffer.data(), PredType::NATIVE_DOUBLE);
+
+      xns_radius.NewAthenaArray(NR);
+      for (int i=0; i < NR; ++i)
+        xns_radius(i) = rbuffer[i];
+
+      
+      // Read theta coordinate
+      DataSet dataset = file.openDataSet("TH");
+      DataSpace dataspace = dataset.getSpace();
+
+      int rank = dataspace.getSimpleExtentNdims();
+      assert(rank == 1);
+
+      hsize_t dims[1];
+      dataspace.getSimpleExtentDims(dims, nullptr);
+      assert(NTH == static_cast<int>(dims[0]));
+      
+      std::vector<double> tbuffer(NTH);
+      dataset.read(tbuffer.data(), PredType::NATIVE_DOUBLE);
+      
+      xns_theta.NewAthenaArray(NTH);
+      for (int i = 0; i < NTH; ++i)
+        xns_theta(i) = tbuffer[i];
+
+      
+      // Prepare 2d data buffers
+      for (int v = 0; v < NXNSVars; ++v) {
+        xnsdata[v].NewAthenaArray(NTH, NR);
+      }
+      const int ntot = NR*NTH;
+
+      
+      // Read datasets (2d fields)
+      for (int v = 0; v < NXNSVars; ++v) {
+        
+        // Open dataset
+        DataSet dataset = file.openDataSet(XNS_dataset[v]);
+        DataSpace dataspace = dataset.getSpace();
+        
+        // Get dataset dimensions
+        hsize_t dims[2];
+        dataspace.getSimpleExtentDims(dims, nullptr);
+        assert(NTH == static_cast<int>(dims[0]));
+        assert(NR == static_cast<int>(dims[1]));
+        
+        // Read dataset
+        std::vector<double> dbuffer(ntot);
+        dataset.read(dbuffer.data(), PredType::NATIVE_DOUBLE);
+        
+        // Copy to Athena array
+        for (int i = 0; i < NTH; ++i)
+          for (int j = 0; j < NR; ++j)
+            xnsdata[v](i,j) = dbuffer[i * NR + j];
+        
+      }
       
       file.close();
-
-      // Set the table
-      table = new InterpTable2D;
-      table->InterpTable2D(nvar, NTH,NTR);
-      
-      // Read HDF5 dataset into 2D table
-      HDF5TableLoader(h5filename, table, nvar,
-                      fields, "R", "TH");
     }
-        
-    Real Interp(int var, Real xp, Real yp, Real zp) {
-      // 2D Interpolate variable at (r,theta) <- (x,y,z) 
-      //TODO check the grid in interp_table.cpp
+
+    void PrepareInterp(Real xp, Real yp, Real zp, int order) {
+      // Interpolator of 2D variable at (r,theta) <- (x,y,z) 
       const Real rp = std::sqrt(SQR(xp) + SQR(yp) + SQR(zp));
       const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
-      // Bilinear interp
-      return table.interpolate(var,rp,thetap);
-      //TODO: Add 4th order interp from RNSC
+
+      Real origin[2];
+      Real delta[2];
+      int size[2];
+      Real coord[2];
+      
+      origin[0] = xns_theta[0]; 
+      origin[1] = xns_radius[0];
+
+      // NB Assumes uniform spacing!
+      delta[0] = xns_theta[1]-xns_theta[0];
+      delta[1] = xns_radius[1]-xns_radius[0];
+      
+      size[0] = NTH;
+      size[1] = NR;
+      
+      coord[0] = thetap;
+      coord[1] = rp;
+      
+      if (order == metric_interp_order) {
+        pinterp2_metric =
+          new LagrangeInterpND<metric_interp_order, 2>(origin, delta, size, coord);
+      } else if (order == matter_interp_order) {
+        pinterp2_matter =
+          new LagrangeInterpND<matter_interp_order, 2>(origin, delta, size, coord);
+      } else {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in XNS pgen" << std::endl
+            << "interpolation order =" << order << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
+    
+    void FreeInterp(int order) {
+      if (order == metric_interp_order) {
+        delete pinterp2_metric;
+      } else if (order == matter_interp_order) {
+        delete pinterp2_matter;
+      }
+    }
+
+    Real Interp(int var, int order) {
+      if (order == metric_interp_order) {
+        return pinterp2_metric->eval(&(xnsdata[var](0,0))); 
+      } else if (order == matter_interp_order) {
+        return pinterp2_matter->eval(&(xnsdata[var](0,0))); 
+      } else {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in XNS pgen" << std::endl
+            << "interpolation order =" << order << std::endl;
+        ATHENA_ERROR(msg);
+      }
     }
     
     Real CartesianMetric(Real beta, Real psi,
@@ -363,6 +478,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // container with idx / grids pertaining z4c
   MB_info* mbi = &(pz4c->mbi);
 
+  const int matter_interp_order = XNS.matter_interp_order;
+  const int metric_interp_order = XNS.metric_interp_order;
+  
   //---------------------------------------------------------------------------
   // Interpolate ADM metric
 
@@ -379,10 +497,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real zp = mbi->x3(k);
     
     // Interpolate XNS metric funs
-    Real alpha = XNS.Interp(IXNS_alpha, xp,yp,zp);
-    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); 
-    Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
+    XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
+    Real alpha = XNS.Interp(IXNS_alpha);
+    Real beta = XNS.Interp(IXNS_beta); 
+    Real psi = XNS.Interp(IXNS_psi);
+
+    XNS.FreeInterp(metric_interp_order);
+    
     // Get Cartesian components
     Real betax = 0.0; // beta^i
     Real betay = 0.0;
@@ -451,14 +573,22 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real zp = pcoord->x3v(k);
 
     // Interpolate fluid
-    Real rho = XNS.Interp(IXNS_rho, xp,yp,zp);
-    Real pres = XNS.Interp(IXNS_pres, xp,yp,zp); 
-    Real vphi = XNS.Interp(IXNS_psi, xp,yp,zp); // v^\phi 
+    XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
+
+    Real rho = XNS.Interp(IXNS_rho);
+    Real pres = XNS.Interp(IXNS_pres);
+    Real vphi = XNS.Interp(IXNS_psi); // v^\phi 
+
+    XNS.FreeInterp(matter_interp_order);
 
     // Interpolate metric & get Cartesian components
-    Real alpha = XNS.Interp(IXNS_alpha, xp,yp,zp);
-    Real beta = XNS.Interp(IXNS_beta, xp,yp,zp); 
-    Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
+    XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
+
+    Real alpha = XNS.Interp(IXNS_alpha);
+    Real beta = XNS.Interp(IXNS_beta); 
+    Real psi = XNS.Interp(IXNS_psi);
+
+    XNS.FreeInterp(metric_interp_order);
 
     // Metric
     Real betax = 0.0; // beta^i
@@ -613,13 +743,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real zp = pcoord->x3v(k);
 
     // Interpolate B cc
-    Real Br = XNS.Interp(IXS_bpolr, xp,yp,zp);
-    Real Btheta = XNS.Interp(IXS_bpolt, xp,yp,zp);
-    Real Bphi = XNS.Interp(IXS_b3, xp,yp,zp);
+    XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
     
-    // Interpolate conf. fact. 
+    Real Br = XNS.Interp(IXS_bpolr);
+    Real Btheta = XNS.Interp(IXS_bpolt);
+    Real Bphi = XNS.Interp(IXS_b3);
+
+    XNS.FreeInterp(matter_interp_order);
+    
+    // Interpolate conf. fact.
+    XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
+
     Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
     Real psi4 = std::pow(psi, 4);
+
+    XNS.FreeInterp(metric_interp_order);
 
     // Cartesian components
     Real bccx = 0.0;
