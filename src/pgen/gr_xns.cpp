@@ -73,6 +73,16 @@ namespace {
        NXNSVars,
   };
 
+  // Indexes for unit conversion
+  // (Conversion not needed, XNS works in G=Mo=c=1)
+  enum{DIMLESS,
+       LENGTH,
+       MDENST,
+       PRESS,
+       VELOCITY,
+       BFIELD,
+       NUNITS,
+  };
   
   class XNSData {
   public:
@@ -249,11 +259,19 @@ namespace {
       }
     }
 
-    Real Interp(int var, int order) {
+    Real Interp(int var, int order, int unit) {
+      assert(unit >= 0 and unit < NUNITS);
+      int uconv = 1.0;
+      // XNS works in G=Mo=c=1, which is what we want.
+      // No conversion needed.
+      // if (unit == LENGHT) uconv = r_units; // Geom to Km
+      // if (unit == MDENST) uconv = rho_units; // Geom to g
+      // if (unit == BFIELD) uconv = b_units; // Geom to Gauss
+        
       if (order == metric_interp_order) {
-        return pinterp2_metric->eval(&(xnsdata[var](0,0))); 
+        return uconv * pinterp2_metric->eval(&(xnsdata[var](0,0))); 
       } else if (order == matter_interp_order) {
-        return pinterp2_matter->eval(&(xnsdata[var](0,0))); 
+        return uconv * pinterp2_matter->eval(&(xnsdata[var](0,0))); 
       } else {
         std::stringstream msg;
         msg << "### FATAL ERROR in XNS pgen" << std::endl
@@ -499,9 +517,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // Interpolate XNS metric funs
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
-    Real alpha = XNS.Interp(IXNS_alpha);
-    Real beta = XNS.Interp(IXNS_beta); 
-    Real psi = XNS.Interp(IXNS_psi);
+    Real alpha = XNS.Interp(IXNS_alpha, metric_interp_order, DIMLESS);
+    Real beta = XNS.Interp(IXNS_beta, metric_interp_order, DIMLESS);
+    Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
 
     XNS.FreeInterp(metric_interp_order);
     
@@ -575,18 +593,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // Interpolate fluid
     XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
 
-    Real rho = XNS.Interp(IXNS_rho);
-    Real pres = XNS.Interp(IXNS_pres);
-    Real vphi = XNS.Interp(IXNS_psi); // v^\phi 
+    Real rho = XNS.Interp(IXNS_rho, matter_interp_order, MDENST);
+    Real pres = XNS.Interp(IXNS_pres, matter_interp_order, PRESS);
+    Real vphi = XNS.Interp(IXNS_vphi, matter_interp_order, VELOCITY); // v^\phi 
 
     XNS.FreeInterp(matter_interp_order);
 
     // Interpolate metric & get Cartesian components
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
-    Real alpha = XNS.Interp(IXNS_alpha);
-    Real beta = XNS.Interp(IXNS_beta); 
-    Real psi = XNS.Interp(IXNS_psi);
+    Real alpha = XNS.Interp(IXNS_alpha, metric_interp_order, DIMLESS);
+    Real beta = XNS.Interp(IXNS_beta, metric_interp_order, DIMLESS);
+    Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
 
     XNS.FreeInterp(metric_interp_order);
 
@@ -745,16 +763,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // Interpolate B cc
     XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
     
-    Real Br = XNS.Interp(IXS_bpolr);
-    Real Btheta = XNS.Interp(IXS_bpolt);
-    Real Bphi = XNS.Interp(IXS_b3);
+    Real Br = XNS.Interp(IXS_bpolr, matter_interp_order, BFIELD);
+    Real Btheta = XNS.Interp(IXS_bpolt, matter_interp_order, BFIELD);
+    Real Bphi = XNS.Interp(IXS_b3, matter_interp_order, BFIELD);
 
     XNS.FreeInterp(matter_interp_order);
     
     // Interpolate conf. fact.
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
-    Real psi = XNS.Interp(IXNS_psi, xp,yp,zp);
+    Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
     Real psi4 = std::pow(psi, 4);
 
     XNS.FreeInterp(metric_interp_order);
