@@ -557,10 +557,10 @@ Real DivBnorm2(MeshBlock *pmb, int iout)
         dy = pmb->pcoord->dx2v(j);
         dz = pmb->pcoord->dx3v(k);
         vol = dx*dy*dz;
-        divB_loc += ((pf->b.x1f(k,j,i+1) - pf->b.x1f(k,j,i))/ dx +
-                     (pf->b.x2f(k,j+1,i) - pf->b.x2f(k,j,i))/ dy +
-                     (pf->b.x3f(k+1,j,i) - pf->b.x3f(k,j,i))/ dz);
-        divB_square += divB_loc * divB_loc * vol;
+        divB_loc = ((pf->b.x1f(k,j,i+1) - pf->b.x1f(k,j,i))/ dx +
+                    (pf->b.x2f(k,j+1,i) - pf->b.x2f(k,j,i))/ dy +
+                    (pf->b.x3f(k+1,j,i) - pf->b.x3f(k,j,i))/ dz);
+        divB_square += SQR(divB_loc) * vol;
       }
     }
   }
