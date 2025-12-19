@@ -165,8 +165,8 @@ int WeakOpacityMod::Scattering_cgs(Real rho, Real temp, Real ye, Real& sct_n_nue
 
   Real nb = rho/atomic_mass;
 
-  Real scttr_cff_p = nb * ((1.0 + 5.0 * (alpha*alpha)) / 24.0) * sigma_0/(me_erg*me_erg);
-  Real scttr_cff_n = nb * ((4.0 * (Cv-1.0)*(Cv-1.0) + 5.0 * (alpha*alpha)) / 24.0) * sigma_0/(me_erg*me_erg);
+  Real scttr_cff_n = nb * ((1.0 + 5.0 * (alpha*alpha)) / 24.0) * sigma_0/(me_erg*me_erg);
+  Real scttr_cff_p = nb * ((4.0 * (Cv-1.0)*(Cv-1.0) + 5.0 * (alpha*alpha)) / 24.0) * sigma_0/(me_erg*me_erg);
 
   // Neutrino nucleon scattering coefficients
   // electron neutrinos
