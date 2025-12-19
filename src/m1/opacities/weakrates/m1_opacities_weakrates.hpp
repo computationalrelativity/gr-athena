@@ -1539,7 +1539,9 @@ public:
 
     // compute (uncorrected) opacities ========================================
     M1_FLOOP3(k, j, i)
+#if (!M1_UNITS_TEST)
     if (calc_state(k,j,i) == cstate::need)
+#endif
     {
       Real rho, T, Y_e;
       GetHydro(k, j, i, rho, T, Y_e);

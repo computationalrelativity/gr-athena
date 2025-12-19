@@ -13,7 +13,7 @@
 #include "fermi.hpp"
 
 // shields POW macros to avoid compilation warnings
-#define SHIELD_MACROS (0)
+#define SHIELD_MACROS (1)
 
 // shielding macros definitions
 #if (SHIELD_MACROS)
@@ -307,6 +307,17 @@ namespace M1::Opacities::BNSNuRates {
             Real scat_0_loc[4]{}, scat_1_loc[4]{};
 	    
             // Note: everything sent and received are in code units
+
+#if (M1_UNITS_TEST)
+            printf(" rho, T, Y_e, nb, mb, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            rho, T, Y_e, nb, mb, mb*nb);
+            printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
+	            mu_n, mu_p, mu_e);
+            printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nudens_0[0], nudens_0[1], nudens_0[2], nudens_0[3]);
+            printf(" nudens_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            nudens_1[0], nudens_1[1], nudens_1[2], nudens_1[3]);
+#endif
 		
             int opac_err =
               bns_nurates_wrapper(nb, T, Y_e, mu_n, mu_p, mu_e,
@@ -323,14 +334,6 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params);
 
 #if (M1_UNITS_TEST)
-            printf(" rho, T, Y_e, nb, mb, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            rho, T, Y_e, nb, mb, mb*nb);
-            printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
-	            mu_n, mu_p, mu_e);
-            printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            nudens_0[0], nudens_0[1], nudens_0[2], nudens_0[3]);
-            printf(" nudens_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            nudens_1[0], nudens_1[1], nudens_1[2], nudens_1[3]);
             printf(" eta_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
 	            eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3]);
             printf(" eta_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
