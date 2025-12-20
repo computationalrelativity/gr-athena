@@ -585,6 +585,8 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+
   // XNSData object and read XNS data
   XNSData XNS;
   XNS.ReadData(h5_fname);
@@ -595,7 +597,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     XNS.WriteXNSDataToFile(v);
   }
 #endif
-  
+    
+  // container with idx / grids pertaining z4c
+  MB_info* mbi = &(pz4c->mbi);
+
 #ifdef Z4C_ASSERT_FINITE
   // as a sanity check (these should be over-written)
   pz4c->adm.psi4.Fill(NAN);
@@ -620,17 +625,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   */
 #endif
 
-  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pz4c->mbi);
-
   const int matter_interp_order = XNS.matter_interp_order;
   const int metric_interp_order = XNS.metric_interp_order;
   
   //---------------------------------------------------------------------------
   // Interpolate ADM metric
-
+  
   if(verbose)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
 
