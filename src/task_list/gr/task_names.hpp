@@ -89,14 +89,16 @@ const TaskID SEND_SCLR(53);
 const TaskID RECV_SCLR(54);
 const TaskID SETB_SCLR(55);
 
-const TaskID CALC_Z4CRHS(57);
-const TaskID INT_Z4C(58);
-const TaskID SEND_Z4C(59);
-const TaskID RECV_Z4C(60);
-const TaskID SETB_Z4C(61);
+const TaskID CALC_Z4CRHS(56);
+const TaskID INT_Z4C(57);
+const TaskID SEND_Z4C(58);
+const TaskID RECV_Z4C(59);
+const TaskID SETB_Z4C(60);
 
-const TaskID PROLONG_Z4C(62);
-const TaskID PHY_BVAL_Z4C(63);
+const TaskID PROLONG_Z4C(61);
+const TaskID PHY_BVAL_Z4C(62);
+
+const TaskID CCE_DUMP(63);
 
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
 
@@ -110,19 +112,19 @@ const TaskID RECV_HYDFLX(1);
 const TaskID RECV_FLDFLX(2);
 const TaskID RECV_SCLRFLX(3);
 
-const TaskID CALC_HYDFLX(10);
 const TaskID CALC_FLDFLX(11);
-const TaskID CALC_SCLRFLX(14);
 
 const TaskID SEND_HYDFLX(20);
 const TaskID SEND_FLDFLX(21);
 const TaskID SEND_SCLRFLX(22);
 
-const TaskID INT_HYD(30);
-const TaskID INT_FLD(31);
-const TaskID INT_SCLR(32);
+// collective hydro/scalar integration
+const TaskID CALC_HYDSCLRFLX(24);
+const TaskID INT_HYDSCLR(25);
+const TaskID ADD_FLX_DIV(26);
+const TaskID SRCTERM_HYD(27);
 
-const TaskID SRCTERM_HYD(45);
+const TaskID INT_FLD(31);
 
 const TaskID CLEAR_ALLBND(60);
 
@@ -171,6 +173,8 @@ const TaskID PHY_BVAL_Z4C(32);
 const TaskID ALG_CONSTR(40);
 
 const TaskID Z4C_TO_ADM(50);
+
+const TaskID CCE_DUMP(52);
 
 const TaskID CLEAR_ALLBND(60);
 

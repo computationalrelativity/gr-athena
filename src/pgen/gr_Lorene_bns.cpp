@@ -395,6 +395,26 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   return;
 }
 
+// BD: TODO- shift to standard enroll?
+void MeshBlock::InitUserMeshBlockData(ParameterInput *pin)
+{
+  const bool use_fb = precon->xorder_use_fb;
+  AllocateUserOutputVariables(use_fb + M1_ENABLED * 4);
+}
+
+void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
+{
+  MeshBlock * pmb = this;
+
+  const bool use_fb = precon->xorder_use_fb;
+
+  if (use_fb)
+  CC_GLOOP3(k, j, i)
+  {
+    user_out_var(0,k,j,i) = phydro->fallback_mask(k,j,i);
+  }
+}
+
 void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
   // Reset the status
   AA c2p_status;

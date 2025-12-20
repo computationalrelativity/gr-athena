@@ -47,6 +47,11 @@ public:
                         "wr_dfloor",
                         0.0)
     ),
+    wr_rho_floor(
+      pin->GetOrAddReal("M1_opacities",
+                        "wr_rho_floor",
+                        0.0)
+    ),
     wr_equilibrium_fallback_thin(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_equilibrium_fallback_thin",
@@ -95,6 +100,16 @@ public:
     correction_adjust_upward(
       pin->GetOrAddBoolean("M1_opacities",
                            "correction_adjust_upward",
+                           false)
+    ),
+    correction_uses_fiducial_frame(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correction_uses_fiducial_frame",
+                           false)
+    ),
+    correct_emissivity_nux(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "correct_emissivity_nux",
                            false)
     ),
     fix_num_passes(
@@ -155,6 +170,13 @@ public:
 
     // Weakrates only works for 1 group
     assert(N_GRPS==1);
+
+    // logic simplified with retained eql; needs a patch otherwise:
+    // TODO: BD- could be fixed to not need this (minor)
+    if (!pm1->opt.retain_equilibrium)
+    {
+      assert(false);
+    }
 
     // Create instance of WeakRatesNeutrinos::WeakRates
     // Set EoS from PS
@@ -363,6 +385,7 @@ public:
 #if FLUID_ENABLED
     Real D = pmy_block->phydro->u(IDN,k,j,i);
     need_calc = need_calc and (pmy_block->phydro->u(IDN,k,j,i) > wr_dfloor);
+    need_calc = need_calc and (pm1->hydro.sc_w_rho(k,j,i) > wr_rho_floor);
 #endif // FLUID_ENABLED
 
     return need_calc;
@@ -516,7 +539,8 @@ public:
     const Real dt,
     const Real rho, const Real T, const Real Y_e,
     const Real tau,
-    const cmp_eql_dens_ini initial_guess
+    const cmp_eql_dens_ini initial_guess,
+    const bool using_averaging_fix  // call with true to prevent inf. rec.
   )
   {
     int ierr_we = 0;
@@ -627,7 +651,9 @@ public:
       if (ierr_we)
       {
         // Try averaging fix if applicable
-        if (!use_averages && use_averaging_fix)
+        if (!use_averages &&
+            use_averaging_fix &&
+            !using_averaging_fix)
         {
           Real rho, T, Y_e;
           GetHydroAveraged(k, j, i, rho, T, Y_e);
@@ -637,7 +663,8 @@ public:
             dt,
             rho, T, Y_e,
             tau,
-            initial_guess
+            initial_guess,
+            true
           );
         }
         return ierr_we;
@@ -1044,29 +1071,41 @@ public:
     const int ix_g = 0;  // only 1 group
     for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
-      const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
+      // const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
+      // const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
 
-      // equilibrium and incoming energies
-      Real avg_nrg_eql = sc_J / sc_n;
-      avg_nrg_eql = (!std::isfinite(avg_nrg_eql) || avg_nrg_eql < 0.0)
-        ? 0.0
-        : avg_nrg_eql;
+      // equilibrium and incoming energies ------------------------------------
+      Real avg_nrg_eql = (pm1->eql.sc_n(ix_g,ix_s)(k,j,i) > 0)
+        ? (pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
+           pm1->eql.sc_n(ix_g,ix_s)(k,j,i))
+        : 0.0;
 
-      // Compute directly  ----------------------------------------------------
-      AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
-      AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
-      AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
+      Real avg_nrg_inc;
 
-      Real dotFv (0.0);
-      for (int a=0; a<N; ++a)
+      if (correction_uses_fiducial_frame)
       {
-        dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+        avg_nrg_inc = std::max(
+          pm1->rad.sc_J(ix_g,ix_s)(k,j,i) /
+          pm1->rad.sc_n(ix_g,ix_s)(k,j,i),
+          0.0
+        );
       }
-      Real avg_nrg_inc = std::max(
-        W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
-        0.0
-      );
+      else
+      {
+        AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
+        AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+        AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
+
+        Real dotFv (0.0);
+        for (int a=0; a<N; ++a)
+        {
+          dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+        }
+        avg_nrg_inc = std::max(
+          W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
+          0.0
+        );
+      }
       // ----------------------------------------------------------------------
 
       // Prepare correction factors
@@ -1119,8 +1158,11 @@ public:
       if (ix_s == NUX)
       {
         // Heavy lepton
-        eta_0 = cf * eta_0;
-        eta = cf * eta;
+        if (correct_emissivity_nux)
+        {
+          eta_0 = cf * eta_0;
+          eta = cf * eta;
+        }
 
         kap_a_0 = (n > 0) ? eta_0 / n : 0.0;
         kap_a   = (J > 0) ? eta / J : 0.0;
@@ -1228,6 +1270,18 @@ public:
               << pm1->rad.sc_J(0, NUA)(k, j, i) << ";\n"
               << "  pm1->rad.sc_J(0,NUX)(k,j,i) = "
               << pm1->rad.sc_J(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUE)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUA)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_n(0,NUX)(k,j,i) = "
+              << pm1->eql.sc_n(0, NUX)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUE)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUE)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUA)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUA)(k, j, i) << ";\n"
+              << "  pm1->eql.sc_J(0,NUX)(k,j,i) = "
+              << pm1->eql.sc_J(0, NUX)(k, j, i) << ";\n"
               << "  pm1->geom.sc_oo_sqrt_det_g(k, j, i) = "
               << pm1->geom.sc_oo_sqrt_det_g(k, j, i) << ";\n";
 
@@ -1314,7 +1368,17 @@ public:
 
     M1_FLOOP3(k, j, i)
     {
+      // check for density cut / ahf based cuts
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+      bool ahf_cut = (
+        pm1->opt_excision.m1_disable_ahf_opac &&
+        (pm1->pmy_block->phydro->excision_mask(k,j,i) < 1)
+      );
+
+      if (!(pm1->MaskGet(k, j, i) && AboveCutoff(k,j,i)) || ahf_cut)
+#else
       if (!(pm1->MaskGet(k, j, i) && AboveCutoff(k,j,i)))
+#endif  // Z4C_WITH_HYDRO_ENABLED
       {
         calc_state(k,j,i) = cstate::none;
         SetZeroRadMatAtPoint(k, j, i);
@@ -1373,7 +1437,8 @@ public:
           dt,
           rho, T, Y_e,
           tau,
-          cmp_eql_dens_ini::current_sv
+          cmp_eql_dens_ini::current_sv,
+          false
         );
 
         // BD: TODO- DEBUG
@@ -1430,7 +1495,8 @@ public:
               dt,
               rho, T, Y_e,
               tau,
-              ini_method
+              ini_method,
+              false
             );
 
             // BD: TODO- DEBUG
@@ -1641,6 +1707,7 @@ private:
   enum {NUE=0, NUA=1, NUX=2};
 
   const Real wr_dfloor;
+  const Real wr_rho_floor;
   const bool wr_equilibrium_fallback_thin;
   const bool wr_equilibrium_fallback_zero;
   const bool wr_fix_nn_densities;
@@ -1651,7 +1718,9 @@ private:
   const bool wr_flag_equilibrium_species;
   const bool wr_flag_equilibrium_nue_equals_nua;
   const bool wr_flag_equilibrium_no_nux;
+  const bool correct_emissivity_nux;
   const bool correction_adjust_upward;
+  const bool correction_uses_fiducial_frame;
 
   // Options for controlling weakrates opacities
   Real opacity_tau_trap;

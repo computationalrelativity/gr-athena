@@ -189,7 +189,7 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
 
 void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
 {
-#if Z4C_ENABLED
+#if defined(Z4C_WITH_HYDRO_ENABLED)
   MeshBlock *pmb = nullptr;
   BoundaryValues *pbval = nullptr;
 
@@ -209,6 +209,50 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
     ph = pmb->phydro;
     ps = pmb->pscalars;
     pz = pmb->pz4c;
+
+    // Try to smooth temperature with nn avg:
+    if (pmb->peos->smooth_temperature)
+    {
+      const bool exclude_first_extrema = true;
+
+      AA src;
+      AA tar;
+
+      int il = 0;
+      int iu = pmb->ncells1-1;
+      int jl = 0;
+      int ju = pmb->ncells2-1;
+      int kl = 0;
+      int ku = pmb->ncells3-1;
+
+      src.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+      tar.InitWithShallowSlice(ph->w1, 0, 1);
+
+      pmb->peos->NearestNeighborSmooth(tar, src, il, iu, jl, ju, kl, ku,
+                                       exclude_first_extrema);
+
+      CC_GLOOP3(k,j,i)
+      {
+        ph->derived_ms(IX_T,k,j,i) = tar(k,j,i);
+      }
+
+      if (pmb->peos->recompute_enthalpy)
+      CC_GLOOP3(k,j,i)
+      {
+        Real Y[MAX_SPECIES] = {0.0};
+        for (int l=0; l<NSCALARS; l++)
+        {
+          Y[l] = ps->r(l,k,j,i);
+        }
+
+        Real mb = pmb->peos->GetEOS().GetBaryonMass();
+        const Real n = ph->w(IDN,k,j,i) / mb;
+
+        ph->derived_ms(IX_ETH,k,j,i) = pmb->peos->GetEOS().GetEnthalpy(
+          n, ph->derived_ms(IX_T,k,j,i), Y
+        );
+      }
+    }
 
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);
 

@@ -88,10 +88,15 @@ void M1::PopulateOptionsClosure(ParameterInput *pin)
   }
 
   // various settings for methods
-  opt_closure.eps_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_closure.abs_tol     = GoA_Real("abs_tol",     1e-10);
+  opt_closure.fcn_tol     = GoA_Real("fcn_tol",     0.0);
+
+  opt_closure.bnd_xi_delta = GoA_Real("bnd_xi_delta", 0.0);
+
   opt_closure.eps_Z_o_E   = GoA_Real("eps_Z_o_E",   1e-20);
   opt_closure.fac_Z_o_E   = GoA_Real("fac_Z_o_E",   0.01);
 
+  opt_closure.fail_on_npg = GoA_bool("fail_on_npg", false);
   opt_closure.fallback_brent = GoA_bool("fallback_brent", true);
   opt_closure.fallback_thin = GoA_bool("fallback_thin", false);
 
@@ -197,14 +202,10 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.iter_max     = GoA_int("iter_max", 128);
   opt_solver.iter_max_rst = GoA_int("iter_max_rst", 10);
 
-  opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
-
   opt_solver.src_lim = GoA_Real("src_lim", -1.0);
 
   opt_solver.limit_src_fluid = GoA_bool("limit_src_fluid",  false);
   opt_solver.limit_src_radiation = GoA_bool("limit_src_radiation",  false);
-
-  opt_solver.use_Neighbor = GoA_bool("use_Neighbor",  false);
 
   opt_solver.src_lim_Ye_min = GoA_Real("src_lim_Ye_min", -1.0);
   opt_solver.src_lim_Ye_max = GoA_Real("src_lim_Ye_max", -1.0);
@@ -253,6 +254,20 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   );
 
   opt_solver.verbose = GoA_bool("verbose", false);
+
+
+  // options related to solver (excision)
+  opt_excision.excise_m1_damping =
+      pin->GetOrAddBoolean("excision", "excise_m1_damping", false);
+
+  opt_excision.m1_damping_factor =
+    pin->GetOrAddReal("excision", "m1_damping_factor", 0.69);
+
+  opt_excision.m1_disable_ahf_eql =
+    pin->GetOrAddBoolean("excision", "m1_disable_ahf_eql", false);
+
+  opt_excision.m1_disable_ahf_opac =
+    pin->GetOrAddBoolean("excision", "m1_disable_ahf_opac", false);
 }
 
 void M1::PopulateOptions(ParameterInput *pin)
@@ -446,6 +461,8 @@ void M1::PopulateOptions(ParameterInput *pin)
 
   // debugging
   opt.value_inject = pin->GetOrAddBoolean("problem", "value_inject", false);
+
+  opt.disable_fluxes = pin->GetOrAddBoolean("M1", "disable_fluxes", false);
 
   // fix issues
   opt.zero_fix_sources = pin->GetOrAddBoolean("M1", "zero_fix_sources", true);

@@ -54,9 +54,6 @@
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 
-// Combined Hydro/Passive scalar recon
-#define @DBG_COMBINED_HYDPA@
-
 // If activated, use only cons R/P on MeshBlock BC; and phys BC
 #define @DBG_USE_CONS_BC@
 
@@ -66,6 +63,9 @@
 
 // BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
 #define @DBG_FALLBACK_NO_TABLE_LIMITS@
+
+// BD: If enabled, task-list completion of comm is barrier prior to clear_allbnd
+#define @USE_COMM_DEPENDENCY@
 
 // BD: If enabled, allow for idempotency check in C2P
 #define NO_DBG_IDEMPOTENT_C2P

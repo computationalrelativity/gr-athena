@@ -525,8 +525,6 @@ Real Rescaling::CompensatedSummation(const variety_cs v_cs,
       pmb->js, pmb->je,
       pmb->is, pmb->ie
     );
-
-    pmb = pmb->next;
   }
 
   return FloatingPoint::KB_compensated(partial_KBN, 0, nmb-1);

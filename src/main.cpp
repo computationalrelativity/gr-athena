@@ -127,6 +127,8 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
+  
+  trgs.Add(tvar::Z4c_RWZ, ovar::user, true, allow_rescale_dt);
 
 #if CCE_ENABLED
   trgs.Add(tvar::Z4c_CCE, ovar::user, true, allow_rescale_dt);
@@ -210,7 +212,8 @@ int main(int argc, char *argv[])
     }
 
     gra::evolve::TrackerExtrema(ptlc, trgs, pmesh);
-    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh);
+    const bool is_final = false;
+    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh, is_final);
 
     //-------------------------------------------------------------------------
     // Update triggers as required
@@ -299,6 +302,7 @@ int main(int argc, char *argv[])
   {
     const bool is_final = true;
     gra::MakeOutputs(is_final, pinput, pmesh, pouts);
+    gra::evolve::SurfaceReductions(ptlc, trgs, pmesh, is_final);
   }
 
   // BD: TODO - what is even the logic here?

@@ -133,31 +133,29 @@ EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
 int WeakOpacityMod::Scattering_cgs(Real rho, Real temp, Real ye, Real& sct_n_nue, Real& sct_n_nua, Real& sct_n_nux, Real& sct_e_nue, Real& sct_e_nua, Real& sct_e_nux) {
   int iout = 0;
 
-// Broken out into separate function
-/*
-#define WEAK_RATES_ITS_ME
-#include "inc/weak_rates_guts.inc"
-#undef WEAK_RATES_ITS_ME
-*/
-
-Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
-EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
-
-  /* TODO? Our EoS does not currently implement nuclei fractions, and we
-           don't intend to use this opacity lib anyway, so I'm not 
-           bothering to implement them, and just setting the heavy 
-           nuclei to zero and the proton/neutron fractions with ye.
+  // Broken out into separate function
+  /*
+  #define WEAK_RATES_ITS_ME
+  #include "inc/weak_rates_guts.inc"
+  #undef WEAK_RATES_ITS_ME
   */
-  
-  Real xp = ye;
-  Real xn = 1-ye;
-  Real abar = 1.0;
-  Real zbar = 1.0;
-  Real xh = 0.0;
 
-// ---------------------------------------------------------------------
-// SCATTERING
-// ---------------------------------------------------------------------
+  Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
+  EoS->GetEtas(rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
+
+  Real xn, xp, xh;
+  Real abar, zbar;
+
+  EoS->GetFracs(
+    rho, temp, ye,
+    xn, xp, xh,
+    abar, zbar
+  );
+
+
+  // ---------------------------------------------------------------------
+  // SCATTERING
+  // ---------------------------------------------------------------------
 
   // Eqs (A17) with different species plus the A21 which multiplies
   // the mass fraction

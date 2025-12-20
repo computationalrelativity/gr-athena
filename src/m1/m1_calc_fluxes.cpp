@@ -18,6 +18,22 @@ namespace M1 {
 // Method is 2nd order with high-Peclet limit fix
 void M1::CalcFluxes(AthenaArray<Real> & u, const bool use_lo)
 {
+  if (opt.disable_fluxes)
+  {
+    vars_Flux & flx = (use_lo) ? fluxes_lo : fluxes;
+
+    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    for (int ix_d=0; ix_d<N; ++ix_d)
+    {
+      flx.sc_nG(ix_g,ix_s,ix_d).Fill(0);
+      flx.sc_E(ix_g,ix_s,ix_d).Fill(0);
+      flx.sp_F_d(ix_g,ix_s,ix_d).Fill(0);
+    }
+
+    return;
+  }
+
   // retain then overwrite setting if we want to force lo flux
   opt_flux_variety ofv = opt.flux_variety;
 

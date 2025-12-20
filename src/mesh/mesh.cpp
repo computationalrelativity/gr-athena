@@ -51,6 +51,7 @@
 #include "../z4c/z4c.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
+#include "../z4c/wave_extract_rwz.hpp"
 #include "../z4c/ahf.hpp"
 
 #if CCE_ENABLED
@@ -337,6 +338,14 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
     }
+    int nrad_rwz = pin->GetOrAddInteger("rwz_extraction", "num_radii", 0);
+    if (nrad_rwz > 0) {
+      pwave_extr_rwz.reserve(nrad_rwz);
+      for(int n = 0; n < nrad_rwz; ++n){
+        pwave_extr_rwz.push_back(new WaveExtractRWZ(this, pin, n));
+      }
+    }
+
 #if CCE_ENABLED
     // CCE
     int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
@@ -830,6 +839,14 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
     }
+    int nrad_rwz = pin->GetOrAddInteger("rwz_extraction", "num_radii", 0);
+    if (nrad_rwz > 0) {
+      pwave_extr_rwz.reserve(nrad_rwz);
+      for(int n = 0; n < nrad_rwz; ++n){
+        pwave_extr_rwz.push_back(new WaveExtractRWZ(this, pin, n));
+      }
+    }
+ 
 #if CCE_ENABLED
     // CCE
     int ncce = pin->GetOrAddInteger("cce", "num_radii", 0);
@@ -1194,6 +1211,11 @@ Mesh::~Mesh() {
       delete pwextr;
     }
     pwave_extr.resize(0);
+
+   for (auto pwextr_rwz : pwave_extr_rwz) {
+      delete pwextr_rwz;
+    }
+    pwave_extr_rwz.resize(0);
 
 #if CCE_ENABLED
     for (auto cce : pcce) {

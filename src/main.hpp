@@ -37,6 +37,7 @@
 #include "utils/utils.hpp"
 
 #include "z4c/wave_extract.hpp"
+#include "z4c/wave_extract_rwz.hpp"
 #include "z4c/puncture_tracker.hpp"
 #include "z4c/ahf.hpp"
 #ifdef EJECTA_ENABLED
@@ -881,7 +882,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   }
 
   // Derivatives of ADM metric and other auxiliary computations needed below
-  if (trgs.IsSatisfied(tvar::Z4c_AHF))
+  if (trgs.IsSatisfied(tvar::Z4c_AHF) or trgs.IsSatisfied(tvar::Z4c_RWZ))
   {
     pmesh->CalculateStoreMetricDerivatives();
 
@@ -912,17 +913,42 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 #if CCE_ENABLED
   for (auto cce : pmesh->pcce)
   {
-    if (pmesh->ncycle % cce->freq != 0) continue;
+    // BD: TODO- double check the following
+    const Real dt_cce = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
 
-    int cce_iter = pmesh->ncycle / cce->freq;
+    if (dt_cce > 0)
+    {
+      // if (pmesh->ncycle % cce->freq != 0) continue;
+      // int cce_iter = pmesh->ncycle / cce->freq;
 
-    cce->ReduceInterpolation();
-    cce->DecomposeAndWrite(cce_iter, time_end_stage);
+      const Real time = pmesh->time;
+
+      // Trigger when time is (within tolerance) an integer multiple of dt_cce
+      if (std::fabs(std::fmod(time, dt_cce)) > 1e-12)
+      {
+        continue;
+      }
+
+      int cce_iter = static_cast<int>(std::round(time / dt_cce));
+
+      cce->ReduceInterpolation();
+      cce->DecomposeAndWrite(cce_iter, time_end_stage);
+    }
   }
 #endif
 
   // RWZ wave extraction
-  //TODO
+  if (trgs.IsSatisfied(tvar::Z4c_RWZ))
+  {
+    for (auto prwz : pmesh->pwave_extr_rwz)
+    {
+      //prwz->FlagSpherePointsContainedMesh();
+      prwz->MetricToSphere();
+      prwz->BackgroundReduce();
+      prwz->MultipoleReduce();
+      prwz->Write(ncycle_end_stage, time_end_stage);
+    }
+  }
 
   // AHF
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
@@ -1095,17 +1121,25 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
 
 inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
                               gra::triggers::Triggers &trgs,
-                              Mesh *pmesh)
+                              Mesh *pmesh,
+                              const bool is_final)
 {
   // Extrema tracker is based on propagated state vector
-  const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  Real time_end_stage   = pmesh->time;
+  Real ncycle_end_stage = pmesh->ncycle;
+
+  if (!is_final)
+  {
+    time_end_stage += pmesh->dt;
+    ncycle_end_stage += 1;
+  }
 
   for (auto psurf : pmesh->psurfs)
   {
-    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix))
+    if (trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix) ||
+        is_final)
     {
-      psurf->Reduce(ncycle_end_stage, time_end_stage);
+      psurf->Reduce(ncycle_end_stage, time_end_stage, is_final);
     }
   }
 }

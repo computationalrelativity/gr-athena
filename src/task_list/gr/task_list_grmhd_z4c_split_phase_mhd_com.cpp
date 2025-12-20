@@ -53,10 +53,18 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
+#ifdef USE_COMM_DEPENDENCY
+  // Accumulate MPI communication tasks:
+  TaskID COMM = NONE;
+#endif
+
   Add(CONS2PRIMP, NONE, &GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical);
 
   Add(SEND_HYD, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendHydro);
   Add(RECV_HYD, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveHydro);
+#ifdef USE_COMM_DEPENDENCY
+  COMM = COMM | SEND_HYD | RECV_HYD;
+#endif
 
   Add(SETB_HYD, RECV_HYD, &GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro);
 
@@ -65,6 +73,10 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
     Add(SEND_SCLR, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendScalars);
     Add(RECV_SCLR, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveScalars);
 
+#ifdef USE_COMM_DEPENDENCY
+    COMM = COMM | SEND_SCLR | RECV_SCLR;
+#endif
+
     Add(SETB_SCLR, RECV_SCLR, &GRMHD_Z4c_Phase_MHD_com::SetBoundariesScalars);
   }
 
@@ -72,6 +84,10 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
   {
     Add(SEND_FLD, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendField);
     Add(RECV_FLD, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveField);
+#ifdef USE_COMM_DEPENDENCY
+    COMM = COMM | SEND_FLD | RECV_FLD;
+#endif
+
     Add(SETB_FLD, RECV_FLD,   &GRMHD_Z4c_Phase_MHD_com::SetBoundariesField);
   }
 
@@ -98,8 +114,13 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
         &GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd);
   }
 
+#ifdef USE_COMM_DEPENDENCY
+  // We are done with MPI communication
+  Add(CLEAR_ALLBND, COMM, &GRMHD_Z4c_Phase_MHD_com::ClearAllBoundary);
+#else
   // We are done for the (M)HD phase
   Add(CLEAR_ALLBND, PHY_BVAL_HYD, &GRMHD_Z4c_Phase_MHD_com::ClearAllBoundary);
+#endif
 
 }
 

@@ -11,6 +11,7 @@
 
 #include <cassert> // assert
 #include <iostream>
+#include <iomanip>  // <<<<<<<<<< add this
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -19,7 +20,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/interp_table.hpp" // InterpTable2D
-#include "../utils/inputs/hdf5_reader.hpp" // HDF5TableLoader
+#include "../inputs/hdf5_reader.hpp" // HDF5TableLoader
 #include "../z4c/z4c.hpp"
 #include "../hydro/hydro.hpp"
 #include "../eos/eos.hpp"
@@ -28,6 +29,10 @@
 #include "../m1/m1.hpp"
 #include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
+
+// Lagrangian ND interpolation
+#include "../utils/lagrange_interp.hpp"
+
 
 // Only proceed if HDF5 enabled
 #ifdef HDF5OUTPUT
@@ -41,10 +46,11 @@
 #else
 #define H5T_REAL H5T_NATIVE_DOUBLE
 #endif
+#endif
 
 using namespace std;
 
-namespace {
+namespace XNS {
 
   
 #define CHECK_V2 (1) // just a check on v^2 computation
@@ -53,7 +59,7 @@ namespace {
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
     "alpha", "beta", "psi", 
-    "rho", "pres", "vphi"
+    "rho", "pres", "vphi",
     "bpol", "btor",
     "b3", "bpolr", "bpolt", // B^\phi, B^r, B^\theta
     "btot",
@@ -113,106 +119,207 @@ namespace {
       for (int v = 0; v < NXNSVars; ++v) {
         xnsdata[v].DeleteAthenaArray();
       }
+      xns_radius.DeleteAthenaArray();
+      xns_theta.DeleteAthenaArray();
     }
     
-    void ReadData(string h5filename) {
-      
-      // Read attributes from HDF5 file 
-      H5File file(h5filename, H5F_ACC_RDONLY);
-      Group root = file.openGroup("/");
-      
-      Attribute attr = root.openAttribute("NR");
-      attr.read(attr.getDataType(), &NR);
+    void ReadData(const std::string &h5filename) {
 
-      Attribute attr = root.openAttribute("NTH");
-      attr.read(attr.getDataType(), &NTH);
-      
-      Attribute attr = root.openAttribute("b_units");
-      attr.read(attr.getDataType(), &b_units);
-      
-      Attribute attr = root.openAttribute("r_units");
-      attr.read(attr.getDataType(), &r_units);
-      
-      Attribute attr = root.openAttribute("rho_units");
-      attr.read(attr.getDataType(), &rho_units);
+        // --------------------------------------------------
+        // Open file and root group
+        // --------------------------------------------------
+        hid_t file = H5Fopen(h5filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        assert(file >= 0);
 
-      //TODO: Add this attribute to the XNS HDF5 (xns.py)
-      //Attribute attr = root.openAttribute("mb");
-      //attr.read(attr.getDataType(), &mb);
-      mb = 1.0;
+        hid_t root = H5Gopen(file, "/", H5P_DEFAULT);
+        assert(root >= 0);
 
-      
-      // Read radial coordinate
-      DataSet dataset = file.openDataSet("R");
-      DataSpace dataspace = dataset.getSpace();
+        // --------------------------------------------------
+        // Read scalar attributes
+        // --------------------------------------------------
+        auto readIntAttr = [&](const char* name, int &val) {
+            if (H5Aexists(root, name) > 0) {
+                hid_t attr_id = H5Aopen(root, name, H5P_DEFAULT);
+                H5Aread(attr_id, H5T_NATIVE_INT, &val);
+                H5Aclose(attr_id);
+                }
+            };
+        auto readRealAttr = [&](const char* name, Real &val) {
+            if (H5Aexists(root, name) > 0) {
+                hid_t attr_id = H5Aopen(root, name, H5P_DEFAULT);
+                double tmp = 0.0;
+                H5Aread(attr_id, H5T_NATIVE_DOUBLE, &tmp);
+                val = static_cast<Real>(tmp);
+                H5Aclose(attr_id);
+                }
+            };
+        readIntAttr("NR", NR);
+        readIntAttr("NTH", NTH);
+        readRealAttr("bfield_unit", b_units);
+        readRealAttr("length_unit", r_units);
+        readRealAttr("massdens_unit", rho_units);
 
-      int rank = dataspace.getSimpleExtentNdims();
-      assert(rank == 1);
+        //std::cerr << "NR        = " << NR << "\n";
+        //std::cerr << "NTH       = " << NTH << "\n";
+        //std::cerr << "b_units   = " << b_units << "\n";
+        //std::cerr << "r_units   = " << r_units << "\n";
+        //std::cerr << "rho_units = " << rho_units << "\n";
 
-      hsize_t dims[1];
-      dataspace.getSimpleExtentDims(dims, nullptr);
-      assert(NR == static_cast<int>(dims[0]));
-      
-      std::vector<double> rbuffer(NR);
-      dataset.read(rbuffer.data(), PredType::NATIVE_DOUBLE);
+        //H5Gclose(root);
 
-      xns_radius.NewAthenaArray(NR);
-      for (int i=0; i < NR; ++i)
-        xns_radius(i) = rbuffer[i];
 
-      
-      // Read theta coordinate
-      DataSet dataset = file.openDataSet("TH");
-      DataSpace dataspace = dataset.getSpace();
+        // Optional attribute (not in file yet)
+        mb = 1.0;
 
-      int rank = dataspace.getSimpleExtentNdims();
-      assert(rank == 1);
+        // --------------------------------------------------
+        // Read radial coordinate R (1D)
+        // --------------------------------------------------
+        {
+            hid_t dset = H5Dopen(file, "R", H5P_DEFAULT);
+            assert(dset >= 0);
 
-      hsize_t dims[1];
-      dataspace.getSimpleExtentDims(dims, nullptr);
-      assert(NTH == static_cast<int>(dims[0]));
-      
-      std::vector<double> tbuffer(NTH);
-      dataset.read(tbuffer.data(), PredType::NATIVE_DOUBLE);
-      
-      xns_theta.NewAthenaArray(NTH);
-      for (int i = 0; i < NTH; ++i)
-        xns_theta(i) = tbuffer[i];
+            hid_t space = H5Dget_space(dset);
+            int rank = H5Sget_simple_extent_ndims(space);
+            assert(rank == 1);
 
-      
-      // Prepare 2d data buffers
-      for (int v = 0; v < NXNSVars; ++v) {
-        xnsdata[v].NewAthenaArray(NTH, NR);
-      }
-      const int ntot = NR*NTH;
+            hsize_t dims[1];
+            H5Sget_simple_extent_dims(space, dims, nullptr);
+            assert(NR == static_cast<int>(dims[0]));
 
-      
-      // Read datasets (2d fields)
-      for (int v = 0; v < NXNSVars; ++v) {
-        
-        // Open dataset
-        DataSet dataset = file.openDataSet(XNS_dataset[v]);
-        DataSpace dataspace = dataset.getSpace();
-        
-        // Get dataset dimensions
-        hsize_t dims[2];
-        dataspace.getSimpleExtentDims(dims, nullptr);
-        assert(NTH == static_cast<int>(dims[0]));
-        assert(NR == static_cast<int>(dims[1]));
-        
-        // Read dataset
-        std::vector<double> dbuffer(ntot);
-        dataset.read(dbuffer.data(), PredType::NATIVE_DOUBLE);
-        
-        // Copy to Athena array
-        for (int i = 0; i < NTH; ++i)
-          for (int j = 0; j < NR; ++j)
-            xnsdata[v](i,j) = dbuffer[i * NR + j];
-        
-      }
-      
-      file.close();
+            std::vector<double> rbuffer(NR);
+            H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+                H5P_DEFAULT, rbuffer.data());
+
+            xns_radius.NewAthenaArray(NR);
+            for (int i = 0; i < NR; ++i) {
+            xns_radius(i) = rbuffer[i];
+            }
+
+            H5Sclose(space);
+            H5Dclose(dset);
+            }
+
+        // --------------------------------------------------
+        // Read theta coordinate TH (1D)
+        // --------------------------------------------------
+        {
+            hid_t dset = H5Dopen(file, "TH", H5P_DEFAULT);
+            assert(dset >= 0);
+
+            hid_t space = H5Dget_space(dset);
+            int rank = H5Sget_simple_extent_ndims(space);
+            assert(rank == 1);
+
+            hsize_t dims[1];
+            H5Sget_simple_extent_dims(space, dims, nullptr);
+            assert(NTH == static_cast<int>(dims[0]));
+
+            std::vector<double> tbuffer(NTH);
+            H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+                H5P_DEFAULT, tbuffer.data());
+
+            xns_theta.NewAthenaArray(NTH);
+            for (int i = 0; i < NTH; ++i) {
+                xns_theta(i) = tbuffer[i];
+            }
+
+            H5Sclose(space);
+            H5Dclose(dset);
+        }
+
+        // --------------------------------------------------
+        // Allocate 2D XNS data arrays
+        // --------------------------------------------------
+        for (int v = 0; v < NXNSVars; ++v) {
+            xnsdata[v].NewAthenaArray(NTH, NR);
+        }
+
+        const int ntot = NTH * NR;
+
+        // --------------------------------------------------
+        // Read 2D datasets
+        // --------------------------------------------------
+        for (int v = 0; v < NXNSVars; ++v) {
+
+            hid_t dset = H5Dopen(file, XNS_dataset[v], H5P_DEFAULT);
+            assert(dset >= 0);
+
+            hid_t space = H5Dget_space(dset);
+
+            hsize_t dims[2];
+            H5Sget_simple_extent_dims(space, dims, nullptr);
+            assert(NTH == static_cast<int>(dims[0]));
+            assert(NR  == static_cast<int>(dims[1]));
+
+            std::vector<double> dbuffer(ntot);
+            H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+                    H5P_DEFAULT, dbuffer.data());
+
+            for (int i = 0; i < NTH; ++i) {
+                for (int j = 0; j < NR; ++j) {
+                    xnsdata[v](i, j) = dbuffer[i * NR + j];
+                }
+            }
+
+            H5Sclose(space);
+            H5Dclose(dset);
+        }
+
+        // --------------------------------------------------
+        // Cleanup
+        // --------------------------------------------------
+        H5Gclose(root);
+        H5Fclose(file);   
     }
+
+    void WriteXNSGridToFile(const std::string& fname = "xns_grid.txt") const {
+        std::ofstream fout(fname.c_str());
+        fout << std::setprecision(16);
+
+        fout << "# XNS grid\n";
+        fout << "# NR = " << NR << "  NTH = " << NTH << "\n";
+        fout << "# Columns: theta  radius\n";
+
+        const int nmax = std::max(NTH, NR);
+        for (int i = 0; i < nmax; ++i) {
+            if (i < NTH) fout << xns_theta(i);
+            else         fout << "NaN";
+
+            fout << " ";
+
+            if (i < NR)  fout << xns_radius(i);
+            else         fout << "NaN";
+
+            fout << "\n";
+        }
+
+        fout.close();
+    }
+
+    void WriteXNSDataToFile(int v,
+                        const std::string& prefix = "xns_field_") const {
+        std::stringstream fname;
+        fname << prefix << v << ".txt";
+
+        std::ofstream fout(fname.str().c_str());
+        fout << std::setprecision(16);
+
+        fout << "# XNS data dump\n";
+        fout << "# field index v = " << v << "\n";
+        fout << "# Columns: theta  radius  value\n";
+
+        for (int i = 0; i < NTH; ++i) {
+            for (int j = 0; j < NR; ++j) {
+            fout << xns_theta(i) << " "
+                << xns_radius(j) << " "
+                << xnsdata[v](i,j) << "\n";
+            }
+            fout << "\n";  // separate theta slices
+        }
+
+        fout.close();
+    }
+
 
     void PrepareInterp(Real xp, Real yp, Real zp, int order) {
       // Interpolator of 2D variable at (r,theta) <- (x,y,z) 
@@ -224,18 +331,20 @@ namespace {
       int size[2];
       Real coord[2];
       
-      origin[0] = xns_theta[0]; 
-      origin[1] = xns_radius[0];
+      origin[0] = xns_theta(0); 
+      origin[1] = xns_radius(0);
 
       // NB Assumes uniform spacing!
-      delta[0] = xns_theta[1]-xns_theta[0];
-      delta[1] = xns_radius[1]-xns_radius[0];
+      delta[0] = xns_theta(1)-xns_theta(0);
+      delta[1] = xns_radius(1)-xns_radius(0);
       
       size[0] = NTH;
       size[1] = NR;
       
-      coord[0] = thetap;
-      coord[1] = rp;
+      coord[0] = thetap; //std::min(xns_theta(NTH-1),
+            //std::max(xns_theta(0), thetap));
+      coord[1] = rp; //std::min(xns_radius(NR-1),
+            //std::max(xns_radius(0), rp));
       
       if (order == metric_interp_order) {
         pinterp2_metric =
@@ -258,6 +367,7 @@ namespace {
         delete pinterp2_matter;
       }
     }
+
 
     Real Interp(int var, int order, int unit) {
       assert(unit >= 0 and unit < NUNITS);
@@ -317,35 +427,43 @@ namespace {
       // Given the components v^r, v^\theta, v^\phi and conf. fact.
       // returns Cartesian components of the 3-vector
       // and modulus
-
+      // Cylindrical radius and phi
+      Real rcylp = 0.0;
+      Real sinphi = 0.0;
+      Real cosphi = 0.0;
       Real rcylp2 = SQR(xp) + SQR(yp);
       if (rcylp2>0.0) {
-        Real rcylp = std::sqrt(rcylp2); // = r sin(theta)
-        Real sinphi = yp/rcylp;
-        Real cosphi = xp/rcylp;
+        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        sinphi = yp/rcylp;
+        cosphi = xp/rcylp;
       } else {
-        Real rcylp = 0.0;
-        Real sinphi = 0.0;
-        Real cosphi = 0.0;
+        rcylp = 0.0;
+        sinphi = 0.0;
+        cosphi = 0.0;
       }
 
+
+      // Spherical radius and theta
+      Real rp = 0.0;
+      Real sintheta = 0.0;
+      Real costheta = 0.0;
       Real rp2 = SQR(xp) + SQR(yp) + SQR(zp);
       if (rp2>0.0) {
-        Real rp = std::sqrt(r2); 
-        Real sintheta = rcylp/rp;
-        Real costheta = zp/rp;
+        rp = std::sqrt(rp2); 
+        sintheta = rcylp/rp;
+        costheta = zp/rp;
       } else {
-        Real rp = 0.0;
-        Real sintheta = 0.0;
-        Real costheta = 0.0;
+        rp = 0.0;
+        sintheta = 0.0;
+        costheta = 0.0;
       }
 
       // v^i
       vx = vr * sintheta * cosphi + vtheta * costheta * cosphi - vphi * sinphi;
       vy = vr * sintheta * sinphi + vtheta * costheta * sinphi + vphi * cosphi;
-      vz = vr * costheta * - vtheta * sintheta;
+      vz = vr * costheta - vtheta * sintheta;
 
-      // v_i = psi^4 \delta_ij v^j
+      // v_i v^i =  \psi^4 \delta_ij v^j v^i
       return psi4 *(SQR(vx) + SQR(vy) + SQR(vz));
     }
 
@@ -356,33 +474,41 @@ namespace {
       // Given the non-zero component v^\phi and conf. fact.
       // returns Cartesian components of the 3-vector
       // and modulus
-
+      Real rcylp = 0.0;
+      Real sinphi = 0.0;
+      Real cosphi = 0.0;
       Real rcylp2 = SQR(xp) + SQR(yp);
       if (rcylp2>0.0) {
-        Real rcylp = std::sqrt(rcylp2); // = r sin(theta)
-        Real sinphi = yp/rcylp;
-        Real cosphi = xp/rcylp;
+        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        sinphi = yp/rcylp;
+        cosphi = xp/rcylp;
       } else {
-        Real rcylp = 0.0;
-        Real sinphi = 0.0;
-        Real cosphi = 0.0;
+        rcylp = 0.0;
+        sinphi = 0.0;
+        cosphi = 0.0;
       }
       
       vx = - vphi * sinphi; 
       vy =   vphi * cosphi;
       vz = 0.0;
       return psi4 * SQR(vphi);
-    }
+    } 
     
-  } XNS;
+};
+
+string h5_fname;
+
+}
+
+using namespace XNS;
 
 #if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
 #endif
 
-  //void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
-  // int RefinementCondition(MeshBlock *pmb);
-}
+//void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
+// int RefinementCondition(MeshBlock *pmb);
+
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
@@ -400,8 +526,19 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
   if (!resume_flag) {
     // Read XNS data
-    string h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
-    XNS.ReadData(h5_fname);
+    //string 
+    h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
+    //XNS.ReadData(h5_fname);
+
+
+    //Save coordinates and fields as .txt files
+    //XNSData XNS;
+    //XNS.WriteXNSGridToFile();
+
+    // Example: dump only matter fields
+    //XNS.WriteXNSDataToFile(IXNS_rho);
+    //XNS.WriteXNSDataToFile(IXNS_pres);
+    //XNS.WriteXNSDataToFile(IXNS_vphi);
     
 #if USETM
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
@@ -466,6 +603,9 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+
+XNSData XNS;
+XNS.ReadData(h5_fname);
 
 #ifdef Z4C_ASSERT_FINITE
   // as a sanity check (these should be over-written)
@@ -599,13 +739,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     XNS.FreeInterp(matter_interp_order);
 
+    // Debug dump
+    //std::ofstream fout("interp_debug.txt", std::ios::app);
+    //fout << std::setprecision(16)
+    //    << "xp=" << xp << " yp=" << yp << " zp=" << zp
+    //    << " rho=" << rho
+    //    << " pres=" << pres
+    //    << " vphi=" << vphi
+    //    << "\n";
+    //fout.close();
+
+
     // Interpolate metric & get Cartesian components
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
     Real alpha = XNS.Interp(IXNS_alpha, metric_interp_order, DIMLESS);
     Real beta = XNS.Interp(IXNS_beta, metric_interp_order, DIMLESS);
     Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
-
+    
     XNS.FreeInterp(metric_interp_order);
 
     // Metric
@@ -763,11 +914,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // Interpolate B cc
     XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
     
-    Real Br = XNS.Interp(IXS_bpolr, matter_interp_order, BFIELD);
-    Real Btheta = XNS.Interp(IXS_bpolt, matter_interp_order, BFIELD);
-    Real Bphi = XNS.Interp(IXS_b3, matter_interp_order, BFIELD);
+    Real Br = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
+    Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
+    Real Bphi = XNS.Interp(IXNS_b3, matter_interp_order, BFIELD);
 
     XNS.FreeInterp(matter_interp_order);
+    
+    //std::ofstream fout("interp_debugB.txt", std::ios::app);
+    //fout << std::setprecision(16)
+    //    << "xp=" << xp << " yp=" << yp << " zp=" << zp
+    //    << " Br=" << Br
+    //    << " Btheta=" << Btheta
+    //    << " Bphi=" << Bphi
+    //    << "\n";
+    //fout.close();
     
     // Interpolate conf. fact.
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
@@ -776,6 +936,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real psi4 = std::pow(psi, 4);
 
     XNS.FreeInterp(metric_interp_order);
+
 
     // Cartesian components
     Real bccx = 0.0;
@@ -792,7 +953,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     pfield->bcc(2,k,j,i) = bccz;
 
     //TODO: Must this be densitized ?
-    Real sqrtdetgam = std::pow(psi4, 6); // = sqrt(det(gamma))
+    Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
     pfield->bcc(0,k,j,i) *= sqrtdetgam;
     pfield->bcc(1,k,j,i) *= sqrtdetgam;
     pfield->bcc(2,k,j,i) *= sqrtdetgam;
@@ -800,25 +961,25 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
 
   // Initialise face centred field by averaging cc field
-  for(int k=pmb->ks; k<=pmb->ke;   k++)
-  for(int j=pmb->js; j<=pmb->je;   j++)
-  for(int i=pmb->is; i<=pmb->ie+1; i++)
+  for(int k=ks; k<=ke;   k++)
+  for(int j=js; j<=je;   j++)
+  for(int i=is; i<=ie+1; i++)
   {
     pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
                                 pfield->bcc(0,k,j,i));
   }
 
-  for(int k=pmb->ks; k<=pmb->ke;   k++)
-  for(int j=pmb->js; j<=pmb->je+1; j++)
-  for(int i=pmb->is; i<=pmb->ie;   i++)
+  for(int k=ks; k<=ke;   k++)
+  for(int j=js; j<=je+1; j++)
+  for(int i=is; i<=ie;   i++)
   {
     pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
                                 pfield->bcc(1,k,j,i));
   }
 
-  for(int k=pmb->ks; k<=pmb->ke+1; k++)
-  for(int j=pmb->js; j<=pmb->je;   j++)
-  for(int i=pmb->is; i<=pmb->ie;   i++)
+  for(int k=ks; k<=ke+1; k++)
+  for(int j=js; j<=je;   j++)
+  for(int i=is; i<=ie;   i++)
   {
     pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
                                 pfield->bcc(2,k,j,i));
@@ -828,4 +989,3 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   return;
 }
-

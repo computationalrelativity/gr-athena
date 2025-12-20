@@ -37,6 +37,15 @@ void DispatchIntegrationMethod(
   const int il, const int iu
 );
 
+void ApplyExcision(
+  M1 & pm1,
+  const Real dt,
+  M1::vars_Lab & U_C,        // current (target) step
+  const int kl, const int ku,
+  const int jl, const int ju,
+  const int il, const int iu
+);
+
 // ============================================================================
 namespace Explicit {
 // ============================================================================
@@ -70,6 +79,24 @@ void StepExplicit_nG(
   const Update::SourceMetaVector & S,  // carries matter source contribution
   const int k, const int j, const int i);
 
+
+void Advect_E_F_d(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,         // current (target) step
+  const Update::StateMetaVector & P,   // previous step data
+  const Update::StateMetaVector & I,   // inhomogeneity
+  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
+  const int k, const int j, const int i);
+
+void Advect_nG(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,         // current (target) step
+  const Update::StateMetaVector & P,   // previous step data
+  const Update::StateMetaVector & I,   // inhomogeneity
+  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
+  const int k, const int j, const int i);
 
 // Given (an explicitly evolved) state U* ~ (E*, F_d*) prepare O(v)
 // approximation of solution to the implicit system.
@@ -115,8 +142,9 @@ void SolveImplicitNeutrinoCurrent(
 // Prepare initial guess (sc_E, sp_F_d) -> (sc_E^, sp_F_d^);
 // O(v) approx for implicit solver.
 //
-// See \S3.2.4 of [1]
-void StepImplicitPrepareInitialGuess(
+// If "accurate-enough" returns true to short-circuit
+// implicit solver where this is used
+bool StepImplicitPrepareInitialGuess(
   M1 & pm1,
   const Real dt,
   Update::StateMetaVector & C,        // current step

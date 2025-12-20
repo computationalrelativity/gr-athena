@@ -52,9 +52,23 @@ class IdealGas : public EOSPolicyInterface {
     /// Calculate the sound speed for an ideal gas.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
+    /// Species fractions
+    [[ noreturn ]]
+    Real FrYn(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYp(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYh(Real n, Real T, Real *Y);
+
+    [[ noreturn ]]
+    Real AN(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real ZN(Real n, Real T, Real *Y);
+
+
     /// Calculate the internal energy per mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
-    
+
     /// Calculate the baryon chemical potential
     [[ noreturn ]]
     Real BaryonChemicalPotential(Real n, Real T, Real *Y);

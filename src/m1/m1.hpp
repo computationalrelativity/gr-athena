@@ -243,6 +243,7 @@ public:
 
     // debugging:
     bool value_inject;
+    bool disable_fluxes;
 
     // if flooring was too strict, we can still save the source (set zero)
     bool zero_fix_sources;
@@ -253,7 +254,11 @@ public:
     opt_closure_variety variety;
     opt_closure_method method;
 
-    Real eps_tol;
+    Real abs_tol;
+    Real fcn_tol;
+
+    Real bnd_xi_delta;
+
     Real eps_Z_o_E;
     Real fac_Z_o_E;
     Real w_opt_ini;
@@ -262,8 +267,8 @@ public:
     int iter_max;
     int iter_max_rst;
 
+    bool fail_on_npg;
     bool fallback_brent;
-
     bool fallback_thin;
     bool use_Ostrowski;
     bool use_Neighbor;
@@ -295,8 +300,6 @@ public:
 
     int iter_max;
     int iter_max_rst;
-
-    bool use_Neighbor;
 
     // source settings
     bool limit_src_fluid;
@@ -341,6 +344,14 @@ public:
 
     bool verbose;
   } opt_solver;
+
+  struct
+  {
+    bool excise_m1_damping;   // state vector based damping inside ahf
+    Real m1_damping_factor;   // state vector factor
+    bool m1_disable_ahf_eql;  // overwrite eql flag within horizon
+    bool m1_disable_ahf_opac; // zero opacities in horizon
+  } opt_excision;
 
 // variable alias / storage ===================================================
 public:
@@ -795,7 +806,7 @@ public:
                                      N};
     struct {
       AthenaArray<opt_solution_regime>  solution_regime;
-      AthenaArray<opt_source_treatment> source_treatment;
+      // AthenaArray<opt_source_treatment> source_treatment;
       AA_B                 excised;
       AA                                flux_limiter;
       AA                                pp;
@@ -865,20 +876,6 @@ public:
     }
   }
 
-  inline t_src_t GetMaskSourceTreatment(const int ix_g, const int ix_s,
-                                        const int k, const int j, const int i)
-  {
-    if (opt_solver.solver_reduce_to_common)
-    {
-      return ev_strat.masks.source_treatment(ix_g, k, j, i);
-    }
-    else
-    {
-      return ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i);
-    }
-
-  }
-
   inline void SetMaskSolutionRegime(t_sln_r sol_r,
                                     const int ix_g, const int ix_s,
                                     const int k, const int j, const int i)
@@ -892,19 +889,6 @@ public:
       ev_strat.masks.solution_regime(ix_g, ix_s, k, j, i) = sol_r;
     }
   }
-  inline void SetMaskSourceTreatment(t_src_t src_t,
-                                     const int ix_g, const int ix_s,
-                                     const int k, const int j, const int i)
-  {
-    if (opt_solver.solver_reduce_to_common)
-    {
-      ev_strat.masks.source_treatment(ix_g, k, j, i) = src_t;
-    }
-    else
-    {
-      ev_strat.masks.source_treatment(ix_g, ix_s, k, j, i) = src_t;
-    }
-  }
 
   // Different solution techniques are employed point-wise according to the
   // current structure of the fields etc. This function sets internal masks
@@ -914,8 +898,7 @@ public:
                                 const Real kap_a,
                                 const Real kap_s,
                                 const Real rho,
-                                t_sln_r & mask_sln_r,
-                                t_src_t & mask_src_t);
+                                t_sln_r & mask_sln_r);
   void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);
 

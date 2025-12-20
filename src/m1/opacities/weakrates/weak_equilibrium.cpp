@@ -1444,36 +1444,16 @@ int WeakEquilibriumMod::NeutrinoDens_cgs(Real rho, Real temp, Real ye, Real& n_n
   // Density is assumed to be in cgs units and
   // the temperature in MeV
 
-  /* TODO: EoS calls 
-  lrho  = log10(rho)
-  ltemp = log10(temp)
-
-  // Compute the baryon number density (mass_fact is given in MeV)
-  mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight)
-  nb = rho / mass_fact_cgs
-
-  // Interpolate the chemical potentials (stored in MeV in the table)
-  mu_n = lkLinearInterpolation3d(lrho, ltemp, ye, MU_N)
-  mu_p = lkLinearInterpolation3d(lrho, ltemp, ye, MU_P)
-  mu_e = lkLinearInterpolation3d(lrho, ltemp, ye, MU_E)
-
-  ! Interpolate the fractions
-  abar = lkLinearInterpolation3d(lrho, ltemp, ye, ABAR)
-  zbar = lkLinearInterpolation3d(lrho, ltemp, ye, ZBAR)
-  xp   = lkLinearInterpolation3d(lrho, ltemp, ye, XP)
-  xn   = lkLinearInterpolation3d(lrho, ltemp, ye, XN)
-  xh   = lkLinearInterpolation3d(lrho, ltemp, ye, XH)
-*/
   Real mu_n = EoS->GetNeutronChemicalPotential(rho, temp, ye);
   Real mu_p = EoS->GetProtonChemicalPotential(rho, temp, ye);
   Real mu_e = EoS->GetElectronChemicalPotential(rho, temp, ye);
 
-/*
+  /*
   ! Compute the neutrino degeneracy assuming that neutrons and
   ! protons chemical potentials DO NOT include the rest mass density
   ! eta_nue = (mu_p + mu_e - mu_n - Qnp) / temp
-*/
-      
+  */
+
   // Compute the neutrino degeneracy assuming that neutrons and
   // protons chemical potentials includes the rest mass density
   // This is the correct formula for stellarcollapse.org tables

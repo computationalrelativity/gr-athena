@@ -167,6 +167,13 @@ public:
   }
 
   void PrintPoint(const std::string & name,
+                  const int i)
+  {
+    std::cout << name << "(" << i << ") = ";
+    std::cout << data_(i) << std::endl;
+  }
+
+  void PrintPoint(const std::string & name,
                   const int k, const int j, const int i)
   {
     std::cout << name << "(" << k << "," << j << "," << i << ") = ";
@@ -310,6 +317,17 @@ public:
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
   {
     data_.InitWithShallowSlice(src, indx, ndof());
+  }
+
+  void PrintPoint(const std::string & name,
+                  const int i)
+  {
+    for (int a=0; a<ndim; ++a)
+    {
+      std::cout << name << "(" << a << ";";
+      std::cout << i << ") = ";
+      std::cout << data_(a,i) << std::endl;
+    }
   }
 
   void PrintPoint(const std::string & name,
@@ -468,6 +486,40 @@ public:
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
   {
     data_.InitWithShallowSlice(src, indx, ndof());
+  }
+
+  void PrintPoint(const std::string & name,
+                  const int i)
+  {
+    switch (sym)
+    {
+      case TensorSymm::SYM2:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=a; b<ndim; ++b)
+        {
+          std::cout << name << "(" << a << "," << b << ";";
+          std::cout << i << ") = ";
+          std::cout << data_(idxmap(a,b),i) << std::endl;
+        }
+        break;
+      }
+      case TensorSymm::NONE:
+      {
+        for (int a=0; a<ndim; ++a)
+        for (int b=0; b<ndim; ++b)
+        {
+          std::cout << name << "(" << a << "," << b << ";";
+          std::cout << i << ") = ";
+          std::cout << data_(idxmap(a,b),i) << std::endl;
+        }
+        break;
+      }
+      default:
+      {
+        assert(0);
+      }
+    }
   }
 
   void PrintPoint(const std::string & name,

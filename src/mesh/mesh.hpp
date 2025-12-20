@@ -55,6 +55,7 @@ class TurbulenceDriver;
 class Wave;
 class Z4c;
 class WaveExtract;
+class WaveExtractRWZ;
 class AHF;
 #ifdef EJECTA_ENABLED
 class Ejecta;
@@ -253,7 +254,8 @@ public:
     return block_size.nx1*block_size.nx2*block_size.nx3; }
   void SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist, int *nslist);
   void WeightedAveCC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                     AthenaArray<Real> &u_in2, const Real wght[3]);
+                     AthenaArray<Real> &u_in2, const Real wght[3],
+                     const int num_enlarge_layer=0);
   void WeightedAveVC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                      AthenaArray<Real> &u_in2, const Real wght[3]);
   void WeightedAveFC(FaceField &b_out, FaceField &b_in1, FaceField &b_in2,
@@ -462,6 +464,7 @@ class Mesh {
 #endif // FFT
 
   std::vector<WaveExtract *> pwave_extr;
+  std::vector<WaveExtractRWZ *> pwave_extr_rwz;
   std::vector<AHF *> pah_finder;
 #ifdef EJECTA_ENABLED
   std::vector<Ejecta *> pej_extract;

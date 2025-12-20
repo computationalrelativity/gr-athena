@@ -29,7 +29,12 @@ class EOSCompOSE : public EOSPolicyInterface {
       ECMUL   = 4,  //! lepton chemical potential [MeV]
       ECLOGE  = 5,  //! log (total energy density / 1 MeV fm^-3)
       ECCS    = 6,  //! sound speed [c]
-      ECNVARS = 7
+      ECYN    = 7,  //! Y[n]
+      ECYP    = 8,  //! Y[p]
+      ECYH    = 9,  //! (Y[N] read) what would be Y[h] (name schematic, we assemble)
+      ECAN    = 10, //! A[N]
+      ECZN    = 11, //! Z[N]
+      ECNVARS = 12
     };
 
   protected:
@@ -62,6 +67,14 @@ class EOSCompOSE : public EOSPolicyInterface {
 
     /// Calculate the sound speed.
     Real SoundSpeed(Real n, Real T, Real *Y);
+
+    /// Species fractions
+    Real FrYn(Real n, Real T, Real *Y);
+    Real FrYp(Real n, Real T, Real *Y);
+    Real FrYh(Real n, Real T, Real *Y);
+
+    Real AN(Real n, Real T, Real *Y);
+    Real ZN(Real n, Real T, Real *Y);
 
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
@@ -142,6 +155,17 @@ class EOSCompOSE : public EOSPolicyInterface {
       max_T = T_max;
     }
 
+    // N.B. non-converted
+    Real GetTableProtonMass()
+    {
+      return s_mp;
+    }
+
+    Real GetTableNeutronMass()
+    {
+      return s_mn;
+    }
+
   private:
     /// Low level function, not intended for outside use
     Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
@@ -185,6 +209,9 @@ class EOSCompOSE : public EOSPolicyInterface {
     static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
     // these correspond to defined but unused vars in EOSPolicy
     // static Real s_max_P, s_min_P, s_max_e, s_min_e;
+
+    // storage for neutron and proton mass resp.
+    static Real s_mn, s_mp;
 };
 
 } // namespace Primitive

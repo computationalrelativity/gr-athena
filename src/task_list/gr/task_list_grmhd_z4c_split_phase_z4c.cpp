@@ -21,6 +21,9 @@
 #include "../../scalars/scalars.hpp"
 #include "task_list.hpp"
 #include "task_names.hpp"
+#if CCE_ENABLED
+#include "../../z4c/cce/cce.hpp"
+#endif
 
 // #if M1_ENABLED
 // #include "../../m1/m1.hpp"
@@ -50,6 +53,11 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
+#ifdef USE_COMM_DEPENDENCY
+  // Accumulate MPI communication tasks:
+  TaskID COMM = NONE;
+#endif
+
   // Z4c sub-system logic ---------------------------------------------------
   Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
   Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c_Phase_Z4c::IntegrateZ4c);
@@ -57,6 +65,9 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   // Should be able to do this
   Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c_Phase_Z4c::SendZ4c);
   Add(RECV_Z4C, NONE, &GRMHD_Z4c_Phase_Z4c::ReceiveZ4c);
+#ifdef USE_COMM_DEPENDENCY
+  COMM = COMM | SEND_Z4C | RECV_Z4C;
+#endif
 
   Add(SETB_Z4C, (RECV_Z4C | INT_Z4C), &GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c);
 
@@ -73,8 +84,18 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr);
   Add(Z4C_TO_ADM, ALG_CONSTR,   &GRMHD_Z4c_Phase_Z4c::Z4cToADM);
 
+#if CCE_ENABLED
+    Add(CCE_DUMP, Z4C_TO_ADM,   &GRMHD_Z4c_Phase_Z4c::CCEDump);
+#endif
+
+#ifdef USE_COMM_DEPENDENCY
+  // We are done with MPI communication
+  Add(CLEAR_ALLBND, COMM, &GRMHD_Z4c_Phase_Z4c::ClearAllBoundary);
+#else
   // We are done for the z4c phase
   Add(CLEAR_ALLBND, Z4C_TO_ADM, &GRMHD_Z4c_Phase_Z4c::ClearAllBoundary);
+#endif
+
 }
 
 // ----------------------------------------------------------------------------
@@ -307,6 +328,41 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 
   return TaskStatus::fail;
 }
+
+#if CCE_ENABLED
+TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
+{
+  // only do on last stage
+  if (stage != nstages) return TaskStatus::success;
+
+  using namespace gra::triggers;
+  typedef Triggers::TriggerVariant tvar;
+  typedef Triggers::OutputVariant ovar;
+
+  Mesh *pm = pmb->pmy_mesh;
+
+  for (auto cce : pm->pcce)
+  {
+    // BD: TODO- double check the following
+    const Real dt_cce = trgs.GetTrigger_dt(tvar::Z4c_CCE, ovar::user);
+
+    if (dt_cce > 0)
+    {
+      const Real time = pm->time;
+
+      // Trigger when time is (within tolerance) an integer multiple of dt_cce
+      if (std::fabs(std::fmod(time, dt_cce)) > 1e-12)
+      {
+        continue;
+      }
+
+      cce->Interpolate(pmb);
+    }
+  }
+
+  return TaskStatus::success;
+}
+#endif
 
 //
 // :D

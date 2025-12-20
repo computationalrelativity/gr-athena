@@ -138,13 +138,14 @@ void WeightedAve_(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
 //  \brief Compute weighted average of cell-centered AthenaArrays
 
 void MeshBlock::WeightedAveCC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                              AthenaArray<Real> &u_in2, const Real wght[3]) {
+                              AthenaArray<Real> &u_in2, const Real wght[3],
+                              const int num_enlarge_layer) {
   // consider every possible simplified form of weighted sum operator:
   // U = a*U + b*U1 + c*U2
 
   // This property would be better to derive based on general input type...
-  int il = is, jl = js, kl = ks;
-  int iu = ie, ju = je, ku = ke;
+  int il = is-num_enlarge_layer, jl = js-num_enlarge_layer, kl = ks-num_enlarge_layer;
+  int iu = ie+num_enlarge_layer, ju = je+num_enlarge_layer, ku = ke+num_enlarge_layer;
 
   WeightedAve_(u_out, u_in1, u_in2, wght, il, jl, kl, iu, ju, ku);
 }

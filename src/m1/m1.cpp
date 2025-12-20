@@ -205,18 +205,13 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   {
     ev_strat.masks.solution_regime.NewAthenaArray(
       N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
-    ev_strat.masks.source_treatment.NewAthenaArray(
-      N_GRPS, mbi.nn3, mbi.nn2, mbi.nn1);
   }
   else
   {
     ev_strat.masks.solution_regime.NewAthenaArray(
       N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
-    ev_strat.masks.source_treatment.NewAthenaArray(
-      N_GRPS, N_SPCS, mbi.nn3, mbi.nn2, mbi.nn1);
   }
   ev_strat.masks.solution_regime.Fill(t_sln_r::noop);
-  ev_strat.masks.source_treatment.Fill(t_src_t::noop);
 
   ev_strat.masks.excised.NewAthenaArray(
     mbi.nn3, mbi.nn2, mbi.nn1);
@@ -535,10 +530,6 @@ void M1::StatePrintPoint(
 
     std::cout << "opt_solution_regime: ";
     std::cout << static_cast<int>(GetMaskSolutionRegime(ix_g,ix_s,k,j,i));
-    std::cout << "\n";
-
-    std::cout << "opt_source_treatment: ";
-    std::cout << static_cast<int>(GetMaskSourceTreatment(ix_g,ix_s,k,j,i));
     std::cout << "\n";
 
     if (opt.flux_lo_fallback)
