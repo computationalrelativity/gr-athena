@@ -2,6 +2,7 @@
 #define WEAKRATES_H
 
 #include <cassert>
+#include <limits>
 
 // Athena++ headers
 #include "../../m1.hpp"
@@ -38,6 +39,8 @@ class WeakRates {
                 wr_use_eos_tfloor,
                 pin->GetOrAddBoolean("M1_opacities", "tabulated_particle_fractions", true),
                 pin->GetOrAddBoolean("M1_opacities", "tabulated_degeneracy_parameter", true),
+                pin->GetOrAddReal("M1_opacities", "yefloor", -std::numeric_limits<Real>::infinity()),
+                pin->GetOrAddReal("M1_opacities", "ylfloor", -std::numeric_limits<Real>::infinity()),
                 PS_EoS}
     {
       // my_units (of WeakRates) vs code_units (of GR(M)HD)

@@ -139,7 +139,6 @@ int WeakEquilibriumMod::WeakEquilibriumImpl(
 
     // Compute energy (note that tab3d_eps works in Cactus units)
     // eps0 = tab3d_eps(rho0/cactus2cgsRho, temp, ye)*cactus2cgsEps
-    // TODO get eps from EoS
     Real e_in[4] = {0.0};
     e_in[0] = EoS->GetEnergyDensity(rho0, temp0, ye0);
     e_in[1] = e_nue;
@@ -246,6 +245,8 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
   Real yl = y_in[0] + y_in[1] - y_in[2];           // [#/baryon]
   Real u  = e_in[0] + e_in[1] + e_in[2] + e_in[3]; // [erg/cm^3]
 
+  EoS->ApplyLeptonLimits(yl);
+
 /*
 !.....vector with the coefficients for the different guesses............
 !     at the moment, to solve the 2D NR we assign guesses for the
@@ -297,8 +298,8 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
     x0[1] = vec_guess[na][1]*y_in[0]; // ye guess [#/baryon]
 
 //....call the 2d Newton-Raphson........................................
+    // EoS->ApplyTableLimits(rho, x0[0], x0[1]);
     new_raph_2dim(rho,u,yl,x0,x1,ierr);
-
     na += 1;
   } // end while
 
@@ -386,6 +387,7 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
   // check that Y_e is within the range
   Real table_ye_min, table_ye_max;
   EoS->GetTableLimitsYe(table_ye_min, table_ye_max);
+
   if (y_eq[0]<table_ye_min || y_eq[0]>table_ye_max) {
     ierr = WE_FAIL_INI_ASSIGN_Y_E;
     T_eq = T;
@@ -504,7 +506,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
       ierr = WE_FAIL_JACOBIAN;
       return;
     } // end if
-    
+
     // compute and check the determinant of the Jacobian
     Real det = J[0][0]*J[1][1] - J[0][1]*J[1][0];
     if (det==0) {
@@ -531,7 +533,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
       norm[0] = 0.0;
     } // endif
 
-    if (x1[1] == eos_yemin) {
+    if (x1[1] <= eos_yemin) {
       norm[1] = -1.0;
     } else if (x1[1] == eos_yemax) {
       norm[1] = 1.0;
@@ -547,22 +549,77 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
     dxa[0] = dx1[0] - (dx1[0]*norm[0] + dx1[1]*norm[1])*norm[0]/scal;
     dxa[1] = dx1[1] - (dx1[0]*norm[0] + dx1[1]*norm[1])*norm[1]/scal;
 
+    /*
     if ((dxa[0]*dxa[0] + dxa[1]*dxa[1]) < (eps_lim*eps_lim * (dx1[0]*dx1[0] + dx1[1]*dx1[1]))) {
       KKT = true;
       ierr = WE_FAIL_KKT;
       return;
     } // endif
+    */
+
+    // is one of the table limits being hit?
+    bool on_bnd = (norm[0] != 0.0 || norm[1] != 0.0);
+
+    if (on_bnd)
+    {
+      // Tangential residual (gradient along admissible directions)
+      Real y_tan = y[0]*(-norm[1]) + y[1]*( norm[0] );
+
+      // True KKT only if tangential residual is also small
+      if (fabs(y_tan) < eps_lim &&
+          (dxa[0]*dxa[0] + dxa[1]*dxa[1]) <
+          (eps_lim*eps_lim * (dx1[0]*dx1[0] + dx1[1]*dx1[1]))) {
+
+        KKT = true;
+        // std::printf(
+        //   "TRUE KKT: dx=(%.3e %.3e) dxa=(%.3e %.3e) "
+        //   "y=(%.3e %.3e) norm=(%.1f %.1f)\n",
+        //   dx1[0], dx1[1], dxa[0], dxa[1],
+        //   y[0], y[1],
+        //   norm[0], norm[1]
+        // );
+        ierr = WE_FAIL_KKT;
+        return;
+      }
+    }
 
     int n_cut = 0;
     Real fac_cut = 1.0;
     Real err_old = err;
 
-    while (n_cut <= n_cut_max && err >= err_old) {
+    bool tabBoundsFlag = false;
+    while (n_cut <= n_cut_max && err >= err_old)
+    {
       // the variation of x1 is divided by an powers of 2 if the
       // error is not decreasing along the gradient direction
-      
-      x1_tmp[0] = x1[0] + (dx1[0]*fac_cut);
-      x1_tmp[1] = x1[1] + (dx1[1]*fac_cut);
+
+      // if on boundary ensure step toward admissible region
+      Real step0 = (on_bnd ? dxa[0] : dx1[0]);
+      Real step1 = (on_bnd ? dxa[1] : dx1[1]);
+
+      // candidate update; reduce step to avoid going outside table limits
+      Real temp_eql_st = x1[0] + step0 * fac_cut;
+      Real ye_eql_st = x1[1] + step1 * fac_cut;
+
+      /*
+      // adjust steps prior to imposing limits?
+      while (((ye_eql_st < eos_yemin) ||
+              (ye_eql_st > eos_yemax) ||
+              (temp_eql_st < eos_tempmin) ||
+              (temp_eql_st > eos_tempmax)) &&
+             (n_cut < n_cut_max))
+      {
+        // update the bisection cut along the gradient
+        // n_cut += 1;
+        fac_cut *= 0.5;
+
+        temp_eql_st = x1[0] + step0 * fac_cut;
+        ye_eql_st = x1[1] + step1 * fac_cut;
+      }
+      */
+
+      x1_tmp[0] = x1[0] + step0 * fac_cut;
+      x1_tmp[1] = x1[1] + step1 * fac_cut;
 
       // check if the next step calculation had problems
       if (isnan(x1_tmp[0])) {
@@ -575,9 +632,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
         // stop
       } // end if
 
-      // TODO this should be done by the EoS
-      // tabBoundsFlag = enforceTableBounds(rho, x1_tmp[0], x1_tmp[1]);
-      bool tabBoundsFlag = EoS->ApplyTableLimits(rho, x1_tmp[0], x1_tmp[1]);
+      tabBoundsFlag = EoS->ApplyTableLimits(rho, x1_tmp[0], x1_tmp[1]);
 
       // assign the new point
       x1[0] = x1_tmp[0];
@@ -597,7 +652,6 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
 
       // update the iteration
     n_iter += 1;
-
   } //end do
 
   // if equilibrium has been found, set ierr=0 and return
@@ -607,7 +661,7 @@ void WeakEquilibriumMod::new_raph_2dim(Real rho, Real u, Real yl, Real x0[2], Re
   } else {
     ierr = WE_FAIL_STAGNATED;
   } // end if
-  
+
   return;
 
 } // end subroutine new_raph_2dim

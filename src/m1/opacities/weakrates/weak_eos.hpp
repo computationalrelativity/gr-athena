@@ -24,6 +24,8 @@ class WeakEoSMod {
                bool wr_use_eos_tfloor,
                bool tabulated_particle_fractions,
                bool tabulated_degeneracy_parameter,
+               Real ye_min,
+               Real yl_min,
                Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
       : apply_table_limits_internally(apply_table_limits_internally),
         enforced_limits_fail(enforced_limits_fail),
@@ -31,6 +33,8 @@ class WeakEoSMod {
         wr_use_eos_tfloor(wr_use_eos_tfloor),
         tabulated_particle_fractions(tabulated_particle_fractions),
         tabulated_degeneracy_parameter(tabulated_degeneracy_parameter),
+        ye_min(ye_min),
+        yl_min(yl_min),
         PS_EoS(PS_EoS)
     {
       my_units = &WeakRates_Units::WeakRatesUnits;
@@ -60,7 +64,14 @@ class WeakEoSMod {
       }
       table_temp_max = conv_temp * PS_EoS->GetMaximumTemperature();
 
-      table_ye_min = PS_EoS->GetMinimumSpeciesFraction(0);
+      if (ye_min > 0)
+      {
+        table_ye_min = ye_min;
+      }
+      else
+      {
+        table_ye_min = PS_EoS->GetMinimumSpeciesFraction(0);
+      }
       table_ye_max = PS_EoS->GetMaximumSpeciesFraction(0);
     };
 
@@ -359,6 +370,18 @@ class WeakEoSMod {
       return limits_applied;
     }
 
+    bool ApplyLeptonLimits(Real &yl)
+    {
+      bool limits_applied = false;
+
+      if (yl < yl_min)
+      {
+        limits_applied = true;
+        yl = std::max(yl, yl_min);
+      }
+      return limits_applied;
+    }
+
   private:
     const bool apply_table_limits_internally;
     const bool enforced_limits_fail;
@@ -379,6 +402,8 @@ class WeakEoSMod {
     Real table_ye_min;
     Real table_ye_max;
 
+    Real ye_min;
+    Real yl_min;
 };
 
 }
