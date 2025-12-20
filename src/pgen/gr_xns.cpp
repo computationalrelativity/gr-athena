@@ -11,7 +11,7 @@
 
 #include <cassert> // assert
 #include <iostream>
-#include <iomanip>  // <<<<<<<<<< add this
+#include <iomanip>  
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -19,27 +19,21 @@
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
-#include "../utils/interp_table.hpp" // InterpTable2D
-#include "../inputs/hdf5_reader.hpp" // HDF5TableLoader
+#include "../utils/lagrange_interp.hpp"
 #include "../z4c/z4c.hpp"
 #include "../hydro/hydro.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
+
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
 
-// Lagrangian ND interpolation
-#include "../utils/lagrange_interp.hpp"
-
-
 // Only proceed if HDF5 enabled
 #ifdef HDF5OUTPUT
-
 // External library headers
 #include <hdf5.h>
-
 // Determine floating-point precision (in memory, not file)
 #if SINGLE_PRECISION_ENABLED
 #define H5T_REAL H5T_NATIVE_FLOAT
@@ -51,10 +45,9 @@
 using namespace std;
 
 namespace XNS {
-
   
 #define CHECK_V2 (1) // just a check on v^2 computation
-
+#define DEBUG (1) // to dump some data and info
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -105,9 +98,9 @@ namespace XNS {
     static const int metric_interp_order = 2*NGHOST-1;
     
   private:
-    AA xnsdata[NXNSVars];
-    AA xns_radius, xns_theta;
-  
+    AthenaArray<Real> xns_radius, xns_theta;
+    AthenaArray<Real> xnsdata[NXNSVars];
+
     LagrangeInterpND<matter_interp_order, 2> * pinterp2_matter = nullptr;
     LagrangeInterpND<metric_interp_order, 2> * pinterp2_metric = nullptr;
     
@@ -116,11 +109,11 @@ namespace XNS {
     }
     
     ~XNSData() {
+      xns_radius.DeleteAthenaArray();
+      xns_theta.DeleteAthenaArray();
       for (int v = 0; v < NXNSVars; ++v) {
         xnsdata[v].DeleteAthenaArray();
       }
-      xns_radius.DeleteAthenaArray();
-      xns_theta.DeleteAthenaArray();
     }
     
     void ReadData(const std::string &h5filename) {
@@ -159,18 +152,19 @@ namespace XNS {
         readRealAttr("length_unit", r_units);
         readRealAttr("massdens_unit", rho_units);
 
-        //std::cerr << "NR        = " << NR << "\n";
-        //std::cerr << "NTH       = " << NTH << "\n";
-        //std::cerr << "b_units   = " << b_units << "\n";
-        //std::cerr << "r_units   = " << r_units << "\n";
-        //std::cerr << "rho_units = " << rho_units << "\n";
-
-        //H5Gclose(root);
-
-
         // Optional attribute (not in file yet)
         mb = 1.0;
-
+	
+#if (DEBUG)
+	std::cout << "XNS hdf5 file = " << h5filename << std::endl;
+	std::cout << "Attributes: " << std::endl;
+        std::cout << "NR        = " << NR << std::endl;
+        std::cout << "NTH       = " << NTH << std::endl;
+        std::cout << "b_units   = " << b_units << std::endl;
+        std::cout << "r_units   = " << r_units << std::endl;
+        std::cout << "rho_units = " << rho_units << std::endl;
+#endif
+	
         // --------------------------------------------------
         // Read radial coordinate R (1D)
         // --------------------------------------------------
@@ -197,7 +191,7 @@ namespace XNS {
 
             H5Sclose(space);
             H5Dclose(dset);
-            }
+	}
 
         // --------------------------------------------------
         // Read theta coordinate TH (1D)
@@ -272,32 +266,32 @@ namespace XNS {
         H5Fclose(file);   
     }
 
-    void WriteXNSGridToFile(const std::string& fname = "xns_grid.txt") const {
-        std::ofstream fout(fname.c_str());
-        fout << std::setprecision(16);
+    void WriteXNSGridToFile() const {
 
-        fout << "# XNS grid\n";
-        fout << "# NR = " << NR << "  NTH = " << NTH << "\n";
-        fout << "# Columns: theta  radius\n";
-
-        const int nmax = std::max(NTH, NR);
-        for (int i = 0; i < nmax; ++i) {
-            if (i < NTH) fout << xns_theta(i);
-            else         fout << "NaN";
-
-            fout << " ";
-
-            if (i < NR)  fout << xns_radius(i);
-            else         fout << "NaN";
-
-            fout << "\n";
-        }
-
-        fout.close();
+      std::ofstream fout("xns_radius");
+      fout << std::setprecision(16);
+      fout << "# XNS grid\n";
+      fout << "# NR = " << NR << std::endl;
+      fout << "# Columns: radius\n";
+      for (int i = 0; i < NR; ++i) {
+	fout << xns_radius(i);
+      }
+      fout.close();
+      
+      std::ofstream fout("xns_theta");
+      fout << std::setprecision(16);
+      fout << "# XNS grid\n";
+      fout << "# NTH = " << NTH << std::endl;
+      fout << "# Columns: theta\n";
+      for (int i = 0; i < NTH; ++i) {
+	fout << xns_theta(i);
+      }
+      fout.close();
+      
     }
-
+    
     void WriteXNSDataToFile(int v,
-                        const std::string& prefix = "xns_field_") const {
+			    const std::string& prefix = "xns_field_") const {
         std::stringstream fname;
         fname << prefix << v << ".txt";
 
@@ -320,9 +314,9 @@ namespace XNS {
         fout.close();
     }
 
-
     void PrepareInterp(Real xp, Real yp, Real zp, int order) {
       // Interpolator of 2D variable at (r,theta) <- (x,y,z) 
+
       const Real rp = std::sqrt(SQR(xp) + SQR(yp) + SQR(zp));
       const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
 
@@ -341,10 +335,8 @@ namespace XNS {
       size[0] = NTH;
       size[1] = NR;
       
-      coord[0] = thetap; //std::min(xns_theta(NTH-1),
-            //std::max(xns_theta(0), thetap));
-      coord[1] = rp; //std::min(xns_radius(NR-1),
-            //std::max(xns_radius(0), rp));
+      coord[0] = thetap; 
+      coord[1] = rp; 
       
       if (order == metric_interp_order) {
         pinterp2_metric =
@@ -367,7 +359,6 @@ namespace XNS {
         delete pinterp2_matter;
       }
     }
-
 
     Real Interp(int var, int order, int unit) {
       assert(unit >= 0 and unit < NUNITS);
@@ -425,8 +416,8 @@ namespace XNS {
                          Real xp, Real yp, Real zp,
                          Real &vx, Real &vy, Real &vz) {
       // Given the components v^r, v^\theta, v^\phi and conf. fact.
-      // returns Cartesian components of the 3-vector
-      // and modulus
+      // returns Cartesian components of the 3-vector and modulus
+
       // Cylindrical radius and phi
       Real rcylp = 0.0;
       Real sinphi = 0.0;
@@ -441,7 +432,6 @@ namespace XNS {
         sinphi = 0.0;
         cosphi = 0.0;
       }
-
 
       // Spherical radius and theta
       Real rp = 0.0;
@@ -472,8 +462,8 @@ namespace XNS {
                          Real xp, Real yp, Real zp,
                          Real &vx, Real &vy, Real &vz) {
       // Given the non-zero component v^\phi and conf. fact.
-      // returns Cartesian components of the 3-vector
-      // and modulus
+      // returns Cartesian components of the 3-vector and modulus
+
       Real rcylp = 0.0;
       Real sinphi = 0.0;
       Real cosphi = 0.0;
@@ -494,20 +484,24 @@ namespace XNS {
       return psi4 * SQR(vphi);
     } 
     
-};
+  }; // class XNSData
 
-string h5_fname;
+  string h5_fname; // XNS hdf5 filename
 
 }
 
 using namespace XNS;
 
+namespace {
+  
 #if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
 #endif
 
 //void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
 // int RefinementCondition(MeshBlock *pmb);
+
+}
 
 
 //========================================================================================
@@ -525,20 +519,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserStandardM1(pin);
 
   if (!resume_flag) {
-    // Read XNS data
-    //string 
+    // Set XNS HDF5 filename 
     h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
-    //XNS.ReadData(h5_fname);
-
-
-    //Save coordinates and fields as .txt files
-    //XNSData XNS;
-    //XNS.WriteXNSGridToFile();
-
-    // Example: dump only matter fields
-    //XNS.WriteXNSDataToFile(IXNS_rho);
-    //XNS.WriteXNSDataToFile(IXNS_pres);
-    //XNS.WriteXNSDataToFile(IXNS_vphi);
     
 #if USETM
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
@@ -603,10 +585,17 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+  // XNSData object and read XNS data
+  XNSData XNS;
+  XNS.ReadData(h5_fname);
 
-XNSData XNS;
-XNS.ReadData(h5_fname);
-
+#if (DEBUG)
+  XNS.WriteXNSGridToFile();
+  for (int v = 0; v < NXNSVars; ++v) {
+    XNS.WriteXNSDataToFile(v);
+  }
+#endif
+  
 #ifdef Z4C_ASSERT_FINITE
   // as a sanity check (these should be over-written)
   pz4c->adm.psi4.Fill(NAN);
@@ -937,7 +926,6 @@ XNS.ReadData(h5_fname);
 
     XNS.FreeInterp(metric_interp_order);
 
-
     // Cartesian components
     Real bccx = 0.0;
     Real bccy = 0.0;
@@ -952,7 +940,7 @@ XNS.ReadData(h5_fname);
     pfield->bcc(1,k,j,i) = bccy;
     pfield->bcc(2,k,j,i) = bccz;
 
-    //TODO: Must this be densitized ?
+    //TODO: Must bcc be densitized ?
     Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
     pfield->bcc(0,k,j,i) *= sqrtdetgam;
     pfield->bcc(1,k,j,i) *= sqrtdetgam;
