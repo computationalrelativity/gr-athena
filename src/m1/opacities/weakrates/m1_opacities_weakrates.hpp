@@ -52,6 +52,16 @@ public:
                         "wr_rho_floor",
                         0.0)
     ),
+    wr_recompute_opacities_trapped(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_recompute_opacities_trapped",
+                           false)
+    ),
+    wr_recompute_opacities_interpolated(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_recompute_opacities_interpolated",
+                           false)
+    ),
     wr_equilibrium_fallback_thin(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_equilibrium_fallback_thin",
@@ -96,6 +106,11 @@ public:
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_flag_equilibrium_no_nux",
                            false)
+    ),
+    wr_flag_equilibrium_nn(
+      pin->GetOrAddInteger("M1_opacities",
+                           "wr_flag_equilibrium_nn",
+                           0)
     ),
     correction_adjust_upward(
       pin->GetOrAddBoolean("M1_opacities",
@@ -692,10 +707,14 @@ public:
     }
 
     // Set the black body function
+    const bool regime_trapped = calculate_trapped && (
+      tau < dt / (opacity_tau_trap + opacity_tau_delta)
+    );
+
     if (calculate_trapped)
     {
       // proceed further ------------------------------------------------------
-      if (tau < dt / (opacity_tau_trap + opacity_tau_delta))
+      if (regime_trapped)
       {
         for (int s_idx = 0; s_idx < N_SPCS; ++s_idx)
         {
@@ -726,7 +745,7 @@ public:
           );
         }
 
-        // Intermediate regime, so linearly interpolate T,Y_e for later propagation
+        // Intermediate regime: interpolate T,Y_e
         T_star = lam * T_star + (1.0 - lam) * T;
         Y_e_star = lam * Y_e_star + (1.0 - lam) * Y_e;
       }
@@ -751,6 +770,23 @@ public:
       pm1->eql.sc_J(ix_g,ix_s)(k,j,i) = sc_sqrt_det_g * dens_e[ix_s];
     }
 
+    if ((wr_recompute_opacities_trapped && regime_trapped) ||
+        (wr_recompute_opacities_interpolated && calculate_trapped))
+    {
+      const int ierr_opac = CalculateOpacityCoefficients(
+        k, j, i, rho, T_star, Y_e_star
+      );
+
+      if (ierr_opac)
+      {
+        PrintOpacityDiagnostics(
+          "CalculateOpacityCoefficients - weql failure",
+          ierr_opac, dt, k, j, i
+        );
+        assert(false);
+      }
+
+    }
     return 0;
   }
 
@@ -1234,6 +1270,73 @@ public:
     }
   }
 
+  // smear the mask by a number of nearest-neighbours
+  inline void FlagEquilibriumSmear(
+    AthenaArray<cstate> & calc_state
+  )
+  {
+    const int nn = wr_flag_equilibrium_nn;
+    if (nn <= 0)
+    {
+      return;
+    }
+
+    const int ix_g = 0;  // fix 1 group
+
+    AthenaArray<M1::M1::t_sln_r> sln_r(
+      pmy_block->ncells3,
+      pmy_block->ncells2,
+      pmy_block->ncells1
+    );
+
+    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    {
+      sln_r.Fill(M1::M1::t_sln_r::noop);
+
+      M1_FLOOP3(k, j, i)
+      if (calc_state(k,j,i) == cstate::need)
+      {
+        // wrap nested loop in lambda
+        bool found = false;
+        [&]()
+        {
+          for (int k_ix=-nn; k_ix<=nn; ++k_ix)
+          for (int j_ix=-nn; j_ix<=nn; ++j_ix)
+          for (int i_ix=-nn; i_ix<=nn; ++i_ix)
+          {
+            const int ii = std::min(std::max(i+i_ix, 0), pmy_block->ncells1-1);
+            const int jj = std::min(std::max(j+j_ix, 0), pmy_block->ncells2-1);
+            const int kk = std::min(std::max(k+k_ix, 0), pmy_block->ncells3-1);
+
+            M1::M1::t_sln_r flag_cur = pm1->GetMaskSolutionRegime(
+              ix_g, ix_s,
+              kk, jj, ii
+            );
+
+            if (flag_cur == M1::M1::t_sln_r::equilibrium)
+            {
+              sln_r(k, j, i) = flag_cur;
+              found = true;
+            }
+            if (found)
+              return;  // exit lambda
+          }
+        }();
+      }
+
+      M1_FLOOP3(k, j, i)
+      if ((calc_state(k,j,i) == cstate::need) &&
+          (sln_r(k, j, i) == M1::M1::t_sln_r::equilibrium))
+      {
+        pm1->SetMaskSolutionRegime(
+          M1::M1::t_sln_r::equilibrium,
+          ix_g, ix_s,
+          k, j, i);
+      }
+
+    }
+  }
+
   inline void PrintOpacityDiagnostics(
     const std::string & msg, const int error_code,
     Real dt, int k, int j, int i)
@@ -1393,6 +1496,7 @@ public:
     {
       Real rho, T, Y_e;
       GetHydro(k, j, i, rho, T, Y_e);
+
       ierr(k,j,i) = CalculateOpacityCoefficients(k,j,i,rho,T,Y_e);
 
       if (ierr(k,j,i))
@@ -1666,6 +1770,9 @@ public:
           wr_flag_equilibrium_species
         );
       }
+
+      // Optionally smear eql. crit by nn.
+      FlagEquilibriumSmear(calc_state);
     }
     // ========================================================================
 
@@ -1708,6 +1815,8 @@ private:
 
   const Real wr_dfloor;
   const Real wr_rho_floor;
+  const bool wr_recompute_opacities_trapped;
+  const bool wr_recompute_opacities_interpolated;
   const bool wr_equilibrium_fallback_thin;
   const bool wr_equilibrium_fallback_zero;
   const bool wr_fix_nn_densities;
@@ -1718,6 +1827,8 @@ private:
   const bool wr_flag_equilibrium_species;
   const bool wr_flag_equilibrium_nue_equals_nua;
   const bool wr_flag_equilibrium_no_nux;
+  const int wr_flag_equilibrium_nn;
+
   const bool correct_emissivity_nux;
   const bool correction_adjust_upward;
   const bool correction_uses_fiducial_frame;
