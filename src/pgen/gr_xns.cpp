@@ -47,7 +47,7 @@ using namespace std;
 namespace XNS {
   
 #define CHECK_V2 (1) // just a check on v^2 computation
-#define DEBUG (1) // to dump some data and info, NB To run only in SERIAL and 1 MB!
+#define DEBUG (1) // to dump some data and info
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -585,9 +585,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   XNS.ReadData(h5_fname);
 
 #if (DEBUG)
-  XNS.WriteXNSGridToFile();
-  for (int v = 0; v < NXNSVars; ++v) {
-    XNS.WriteXNSDataToFile(v);
+  bool debug_write = true;
+#pragma omp critical
+  {
+    if (debug_write==true) {
+      XNS.WriteXNSGridToFile();
+      for (int v = 0; v < NXNSVars; ++v) {
+	XNS.WriteXNSDataToFile(v);
+      }
+    }
+    debug_write==false;
   }
 #endif
      
