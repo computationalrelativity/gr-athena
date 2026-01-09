@@ -11,7 +11,7 @@
 
 #include <cassert> // assert
 #include <iostream>
-#include <iomanip>  // <<<<<<<<<< add this
+#include <iomanip>  
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -19,27 +19,21 @@
 #include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
-#include "../utils/interp_table.hpp" // InterpTable2D
-#include "../inputs/hdf5_reader.hpp" // HDF5TableLoader
+#include "../utils/lagrange_interp.hpp"
 #include "../z4c/z4c.hpp"
 #include "../hydro/hydro.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
+
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #include "../m1/m1_set_equilibrium.hpp"
 #endif  // M1_ENABLED
 
-// Lagrangian ND interpolation
-#include "../utils/lagrange_interp.hpp"
-
-
 // Only proceed if HDF5 enabled
 #ifdef HDF5OUTPUT
-
 // External library headers
 #include <hdf5.h>
-
 // Determine floating-point precision (in memory, not file)
 #if SINGLE_PRECISION_ENABLED
 #define H5T_REAL H5T_NATIVE_FLOAT
@@ -53,7 +47,7 @@ using namespace std;
 namespace XNS {
 
 #define CHECK_V2 (1) // just a check on v^2 computation
-
+#define DEBUG (1) // to dump some data and info
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -124,8 +118,6 @@ namespace XNS {
       for (int v = 0; v < NXNSVars; ++v) {
         xnsdata[v].DeleteAthenaArray();
       }
-      xns_radius.DeleteAthenaArray();
-      xns_theta.DeleteAthenaArray();
     }
     
     void ReadData(const std::string &h5filename) {
@@ -210,32 +202,32 @@ namespace XNS {
         H5Fclose(file);
     }
 
-    void WriteXNSGridToFile(const std::string& fname = "xns_grid.txt") const {
-        std::ofstream fout(fname.c_str());
-        fout << std::setprecision(16);
+    void WriteXNSGridToFile() const {
 
-        fout << "# XNS grid\n";
-        fout << "# NR = " << NR << "  NTH = " << NTH << "\n";
-        fout << "# Columns: theta  radius\n";
-
-        const int nmax = std::max(NTH, NR);
-        for (int i = 0; i < nmax; ++i) {
-            if (i < NTH) fout << xns_theta(i);
-            else         fout << "NaN";
-
-            fout << " ";
-
-            if (i < NR)  fout << xns_radius(i);
-            else         fout << "NaN";
-
-            fout << "\n";
-        }
-
-        fout.close();
+      std::ofstream fout("xns_radius");
+      fout << std::setprecision(16);
+      fout << "# XNS grid\n";
+      fout << "# NR = " << NR << std::endl;
+      fout << "# Columns: radius\n";
+      for (int i = 0; i < NR; ++i) {
+	fout << xns_radius(i);
+      }
+      fout.close();
+      
+      std::ofstream fout("xns_theta");
+      fout << std::setprecision(16);
+      fout << "# XNS grid\n";
+      fout << "# NTH = " << NTH << std::endl;
+      fout << "# Columns: theta\n";
+      for (int i = 0; i < NTH; ++i) {
+	fout << xns_theta(i);
+      }
+      fout.close();
+      
     }
-
+    
     void WriteXNSDataToFile(int v,
-                        const std::string& prefix = "xns_field_") const {
+			    const std::string& prefix = "xns_field_") const {
         std::stringstream fname;
         fname << prefix << v << ".txt";
 
@@ -258,9 +250,9 @@ namespace XNS {
         fout.close();
     }
 
-
     void PrepareInterp(Real xp, Real yp, Real zp, int order) {
       // Interpolator of 2D variable at (r,theta) <- (x,y,z) 
+
       const Real rp = std::sqrt(SQR(xp) + SQR(yp) + SQR(zp));
       const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
 
@@ -305,7 +297,6 @@ namespace XNS {
         delete pinterp2_matter;
       }
     }
-
 
     Real Interp(int var, int order, int unit) {
       assert(unit >= 0 and unit < NUNITS);
@@ -363,8 +354,8 @@ namespace XNS {
                          Real xp, Real yp, Real zp,
                          Real &vx, Real &vy, Real &vz) {
       // Given the components v^r, v^\theta, v^\phi and conf. fact.
-      // returns Cartesian components of the 3-vector
-      // and modulus
+      // returns Cartesian components of the 3-vector and modulus
+
       // Cylindrical radius and phi
       Real rcylp = 0.0;
       Real sinphi = 0.0;
@@ -379,7 +370,6 @@ namespace XNS {
         sinphi = 0.0;
         cosphi = 0.0;
       }
-
 
       // Spherical radius and theta
       Real rp = 0.0;
@@ -410,8 +400,8 @@ namespace XNS {
                          Real xp, Real yp, Real zp,
                          Real &vx, Real &vy, Real &vz) {
       // Given the non-zero component v^\phi and conf. fact.
-      // returns Cartesian components of the 3-vector
-      // and modulus
+      // returns Cartesian components of the 3-vector and modulus
+
       Real rcylp = 0.0;
       Real sinphi = 0.0;
       Real cosphi = 0.0;
@@ -432,7 +422,7 @@ namespace XNS {
       return psi4 * SQR(vphi);
     } 
     
-};
+  }; // class XNSData
 
 string h5_fname;
 //extern XNSData *xns_data;
@@ -442,12 +432,16 @@ string h5_fname;
 
 using namespace XNS;
 
+namespace {
+  
 #if USETM
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
 #endif
 
 //void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
 // int RefinementCondition(MeshBlock *pmb);
+
+}
 
 
 //========================================================================================
@@ -465,8 +459,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   EnrollUserStandardM1(pin);
 
   if (!resume_flag) {
-    // Read XNS data
-    //string 
+    // Set XNS HDF5 filename 
     h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
     //XNSData XNS;
 
@@ -546,6 +539,11 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput *pin)
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
+  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+
+  // XNSData object and read XNS data
+  XNSData XNS;
+  XNS.ReadData(h5_fname);
 
 XNSData XNS;
 XNS.ReadData(h5_fname);
@@ -579,17 +577,12 @@ XNS.ReadData(h5_fname);
   */
 #endif
 
-  bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
-
-  // container with idx / grids pertaining z4c
-  MB_info* mbi = &(pz4c->mbi);
-
   const int matter_interp_order = XNS.matter_interp_order;
   const int metric_interp_order = XNS.metric_interp_order;
   
   //---------------------------------------------------------------------------
   // Interpolate ADM metric
-
+  
   if(verbose)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
 
@@ -895,7 +888,6 @@ XNS.ReadData(h5_fname);
     Real psi4 = std::pow(psi, 4);
 
     XNS.FreeInterp(metric_interp_order);
-
 
     // Cartesian components
     Real bccx = 0.0;
