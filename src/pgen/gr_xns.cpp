@@ -45,9 +45,9 @@
 using namespace std;
 
 namespace XNS {
-
+  
 #define CHECK_V2 (1) // just a check on v^2 computation
-#define DEBUG (1) // to dump some data and info
+#define DEBUG (1) // to dump some data and info, NB To run only in SERIAL and 1 MB!
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -60,6 +60,7 @@ namespace XNS {
     "epol",
     "jpol", "jtor",
   };
+  
   // Indexes of XNS 2D fields
   enum{IXNS_alpha, IXNS_beta, IXNS_psi,
        IXNS_rho, IXNS_pres, IXNS_vphi,
@@ -82,7 +83,7 @@ namespace XNS {
        BFIELD,
        NUNITS,
   };
-  
+
   class XNSData {
   public:
 
@@ -99,71 +100,84 @@ namespace XNS {
     
   private:
 
-    //AA xnsdata[NXNSVars];
-    //AA xns_radius, xns_theta;
-    AthenaArray<Real> xns_radius, xns_theta;
-    AthenaArray<Real> xnsdata[NXNSVars];
-  
+    // Static pointers used to share access (per MPI process)
+    static AthenaArray<Real> * xns_radius, xns_theta;
+    static AthenaArray<Real> * xnsdata[NXNSVars];
+
+    // Bool to protect against access of uninitialised table, and prevent repeated reading
+    static bool initialized;
+        
+     // Auxiliary static variables to share data only available when file is open by first thread
+    static int _NTH, _NR; 
+    static Real _mb;
+    
+    static Real _b_units; 
+    static Real _r_units; 
+    static Real _rho_units; 
+    
     LagrangeInterpND<matter_interp_order, 2> * pinterp2_matter = nullptr;
     LagrangeInterpND<metric_interp_order, 2> * pinterp2_metric = nullptr;
     
   public:
 
     XNSData(){
-
     }
     
     ~XNSData() {
-
       for (int v = 0; v < NXNSVars; ++v) {
         xnsdata[v].DeleteAthenaArray();
       }
     }
     
     void ReadData(const std::string &h5filename) {
-
-        // Open file
-        hid_t plist = H5Pcreate(H5P_FILE_ACCESS);
-        H5Pset_fapl_mpio(plist, MPI_COMM_WORLD, MPI_INFO_NULL);
-        hid_t file = H5Fopen(h5filename.c_str(), H5F_ACC_RDONLY, plist);
-        H5Pclose(plist);
-        assert(file >= 0);
-
-        // --------------------------------------------------
-        // Read scalar attributes
-        // --------------------------------------------------
-        auto readIntAttr = [&](const char* name, int &val) {
+#pragma omp critical (ReadData)
+      {
+	if (initialized==false) {
+	
+	  // Open file
+	  hid_t plist = H5Pcreate(H5P_FILE_ACCESS);
+	  H5Pset_fapl_mpio(plist, MPI_COMM_WORLD, MPI_INFO_NULL);
+	  hid_t file = H5Fopen(h5filename.c_str(), H5F_ACC_RDONLY, plist);
+	  H5Pclose(plist);
+	  assert(file >= 0);
+	  
+	  // --------------------------------------------------
+	  // Read scalar attributes
+	  // --------------------------------------------------
+	  auto readIntAttr = [&](const char* name, int &val) {
             if (H5Aexists(file, name) > 0) {
-                hid_t attr = H5Aopen(file, name, H5P_DEFAULT);
-                H5Aread(attr, H5T_NATIVE_INT, &val);
-                H5Aclose(attr);
+	      hid_t attr = H5Aopen(file, name, H5P_DEFAULT);
+	      H5Aread(attr, H5T_NATIVE_INT, &val);
+	      H5Aclose(attr);
             }
-        };
-        auto readRealAttr = [&](const char* name, Real &val) {
+	  };
+	  auto readRealAttr = [&](const char* name, Real &val) {
             if (H5Aexists(file, name) > 0) {
-                hid_t attr = H5Aopen(file, name, H5P_DEFAULT);
-                double tmp = 0.0;
-                H5Aread(attr, H5T_NATIVE_DOUBLE, &tmp);
-                val = static_cast<Real>(tmp);
-                H5Aclose(attr);
+	      hid_t attr = H5Aopen(file, name, H5P_DEFAULT);
+	      double tmp = 0.0;
+	      H5Aread(attr, H5T_NATIVE_DOUBLE, &tmp);
+	      val = static_cast<Real>(tmp);
+	      H5Aclose(attr);
             }
-        };
-        readIntAttr("NR", NR);
-        readIntAttr("NTH", NTH);
-        readRealAttr("bfield_unit", b_units);
-        readRealAttr("length_unit", r_units);
-        readRealAttr("massdens_unit", rho_units);
-
-        mb = 1.0;
-
-        // Dataset transfer property list for MPI
-        hid_t dxpl = H5Pcreate(H5P_DATASET_XFER);
-        H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_INDEPENDENT);
-
-        // --------------------------------------------------
-        // Read 1D coordinates
-        // --------------------------------------------------
-        auto read1D = [&](const char* name, AA &array, int N) {
+	  };
+	  readIntAttr("NR", NR);
+	  readIntAttr("NTH", NTH);
+	  readRealAttr("bfield_unit", b_units);
+	  readRealAttr("length_unit", r_units);
+	  readRealAttr("massdens_unit", rho_units);
+	  
+	  //TODO Attribute not in file yet
+	  //readRealAttr("baryon_mass", mb);
+	  mb = 1.0;
+	  
+	  // Dataset transfer property list for MPI
+	  hid_t dxpl = H5Pcreate(H5P_DATASET_XFER);
+	  H5Pset_dxpl_mpio(dxpl, H5FD_MPIO_INDEPENDENT);
+	  
+	  // --------------------------------------------------
+	  // Read 1D coordinates
+	  // --------------------------------------------------
+	  auto read1D = [&](const char* name, AA &array, int N) {
             hid_t dset = H5Dopen(file, name, H5P_DEFAULT);
             assert(dset >= 0);
             std::vector<double> buffer(N);
@@ -171,37 +185,66 @@ namespace XNS {
             array.NewAthenaArray(N);
             for (int i = 0; i < N; ++i) array(i) = buffer[i];
             H5Dclose(dset);
-        };
-        read1D("R", xns_radius, NR);
-        read1D("TH", xns_theta, NTH);
-
-        // --------------------------------------------------
-        // Allocate 2D XNS data arrays
-        // --------------------------------------------------
-        for (int v = 0; v < NXNSVars; ++v) {
-          xnsdata[v].NewAthenaArray(NTH, NR);
-          xnsdata[v].ZeroClear();
-        }
-        // --------------------------------------------------
-        // Read 2D datasets
-        // --------------------------------------------------
-        for (int v = 0; v < NXNSVars; ++v) {
+	  };
+	  
+	  read1D("R", xns_radius, _NR);
+	  read1D("TH", xns_theta, _NTH);
+	  
+	  // --------------------------------------------------
+	  // Allocate 2D XNS data arrays
+	  // --------------------------------------------------
+	  for (int v = 0; v < NXNSVars; ++v) {
+	    xnsdata[v].NewAthenaArray(NTH, NR);
+	    xnsdata[v].Fill(NAN); // Fill NAN to check later initialization is correct!
+	  }
+	  
+	  // --------------------------------------------------
+	  // Read 2D datasets
+	  // --------------------------------------------------
+	  for (int v = 0; v < NXNSVars; ++v) {
             hid_t dset = H5Dopen(file, XNS_dataset[v], H5P_DEFAULT);
             assert(dset >= 0);
             std::vector<double> dbuffer(NTH*NR);
             H5Dread(dset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, dxpl, dbuffer.data());
             for (int i = 0; i < NTH; ++i)
-                for (int j = 0; j < NR; ++j)
-                    xnsdata[v](i,j) = dbuffer[i*NR + j]; //static_cast<Real>(NR-j) /
-                                      //static_cast<Real>(NR*NTH);
+	      for (int j = 0; j < NR; ++j)
+		xnsdata[v](i,j) = dbuffer[i*NR + j]; 
             H5Dclose(dset);
-        }
+	  }
+	  
+	  // Mark table as read
+	  initialized = true;
+	  
+	  // Cleanup
+	  H5Pclose(dxpl);
+	  H5Fclose(file);
 
-        // Cleanup
-        H5Pclose(dxpl);
-        H5Fclose(file);
+	  // Now this thread has read everything,
+	  // populate the aux static variables to share this data with other threads	  
+	  _NTH = NTH;
+	  _NR = NR;
+	  
+	  _mb = mb;
+	  
+	  _b_units = b_units;
+	  _r_units = r_units;
+	  _rho_units = rho_units;
+
+	} // if (initialized==false)
+      } // omp critical (ReadData)
+      
+      // Disseminate applicable static variables to local memory
+      NTH = NTH;
+      NR = NR;
+
+      mb = _mb;
+
+      b_units = _b_units;
+      r_units = _r_units;
+      rho_units = _rho_units;
+
     }
-
+    
     void WriteXNSGridToFile() const {
 
       std::ofstream fout("xns_radius");
@@ -244,7 +287,7 @@ namespace XNS {
                 << xns_radius(j) << " "
                 << xnsdata[v](i,j) << "\n";
             }
-            fout << "\n";  // separate theta slices
+            fout << "\n";
         }
 
         fout.close();
@@ -254,7 +297,7 @@ namespace XNS {
       // Interpolator of 2D variable at (r,theta) <- (x,y,z) 
 
       const Real rp = std::sqrt(SQR(xp) + SQR(yp) + SQR(zp));
-      const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; //TODO check acos range!
+      const Real thetap = (rp>0.0)? std::acos(zp/rp) : 0.0; 
 
       Real origin[2];
       Real delta[2];
@@ -271,10 +314,8 @@ namespace XNS {
       size[1] = NTH;
       size[0] = NR;
       
-      coord[1] = thetap; //std::min(xns_theta(NTH-1),
-            //std::max(xns_theta(0), thetap));
-      coord[0] = rp; //std::min(xns_radius(NR-1),
-            //std::max(xns_radius(0), rp));
+      coord[1] = thetap; 
+      coord[0] = rp; 
       
       if (order == metric_interp_order) {
         pinterp2_metric =
@@ -424,9 +465,21 @@ namespace XNS {
     
   }; // class XNSData
 
-string h5_fname;
-//extern XNSData *xns_data;
-//XNSData *xns_data = nullptr;
+  //Definitions for static members
+  Real * XNS::xns_radius = nullptr;
+  Real * XNS::xns_theta = nullptr;
+  Real * XNS::xnsdata[NXNSVars] = {
+    nullptr, nullptr, nullptr, // IXNS_alpha, IXNS_beta, IXNS_psi,
+    nullptr, nullptr, nullptr, //IXNS_rho, IXNS_pres, IXNS_vphi,
+    nullptr, nullptr, // IXNS_bpol, IXNS_btor,
+    nullptr, nullptr, nullptr, // IXNS_b3, IXNS_bpolr, IXNS_bpolt, 
+    nullptr, // IXNS_btot,
+    nullptr, // IXNS_chi,
+    nullptr, // IXNS_epol,
+    nullptr, nullptr, // IXNS_jpol, IXNS_jtor,
+  };
+  
+  string h5_fname;
 
 }
 
@@ -461,20 +514,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   if (!resume_flag) {
     // Set XNS HDF5 filename 
     h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
-    //XNSData XNS;
-
-    //XNS.ReadData(h5_fname);
-
-    //XNS::xns_data = new XNS::XNSData();
-    //XNS::xns_data->ReadData(h5_fname);
-
-    //Save coordinates and fields as .txt files
-    //XNS.WriteXNSGridToFile();
-
-    // Example: dump only matter fields
-    //XNS.WriteXNSDataToFile(IXNS_rho);
-    //XNS.WriteXNSDataToFile(IXNS_pres);
-    //XNS.WriteXNSDataToFile(IXNS_vphi);
     
 #if USETM
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
@@ -545,14 +584,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   XNSData XNS;
   XNS.ReadData(h5_fname);
 
-XNSData XNS;
-XNS.ReadData(h5_fname);
-//XNSData &XNS = *(XNS::xns_data);
-
-//XNS.WriteXNSDataToFile(IXNS_rho);
-//XNS.WriteXNSDataToFile(IXNS_pres);
-//XNS.WriteXNSDataToFile(IXNS_vphi);
-
+#if (DEBUG)
+  XNS.WriteXNSGridToFile();
+  for (int v = 0; v < NXNSVars; ++v) {
+    XNS.WriteXNSDataToFile(v);
+  }
+#endif
+     
+  // container with idx / grids pertaining z4c
+  //MB_info* mbi = &(pz4c->mbi); //TODO Shouldn't this be here?
+  
 #ifdef Z4C_ASSERT_FINITE
   // as a sanity check (these should be over-written)
   pz4c->adm.psi4.Fill(NAN);
@@ -664,13 +705,6 @@ XNS.ReadData(h5_fname);
   Real rho_min = pin->GetReal("hydro", "dfloor");
 #endif
 
-  // Open debug file once
-  //std::ofstream fout("interp_debug.txt"); //txt
-  //fout << std::setprecision(16);
-  // Header
-  //fout << "# xp    yp    zp    rp    thetap    rho    pres    vphi\n";
-  //phydro->w.ZeroClear();
-  //pscalars->r.ZeroClear();
   for (int k=0; k<ncells3; ++k)
   for (int j=0; j<ncells2; ++j)
   for (int i=0; i<ncells1; ++i)
@@ -688,17 +722,7 @@ XNS.ReadData(h5_fname);
     Real vphi = XNS.Interp(IXNS_vphi, matter_interp_order, VELOCITY); // v^\phi 
 
     XNS.FreeInterp(matter_interp_order);
-
-    //fout << xp << " " 
-    //     << yp << " " 
-    //     << zp << " " 
-    //     << std::sqrt(xp*xp + yp*yp + zp*zp) << " " 
-    //     << ((xp*xp + yp*yp + zp*zp > 0.0) ? std::acos(zp/std::sqrt(xp*xp + yp*yp + zp*zp)) : 0.0) << " " 
-    //     << rho << " " 
-    //     << pres << " " 
-    //     << vphi << "\n";//txt above!
-
-
+    
     // Interpolate metric & get Cartesian components
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
@@ -792,10 +816,7 @@ XNS.ReadData(h5_fname);
       }
     
   }
-
-  // Close file
-  //fout.close();//txt above
-
+  
   if (pres_diff > 1e-3)
     std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = "
               << pres_diff << std::endl;
@@ -871,15 +892,6 @@ XNS.ReadData(h5_fname);
     Real Bphi = XNS.Interp(IXNS_b3, matter_interp_order, BFIELD);
 
     XNS.FreeInterp(matter_interp_order);
-
-    //std::ofstream fout("interp_debugB.txt", std::ios::app);
-    //fout << std::setprecision(16)
-    //    << "xp=" << xp << " yp=" << yp << " zp=" << zp
-    //    << " Br=" << Br
-    //    << " Btheta=" << Btheta
-    //    << " Bphi=" << Bphi
-    //    << "\n";
-    //fout.close();
     
     // Interpolate conf. fact.
     XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
@@ -903,7 +915,7 @@ XNS.ReadData(h5_fname);
     pfield->bcc(1,k,j,i) = bccy;
     pfield->bcc(2,k,j,i) = bccz;
 
-    //TODO: Must this be densitized ?
+    // Densitize B field
     Real sqrtdetgam = std::pow(psi4, 6); // = sqrt(det(gamma))
     pfield->bcc(0,k,j,i) *= sqrtdetgam;
     pfield->bcc(1,k,j,i) *= sqrtdetgam;
