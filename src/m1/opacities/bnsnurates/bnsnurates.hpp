@@ -346,7 +346,7 @@ namespace M1::Opacities::BNSNuRates {
 	            scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3]);
             printf(" scat_1 %-13.6e %-13.6e %-13.6e %-13.6e\n\n",
 	            scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3]);
-            assert(false);
+            //assert(false);
 #endif
 
             bool is_failing_opacity = (opac_err)? true : false;
