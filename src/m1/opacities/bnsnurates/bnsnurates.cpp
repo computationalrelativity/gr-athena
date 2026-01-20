@@ -20,6 +20,9 @@
 // Note you need to switch off use_dU in bns_nurates/mwe.cpp to compare
 #define MWE_TEST (0) 
 
+// Point-test to test units
+#define M1_UNITS_TEST (0) 
+
 // Dimensionless rescaling factor for mb, to avoid nu_n overflows
 #if (MWE_TEST)
 #define NORMFACT (1.0)
@@ -425,10 +428,10 @@ namespace M1::Opacities::BNSNuRates {
     sigma_1_anux = opacities.kappa_a[id_anux] * unit_length;
     
     // extract scattering inverse mean-free path
-    scat_0_nue = 0;
-    scat_0_anue = 0;
-    scat_0_nux = 0;
-    scat_0_anux = 0;
+    scat_0_nue = 0 * unit_length;
+    scat_0_anue = 0 * unit_length;
+    scat_0_nux = 0 * unit_length;
+    scat_0_anux = 0 * unit_length;
     scat_1_nue = opacities.kappa_s[id_nue] * unit_length;
     scat_1_anue = opacities.kappa_s[id_anue] * unit_length;
     scat_1_nux = opacities.kappa_s[id_nux] * unit_length;
@@ -534,7 +537,18 @@ namespace M1::Opacities::BNSNuRates {
       en_nux = 0.;
       return;
     }
-    
+
+#if (M1_UNITS_TEST)
+    printf(" rho, T, nb, mb, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+        rho_cgs, temp, nb, mb, mb*nb);
+    printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
+        mu_n, mu_p, mu_e);
+    printf(" n_nue, n_anue, n_nux %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	    n_nue, n_anue, n_nux);
+    printf(" en_nue, en_anue, en_nux %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	    en_nue, en_anue, en_nux);
+#endif
+
     Real eta_nue = (mu_p + mu_e - mu_n) / temp; 
     Real eta_anue = -eta_nue;
     Real eta_nux = 0.0;
@@ -550,6 +564,16 @@ namespace M1::Opacities::BNSNuRates {
     en_nue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nue);    // [MeV cm^-3]
     en_anue = 4.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_anue);  // [MeV cm^-3]
     en_nux = 16.0 * M_PI / hc_mevcm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV cm^-3]
+		
+#if (M1_UNITS_TEST)
+    printf(" eta_nue, eta_anue, eta_nux %-13.6e %-13.6e %-13.6e %-13.6e\n",
+        eta_nue, eta_anue, eta_nux);
+    printf(" n_nue, n_anue, n_nux %-13.6e %-13.6e %-13.6e %-13.6e\n",
+        n_nue, n_anue, n_nux);
+    printf(" en_nue, en_anue, en_nux %-13.6e %-13.6e %-13.6e %-13.6e\n",
+        en_nue, en_anue, en_nux);
+    assert(false);
+#endif
 
 #if (ASSERT_NDEN_ISFINITE)
     assert(isfinite(n_nue));
@@ -559,11 +583,14 @@ namespace M1::Opacities::BNSNuRates {
     assert(isfinite(en_anue));
     assert(isfinite(en_nux));
 #endif
-    
+
+    // FIXME WHY NOT unit_num_dens and unit_ene_dens (as in AthenaK)?
     // Convert back to code units 
     const Real n_conv = wr_units->NumberDensityConversion(*code_units);
+    //const Real n_conv = 1./eos_units->NumberDensityConversion(*nurates_units);
     //const Real e_conv = MeV_to_erg * wr_units->EnergyDensityConversion(*code_units);
     const Real e_conv = wr_units->EnergyDensityConversion(*code_units);
+    //const Real e_conv = 1./code_units->EnergyDensityConversion(*nurates_units);
 
     n_nue = n_nue * n_conv;
     n_anue = n_anue * n_conv;
