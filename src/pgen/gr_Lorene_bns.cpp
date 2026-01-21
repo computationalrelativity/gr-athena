@@ -68,6 +68,7 @@ namespace {
   Real sep;
   Real pgasmax_1;
   Real pgasmax_2;
+  Real centre_m,centre_p;
 
   // constants ----------------------------------------------------------------
 #if defined(LORENE_HARDCODED_UNITS)
@@ -188,7 +189,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
       Real A_amp =
           A_amp_2 * std::max(std::pow(w_p - pcut_2, ns_2), 0.0);
       Acc(0,k,j,i) = -x2 * A_amp;
-      Acc(1,k,j,i) = (x1 - 0.5*sep) * A_amp;
+      Acc(1,k,j,i) = (x1 - centre_p) * A_amp;
       Acc(2,k,j,i) = 0.0;
     }
     else
@@ -196,7 +197,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
       Real A_amp =
           A_amp_1 * std::max(std::pow(w_p - pcut_1, ns_1), 0.0);
       Acc(0,k,j,i) = -x2 * A_amp;
-      Acc(1,k,j,i) = (x1 + 0.5*sep) * A_amp;
+      Acc(1,k,j,i) = (x1 - centre_m) * A_amp;
       Acc(2,k,j,i) = 0.0;
     }
   }
@@ -299,6 +300,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   gamma_adi = pin->GetReal("hydro", "gamma");
 #endif
 
+#ifdef MPI_PARALLEL
+  int rank;
+  int root = pin->GetOrAddInteger("problem", "mpi_root", 0);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  bool ioproc = (root == rank);
+#else
+  bool ioproc = true;
+#endif
   Lorene::Bin_NS * bns;
 
   // read in dummy bns to get separation
@@ -327,31 +336,103 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   // Get the separation
   bns = new Lorene::Bin_NS(1, crd, crd, crd,
                            fn_ini_data.c_str());
-  sep = bns->dist / coord_unit;
-
+  sep = bns->dist;
+  //sep in km
   delete bns;
   delete[] crd;
+  // search for nbar_max along y, z axes for x positive and negative
 
-  // read it in again to get the central densities
-  Real* x_crd = new Real[2]{0.5 * sep * coord_unit, -0.5 * sep * coord_unit};
-  Real* yz_crd = new Real[2]{0.0, 0.0};
+  Real * xcrd_p, *xcrd_m, *ycrd, *zcrd;
 
-  // Get the central densities
-  bns = new Lorene::Bin_NS(2, x_crd, yz_crd, yz_crd,
+  // Interpolation grid with dx of 10m by default.
+  Real dx_interp = pin->GetOrAddReal("problem","dx_interp_maximum",0.01); 
+
+  dx_interp = dx_interp;
+  int npt_interp = static_cast<int>(std::round(sep / dx_interp));
+
+
+  // Construct interpolation grid
+  xcrd_p = new Real[npt_interp];
+  xcrd_m = new Real[npt_interp];
+  ycrd = new Real[npt_interp];
+  zcrd = new Real[npt_interp];
+
+  xcrd_p[0] = 0.0;
+  xcrd_m[npt_interp-1] = 0.0;
+  ycrd[npt_interp-1] = 0.0;
+  zcrd[npt_interp-1] = 0.0;
+
+
+  for (int i=0; i < npt_interp-1; ++i)
+  {
+    xcrd_p[i+1] = xcrd_p[i] + dx_interp;
+    xcrd_m[npt_interp-i-1] = xcrd_m[npt_interp-i] - dx_interp;
+    ycrd[i] = 0.0;
+    zcrd[i] = 0.0;
+  } 
+
+
+
+  Real nbar, nbar1, nbar2;
+  Real max_nbar;
+  int max_nbar_i;
+
+
+  bns = new Lorene::Bin_NS(npt_interp, xcrd_p, ycrd, zcrd,
                            fn_ini_data.c_str());
+
+  max_nbar_i = 0;
+  max_nbar = -1.0;
+  for (int i = 0; i < npt_interp; ++i)
+  {
+    nbar = bns->nbar[i];
+    if(nbar > max_nbar)
+    {
+      max_nbar = nbar;
+      max_nbar_i = i;
+    }
+  }
+
+  centre_p = xcrd_p[max_nbar_i] / coord_unit;
+  nbar2 = max_nbar;
+
+  delete bns;
+
+  bns = new Lorene::Bin_NS(npt_interp, xcrd_m, ycrd, zcrd,
+                           fn_ini_data.c_str());
+
+  max_nbar_i = 0;
+  max_nbar = -1.0;
+  for (int i = 0; i < npt_interp; ++i)
+  {
+    nbar = bns->nbar[i];
+    if(nbar > max_nbar)
+    {
+      max_nbar = nbar;
+      max_nbar_i = i;
+    }
+  }
+  
+  centre_m = xcrd_m[max_nbar_i] / coord_unit;
+  nbar1 = max_nbar;
 
   if (!verbose)
   {
     std::cout.rdbuf(cur_buf);
   }
 
-  // forr tabulated EOS need to convert baryon mass
+  // for energy testing against cold slice
+  Real eps_1 = bns->ener_spec[max_nbar_i];
+  Real rho_1,rho_2;
+
+
+  // for tabulated EOS need to convert baryon mass
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-  Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
-  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  rho_1 = nbar1 / m_u_si * 1e-45 * ceos->GetBaryonMass();
+  rho_2 = nbar2 / m_u_si * 1e-45 * ceos->GetBaryonMass();
 #else
-  Real rho_1 = bns->nbar[0] / rho_unit;
-  Real rho_2 = bns->nbar[1] / rho_unit;
+  rho_1 = nbar1 / rho_unit;
+  rho_2 = nbar2 / rho_unit;
 #endif
 
 #if USETM
@@ -363,7 +444,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 #endif
 
   // sanity check if the internal energy matches the eos
-  Real eps_1 = bns->ener_spec[0];
 #if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
   eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
 #endif
@@ -375,14 +455,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 #endif
   Real eps_err = std::abs(eps_ceos/eps_1 - 1);
 
-#ifdef MPI_PARALLEL
-  int rank;
-  int root = pin->GetOrAddInteger("problem", "mpi_root", 0);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  bool ioproc = (root == rank);
-#else
-  bool ioproc = true;
-#endif
 
   if (ioproc && (eps_err > 1.0e-5))
   {
@@ -391,6 +463,11 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     printf("rho=%.16e, eps_lorene=%.16e, eps_eos=%.16e, rel. err.=%.16e\n",
            rho_1, eps_1, eps_ceos, eps_err);
   }
+  delete bns;
+  delete[] xcrd_p; 
+  delete[] xcrd_m;
+  delete[]  ycrd;
+  delete[]  zcrd;
 
   return;
 }
@@ -521,7 +598,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       std::cout.rdbuf(cur_buf);
     }
 
-    sep = bns->dist / coord_unit;
 
     assert(bns->np == npoints_gs);
 
