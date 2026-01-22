@@ -15,7 +15,9 @@
 #if M1_ENABLED
 #include "../m1/m1.hpp"
 #endif // M1_ENABLED
-
+#if SUBGRID_ENABLED
+#include "../subgrid_models/smagorinsky.hpp"
+#endif
 using namespace gra::aliases;
 
 // ----------------------------------------------------------------------------
@@ -304,6 +306,26 @@ void Z4c::GetMatter(
       }
       for (int a=0; a<NDIM; ++a)
       {
+      #if SUBGRID_ENABLED
+         ILOOP1(i)
+        {
+          mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
+          // Real oo_sqrtdg = 1.0 / std::sqrt(detgamma(i));
+          // mat.S_d(a,k,j,i) = ph->u(IM1+a,k,j,i) *oo_sqrtdg;
+        }
+        for (int b=a; b<NDIM; ++b)
+        {
+          ILOOP1(i)
+          {
+            mat.S_dd(a,b,k,j,i) = (w_hrho(i)*SQR(W(i))*v_d(a,i)*v_d(b,i)+
+                                   w_p(i)*adm.g_dd(a,b,k,j,i) + pmb->psmago->TurbStressTensor_dd(a,b,k,j,i));
+
+            // mat.S_dd(a,b,k,j,i) = (mat.S_d(a,k,j,i)*v_d(b,i)+
+            //                        w_p(i)*adm.g_dd(a,b,k,j,i));
+
+          }
+        }                         
+      #else
         ILOOP1(i)
         {
           mat.S_d(a,k,j,i) = w_hrho(i)*SQR(W(i))*v_d(a,i);
@@ -322,6 +344,7 @@ void Z4c::GetMatter(
 
           }
         }
+        #endif
       }
 
 #endif

@@ -34,6 +34,7 @@ SRC_FILES := \
 		$(wildcard src/bvals/fc/*.cpp) \
 		$(wildcard src/bvals/utils/*.cpp) \
 		$(wildcard src/coordinates/*.cpp) \
+		@SUBGRID_SRC@ \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
 		src/eos/eos_utils.cpp \

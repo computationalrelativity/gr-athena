@@ -21,6 +21,9 @@
 #include "../../scalars/scalars.hpp"
 #include "task_list.hpp"
 #include "task_names.hpp"
+#if SUBGRID_ENABLED
+#include "../../subgrid_models/smagorinsky.hpp"
+#endif
 #if CCE_ENABLED
 #include "../../z4c/cce/cce.hpp"
 #endif
@@ -67,11 +70,21 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     {
       Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
       Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
-      Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
+      #if SUBGRID_ENABLED
+      Add(CALC_TURBTENS, RECV_HYDFLX, &GRMHD_Z4c::ComputeSubgridTensor);
+      Add(INT_HYD, CALC_TURBTENS, &GRMHD_Z4c::IntegrateHydro);
+      #else
+      Add(INT_HYD, RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
+      #endif
     }
     else
     {
-      Add(INT_HYD, CALC_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
+      #if SUBGRID_ENABLED
+      Add(CALC_TURBTENS, CALC_HYDFLX, &GRMHD_Z4c::ComputeSubgridTensor);
+      Add(INT_HYD, CALC_TURBTENS , &GRMHD_Z4c::IntegrateHydro);
+      #else
+      Add(INT_HYD, CALC_HYDFLX , &GRMHD_Z4c::IntegrateHydro);
+      #endif
     }
 
     Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
@@ -298,11 +311,22 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     {
       Add(SEND_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::SendFluxCorrectionHydro);
       Add(RECV_HYDFLX, CALC_HYDFLX, &GRMHD_Z4c::ReceiveAndCorrectHydroFlux);
+      #if SUBGRID_ENABLED
+      Add(CALC_TURBTENS, RECV_HYDFLX, &GRMHD_Z4c::ComputeSubgridTensor);
+      Add(INT_HYD,     CALC_TURBTENS, &GRMHD_Z4c::IntegrateHydro);
+      #else
       Add(INT_HYD,     RECV_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
+      #endif
     }
     else
     {
-      Add(INT_HYD, CALC_HYDFLX, &GRMHD_Z4c::IntegrateHydro);
+      #if SUBGRID_ENABLED
+      Add(CALC_TURBTENS, CALC_HYDFLX, &GRMHD_Z4c::ComputeSubgridTensor);
+      Add(INT_HYD, CALC_TURBTENS , &GRMHD_Z4c::IntegrateHydro);
+      #else
+      Add(INT_HYD, CALC_HYDFLX , &GRMHD_Z4c::IntegrateHydro);
+      #endif
+      
     }
 
     Add(SRCTERM_HYD, INT_HYD,     &GRMHD_Z4c::AddSourceTermsHydro);
@@ -714,6 +738,22 @@ TaskStatus GRMHD_Z4c::AddSourceTermsHydro(MeshBlock *pmb, int stage)
 
   return TaskStatus::fail;
 }
+
+//----------------------------------------------------------------------------
+// Functions to compute Turbolent stress tensor if Subgrid Smagorinsky is enabled
+#if SUBGRID_ENABLED
+TaskStatus GRMHD_Z4c::ComputeSubgridTensor(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+  // Initialize Subgrid model if enabled 
+    pmb->psmago->TurTensorCalculator(); //Do not change the order of calls
+    return TaskStatus::success;
+  }
+
+  return TaskStatus::fail;
+}
+#endif
 
 
 //-----------------------------------------------------------------------------

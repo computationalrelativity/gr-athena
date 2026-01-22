@@ -100,6 +100,10 @@ const TaskID PHY_BVAL_Z4C(62);
 
 const TaskID CCE_DUMP(63);
 
+#if SUBGRID_ENABLED
+const TaskID CALC_TURBTENS(40);
+#endif
+
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
 
 namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Split {

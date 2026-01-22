@@ -48,6 +48,7 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class EquationOfState;
+class SmagoSG;
 #ifdef FFT
 class FFTDriver;
 class TurbulenceDriver;
@@ -236,6 +237,9 @@ public:
   Field *pfield;
   PassiveScalars *pscalars;
   EquationOfState *peos;
+  #if (SUBGRID_ENABLED)
+  SmagoSG *psmago;
+  #endif
 
   Wave *pwave;
 

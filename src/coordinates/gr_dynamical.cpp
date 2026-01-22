@@ -14,7 +14,9 @@
 #include "coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/floating_point.hpp"
-
+#if SUBGRID_ENABLED
+  #include "../subgrid_models/smagorinsky.hpp" 
+#endif
 //-----------------------------------------------------------------------------
 using namespace gra::aliases;
 //-----------------------------------------------------------------------------
@@ -560,6 +562,85 @@ void GRDynamical::AddCoordTermsDivergence(
     }
     else  // GRHD
     {
+    #if SUBGRID_ENABLED //SUBGRID INCLUDED
+        // tau-source term ------------------------------------------------------
+        Stau_.ZeroClear();
+        for (int a = 0; a < NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) *
+              oo_alpha_(i);
+
+          }
+
+          for (int b = 0; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              Stau_(i) += (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(b, i) +
+                          w_p(k, j, i) * gamma_uu_(a, b, i) + pmb->psmago->Get_TurbStressTensor_uu(a,b,k,j,i)) *
+                        K_dd_(a, b, i);
+            }
+          }
+        }
+
+        // momentum source term -------------------------------------------------
+        for (int a=0; a<NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            Real geom_corr = 0.0;
+            
+            for(int m = 0; m < NDIM; ++m) {
+                
+                // Log derivative of sqrt(gamma) along m: 0.5 * g^pq * d_m(g_pq)
+                Real dln_sqrtg_m = 0.0;
+                for(int p=0; p<NDIM; ++p) {
+                    for(int q=0; q<NDIM; ++q) {
+                        dln_sqrtg_m += 0.5 * gamma_uu_(p,q,i) * dgamma_ddd_(m,p,q,i);
+                    }
+                }
+                
+                // Log derivative of alpha along m
+                Real dln_alpha_m = dalpha_d_(m, i) * oo_alpha_(i);
+
+                // Geometric correction: TurbStressTensor_du(m, a) * (d_m(alpha)/alpha + d_m(sqrtg)/sqrtg)
+                geom_corr += pmb->psmago->Get_TurbStressTensor_du(m,a,k,j,i) * (dln_alpha_m + dln_sqrtg_m);
+            }
+
+            // SS_d = Standard Sources - Div(T) - Geom_correction(T)
+            // (NB: all geom terms are multiplied by alpha*sqrt(gamma) outside of this loop)
+            
+            SS_d_(a, i) = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
+                        dalpha_d_(a, i) * oo_alpha_(i) 
+                        - pmb->psmago->Get_d_TurbStressTensor_d(a,k,j,i) 
+                        - geom_corr;
+          }
+
+          for (int b=0; b<NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
+                            dbeta_du_(a, b, i) * oo_alpha_(i);
+            }
+
+            for (int c=0; c<NDIM; ++c)
+            {
+              CC_PCO_ILOOP1(i)
+              {
+                SS_d_(a, i) += (0.5 *
+                                (w_hrho_(i) * w_util_u_(b, i) * w_util_u_(c, i) +
+                                w_p(k, j, i) * gamma_uu_(b, c, i) + pmb->psmago->Get_TurbStressTensor_uu(b,c,k,j,i)) *
+                                dgamma_ddd_(a, b, c, i));
+              }
+            }
+          }
+        }
+      
+      #else //SUBGRID NOT-INCLUDED
+  
       // tau-source term ------------------------------------------------------
       Stau_.ZeroClear();
       for (int a = 0; a < NDIM; ++a)
@@ -611,6 +692,8 @@ void GRDynamical::AddCoordTermsDivergence(
           }
         }
       }
+
+      #endif //SOURCES IN GRHD SUBGRID_ENABLED
     } // MAGNETIC_FIELDS_ENABLED
 
     // Add sources

@@ -41,6 +41,9 @@
 #include "../wave/wave.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../m1/m1.hpp"
+#if (SUBGRID_ENABLED)
+#include "../subgrid_models/smagorinsky.hpp" 
+#endif
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -198,6 +201,10 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     pm1 = new M1::M1(this, pin);
     pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
+
+  #if (SUBGRID_ENABLED)
+    psmago = new SmagoSG(this, pin);
+  #endif
 
 
   // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
@@ -417,6 +424,10 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     load_data(pm1->storage.u);
   }
 
+  #if (SUBGRID_ENABLED)
+    psmago = new SmagoSG(this, pin);
+  #endif
+
   // load user MeshBlock data
   for (int n=0; n<nint_user_meshblock_data_; n++)
   {
@@ -448,6 +459,9 @@ MeshBlock::~MeshBlock() {
   if (FLUID_ENABLED) delete peos;
   if (NSCALARS > 0) delete pscalars;
   if (WAVE_ENABLED) delete pwave;
+  #if (SUBGRID_ENABLED) 
+    delete psmago;
+  #endif
 
   if (Z4C_ENABLED) {
     delete pz4c;

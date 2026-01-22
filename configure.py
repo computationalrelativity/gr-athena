@@ -57,6 +57,7 @@
 #   -ccache             use caching-compiler (prepend command to chosen compiler)
 #   -rpath              encode the path to the shared libraries into the executable
 #   -link_gold          use gold linker
+#   -subg               include subgrid model (Smagorinsky)
 #   -no_flto            avoid some linker problems encountered with old gcc versions
 #
 # S/AMR:
@@ -653,6 +654,11 @@ parser.add_argument(
 # -no_flto argument
 parser.add_argument(
   "-no_flto", action="store_true", default=False, help="disable flto",
+)
+
+# -subg argument
+parser.add_argument(
+  "-subg", action="store_true", default=False, help="include subgrid term"
 )
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
@@ -1954,6 +1960,20 @@ if args["no_flto"]:
   mk_opt = mk_opt.replace("-fwhole-program", "")
   makefile_options["COMPILER_FLAGS"] = mk_opt
 
+# -subg argument
+if args["subg"]:
+  definitions["SUBGRID_ENABLED"] = "1"
+else:
+  definitions["SUBGRID_ENABLED"] = "0"  
+
+if args["subg"]:
+  aux = [
+    "$(wildcard src/subgrid_models/*.cpp)",
+  ]
+  makefile_options["SUBGRID_SRC"] = "\\\n".join(aux)
+else:
+  makefile_options["SUBGRID_SRC"] = ""
+
 # === Trimmed-down SRC_FILES needs treatment here =============================
 
 # task list: ------------------------------------------------------------------
@@ -2107,6 +2127,7 @@ print("  Coordinate system:            " + args["coord"])
 print("  Equation of state:            " + args["eos"])
 print("  Riemann solver:               " + args["flux"])
 print("  Hydrodynamics:                " + ("ON" if args["f"] else "OFF"))
+print("  Smagorinsky_Subgrid           " + ("ON" if args["subg"] else "OFF"))
 print("  Magnetic fields:              " + ("ON" if args["b"] else "OFF"))
 print("  Number of scalars:            " + args["nscalars"])
 print("  Special relativity:           " + ("ON" if args["s"] else "OFF"))

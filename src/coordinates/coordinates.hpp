@@ -15,6 +15,7 @@
 
 // C++ headers
 #include <iostream>
+#include <memory> // to use std::unique_ptr
 
 // Athena++ headers
 #include "../athena.hpp"

@@ -86,6 +86,8 @@ public:
   TaskStatus IntegrateHydro(MeshBlock *pmb, int stage);
   TaskStatus IntegrateField(MeshBlock *pmb, int stage);
 
+  TaskStatus ComputeSubgridTensor(MeshBlock *pmb, int stage);
+
   TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
 
   TaskStatus SendHydro(MeshBlock *pmb, int stage);
@@ -162,7 +164,7 @@ public:
                       gra::triggers::Triggers &trgs);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
-
+  
   TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
 
   TaskStatus SendFluxCorrectionHydro(MeshBlock *pmb, int stage);
