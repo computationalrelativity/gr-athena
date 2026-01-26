@@ -611,6 +611,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
+#if USETM
+      // recover rest mass density from energy density to avoid inconsistencies in the baryon mass
+      rho = ceos->GetDensityFromEnergy(rho*(1.0 + eps));
+#endif
+
       // Fill primitive storage
       w(IDN, k, j, i) = rho;
       w(IVX, k, j, i) = W * v_u_x;

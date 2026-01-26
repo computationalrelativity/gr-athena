@@ -730,6 +730,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     assert(bns->np == npoints_cc);
 
+    Real w_rho_atm = pin->GetReal("hydro", "dfloor");
+    Real rho_cut = std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm), w_rho_atm);
+    Real w_rho;
+
     I = 0;      // reset
 
     AthenaArray<Real> & w = phydro->w;
@@ -744,13 +748,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
-      // Lorene is using the atomic mass unit as reference mass so the density has to be converted
-      Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
-      Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
-#else
-      Real w_rho = bns->nbar[I] / rho_unit;
-#endif
+// #if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
+//       // Lorene is using the atomic mass unit as reference mass so the density has to be converted
+//       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
+//       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units
+// #else
+//       Real w_rho = bns->nbar[I] / rho_unit;
+// #endif
+
+      if (bns->nbar[I] / rho_unit > rho_cut) {
+          Real egas = bns->nbar[I]*(1.0 + bns->ener_spec[I] / ener_unit)/rho_unit;
+          w_rho = ceos->GetDensityFromEnergy(egas);
+      } else {
+          w_rho = 0.0;
+      }
 
       // Unused, retain for reference:
       //

@@ -60,6 +60,9 @@ class ColdEOSCompOSE {
     /// Calculate the number density from the pressure
     Real DensityFromPressure(Real P);
 
+    /// Calculate the number density from the total energy density
+    Real DensityFromEnergy(Real E);
+
     /// Number of particle species
     int n_species;
     /// Baryon mass

@@ -67,9 +67,12 @@ Real ColdEOSCompOSE::Enthalpy(Real n) {
 }
 
 Real ColdEOSCompOSE::DensityFromPressure(Real P) {
-  return eval_at_general(ECLOGP, ECLOGN, P);
+  return exp(eval_at_general(ECLOGP, ECLOGN, log(P)));
 }
 
+Real ColdEOSCompOSE::DensityFromEnergy(Real E) {
+  return exp(eval_at_general(ECLOGE, ECLOGN, log(E)));
+}
 
 void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname, std::string species_names[NSCALARS]) {
   herr_t ierr;
