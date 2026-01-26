@@ -345,7 +345,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   Real * xcrd_p, *xcrd_m, *ycrd, *zcrd;
 
   // Interpolation grid with dx of 10m by default.
-  Real dx_interp = pin->GetOrAddReal("problem","dx_interp_maximum",0.01); 
+  Real dx_interp = pin->GetOrAddReal("problem","dx_interp_maximum",0.01);
 
   dx_interp = dx_interp;
   int npt_interp = static_cast<int>(std::round(sep / dx_interp));
@@ -369,7 +369,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     xcrd_m[npt_interp-i-1] = xcrd_m[npt_interp-i] - dx_interp;
     ycrd[i] = 0.0;
     zcrd[i] = 0.0;
-  } 
+  }
 
 
 
@@ -412,7 +412,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
       max_nbar_i = i;
     }
   }
-  
+
   centre_m = xcrd_m[max_nbar_i] / coord_unit;
   nbar1 = max_nbar;
 
@@ -464,7 +464,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
            rho_1, eps_1, eps_ceos, eps_err);
   }
   delete bns;
-  delete[] xcrd_p; 
+  delete[] xcrd_p;
   delete[] xcrd_m;
   delete[]  ycrd;
   delete[]  zcrd;
