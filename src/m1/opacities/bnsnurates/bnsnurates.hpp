@@ -54,7 +54,11 @@
 #endif
 
 // Point-test to test units
-#define M1_UNITS_TEST (0) 
+#define M1_UNITS_TEST (1)
+#define M1_UNITS_TEST_VERBOSE (0)
+// test weak equilibrium routines
+#define WEAK_EQ_TEST (0)
+#define WEAK_EQ_TEST_VERBOSE (0)
 
 
 namespace M1::Opacities::BNSNuRates {
@@ -138,7 +142,7 @@ namespace M1::Opacities::BNSNuRates {
 
       // Parameters for bns_nurates
       // Defaults should mimic WeakRates
-      nurates_params.quad_nx_1 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_beta_nucleon_scat", 6);
+      nurates_params.quad_nx_1 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_beta_nucleon_scat", 20);
       nurates_params.quad_nx_2 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_pair_bremsstrahlung_lepton_scat", -1);
 
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true); // semilept charge-current proc.
@@ -346,7 +350,6 @@ namespace M1::Opacities::BNSNuRates {
 	            scat_0_loc[0], scat_0_loc[1], scat_0_loc[2], scat_0_loc[3]);
             printf(" scat_1 %-13.6e %-13.6e %-13.6e %-13.6e\n\n",
 	            scat_1_loc[0], scat_1_loc[1], scat_1_loc[2], scat_1_loc[3]);
-            //assert(false);
 #endif
 
             bool is_failing_opacity = (opac_err)? true : false;
@@ -383,13 +386,27 @@ namespace M1::Opacities::BNSNuRates {
 			     ) * dt;
 	    
 #if (M1_UNITS_TEST)  
-          printf(" opacity_tau_trap, tau %-13.6e %-13.6e\n\n", opacity_tau_trap, tau);
+          printf(" tau1 %-13.6e\n",
+                std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])));
+          printf(" tau2 %-13.6e\n",
+                std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1])));
+          printf(" opacity_tau_trap, tau, dt %-13.6e %-13.6e %-13.6e\n",
+                opacity_tau_trap, tau, dt);
+
+          // this routine is first called an initialization, where dt=0
+          // we use a fake dt=1 here to enter the trapped calculations and compare vs AthenaK
+          const Real fake_dt = 1.;
+	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
+			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
+			     ) * fake_dt;
+          printf(" used_tau_trap, used_dt %-13.6e %-13.6e\n",
+                tau, fake_dt);
 #endif
 	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
 		
                 Real T_trap;
                 Real Y_e_trap;
-		
+
                 // Calculate equilibrated state
                 ierr[0] = WeakEquilibrium(rho, T, Y_e,
                                           nudens_0[0],
@@ -405,7 +422,11 @@ namespace M1::Opacities::BNSNuRates {
                                           nudens_1_trap[0],
                                           nudens_1_trap[1],
                                           nudens_1_trap[2]);
-
+#if (M1_UNITS_TEST)
+                printf("  4 T_trap, Y_e %-13.6e %-13.6e\n",
+	                T_trap, Y_e_trap);
+#endif
+	    
 #if (M1_UNITS_TEST)
                 printf("   nudens_0 %-13.6e %-13.6e %-13.6e\n",
 	                nudens_0[0], nudens_0[1], nudens_0[2]+nudens_0[3]);
@@ -415,6 +436,11 @@ namespace M1::Opacities::BNSNuRates {
 	                nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2]);
                 printf("   nudens_1_trap %-13.6e %-13.6e %-13.6e\n\n",
 	                nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
+#endif
+	    
+#if (M1_UNITS_TEST)
+                printf("   0 if NO error WeakEquilibrium: %1d\n", ierr[0]);
+                assert(false);
 #endif
 
                 // If we can't get equilibrium, try again but ignore current neutrino
@@ -441,6 +467,8 @@ namespace M1::Opacities::BNSNuRates {
 		  }
 		}
 
+// FIXME if the following lines are executed, Ye does not evolve. Remove them completely?
+#if (!M1_UNITS_TEST)
 		Real mu_n_eq;
 		Real mu_p_eq;
 		Real mu_e_eq;
@@ -451,6 +479,7 @@ namespace M1::Opacities::BNSNuRates {
 					mu_n_eq, mu_p_eq, mu_e_eq,
 					nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2],
 					nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
+#endif
 		
                 assert(isfinite(nudens_0_trap[0]));
                 assert(isfinite(nudens_0_trap[1]));
@@ -651,7 +680,7 @@ namespace M1::Opacities::BNSNuRates {
     const Real hc_mevcm = 1.23984172e-10;      // hc in units of MeV*cm
     const Real oo_hc_mevcm3 = 1.0/POW3(hc_mevcm);
 
-    const Real pref1 = 4.0/3.0 * pi * oo_hc_mevcm3;        // 4/3 *pi/(hc)**3 [MeV^3/cm^3]
+    const Real pref1 = 4.0/3.0 * pi * oo_hc_mevcm3;        // 4/3 *pi/(hc)**3 [1/MeV^3/cm^3]
     const Real pref2 = 4.0 * pi*mev_to_erg * oo_hc_mevcm3; // 4*pi/(hc)**3 [erg/MeV^4/cm^3]
     const Real cnst1 = 7.0 * pi4 /20.0;                // 7*pi**4/20 [-]
     const Real cnst5 = 7.0 * pi4 /60.0;                // 7*pi**4/60 [-]
