@@ -156,7 +156,7 @@ int WeakEquilibriumMod::WeakEquilibriumImpl(
     // Conversion no longer here, just split output arrays from weak_equil_wnu
     n_nue_eq  = nb*y_eq[1];
     n_nua_eq  = nb*y_eq[2];
-    n_nux_eq  = 4.0*nb*y_eq[3];
+    n_nux_eq  = nb*y_eq[3];
     e_nue_eq = e_eq[1];
     e_nua_eq = e_eq[2];
     e_nux_eq = e_eq[3];
@@ -362,6 +362,7 @@ void WeakEquilibriumMod::weak_equil_wnu(Real rho, Real T, Real y_in[4], Real e_i
 
   // compute the density of the trapped neutrinos
   dens_nu_trap(T_eq,eta,nu_dens);
+  nu_dens[2] = 4.0*nu_dens[2];      // four heavy-lepton neutrinos
 
   // Compute the baryon number density (mass_fact is given in MeV)
   // Real mass_fact_cgs = mass_fact * mev_to_erg / (clight*clight);
