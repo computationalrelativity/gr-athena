@@ -140,7 +140,21 @@ class WeakEoSMod {
       Real nb_code = rho * my_units->MassDensityConversion(*code_units)/mb_code;
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
       Real Y[1] = {ye};
+
+#define WEAK_EQ_TEST (1)
+
+#if (WEAK_EQ_TEST)
+    printf("\n nb, temp, Y %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	    nb_code, temp_code, Y[0], Y[1], Y[2]);
+#endif
+
       Real e = PS_EoS->GetEnergy(nb_code, temp_code, Y) * code_units->EnergyDensityConversion(*my_units);
+
+#if (WEAK_EQ_TEST)
+    printf(" e %-13.6e\n",
+	    e);
+    assert(false);
+#endif
 
       return e;
     }

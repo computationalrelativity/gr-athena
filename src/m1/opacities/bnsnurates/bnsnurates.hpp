@@ -54,7 +54,7 @@
 #endif
 
 // Point-test to test units
-#define M1_UNITS_TEST (1)
+#define M1_UNITS_TEST (0)
 #define M1_UNITS_TEST_VERBOSE (0)
 // test weak equilibrium routines
 #define WEAK_EQ_TEST (0)
@@ -380,10 +380,13 @@ namespace M1::Opacities::BNSNuRates {
             // --------------------------------------------------------------------
 	    if (use_kirchhoff_law ||
 		nurates_params.use_equilibrium_distribution) {
+          
+          Real use_dt = dt;
+          if (dt==0.){use_dt = 1e-20;}      // needed at initialization //FIXME is this ok later?
 
 	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
 			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
-			     ) * dt;
+			     ) * use_dt;
 	    
 #if (M1_UNITS_TEST)  
           printf(" tau1 %-13.6e\n",
@@ -391,21 +394,17 @@ namespace M1::Opacities::BNSNuRates {
           printf(" tau2 %-13.6e\n",
                 std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1])));
           printf(" opacity_tau_trap, tau, dt %-13.6e %-13.6e %-13.6e\n",
-                opacity_tau_trap, tau, dt);
-
-          // this routine is first called an initialization, where dt=0
-          // we use a fake dt=1 here to enter the trapped calculations and compare vs AthenaK
-          const Real fake_dt = 1.;
-	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
-			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
-			     ) * fake_dt;
-          printf(" used_tau_trap, used_dt %-13.6e %-13.6e\n",
-                tau, fake_dt);
+                opacity_tau_trap, tau, use_dt);
 #endif
+
 	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
 		
                 Real T_trap;
                 Real Y_e_trap;
+
+#if (M1_UNITS_TEST)
+    printf("\n NeutrinoDens@equilibrium");
+#endif
 
                 // Calculate equilibrated state
                 ierr[0] = WeakEquilibrium(rho, T, Y_e,
@@ -422,25 +421,20 @@ namespace M1::Opacities::BNSNuRates {
                                           nudens_1_trap[0],
                                           nudens_1_trap[1],
                                           nudens_1_trap[2]);
+
 #if (M1_UNITS_TEST)
-                printf("  4 T_trap, Y_e %-13.6e %-13.6e\n",
-	                T_trap, Y_e_trap);
-#endif
-	    
-#if (M1_UNITS_TEST)
-                printf("   nudens_0 %-13.6e %-13.6e %-13.6e\n",
-	                nudens_0[0], nudens_0[1], nudens_0[2]+nudens_0[3]);
-                printf("   nudens_1 %-13.6e %-13.6e %-13.6e\n",
-	                nudens_1[0], nudens_1[1], nudens_1[2]+nudens_1[3]);
-                printf("   nudens_0_trap %-13.6e %-13.6e %-13.6e\n",
-	                nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2]);
-                printf("   nudens_1_trap %-13.6e %-13.6e %-13.6e\n\n",
-	                nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
-#endif
-	    
-#if (M1_UNITS_TEST)
-                printf("   0 if NO error WeakEquilibrium: %1d\n", ierr[0]);
-                assert(false);
+    printf(" temp_eq, ye_eq %-13.6e %-13.6e\n",
+        T_trap, Y_e_trap);
+    printf(" temp_eq, ye_eq %-13.6e\n",
+        code_units->NumberDensityConversion(*wr_units));
+    printf(" n_nue_eq[nm^-3], n_nua_eq[nm^-3], n_nux_eq[nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_trap[0]*code_units->NumberDensityConversion(*nurates_units),
+        nudens_0_trap[1]*code_units->NumberDensityConversion(*nurates_units),
+        nudens_0_trap[2]*code_units->NumberDensityConversion(*nurates_units));
+    printf(" e_nue_eq[MeV nm^-3], e_nua_eq[MeV nm^-3], e_nux_eq[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_trap[0]*code_units->EnergyDensityConversion(*nurates_units),
+        nudens_1_trap[1]*code_units->EnergyDensityConversion(*nurates_units),
+        nudens_1_trap[2]*code_units->EnergyDensityConversion(*nurates_units));
 #endif
 
                 // If we can't get equilibrium, try again but ignore current neutrino
@@ -467,20 +461,6 @@ namespace M1::Opacities::BNSNuRates {
 		  }
 		}
 
-// FIXME if the following lines are executed, Ye does not evolve. Remove them completely?
-#if (!M1_UNITS_TEST)
-		Real mu_n_eq;
-		Real mu_p_eq;
-		Real mu_e_eq;
-		ChemicalPotentials_npe(nb, T_trap, Y_e_trap,
-				       mu_n_eq, mu_p_eq, mu_e_eq);
-		
-		NeutrinoDensity_ChemPot(nb, T_trap,
-					mu_n_eq, mu_p_eq, mu_e_eq,
-					nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2],
-					nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
-#endif
-		
                 assert(isfinite(nudens_0_trap[0]));
                 assert(isfinite(nudens_0_trap[1]));
                 assert(isfinite(nudens_0_trap[2]));
@@ -495,6 +475,10 @@ namespace M1::Opacities::BNSNuRates {
 		nudens_1_trap[3] = nudens_1_trap[2];
                 
               } // if (opacity_tau_trap ...
+
+#if (M1_UNITS_TEST)
+    printf("\n NeutrinoDens@thin");
+#endif
             
 	      // Calculate equilibrium blackbody functions with fixed T, Ye
 	      NeutrinoDensity_ChemPot(nb, T,
@@ -510,6 +494,17 @@ namespace M1::Opacities::BNSNuRates {
 
 	    } //  if (use_kirchhoff_law || nurates_params.use_equilibrium_distribution)
 
+#if (M1_UNITS_TEST)
+    printf("\n Thick:\n  n_nue_eq, n_nua_eq, n_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2]);
+    printf("  e_nue_eq, e_nua_eq, e_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
+    printf(" Thin:\n  n_nue_eq, n_nua_eq, n_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_thin[0], nudens_0_thin[1], nudens_0_thin[2]);
+    printf("  e_nue_eq, e_nua_eq, e_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_thin[0], nudens_1_thin[1], nudens_1_thin[2]);
+#endif
+
 	    // Store opacities and emissivities	      
 	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {	      
 	      pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) = eta_0_loc[nuidx];
@@ -517,7 +512,23 @@ namespace M1::Opacities::BNSNuRates {
 	      pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) = abs_0_loc[nuidx];
 	      pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) = abs_1_loc[nuidx];
 	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) = scat_1_loc[nuidx];
+
+#if (M1_UNITS_TEST)
+    printf("\n nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
+        nuidx, eta_0_loc[nuidx], eta_1_loc[nuidx]);
+    printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
+        abs_0_loc[nuidx], abs_1_loc[nuidx], scat_1_loc[nuidx]);
+#endif
+
 	    }
+
+#if (M1_UNITS_TEST)
+    printf("\n nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
+        3, eta_0_loc[3], eta_1_loc[3]);
+    printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
+        abs_0_loc[3], abs_1_loc[3], scat_1_loc[3]);
+#endif
+
 	    // Fix for 4th species
 	    pm1->radmat.sc_eta_0(0, 2)(k, j, i) += eta_0_loc[3]; // sum nux and anux emissivities 
 	    pm1->radmat.sc_eta(0, 2)(k, j, i) += eta_1_loc[3]; // sum nux and anux emissivities 
@@ -558,6 +569,7 @@ namespace M1::Opacities::BNSNuRates {
 	      if (nurates_params.use_equilibrium_distribution) {
 		Real nu_e_avg = my_nudens_1 / my_nudens_0;
 		pm1->radmat.sc_avg_nrg(0, nuidx)(k, j, i) = nu_e_avg;
+// FIXME where are sc_n and sc_J initialized???
 		corr_fac = pm1->rad.sc_J(0, nuidx)(k, j, i) /
                   (pm1->rad.sc_n(0, nuidx)(k, j, i) * nu_e_avg);
 		if (!std::isfinite(corr_fac)) {
@@ -567,6 +579,14 @@ namespace M1::Opacities::BNSNuRates {
 		corr_fac = std::max(1.0 / opacity_corr_fac_max,
 				    std::min(corr_fac, opacity_corr_fac_max));
 	      }
+#if (M1_UNITS_TEST)
+    printf(" my_nudens_0, my_nudens_1 %-13.6e %-13.6e\n",
+        my_nudens_0, my_nudens_1);
+    printf(" corr_fac %-13.6e\n",
+        corr_fac);
+#endif  
+        // FIXME hard coded to match athenaK
+        //corr_fac=3.;
 	      
 	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) *= corr_fac;
 
@@ -575,6 +595,14 @@ namespace M1::Opacities::BNSNuRates {
 		// For electron lepton neutrinos we change the emissivity
 		// For heavy lepton neutrinos we change the opacity
 		// NB bns_nurates does not need to impose Kirchoff law
+#if (M1_UNITS_TEST)
+		  pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
+		  pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
+		  pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) =
+		    pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) * my_nudens_0;
+		  pm1->radmat.sc_eta(0, nuidx)(k, j, i) =
+		    pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) * my_nudens_1;
+#else  
 		if (nuidx == 0 || nuidx == 1) {
 		  pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
 		  pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
@@ -591,16 +619,32 @@ namespace M1::Opacities::BNSNuRates {
                     (my_nudens_1 >  pm1->opt.fl_E
                          ? pm1->radmat.sc_eta(0, nuidx)(k, j, i) / my_nudens_1
                          : 0);
-		}	
+		}
+#endif  
 	      } else {
 		pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
 		pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
 		pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) *= corr_fac;
 		pm1->radmat.sc_eta(0, nuidx)(k, j, i) *= corr_fac;
-	      }
+	      }  
+
+#if (M1_UNITS_TEST)
+    printf("\n After correction:\n");
+    printf(" nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
+        nuidx, pm1->radmat.sc_eta_0(0, nuidx)(k, j, i), pm1->radmat.sc_eta(0, nuidx)(k, j, i));
+    printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
+        pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i), pm1->radmat.sc_kap_a(0, nuidx)(k, j, i), pm1->radmat.sc_kap_s(0, nuidx)(k, j, i));
+    printf(" sc_J, sc_n, fl_nG, fl_E %-13.6e %-13.6e %-13.6e %-13.6e\n",
+        pm1->rad.sc_J(0, nuidx)(k, j, i), pm1->rad.sc_n(0, nuidx)(k, j, i), pm1->opt.fl_nG, pm1->opt.fl_E);
+#endif  
 	      
 	    } // nuidx
-	  } // Mask      
+
+#if (M1_UNITS_TEST)
+    assert(false);
+#endif
+
+	  } // Mask  
       return 0;
     };
     
