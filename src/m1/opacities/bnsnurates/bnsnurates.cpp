@@ -563,12 +563,12 @@ namespace M1::Opacities::BNSNuRates {
     en_anue = 4.0 * M_PI / hc_mevnm3 * temp4 * Fermi::fermi3(eta_anue);  // [MeV nm^-3]
     en_nux = 16.0 * M_PI / hc_mevnm3 * temp4 * Fermi::fermi3(eta_nux);   // [MeV nm^-3]
 		
-#if (M1_UNITS_TEST_VERBOSE)
-    printf(" eta_nue, eta_anue, eta_nux %-13.6e %-13.6e %-13.6e\n",
+#if (M1_UNITS_TEST)
+    printf(" eta_nue[MeV], eta_anue[MeV], eta_nux[MeV] %-13.6e %-13.6e %-13.6e\n",
         eta_nue, eta_anue, eta_nux);
-    printf(" n_nue, n_anue, n_nux %-13.6e %-13.6e %-13.6e\n",
+    printf(" n_nue[nm^-3], n_nua[nm^-3], n_nux[nm^-3] %-13.6e %-13.6e %-13.6e\n",
         n_nue, n_anue, n_nux);
-    printf(" en_nue, en_anue, en_nux %-13.6e %-13.6e %-13.6e\n",
+    printf(" e_nue[MeV nm^-3], e_nua[MeV nm^-3], e_nux[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n",
         en_nue, en_anue, en_nux);
 #endif 
 
@@ -582,18 +582,16 @@ namespace M1::Opacities::BNSNuRates {
 #endif
 
     // Convert back to code units 
-    //const Real unit_num_dens = 1./wr_units->NumberDensityConversion(*code_units);
-    //const Real unit_ene_dens = 1./wr_units->EnergyDensityConversion(*code_units);
-    const Real unit_num_dens = eos_units->NumberDensityConversion(*nurates_units);
-    const Real unit_ene_dens = code_units->EnergyDensityConversion(*nurates_units);
+    const Real unit_num_dens = nurates_units->NumberDensityConversion(*eos_units);
+    const Real unit_ene_dens = nurates_units->EnergyDensityConversion(*code_units);
 		
-    n_nue = n_nue / unit_num_dens;
-    n_anue = n_anue / unit_num_dens;
-    n_nux = n_nux / unit_num_dens;
+    n_nue = n_nue * unit_num_dens;
+    n_anue = n_anue * unit_num_dens;
+    n_nux = n_nux * unit_num_dens;
 
-    en_nue = en_nue / unit_ene_dens;
-    en_anue = en_anue / unit_ene_dens;
-    en_nux = en_nux / unit_ene_dens;   
+    en_nue = en_nue * unit_ene_dens;
+    en_anue = en_anue * unit_ene_dens;
+    en_nux = en_nux * unit_ene_dens;   
 		
   }
 
@@ -606,10 +604,9 @@ namespace M1::Opacities::BNSNuRates {
   void BNSNuRates::ChemicalPotentials_npe(Real nb, Real T, Real Ye,
 					  Real &mu_n, Real &mu_p, Real &mu_e) {
     Real Y[1] = {Ye};
-    Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    Real mu_b = pmy_block->peos->GetEOS().GetBaryonChemicalPotential(nb_eos, T, Y);
-    Real mu_q = pmy_block->peos->GetEOS().GetChargeChemicalPotential(nb_eos, T, Y);
-    Real mu_l = pmy_block->peos->GetEOS().GetElectronLeptonChemicalPotential(nb_eos, T, Y);
+    Real mu_b = pmy_block->peos->GetEOS().GetBaryonChemicalPotential(nb, T, Y);
+    Real mu_q = pmy_block->peos->GetEOS().GetChargeChemicalPotential(nb, T, Y);
+    Real mu_l = pmy_block->peos->GetEOS().GetElectronLeptonChemicalPotential(nb, T, Y);
     mu_n = mu_b;
     mu_p = mu_b + mu_q;
     mu_e = mu_l - mu_q;
@@ -621,14 +618,12 @@ namespace M1::Opacities::BNSNuRates {
   //
   void BNSNuRates::ChemicalPotentials_npe_cgs(Real rho, Real temp, Real Ye,
 					      Real &mu_n, Real &mu_p, Real &mu_e) {
-    //const Real MeV = code_units->TemperatureConversion(*wr_units); // = 1
-    ChemicalPotentials_npe( rho / atomic_mass * wr_units->NumberDensityConversion(*code_units), 
+    // FIXME For some reason, the conversion of rho to eos_units (not code_units) seems to be needed
+    ChemicalPotentials_npe( rho / atomic_mass * wr_units->NumberDensityConversion(*eos_units), 
+    //ChemicalPotentials_npe( rho / atomic_mass * wr_units->NumberDensityConversion(*code_units), 
 			    temp, // / MeV,
 			    Ye,
 			    mu_n, mu_p, mu_e);
-    // mu_n *= MeV;
-    // mu_p *= MeV;
-    // mu_e *= MeV;
   }
 
   
@@ -650,9 +645,6 @@ namespace M1::Opacities::BNSNuRates {
     Real mu_n, mu_p, mu_e;
     const Real nb = rho / pmy_block->peos->GetEOS().GetBaryonMass();
 	    
-#if (M1_UNITS_TEST)
-                printf("   INSIDE NeutrinoDensity\n");
-#endif
     ChemicalPotentials_npe(nb, T, Y_e,  mu_n, mu_p, mu_e);
     NeutrinoDensity_ChemPot(nb, T,
 			    mu_n, mu_p, mu_e,
@@ -684,11 +676,11 @@ namespace M1::Opacities::BNSNuRates {
   {
     // conversion factors from code units to CGS + MeV
     Real n_conv = code_units->NumberDensityConversion(*wr_units);  // code units to 1/cm^3
-    Real e_conv = code_units->EnergyDensityConversion(*wr_units);  // code units to erg/cm^3
-    const Real MeV = code_units->TemperatureConversion(*wr_units); // code units to MeV \\ = 1
+    const Real e_conv = code_units->EnergyDensityConversion(*wr_units);  // code units to erg/cm^3
+    const Real T_conv = code_units->TemperatureConversion(*wr_units); // code units to MeV \\ = 1
       
     int ierr = compute_weak_equilibrium(rho * code_units->MassDensityConversion(*wr_units),
-                                        temp * MeV,
+                                        temp * T_conv,
                                         ye,
                                         n_nue * n_conv,
                                         n_nua * n_conv,
@@ -704,28 +696,21 @@ namespace M1::Opacities::BNSNuRates {
                                         e_nue_eq,
                                         e_nua_eq,
                                         e_nux_eq);
-#if (M1_UNITS_TEST)
-                printf("  2 T_trap, Y_e %-13.6e %-13.6e\n",
-	                temp_eq, ye_eq);
-#endif
 
     // Convert back from CGS+MeV units to code units
-    temp_eq = temp_eq / MeV;
+    temp_eq = temp_eq / T_conv;
 
-    n_conv = wr_units->NumberDensityConversion(*code_units);
-    e_conv = wr_units->EnergyDensityConversion(*code_units);
+    // FIXME For some reason, the conversion of rho to eos_units (not code_units) seems to be needed
+    //  to be 1:1 to the K, but then Ye does not evolve anymore!!
+    //n_conv = eos_units->NumberDensityConversion(*wr_units);  // 1/cm^3 to code units 
 
-    n_nue_eq = n_nue_eq * n_conv;
-    n_nua_eq = n_nua_eq * n_conv; 
-    n_nux_eq = n_nux_eq * n_conv;
+    n_nue_eq = n_nue_eq / n_conv;
+    n_nua_eq = n_nua_eq / n_conv; 
+    n_nux_eq = n_nux_eq / n_conv;
     
-    e_nue_eq = e_nue_eq * e_conv; 
-    e_nua_eq = e_nua_eq * e_conv; 
-    e_nux_eq = e_nux_eq * e_conv;
-#if (M1_UNITS_TEST)
-                printf("  3 T_trap, Y_e %-13.6e %-13.6e\n",
-	                temp_eq, ye_eq);
-#endif
+    e_nue_eq = e_nue_eq / e_conv; 
+    e_nua_eq = e_nua_eq / e_conv; 
+    e_nux_eq = e_nux_eq / e_conv;
     
     return ierr;
   }
@@ -814,13 +799,17 @@ namespace M1::Opacities::BNSNuRates {
       e_nua_eq = e_eq[2];
       e_nux_eq = e_eq[3];
 
-#if (M1_UNITS_TEST)
-            printf("\n temp_eq, ye_eq %-13.6e %-13.6e\n",
-	            temp_eq, ye_eq);
-            printf(" n_nue_eq, n_nua_eq, n_nux_eq %-13.6e %-13.6e %-13.6e\n",
-	            n_nue_eq, n_nua_eq, n_nux_eq);
-            printf(" e_nue_eq, e_nua_eq, e_nux_eq %-13.6e %-13.6e %-13.6e\n",
-	            e_nue_eq, e_nua_eq, e_nux_eq);
+#if (M1_UNITS_TEST_VERBOSE)
+    printf("\n temp_eq, ye_eq %-13.6e %-13.6e\n",
+        temp_eq, ye_eq);
+    printf(" n_nue_eq[nm^-3], n_nua_eq[nm^-3], n_nux_eq[nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        n_nue_eq*wr_units->NumberDensityConversion(*nurates_units),
+        n_nua_eq*wr_units->NumberDensityConversion(*nurates_units),
+        n_nux_eq*wr_units->NumberDensityConversion(*nurates_units));
+    printf(" e_nue_eq[MeV nm^-3], e_nua_eq[MeV nm^-3], e_nux_eq[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n\n",
+        e_nue_eq*wr_units->EnergyDensityConversion(*nurates_units),
+        e_nua_eq*wr_units->EnergyDensityConversion(*nurates_units),
+        e_nux_eq*wr_units->EnergyDensityConversion(*nurates_units));
 #endif
       
       return iout;
@@ -1007,9 +996,10 @@ namespace M1::Opacities::BNSNuRates {
     e_eq[1] = e_dens[0]*mev_to_erg;           // electron neutrino energy density [erg/cm^3]
     e_eq[2] = e_dens[1]*mev_to_erg;           // electron anti-neutrino energy density [erg/cm^3]
     e_eq[3] = 4.0*e_dens[2]*mev_to_erg;       // heavy-lepton neutrino energy density [erg/cm^3]
+// FIXME In the K y_eq[0] is taken as above from x1[1] and not touched anymore. This gives ~% difference
     e_eq[0] = u - e_eq[1] - e_eq[2] - e_eq[3]; // fluid energy density [erg/cm^3]
 	    
-#if (M1_UNITS_TEST)
+#if (M1_UNITS_TEST_VERBOSE)
     printf(" temp_eq, ye_eq %-13.6e %-13.6e\n",
         T_eq, y_eq[0]);
     printf(" eta_nue, eta_anue, eta_nux %-13.6e %-13.6e %-13.6e\n",
@@ -1022,7 +1012,6 @@ namespace M1::Opacities::BNSNuRates {
         e_eq[1]*wr_units->EnergyDensityConversion(*nurates_units),
         e_eq[2]*wr_units->EnergyDensityConversion(*nurates_units),
         e_eq[3]*wr_units->EnergyDensityConversion(*nurates_units));
-    assert(false);
 #endif
     
     // Check that the energy is positive
@@ -1258,7 +1247,7 @@ namespace M1::Opacities::BNSNuRates {
 #if (WEAK_EQ_TEST)
     printf(" x1 %-13.6e %-13.6e\n",
 	    x1[0], x1[1]);
-    printf(" err_func_eq_weak, n_iter %-13.6e %-3.0d\n",
+    printf(" err_func_eq_weak, n_iter %-13.6e %5d\n",
         err, n_iter);
     assert(false);
 #endif
@@ -1671,11 +1660,6 @@ namespace M1::Opacities::BNSNuRates {
 #endif
         nu_dens[it] = pref * temp_m3 * f2; // [#/cm^3]
       } 
-
-#if (M1_UNITS_TEST_VERBOSE)
-    printf("\n temp_m, hc_mevnm, nu_dens[cm^-3] %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-        temp_m, hc_mevcm/wr_units->LengthConversion(*nurates_units), nu_dens[0], nu_dens[1], nu_dens[2]);
-#endif
 
     }
   

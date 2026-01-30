@@ -699,14 +699,16 @@ public:
       );
 
 #if (M1_UNITS_TEST)
-        printf("   dens_n %-13.6e %-13.6e %-13.6e\n",
-            dens_n[0], dens_n[1], dens_n[2]);
-        printf("   dens_e %-13.6e %-13.6e %-13.6e\n",
-            dens_e[0], dens_e[1], dens_e[2]);
-        printf("   dens_n_trap %-13.6e %-13.6e %-13.6e\n",
-            dens_n_trap[0], dens_n_trap[1], dens_n_trap[2]);
-        printf("   dens_e_trap %-13.6e %-13.6e %-13.6e\n\n",
-            dens_e_trap[0], dens_e_trap[1], dens_e_trap[2]);
+    printf(" temp_eq, ye_eq %-13.6e %-13.6e\n",
+        T_star, Y_e_star);
+    printf(" n_nue_eq[nm^-3], n_nua_eq[nm^-3], n_nux_eq[nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        dens_n_trap[0]*code_units->NumberDensityConversion(*nurates_units),
+        dens_n_trap[1]*code_units->NumberDensityConversion(*nurates_units),
+        dens_n_trap[2]*code_units->NumberDensityConversion(*nurates_units));
+    printf(" e_nue_eq[MeV nm^-3], e_nua_eq[MeV nm^-3], e_nux_eq[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        dens_e_trap[0]*code_units->EnergyDensityConversion(*nurates_units),
+        dens_e_trap[1]*code_units->EnergyDensityConversion(*nurates_units),
+        dens_e_trap[2]*code_units->EnergyDensityConversion(*nurates_units));
 #endif
 
       if (ierr_we)
