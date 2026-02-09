@@ -1,0 +1,441 @@
+<comment> # ===================================================================
+# cfl of 0.3 activates equilibriation logic, 0.125 is sufficient to resolve
+# =============================================================================
+
+<job> # =======================================================================
+problem_id = homogeneous_medium
+# =============================================================================
+
+<time> # ======================================================================
+cfl_number   = 0.005
+nlim       = -1      # cycle limit
+tlim       = 1.0     # time limit
+
+integrator   = rk3   # time integration algorithm
+
+
+# spatial reconstruction - element of:
+# {donate, lin_vl, lin_mc2, ppm, ceno3, weno5, weno5z, weno5d_si,
+#  mp3, mp5, mp7, mp5_R}
+
+xorder = weno5z
+xorder_eps = 1e-40
+
+xorder_limit_species = true      # control if species are limited
+xorder_upwind_scalars = false    # should passive scalars be upwinded?
+
+xorder_use_dmp=false
+xorder_use_fb = false              # control if fallback is used
+xorder_use_fb_mask = false        # cpt. fails => state fails
+xorder_use_fb_unphysical = false  # optionally verify (fluid) energy cond.
+xorder_fb = lin_vl
+
+xorder_fb_dfloor_fac = 10        # multiply dfloor by this to consider fb
+
+# enable reconstruction of auxiliary variables??
+xorder_use_auxiliaries = false
+xorder_use_aux_T = false   # control whether T is reconstructed
+xorder_use_aux_h = false   # control whether h (enthalpy) is reconstructed
+xorder_use_aux_W = false   # Lorentz
+xorder_use_aux_cs2 = false
+
+floor_both_states = false  # reset both l/r [Reprimand only]
+
+ncycle_out   = 1      # interval for stdout summary info
+# =============================================================================
+
+<mesh> # ======================================================================
+# no. cell in dir, min/max x, inner/outer BC
+nx1    = 5
+x1min  = -2.5
+x1max  = 2.5
+ix1_bc = periodic
+ox1_bc = periodic
+
+nx2    = 4
+x2min  = -2
+x2max  = 2
+ix2_bc = periodic
+ox2_bc = periodic
+
+nx3    = 4
+x3min  = -2
+x3max  = 2
+ix3_bc = periodic
+ox3_bc = periodic
+
+refinement = none
+num_threads = 1
+# =============================================================================
+
+<meshblock> # =================================================================
+nx1       = 5          # Number of cells in each MeshBlock, X1-dir
+nx2       = 4            # Number of cells in each MeshBlock, X2-dir
+nx3       = 4           # Number of cells in each MeshBlock, X3-dir
+# =============================================================================
+
+<M1> # ========================================================================
+ngroups  = 1
+nspecies = 3
+
+# element of:
+# {approximate,
+#  mixed,
+#  exact_thin,
+#  exact_thick,
+#  exact_closure
+# }
+characteristics_variety = approximate
+
+# element of:
+# {LO,
+#  HybridizeMinMod,
+#  HybridizeMinModA,
+#  HybridizeMinModC,
+#  HybridizeMinModD}
+flux_variety = HybridizeMinModC
+
+# element of: {fluid, mixed, zero, none}
+fiducial_velocity = fluid
+
+# tolerances / ad-hoc fiddle parameters
+fl_E = 1e-40
+fl_J = 1e-40
+fl_nG = 1e-40
+fl_nF2 = 1e-80
+# eps_E = 1e-5
+# eps_J = 1e-10
+
+# use mask for flux limiter control
+flux_limiter_use_mask = false
+# LO w/ nearest neighbours in flux limiter?
+flux_limiter_nn = false
+# Reduce order to lowest that is common over all flux components?
+flux_limiter_multicomponent = false
+
+# Use LO flux if: E < 0 \/ causality violated in a cell?
+flux_lo_fallback_E = true
+# Use LO flux if: nG < 0
+flux_lo_fallback_nG = true
+
+# Use HO flux @ eql regardless of FB
+flux_lo_fallback_eql_ho = false
+
+flux_lo_fallback_species = true
+
+# used in EnforceCausality to prevent 0-div
+eps_ec_fac = 1e-15
+
+# Introduce a minimal diff. as F <- F_HO - Theta * (F_HO - F_LO)
+min_flux_Theta = 0 # 1e-4
+
+enforce_causality = true
+enforce_finite = true
+
+# control source couplings
+couple_sources_ADM   = true
+couple_sources_hydro = true
+couple_sources_Y_e   = true
+
+# dump more information
+ev_strat_status = true
+
+# store equilibrium during opacity calculation
+retain_equilibrium = true
+# =============================================================================
+
+<M1_closure> # ================================================================
+verbose = false
+
+# element of:
+# {thin,
+#  thick,
+#  Minerbo, - Brent-Dekker (GSL based)
+#  Kershaw
+# }
+variety = Minerbo
+
+# element of:
+# {none,       - Solver is noop
+#  gsl_Brent,  - Brent-Dekker (GSL based)
+#  gsl_Newton  - Newton (GSL based)
+#  custom_NB   - Newton-Bisection (direct implementation)
+#  custom_NAB  - Newton-Anderson-Bjorck (direct implementation)
+#  custom_ONAB - Ostrowski - NAB fallback (direct implementation)
+# }
+method = custom_NAB
+
+eps_tol   = 1e-9
+eps_Z_o_E = 0       // If | Z_xi / E|_xi\in{0,1} | < eps, break-fast
+fac_Z_o_E = 0       // Apply above if |xi-x_min,max| < fac
+iter_max  = 64      // N.B.: 0.5 ^ 34 ~ 6e-11
+
+// gsl_Newton specific
+# If Newton fails, revert to Brent?
+fallback_brent = true
+fallback_thin = false  // on failures (i.e. bracket etc, revert to thin)
+
+# gsl_Newton specific
+use_Neighbor  = false // take sc_xi(k,j,i-1) where possible as initial guess?
+# =============================================================================
+
+<M1_solver> # =================================================================
+# solver_REGIME is an element of:
+# {do_nothing,                   - does... nothing, tada!
+#  full_explicit,                - non-stiff regime
+#  explicit_approximate_semi_implicit - approximate SI soln @ O(v/c)
+#  semi_implicit_Hybrids         - GSL: FD approx. of J
+#  semi_implicit_HybridsJ        - GSL: Full Jacobian
+# }
+verbose = false
+
+# select evolution method to utilize in each regime
+solver_non_stiff   = full_explicit
+solver_stiff       = semi_implicit_HybridsJ
+solver_scattering  = full_explicit
+solver_equilibrium = do_nothing
+
+# Given fixed grid-point: enforce common solver / source treatment?
+solver_reduce_to_common = false
+
+# Regardless of implicit (E, F_d) use explicit for nG?
+solver_explicit_nG = false
+
+# fallback to thick limit when tol not reached / no progress?
+thick_tol = true
+thick_npg = true
+
+# Equilibrium specific --------------------------------------------------------
+# Impose equilibrium at initial time (pmesh->time == 0)?
+equilibrium_initial = false
+
+# Enforce equilibrium at all times? N.B. this sets H_til^a = 0
+equilibrium_enforce = false
+# Should sources be taken non-zero?
+equilibrium_sources = false
+
+# control whether solver_equilibrium uses thick limit only
+equilibrium_use_thick = false
+
+# modify neutrino current with eql values based on nrg average?
+equilibrium_n_nG = true
+
+# modify (E, F_d) based on (J, H_u) eql?
+equilibrium_E_F_d = true
+
+# compute source terms after equilibrium set?
+equilibrium_src_nG    = true
+equilibrium_src_E_F_d = true
+
+# are above source terms a state vector difference or analytical expression?
+equilibrium_use_diff_src = true
+
+# (explicitly) evolve with the above sources or retain the eql (n,N,E,F_d)?
+equilibrium_evolve = false
+
+# basic Euler method vs PrepareApproximateFirstOrder_E_F_d?
+equilibrium_evolve_use_euler = false
+
+# only allow trapped opacities above this density threshold (code units)
+tra_rho_min = 1e-9
+
+# only enforce equilibrium above this density threshold (code units)
+eql_rho_min = 1e-9
+
+# Solver-specific tolerances
+eps_a_tol   = 1e-12
+eps_r_tol   = 1e-5
+iter_max  = 64
+
+use_Neighbor = false
+
+# Additional limiters ---------------------------------------------------------
+# flux fallback on unphysical fluid states
+# Used with:
+# M1/flux_lo_fallback_E = true
+# M1/flux_lo_fallback_nG = true
+
+flux_lo_fallback_tau_min = -10
+flux_lo_fallback_Ye_min = -10.01
+flux_lo_fallback_Ye_max = -10.6
+
+# source limiting
+limit_src_radiation = true
+limit_src_fluid = true
+
+src_lim = 0.75
+src_lim_Ye_min = 0.01
+src_lim_Ye_max = 0.6
+
+# this is not a member of the limiter above, but controls whether to
+# equilibriate over a greater optical depth
+src_lim_thick = -1
+
+limit_full_radiation = false
+full_lim = -0.75
+
+# =============================================================================
+
+# =============================================================================
+
+<M1_opacities> # ==============================================================
+# element of: {bnsnurates, weakrates, photon, fake, zero, none}
+variety = weakrates
+
+tau_trap = 0
+tau_delta = 0
+max_correction_factor = 1.7
+
+# flooring strategy for weakrates ---------------------------------------------
+
+# do not compute opacities (or eql) under the following dfloor (code units)
+wr_dfloor = 1e-10
+
+# apply limits internally within weakrates?
+apply_table_limits_internally = true
+
+# if limits have been enforced, do we proceed with opac calc?
+enforced_limits_fail = false
+
+# set rho_min / temp_min as 0 in main interface?
+wr_zero_limits = false
+
+# if we cannot resolve dynamics at a point then flag this
+# uses eql_rho_min threshold
+wr_flag_equilibrium = true
+
+# tau < (dt * this_fac) / opacity_tau_trap
+wr_flag_equilibrium_dt_factor = 1.0 # 3.0625
+
+# flag on a per-species basis
+wr_flag_equilibrium_species=true
+
+# for the equilibrium density, use thin density limit as initial guess?
+# warning, may not be in suitable basin of cvgce
+wr_flag_equilibrium_thin_guess=false
+
+# switch off eql for heavy leptons?
+wr_flag_equilibrium_no_nux=false
+
+# take tau_{a,e} = min(tau_e, tau_a)?
+wr_flag_equilibrium_nue_equals_nua=false
+
+# control whether bottom of table or floor is used for lower limit
+wr_use_eos_dfloor = true
+wr_use_eos_tfloor = true
+
+# only allow corrections >= 1
+correction_adjust_upward = false
+
+# after opacity calculation perform sanity check
+validate_opacities = true
+
+# invalid opacities -> set zero radiation quantities?
+zero_invalid_radmat = true
+
+# on failure in opacity / equilibirum calculation replace hydro state
+# with nearest neighbour average with extrema values clipped
+use_averaging_fix = true
+
+# for each point, use nn average
+# N.B. this may smooth excessively
+use_averages = true
+
+# give more information when failing
+verbose_warn_weak = true
+
+# =============================================================================
+
+<hydro> # =====================================================================
+# point to cold-slice infrastructure data ...
+table = /home/mu76rom/Codes/EOS/SFHo_Tc0.100/SFHo_Tc0.100.h5 # can be done on cmd line..
+
+# enforce cs^2 \in [0,1]
+restrict_cs2 = true
+# print if above conditional unsatisfied
+warn_unrestricted_cs2 = false
+
+# PICK EITHER OPTION HERE!
+# [T] split GRMHD_Z4c task-lists for better atmo treatment
+# [F] instead add DBG_SCATTER_MATTER_GRMHD in defs.hpp.in
+use_split_grmhd_z4c = true
+
+# ensure that sound-speeds are under this Lorentz factor
+max_cs_W = 10
+
+# ensure quantities in the fluxes are within table limits
+flux_table_limiter = true
+
+# PrimitiveSolver settings ----------------------------------------------------
+verbose  = false
+
+# allow extrapolation above table maximum by the following factor
+n_max_factor = 3
+
+# T: Recompute with GetTemperatureFromP; F use prim[ITM]
+recompute_temperature = false
+
+c2p_acc = 1e-10
+max_iter = 45
+c2p_validate_density = true
+tighten_bracket = true
+# control whether to use Toms748 solver
+use_toms_748 = false
+
+# upper-bound on velocities (in terms of Lorentz factor)
+max_W = 1000
+
+dfloor = 1e-14
+# if rho<dfloor*dthreshold -> rho=rho_atm
+dthreshold = 1
+tfloor = 0.1
+y0_atmosphere = 0.5
+# =============================================================================
+
+<problem> # ===================================================================
+test = homogeneous_medium
+
+rho = 1.619e-5
+Y_e = 0.1
+temperature = 50.0
+velx = 0.0
+vely = 0.0
+velz = 0.0
+
+use_split_step = false
+# =============================================================================
+
+<refinement1> # ===============================================================
+x1min =  -0.2
+x1max =  0.2
+x2min = -1.0
+x2max = -1.0
+x3min = -1.0
+x3max =  1.0
+level = 2
+# =============================================================================
+
+# dumped quantities ===========================================================
+<output1>
+file_type   = tab
+xdmf        = false
+variable    = hydro
+ghost_zones = true
+dt          = 0.005
+#x1_slice    = 0.0
+x2_slice    = 0.0
+x3_slice    = 0.0
+
+<output2>
+file_type   = tab
+xdmf        = false
+variable    = passive_scalars
+ghost_zones = true
+dt          = 0.005
+#x1_slice    = 0.0
+x2_slice    = 0.0
+x3_slice    = 0.0
+
+#
+# :D
+#
