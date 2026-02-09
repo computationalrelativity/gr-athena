@@ -141,7 +141,7 @@ class WeakEoSMod {
       Real temp_code = temp * my_units->TemperatureConversion(*code_units);
       Real Y[1] = {ye};
 
-#define WEAK_EQ_TEST (1)
+#define WEAK_EQ_TEST (0)
 
 #if (WEAK_EQ_TEST)
     printf("\n nb, temp, Y %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",

@@ -56,6 +56,7 @@
 // Point-test to test units
 #define M1_UNITS_TEST (0)
 #define M1_UNITS_TEST_VERBOSE (0)
+#define M1_UNITS_TEST_SINGLE_STEP (0)
 // test weak equilibrium routines
 #define WEAK_EQ_TEST (0)
 #define WEAK_EQ_TEST_VERBOSE (0)
@@ -270,15 +271,15 @@ namespace M1::Opacities::BNSNuRates {
       const int NUM_COEFF = 3;
       int ierr[NUM_COEFF];
 
-      // using GetBaryonMass instead of GetRawBaryonMass seems to fix mu_n, mu_p, mu_e
-      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      const Real mb = pmy_block->peos->GetEOS().GetRawBaryonMass(); // baryon mass in code units
       
       M1_FLOOP3(k, j, i)
         if (pm1->MaskGet(k, j, i))
           {
             Real rho = pm1->hydro.sc_w_rho(k, j, i);
             Real press = pm1->hydro.sc_w_p(k, j, i);
-            Real nb = rho / mb; // baryon num dens 
+            Real nb = rho / mb;     // baryon num density in code units
+            Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
             Real T = pm1->hydro.sc_T(k,j,i);
             
             Real Y[MAX_SPECIES] = {0.0};
@@ -287,7 +288,7 @@ namespace M1::Opacities::BNSNuRates {
        
             // Chem potentials (code units)
             Real mu_n, mu_p, mu_e;
-            ChemicalPotentials_npe(nb, T, Y_e, mu_n, mu_p, mu_e);
+            ChemicalPotentials_npe(nb_eos, T, Y_e, mu_n, mu_p, mu_e);
             
             // Local undensitized neutrino quantities
             Real invsdetg = sc_oo_sqrt_det_g(k, j, i);
@@ -300,7 +301,9 @@ namespace M1::Opacities::BNSNuRates {
               nudens_1[nuidx] = pm1->rad.sc_J(0, nuidx)(k, j, i) * invsdetg;
               chi_loc[nuidx] = pm1->lab_aux.sc_chi(0, nuidx)(k, j, i); 
             }
-	    // Copy 4th species (assume anux = nux)
+	    // Copy 4th species (assume anux = nux; n_mu+n_tau = 2*nudens_0[2])
+	    nudens_0[2] = 0.25*nudens_0[2];  // single heavy species
+	    nudens_1[2] = 0.25*nudens_1[2];  // single heavy species
 	    nudens_0[3] = nudens_0[2];
 	    nudens_1[3] = nudens_1[2];
 	    chi_loc[3] = chi_loc[2];
@@ -313,8 +316,8 @@ namespace M1::Opacities::BNSNuRates {
             // Note: everything sent and received are in code units
 
 #if (M1_UNITS_TEST)
-            printf(" rho, T, Y_e, nb, mb, mb*nb %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            rho, T, Y_e, nb, mb, mb*nb);
+            printf(" rho[M_sun^-2], rho[g/cm3], T, Y_e, nb, nb[fm-3], mb[M_sun], mb[g] %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            rho, rho*code_units->MassDensityConversion(*wr_units), T, Y_e, nb, nb_eos, mb, mb*code_units->MassConversion(*wr_units));
             printf(" mu_n, mu_p, mu_e %-13.6e %-13.6e %-13.6e\n",
 	            mu_n, mu_p, mu_e);
             printf(" nudens_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
@@ -338,10 +341,16 @@ namespace M1::Opacities::BNSNuRates {
 				  nurates_params);
 
 #if (M1_UNITS_TEST)
-            printf(" eta_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            eta_0_loc[0], eta_0_loc[1], eta_0_loc[2], eta_0_loc[3]);
-            printf(" eta_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
-	            eta_1_loc[0], eta_1_loc[1], eta_1_loc[2], eta_1_loc[3]);
+            printf(" eta_0_0, eta_0_1, 2*eta_0_2, 2*eta_0_3 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_0_loc[0], eta_0_loc[1], 2.*eta_0_loc[2], 2.*eta_0_loc[3]);
+            printf(" eta_0_0, eta_0_1, 2*eta_0_2, 2*eta_0_3 in [eos+code_units] %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_0_loc[0]*code_units->NumberDensityConversion(*eos_units), eta_0_loc[1]*code_units->NumberDensityConversion(*eos_units), 2.*eta_0_loc[2]*code_units->NumberDensityConversion(*eos_units), 2.*eta_0_loc[3]*code_units->NumberDensityConversion(*eos_units));
+            printf(" eta_0_0, eta_0_1, 2*eta_0_2, 2*eta_0_3 in [cgs] %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_0_loc[0]*code_units->NumberDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), eta_0_loc[1]*code_units->NumberDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), 2.*eta_0_loc[2]*code_units->NumberDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), 2.*eta_0_loc[3]*code_units->NumberDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units));
+            printf(" eta_1_0, eta_1_1, 2*eta_1_2, 2*eta_1_3 %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_1_loc[0], eta_1_loc[1], 2.*eta_1_loc[2], 2.*eta_1_loc[3]);
+            printf(" eta_1_0, eta_1_1, 2*eta_1_2, 2*eta_1_3 in [cgs] %-13.6e %-13.6e %-13.6e %-13.6e\n",
+	            eta_1_loc[0]*code_units->EnergyDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), eta_1_loc[1]*code_units->EnergyDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), 2.*eta_1_loc[2]*code_units->EnergyDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units), 2.*eta_1_loc[3]*code_units->EnergyDensityConversion(*wr_units)/code_units->TimeConversion(*wr_units));
             printf(" abs_0 %-13.6e %-13.6e %-13.6e %-13.6e\n",
 	            abs_0_loc[0], abs_0_loc[1], abs_0_loc[2], abs_0_loc[3]);
             printf(" abs_1 %-13.6e %-13.6e %-13.6e %-13.6e\n",
@@ -381,20 +390,17 @@ namespace M1::Opacities::BNSNuRates {
 	    if (use_kirchhoff_law ||
 		nurates_params.use_equilibrium_distribution) {
           
-          Real use_dt = dt;
-          if (dt==0.){use_dt = 1e-20;}      // needed at initialization //FIXME is this ok later?
-
 	      tau = std::min(std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])),
 			     std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1]))
-			     ) * use_dt;
+			     ) * dt;
 	    
-#if (M1_UNITS_TEST)  
+#if (M1_UNITS_TEST)
           printf(" tau1 %-13.6e\n",
                 std::sqrt(abs_1_loc[0] * (abs_1_loc[0] + scat_1_loc[0])));
           printf(" tau2 %-13.6e\n",
                 std::sqrt(abs_1_loc[1] * (abs_1_loc[1] + scat_1_loc[1])));
           printf(" opacity_tau_trap, tau, dt %-13.6e %-13.6e %-13.6e\n",
-                opacity_tau_trap, tau, use_dt);
+                opacity_tau_trap, tau, dt);
 #endif
 
 	      if (opacity_tau_trap >= 0.0 && tau > opacity_tau_trap) {
@@ -410,10 +416,10 @@ namespace M1::Opacities::BNSNuRates {
                 ierr[0] = WeakEquilibrium(rho, T, Y_e,
                                           nudens_0[0],
                                           nudens_0[1],
-                                          nudens_0[2]+nudens_0[3], // (assume anux = nux)
+                                          nudens_0[2],  // (assume anux = nux, single species)
                                           nudens_1[0],
                                           nudens_1[1],
-                                          nudens_1[2]+nudens_1[3], // (assume anux = nux)
+                                          nudens_1[2],  // (assume anux = nux, single species)
                                           T_trap, Y_e_trap,
                                           nudens_0_trap[0],
                                           nudens_0_trap[1],
@@ -425,16 +431,14 @@ namespace M1::Opacities::BNSNuRates {
 #if (M1_UNITS_TEST)
     printf(" temp_eq, ye_eq %-13.6e %-13.6e\n",
         T_trap, Y_e_trap);
-    printf(" temp_eq, ye_eq %-13.6e\n",
-        code_units->NumberDensityConversion(*wr_units));
-    printf(" n_nue_eq[nm^-3], n_nua_eq[nm^-3], n_nux_eq[nm^-3] %-13.6e %-13.6e %-13.6e\n",
+    printf(" n_nue_eq[nm^-3], n_nua_eq[nm^-3], 4*n_nux_eq[nm^-3] %-13.6e %-13.6e %-13.6e\n",
         nudens_0_trap[0]*code_units->NumberDensityConversion(*nurates_units),
         nudens_0_trap[1]*code_units->NumberDensityConversion(*nurates_units),
-        nudens_0_trap[2]*code_units->NumberDensityConversion(*nurates_units));
-    printf(" e_nue_eq[MeV nm^-3], e_nua_eq[MeV nm^-3], e_nux_eq[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n",
+        4.*nudens_0_trap[2]*code_units->NumberDensityConversion(*nurates_units));
+    printf(" e_nue_eq[MeV nm^-3], e_nua_eq[MeV nm^-3], 4*e_nux_eq[MeV nm^-3] %-13.6e %-13.6e %-13.6e\n",
         nudens_1_trap[0]*code_units->EnergyDensityConversion(*nurates_units),
         nudens_1_trap[1]*code_units->EnergyDensityConversion(*nurates_units),
-        nudens_1_trap[2]*code_units->EnergyDensityConversion(*nurates_units));
+        4.*nudens_1_trap[2]*code_units->EnergyDensityConversion(*nurates_units));
 #endif
 
                 // If we can't get equilibrium, try again but ignore current neutrino
@@ -468,9 +472,7 @@ namespace M1::Opacities::BNSNuRates {
                 assert(isfinite(nudens_1_trap[1]));
                 assert(isfinite(nudens_1_trap[2]));
 
-		// Copy 4th species (assume anux = nux) and half 3rd species
-		nudens_0_trap[2] *= 0.5;
-		nudens_1_trap[2] *= 0.5;
+		// Copy 4th species (assume anux = nux, single species)
 		nudens_0_trap[3] = nudens_0_trap[2];
 		nudens_1_trap[3] = nudens_1_trap[2];
                 
@@ -486,78 +488,102 @@ namespace M1::Opacities::BNSNuRates {
 				      nudens_0_thin[0], nudens_0_thin[1], nudens_0_thin[2],
 				      nudens_1_thin[0], nudens_1_thin[1], nudens_1_thin[2]);
 
-	      // Copy 4th species (assume anux = nux) and half 3rd species
-	      nudens_0_thin[2] *= 0.5;
-	      nudens_1_thin[2] *= 0.5;
+	      // Copy 4th species (assume anux = nux, single species)
 	      nudens_0_thin[3] = nudens_0_thin[2];
 	      nudens_1_thin[3] = nudens_1_thin[2];
 
 	    } //  if (use_kirchhoff_law || nurates_params.use_equilibrium_distribution)
 
 #if (M1_UNITS_TEST)
-    printf("\n Thick:\n  n_nue_eq, n_nua_eq, n_nux_eq %-13.6e %-13.6e %-13.6e\n",
-        nudens_0_trap[0], nudens_0_trap[1], nudens_0_trap[2]);
-    printf("  e_nue_eq, e_nua_eq, e_nux_eq %-13.6e %-13.6e %-13.6e\n",
-        nudens_1_trap[0], nudens_1_trap[1], nudens_1_trap[2]);
-    printf(" Thin:\n  n_nue_eq, n_nua_eq, n_nux_eq %-13.6e %-13.6e %-13.6e\n",
-        nudens_0_thin[0], nudens_0_thin[1], nudens_0_thin[2]);
-    printf("  e_nue_eq, e_nua_eq, e_nux_eq %-13.6e %-13.6e %-13.6e\n",
-        nudens_1_thin[0], nudens_1_thin[1], nudens_1_thin[2]);
+    printf("\n Thick:\n  n_nue_eq, n_nua_eq, 2*n_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_trap[0], nudens_0_trap[1], 2.*nudens_0_trap[2]);
+    printf("  e_nue_eq, e_nua_eq, 2*e_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_trap[0], nudens_1_trap[1], 2.*nudens_1_trap[2]);
+    printf("  n_nue_eq[fm^-3], n_nua_eq[fm^-3], 2*n_nux_eq[fm^-3] %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_trap[0]*code_units->NumberDensityConversion(*eos_units), nudens_0_trap[1]*code_units->NumberDensityConversion(*eos_units), 2.*nudens_0_trap[2]*code_units->NumberDensityConversion(*eos_units));
+    printf("  n_nue_eq[cgs], n_nua_eq[cgs], 2*n_nux_eq[cgs] %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_trap[0]*code_units->NumberDensityConversion(*wr_units), nudens_0_trap[1]*code_units->NumberDensityConversion(*wr_units), 2.*nudens_0_trap[2]*code_units->NumberDensityConversion(*wr_units));
+    printf("  e_nue_eq[cgs], e_nua_eq[cgs], 2*e_nux_eq[cgs] %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_trap[0]*code_units->EnergyDensityConversion(*wr_units), nudens_1_trap[1]*code_units->EnergyDensityConversion(*wr_units), 2.*nudens_1_trap[2]*code_units->EnergyDensityConversion(*wr_units));
+
+    printf(" Thin:\n  n_nue_eq, n_nua_eq, 2*n_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_thin[0], nudens_0_thin[1], 2.*nudens_0_thin[2]);
+    printf("  e_nue_eq, e_nua_eq, 2*e_nux_eq %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_thin[0], nudens_1_thin[1], 2.*nudens_1_thin[2]);
+    printf("  n_nue_eq[fm^-3], n_nua_eq[fm^-3], 2*n_nux_eq[fm^-3] %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_thin[0]*code_units->NumberDensityConversion(*eos_units), nudens_0_thin[1]*code_units->NumberDensityConversion(*eos_units), 2.*nudens_0_thin[2]*code_units->NumberDensityConversion(*eos_units));
+    printf("  n_nue_eq[cgs], n_nua_eq[cgs], 2*n_nux_eq[cgs] %-13.6e %-13.6e %-13.6e\n",
+        nudens_0_thin[0]*code_units->NumberDensityConversion(*wr_units), nudens_0_thin[1]*code_units->NumberDensityConversion(*wr_units), 2.*nudens_0_thin[2]*code_units->NumberDensityConversion(*wr_units));
+    printf("  e_nue_eq[cgs], e_nua_eq[cgs], 2*e_nux_eq[cgs] %-13.6e %-13.6e %-13.6e\n",
+        nudens_1_thin[0]*code_units->EnergyDensityConversion(*wr_units), nudens_1_thin[1]*code_units->EnergyDensityConversion(*wr_units), 2.*nudens_1_thin[2]*code_units->EnergyDensityConversion(*wr_units));
 #endif
 
 	    // Store opacities and emissivities	      
-	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {	      
+	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {
 	      pm1->radmat.sc_eta_0(0, nuidx)(k, j, i) = eta_0_loc[nuidx];
 	      pm1->radmat.sc_eta(0, nuidx)(k, j, i) = eta_1_loc[nuidx];	      
 	      pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) = abs_0_loc[nuidx];
 	      pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) = abs_1_loc[nuidx];
 	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) = scat_1_loc[nuidx];
-
-#if (M1_UNITS_TEST)
-    printf("\n nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
-        nuidx, eta_0_loc[nuidx], eta_1_loc[nuidx]);
-    printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
-        abs_0_loc[nuidx], abs_1_loc[nuidx], scat_1_loc[nuidx]);
-#endif
-
 	    }
 
 #if (M1_UNITS_TEST)
-    printf("\n nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
-        3, eta_0_loc[3], eta_1_loc[3]);
+    for (int nuidx= 0; nuidx < 2; ++nuidx) {
+        printf("\n nuidx, eta_0_loc, eta_0_loc[eos+code_units], eta_1_loc %5d %-13.6e %-13.6e %-13.6e\n",
+            nuidx, eta_0_loc[nuidx], eta_0_loc[nuidx]*code_units->NumberDensityConversion(*eos_units), eta_1_loc[nuidx]);
+        printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
+            abs_0_loc[nuidx], abs_1_loc[nuidx], scat_1_loc[nuidx]);
+	}
+
+    printf("\n nuidx, 2*eta_0_loc, 2*eta_0_loc[eos+code_units], 2*eta_1_loc %5d %-13.6e %-13.6e %-13.6e\n",
+        2, 2.*eta_0_loc[2], 2.*eta_0_loc[2]*code_units->NumberDensityConversion(*eos_units), 2.*eta_1_loc[2]);
+    printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
+        abs_0_loc[3], abs_1_loc[3], scat_1_loc[3]);
+
+    printf("\n nuidx, 2*eta_0_loc, 2*eta_0_loc[eos+code_units], 2*eta_1_loc %5d %-13.6e %-13.6e %-13.6e\n",
+        3, 2.*eta_0_loc[3], 2.*eta_0_loc[3]*code_units->NumberDensityConversion(*eos_units), 2.*eta_1_loc[3]);
     printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
         abs_0_loc[3], abs_1_loc[3], scat_1_loc[3]);
 #endif
 
-	    // Fix for 4th species
-	    pm1->radmat.sc_eta_0(0, 2)(k, j, i) += eta_0_loc[3]; // sum nux and anux emissivities 
-	    pm1->radmat.sc_eta(0, 2)(k, j, i) += eta_1_loc[3]; // sum nux and anux emissivities 
-	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) += abs_0_loc[3]; // avg nux and anux absorbsivities
+	    // Fix for heavy species
+	    nudens_0_trap[2] = 2.*nudens_0_trap[2] + 2.*nudens_0_trap[3];                   // collapse nux and anux
+	    nudens_1_trap[2] = 2.*nudens_1_trap[2] + 2.*nudens_1_trap[3];
+	    nudens_0_thin[2] = 2.*nudens_0_thin[2] + 2.*nudens_0_thin[3];
+	    nudens_1_thin[2] = 2.*nudens_1_thin[2] + 2.*nudens_1_thin[3];
+        pm1->radmat.sc_eta_0(0, 2)(k, j, i) *= 2.;              // 2 species of nux
+	    pm1->radmat.sc_eta_0(0, 2)(k, j, i) += 2.*eta_0_loc[3]; // sum nux and anux emissivities
+        pm1->radmat.sc_eta(0, 2)(k, j, i) *= 2.;                // 2 species of nux
+	    pm1->radmat.sc_eta(0, 2)(k, j, i) += 2.*eta_1_loc[3];   // sum nux and anux emissivities
+	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) += abs_0_loc[3];  // avg nux and anux absorbsivities
 	    pm1->radmat.sc_kap_a_0(0, 2)(k, j, i) *= 0.5;
-	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) += abs_1_loc[3]; // avg nux and anux absorbsivities
+	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) += abs_1_loc[3];    // avg nux and anux absorbsivities
 	    pm1->radmat.sc_kap_a(0, 2)(k, j, i) *= 0.5;
-	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) += scat_1_loc[3]; // avg nux and anux abs scattering
+	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) += scat_1_loc[3];   // avg nux and anux abs scattering
 	    pm1->radmat.sc_kap_s(0, 2)(k, j, i) *= 0.5;
 
 	    for (int nuidx= 0; nuidx < N_SPCS; ++nuidx) {
 	    
-	      Real my_nudens_0{}, my_nudens_1{};
+	      Real my_nudens_0{}, my_nudens_0_eos{}, my_nudens_1{};
 	      
 	      if (use_kirchhoff_law || nurates_params.use_equilibrium_distribution) {
 		// Combine optically thin and optically thick limits
 		if (opacity_tau_trap < 0 ||
 		    tau <= opacity_tau_trap) {
 		  my_nudens_0 = nudens_0_thin[nuidx];
+		  my_nudens_0_eos = my_nudens_0*code_units->NumberDensityConversion(*eos_units);
 		  my_nudens_1 = nudens_1_thin[nuidx];
 		} else if (tau > opacity_tau_trap +
 			   opacity_tau_delta) {
 		  my_nudens_0 = nudens_0_trap[nuidx];
+		  my_nudens_0_eos = my_nudens_0*code_units->NumberDensityConversion(*eos_units);
 		  my_nudens_1 = nudens_1_trap[nuidx];
 		} else {
 		  Real const lam = (tau - opacity_tau_trap) /
 		    opacity_tau_delta;
 		  my_nudens_0 = lam * nudens_0_trap[nuidx] +
 		    (1 - lam) * nudens_0_thin[nuidx];
+		  my_nudens_0_eos = my_nudens_0*code_units->NumberDensityConversion(*eos_units);
 		  my_nudens_1 = lam * nudens_1_trap[nuidx] +
 		    (1 - lam) * nudens_1_thin[nuidx];
 		}		
@@ -567,9 +593,8 @@ namespace M1::Opacities::BNSNuRates {
 	      // (kappa ~ E_nu^2)
 	      Real corr_fac = 1.0;
 	      if (nurates_params.use_equilibrium_distribution) {
-		Real nu_e_avg = my_nudens_1 / my_nudens_0;
+		Real nu_e_avg = my_nudens_1 / my_nudens_0_eos;
 		pm1->radmat.sc_avg_nrg(0, nuidx)(k, j, i) = nu_e_avg;
-// FIXME where are sc_n and sc_J initialized???
 		corr_fac = pm1->rad.sc_J(0, nuidx)(k, j, i) /
                   (pm1->rad.sc_n(0, nuidx)(k, j, i) * nu_e_avg);
 		if (!std::isfinite(corr_fac)) {
@@ -580,13 +605,11 @@ namespace M1::Opacities::BNSNuRates {
 				    std::min(corr_fac, opacity_corr_fac_max));
 	      }
 #if (M1_UNITS_TEST)
-    printf(" my_nudens_0, my_nudens_1 %-13.6e %-13.6e\n",
-        my_nudens_0, my_nudens_1);
+    printf("\n my_nudens_0[fm^-3], my_nudens_0[code], my_nudens_1 %-13.6e %-13.6e %-13.6e\n",
+        my_nudens_0_eos, my_nudens_0, my_nudens_1);
     printf(" corr_fac %-13.6e\n",
         corr_fac);
-#endif  
-        // FIXME hard coded to match athenaK
-        //corr_fac=3.;
+#endif
 	      
 	      pm1->radmat.sc_kap_s(0, nuidx)(k, j, i) *= corr_fac;
 
@@ -620,7 +643,7 @@ namespace M1::Opacities::BNSNuRates {
                          ? pm1->radmat.sc_eta(0, nuidx)(k, j, i) / my_nudens_1
                          : 0);
 		}
-#endif  
+#endif
 	      } else {
 		pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i) *= corr_fac;
 		pm1->radmat.sc_kap_a(0, nuidx)(k, j, i) *= corr_fac;
@@ -629,9 +652,9 @@ namespace M1::Opacities::BNSNuRates {
 	      }  
 
 #if (M1_UNITS_TEST)
-    printf("\n After correction:\n");
-    printf(" nuidx, eta_0_loc, eta_1_loc %5d %-13.6e %-13.6e\n",
-        nuidx, pm1->radmat.sc_eta_0(0, nuidx)(k, j, i), pm1->radmat.sc_eta(0, nuidx)(k, j, i));
+    printf(" After correction:\n");
+    printf(" nuidx, eta_0_loc, eta_0_loc[eos+code_units], eta_1_loc %5d %-13.6e %-13.6e %-13.6e\n",
+        nuidx, pm1->radmat.sc_eta_0(0, nuidx)(k, j, i), pm1->radmat.sc_eta_0(0, nuidx)(k, j, i)*code_units->NumberDensityConversion(*eos_units), pm1->radmat.sc_eta(0, nuidx)(k, j, i));
     printf(" abs_0_loc, abs_1_loc, scat_1_loc %-13.6e %-13.6e %-13.6e\n",
         pm1->radmat.sc_kap_a_0(0, nuidx)(k, j, i), pm1->radmat.sc_kap_a(0, nuidx)(k, j, i), pm1->radmat.sc_kap_s(0, nuidx)(k, j, i));
     printf(" sc_J, sc_n, fl_nG, fl_E %-13.6e %-13.6e %-13.6e %-13.6e\n",
@@ -641,7 +664,10 @@ namespace M1::Opacities::BNSNuRates {
 	    } // nuidx
 
 #if (M1_UNITS_TEST)
+    printf("\n\n\n\n\n");
+#if (M1_UNITS_TEST_SINGLE_STEP)
     assert(false);
+#endif
 #endif
 
 	  } // Mask  
