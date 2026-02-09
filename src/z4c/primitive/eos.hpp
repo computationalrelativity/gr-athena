@@ -153,27 +153,27 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Calculate the temperature from number density, energy density, and
     //         particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] e  The energy density
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
-    inline Real GetTemperatureFromE(Real n, Real e, Real *Y) {
-      return TemperatureFromE(n, e*code_units->PressureConversion(*eos_units), Y) *
+    inline Real GetTemperatureFromE(Real n_eos, Real e, Real *Y) {
+      return TemperatureFromE(n_eos, e*code_units->PressureConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
     }
 
     //! \fn Real GetTemperatureFromP(Real n, Real p, Real *Y)
     //  \brief Calculate the temperature from number density, pressure, and
     //         particle fractions.
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] p  The pressure
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
-    inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
-      if (n<GetDensityFloor()){
+    inline Real GetTemperatureFromP(Real n_eos, Real p, Real *Y) {
+      if (n_eos<GetDensityFloor()){
         return T_atm * eos_units->TemperatureConversion(*code_units);
       } else {
-        return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
+        return TemperatureFromP(n_eos, p*code_units->PressureConversion(*eos_units), Y) *
                eos_units->TemperatureConversion(*code_units);
       }
     }
@@ -182,12 +182,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Calculate the temperature from number density, entropy, and
     //         particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] s The entropy per baryon
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
-    inline Real GetTemperatureFromEntropy(Real n, Real s, Real *Y) {
-      return TemperatureFromEntropy(n, s*code_units->EntropyConversion(*eos_units), Y) *
+    inline Real GetTemperatureFromEntropy(Real n_eos, Real s, Real *Y) {
+      return TemperatureFromEntropy(n_eos, s*code_units->EntropyConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
     }
 
@@ -195,12 +195,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the energy density from the number density, temperature, and
     //         particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The energy density according to the EOS.
-    inline Real GetEnergy(Real n, Real T, Real *Y) {
-      return Energy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetEnergy(Real n_eos, Real T, Real *Y) {
+      return Energy(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->PressureConversion(*code_units);
     }
 
@@ -208,12 +208,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the pressure from the number density, temperature, and
     //         particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The pressure according to the EOS.
-    inline Real GetPressure(Real n, Real T, Real *Y) {
-      return Pressure(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetPressure(Real n_eos, Real T, Real *Y) {
+      return Pressure(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->PressureConversion(*code_units);
     }
 
@@ -221,13 +221,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the entropy per mass from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The entropy per baryon for this EOS. 
     //  WC: This is entropy per unit mass
-    inline Real GetEntropy(Real n, Real T, Real *Y) {
-      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
+    inline Real GetEntropy(Real n_eos, Real T, Real *Y) {
+      return Entropy(n_eos, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
              eos_units->EntropyConversion(*code_units)/eos_units->MassConversion(*code_units);
     }
 
@@ -235,13 +235,13 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the entropy per baryon from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The entropy per baryon for this EOS.
-    inline Real GetEntropyPerBaryon(Real n, Real T, Real *Y) {
+    inline Real GetEntropyPerBaryon(Real n_eos, Real T, Real *Y) {
 	    //Entropy per baryon
-      	    return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+      	    return Entropy(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->EntropyConversion(*code_units);
 
     }
@@ -249,12 +249,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the enthalpy per mass from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The enthalpy per baryon for this EOS.
-    inline Real GetEnthalpy(Real n, Real T, Real *Y) {
-      return Enthalpy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
+    inline Real GetEnthalpy(Real n_eos, Real T, Real *Y) {
+      return Enthalpy(n_eos, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
              (eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units));
     }
 
@@ -279,12 +279,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the sound speed from the number density, temperature, and
     //         particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The sound speed for this EOS.
-    inline Real GetSoundSpeed(Real n, Real T, Real *Y) {
-      return SoundSpeed(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetSoundSpeed(Real n_eos, Real T, Real *Y) {
+      return SoundSpeed(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->VelocityConversion(*code_units);
     }
 
@@ -319,12 +319,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the energy per mass from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The specific energy for the EOS.
-    inline Real GetSpecificInternalEnergy(Real n, Real T, Real *Y) {
-      return SpecificInternalEnergy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetSpecificInternalEnergy(Real n_eos, Real T, Real *Y) {
+      return SpecificInternalEnergy(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units);
     }
 
@@ -332,36 +332,36 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Get the baryon chemical potential from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The baryon chemical potential for the EOS.
-    inline Real GetBaryonChemicalPotential(Real n, Real T, Real *Y) {
-      return BaryonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetBaryonChemicalPotential(Real n_eos, Real T, Real *Y) {
+      return BaryonChemicalPotential(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
      //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the charge chemical potential from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The charge chemical potential for the EOS.
-    inline Real GetChargeChemicalPotential(Real n, Real T, Real *Y) {
-      return ChargeChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetChargeChemicalPotential(Real n_eos, Real T, Real *Y) {
+      return ChargeChemicalPotential(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
      //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
     //  \brief Get the electron-lepton chemical potential from the number density, temperature,
     //         and particle fractions.
     //
-    //  \param[in] n  The number density
+    //  \param[in] n  The number density [eos_units]
     //  \param[in] T  The temperature
     //  \param[in] Y  An array of size n_species of the particle fractions.
     //  \return The electron-lepton chemical potential for the EOS.
-    inline Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
-      return ElectronLeptonChemicalPotential(n, T*code_units->TemperatureConversion(*eos_units), Y) *
+    inline Real GetElectronLeptonChemicalPotential(Real n_eos, Real T, Real *Y) {
+      return ElectronLeptonChemicalPotential(n_eos, T*code_units->TemperatureConversion(*eos_units), Y) *
              eos_units->ChemicalPotentialConversion(*code_units);
     }
 
