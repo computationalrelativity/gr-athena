@@ -352,6 +352,20 @@ class EquationOfState {
     const Real sigma_s_frac = 0.5    // fraction of num_neighbors for spatial weight
   );
 
+#if defined(USE_COMPOSE_TRANSITION_EOS)
+  void NuclearBinding(
+      AA &prim,
+      AA &prim_scalar,
+      Coordinates *pco,
+      geom_sliced_cc & gsc,
+      AA &hyd_der_int,
+      int k,
+      int j,
+      int il,
+      int iu
+  );
+#endif
+
   // BD: TODO - clean up this mess ---v
 
   // pass k, j, i to following 2x functions even though x1-sliced input array is expected

@@ -574,6 +574,71 @@ void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
   gsc.oo_det_gamma_(i) = 1;
 }
 
+
+#if defined(USE_COMPOSE_TRANSITION_EOS)
+void EquationOfState::NuclearBinding(
+  AA &prim, AA &prim_scalar,
+  Coordinates *pco,
+  geom_sliced_cc & gsc,
+  AA &hyd_der_int,
+  int k,
+  int j,
+  int il, int iu)
+{
+#if not USETM
+  return;
+#endif
+  Real Y[MAX_SPECIES] = {0.0};
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real P = prim(IPR,k,j,i);
+    const Real n = prim(IDN,k,j,i)/GetEOS().GetBaryonMass();
+    for (int l=0; l<NSCALARS; ++l)
+    {
+      Y[l] = prim_scalar(l,k,j,i);
+    }
+    const Real T = GetEOS().GetTemperatureFromP(n, P, Y);
+
+    // Get current expansion timescale tau = r/|v|
+    const Real x = pco->x1v(i);
+    const Real y = pco->x2v(j);
+    const Real z = pco->x3v(k);
+    const Real gxx = gsc.gamma_dd_(0,0,i);
+    const Real gxy = gsc.gamma_dd_(0,1,i);
+    const Real gxz = gsc.gamma_dd_(0,2,i);
+    const Real gyy = gsc.gamma_dd_(1,1,i);
+    const Real gyz = gsc.gamma_dd_(1,2,i);
+    const Real gzz = gsc.gamma_dd_(2, 2, i);
+
+    const Real r = std::sqrt(gxx * SQR(x) + gyy * SQR(y) + gzz * SQR(z) + 2.0*(gxy*x*y + gxz*x*z + gyz*y*z));
+
+    const Real v_abs = std::sqrt(
+      SQR(prim(IVX,k,j,i)) * gxx +
+      SQR(prim(IVY,k,j,i)) * gyy +
+      SQR(prim(IVZ,k,j,i)) * gzz +
+      2.0*(prim(IVX,k,j,i)*prim(IVY,k,j,i)*gxy +
+           prim(IVX,k,j,i)*prim(IVZ,k,j,i)*gxz +
+           prim(IVY,k,j,i)*prim(IVZ,k,j,i)*gyz)
+    );
+    const Real cur_tau = r/v_abs;
+    const Real cur_Ye = prim_scalar(GetEOS().SCYE, k, j, i);
+    const Real cur_ent = GetEOS().GetEntropyPerBaryon(n, T, Y);;
+    const Real cur_eb = GetEOS().GetBindingEnergy(n, T, Y);
+
+    // Update scalar of past Ye entr and tau with EOS call
+    const Real w = GetEOS().TransitionFactor(log(n), T);
+    prim_scalar(GetEOS().SCPYE , k, j, i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
+    prim_scalar(GetEOS().SCPENT, k, j, i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
+    prim_scalar(GetEOS().SCPTAU, k, j, i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;
+
+    // Update binding energy and heating
+    prim_scalar(GetEOS().SCEB, k, j, i) = w * Y[GetEOS().SCEB] + (1.0 - w) * cur_eb;
+    // hyd_der_int(IX_HEAT,k,j,i) = heating rate (prim_scalar) * factor to shut down heating in non-ejected matter
+  }
+}
+#endif // USE_COMPOSE_TRANSITION_EOS
+
 void EquationOfState::DerivedQuantities(
   AA &hyd_der_ms,
   AA &hyd_der_int,

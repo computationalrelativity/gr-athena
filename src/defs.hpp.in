@@ -136,7 +136,7 @@
 
 // Maximum supported species by PrimitiveSolver
 // FIXME: Should be added as an argument later.
-#define MAX_SPECIES 2
+#define 6
 
 // use general EOS framework default=0 (false).
 #define GENERAL_EOS @GENERAL_EOS@

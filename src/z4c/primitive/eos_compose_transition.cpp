@@ -43,8 +43,8 @@ EOSCompOSETransition::EOSCompOSETransition() {
   eos_units = &Nuclear;
   max_iter = 50;
   T_tol = 1e-10;
-  min_Y[1] = 1.0;
-  max_Y[1] = 500.0;
+  min_Y[SCABAR] = 1.0;
+  max_Y[SCABAR] = 500.0;
 }
 
 EOSCompOSETransition::~EOSCompOSETransition() {
@@ -88,6 +88,8 @@ Real EOSCompOSETransition::trans_ln_start = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::trans_ln_end = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::helm_ln_max = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::helm_lt_max = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::comp_ln_min = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::comp_lt_min = numeric_limits<Real>::quiet_NaN();
 bool EOSCompOSETransition::m_initialized = false;
 
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
@@ -95,7 +97,7 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   Real eps_min = MinimumSpecificInternalEnergy(n, Y);
   Real eps_max = MaximumSpecificInternalEnergy(n, Y);
   return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T :
-    temperature_from_var(ECLOGE, log(eps), n, Y[0], Y[1]);
+    temperature_from_var(ECLOGE, log(eps), n, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess) {
@@ -103,7 +105,7 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tg
   Real eps_min = MinimumSpecificInternalEnergy(n, Y);
   Real eps_max = MaximumSpecificInternalEnergy(n, Y);
   return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T :
-    temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[0], Y[1], Tguess);
+    temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[SCYE], Y[SCABAR], Tguess);
 }
 
 Real EOSCompOSETransition::TemperatureFromEntropy(Real n, Real s, Real *Y) {
@@ -126,7 +128,7 @@ Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
   Real p_max = MaximumPressure(n,Y);
 
   return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
-    temperature_from_var(ECLOGP, log(p), n, Y[0], Y[1]);
+    temperature_from_var(ECLOGP, log(p), n, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
@@ -135,7 +137,7 @@ Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y, Real Tguess
   Real p_max = MaximumPressure(n,Y);
 
   return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
-    temperature_from_var_with_guess(ECLOGP, log(p), n, Y[0], Y[1], Tguess);
+    temperature_from_var_with_guess(ECLOGP, log(p), n, Y[SCYE], Y[SCABAR], Tguess);
 }
 
 Real EOSCompOSETransition::Energy(Real n, Real T, Real *Y) {
@@ -144,17 +146,17 @@ Real EOSCompOSETransition::Energy(Real n, Real T, Real *Y) {
 
 Real EOSCompOSETransition::Pressure(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return exp(eval_at_nty(ECLOGP, n, T, Y[0], Y[1]));
+  return exp(eval_at_nty(ECLOGP, n, T, Y[SCYE], Y[SCABAR]));
 }
 
 Real EOSCompOSETransition::Entropy(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECENT, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECENT, n, T, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::Abar(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECABAR, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECABAR, n, T, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::Enthalpy(Real n, Real T, Real *Y) {
@@ -166,27 +168,47 @@ Real EOSCompOSETransition::Enthalpy(Real n, Real T, Real *Y) {
 
 Real EOSCompOSETransition::SoundSpeed(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECCS, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECCS, n, T, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return exp(eval_at_nty(ECLOGE, n, T, Y[0], Y[1]));
+  return exp(eval_at_nty(ECLOGE, n, T, Y[SCYE], Y[SCABAR]));
 }
 
 Real EOSCompOSETransition::BaryonChemicalPotential(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECMUB, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECMUB, n, T, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::ChargeChemicalPotential(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECMUQ, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECMUQ, n, T, Y[SCYE], Y[SCABAR]);
 }
 
 Real EOSCompOSETransition::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECMUL, n, T, Y[0], Y[1]);
+  return eval_at_nty(ECMUL, n, T, Y[SCYE], Y[SCABAR]);
+}
+
+Real EOSCompOSETransition::FrYn(Real n, Real T, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::FrYn not currently implemented.");
+}
+
+Real EOSCompOSETransition::FrYp(Real n, Real T, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::FrYp not currently implemented.");
+}
+
+Real EOSCompOSETransition::FrYh(Real n, Real T, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::FrYh not currently implemented.");
+}
+
+Real EOSCompOSETransition::AN(Real n, Real T, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::AN not currently implemented.");
+}
+
+Real EOSCompOSETransition::ZN(Real n, Real T, Real *Y) {
+  throw std::logic_error("EOSCompOSETransition::ZN not currently implemented.");
 }
 
 Real EOSCompOSETransition::MinimumEnthalpy() {
@@ -298,13 +320,13 @@ void EOSCompOSETransition::PrintParameters() {
   printf("  max_n = %e\n", max_n);
   printf("  min_T = %e\n", min_T);
   printf("  max_T = %e\n", max_T);
-  printf("  min_Y = %e\n", min_Y[0]);
-  printf("  max_Y = %e\n", max_Y[0]);
+  printf("  min_Y = %e\n", min_Y[SCYE]);
+  printf("  max_Y = %e\n", max_Y[SCYE]);
   printf("  helm_ln_max = %e\n", helm_ln_max);
   printf("  helm_lt_max = %e\n", helm_lt_max);
-  printf("  max_Y = %e\n", max_Y[0]);
-  printf("  min_Abar = %e\n", min_Y[1]);
-  printf("  max_Abar = %e\n", max_Y[1]);
+  printf("  max_Y = %e\n", max_Y[SCYE]);
+  printf("  min_Abar = %e\n", min_Y[SCABAR]);
+  printf("  max_Abar = %e\n", max_Y[SCABAR]);
   printf("  min_h = %.15e MeV\n", m_min_h);
   printf("  mb = %.15e MeV\n", mb);
   printf("  T transition start = %e\n", trans_T_start);
@@ -354,6 +376,7 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
     MYH5CHECK(ierr);
   min_n = scratch[0];
   max_n = scratch[m_nn-1];
+  comp_ln_min = log(min_n);
   for (int in = 0; in < m_nn; ++in) {
     m_log_nb[in] = log(scratch[in]);
   }
@@ -363,6 +386,7 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
     MYH5CHECK(ierr);
   min_T = scratch[1];
   max_T = scratch[m_nt-1];
+  comp_lt_min = log(min_T);
   for (int it = 0; it < m_nt; ++it) {
     m_log_t[it] = log(scratch[it]);
   }
@@ -370,8 +394,8 @@ void EOSCompOSETransition::read_compose_table(std::string fname) {
 
   ierr = H5LTread_dataset_double(file_id, "yq", scratch);
     MYH5CHECK(ierr);
-  min_Y[0] = scratch[0];
-  max_Y[0] = scratch[m_ny-1];
+  min_Y[SCYE] = scratch[0];
+  max_Y[SCYE] = scratch[m_ny-1];
   for (int iy = 0; iy < m_ny; ++iy) {
     m_yq[iy] = scratch[iy];
   }
@@ -454,24 +478,54 @@ void EOSCompOSETransition::read_helmholtz_table(std::string fname) {
   read_helm_table(fname.c_str(), &str_len);
 }
 
-void EOSCompOSETransition::update_baryon_mass() {
+void EOSCompOSETransition::read_heating_table(std::string fname) {
+  herr_t ierr;
+  hid_t file_id;
+  hsize_t snb, st, syq;
+
+  // Open input file
+  // -------------------------------------------------------------------------
+  file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    MYH5CHECK(file_id);
+
+  // Get dataset sizes
+  // -------------------------------------------------------------------------
+  ierr = H5LTget_dataset_info(file_id, "nb", &snb, NULL, NULL);
+    MYH5CHECK(ierr);
+  ierr = H5LTget_dataset_info(file_id, "t", &st, NULL, NULL);
+    MYH5CHECK(ierr);
+  ierr = H5LTget_dataset_info(file_id, "yq", &syq, NULL, NULL);
+    MYH5CHECK(ierr);
+  m_nn = snb;
+  m_nt = st;
+  m_ny = syq;
+
+  // Allocate memory
+  // -------------------------------------------------------------------------
+  m_log_nb = new Real[m_nn];
+  m_log_t = new Real[m_nt];
+  m_yq = new Real[m_ny];
+  m_table = new Real[ECNVARS*m_nn*m_ny*m_nt];
+}
+
+void EOSCompOSETransition::update_baryon_mass(Real new_mb) {
   Real Abar = 1.0;
 
-  Real new_mb = mb;
-  for (int in = 0; in < m_nn; ++in) {
-    Real ln = m_log_nb[in];
-    if (ln > helm_ln_max) continue;
-    for (int it = 0; it < m_nt; ++it) {
-      Real lT = m_log_t[it];
-      if (lT > helm_lt_max) continue;
-      for (int iy = 0; iy < m_ny; ++iy) {
-        Real ye = m_yq[iy];
-        Real eps = m_table[index(ECLOGE, in, iy, it)];
-        Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
-        new_mb = min(mb*(1 + eps - eps_helm), new_mb);
-      }
-    }
-  }
+  // Real new_mb = mb;
+  // for (int in = 0; in < m_nn; ++in) {
+  // Real ln = m_log_nb[in];
+  // if (ln > helm_ln_max) continue;
+  // for (int it = 0; it < m_nt; ++it) {
+  // Real lT = m_log_t[it];
+  // if (lT > helm_lt_max) continue;
+  // for (int iy = 0; iy < m_ny; ++iy) {
+  // Real ye = m_yq[iy];
+  // Real eps = m_table[index(ECLOGE, in, iy, it)];
+  // Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
+  // new_mb = min(mb*(1 + eps - eps_helm), new_mb);
+  // }
+  // }
+  // }
 
   // Update the baryon mass
   Real mb_ratio = mb/new_mb;
@@ -494,7 +548,7 @@ void EOSCompOSETransition::update_baryon_mass() {
       Real y = m_yq[iy];
       Abar = m_table[index(ECABAR, in, iy, it)];
       Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, y, Abar));
-      if (new_eps < eps_helm) { 
+      if (new_eps < eps_helm) {
 	printf("ln=%.10e lt=%.10e y=%.10e, new_eps=%.10e, eps_helm=%.10e \n", ln, lT, y, new_eps, eps_helm);
       }
     }
@@ -517,11 +571,11 @@ void EOSCompOSETransition::update_bounds() {
   helm_lt_max = log(max_T);
 #else
   bool success;
-  check_bounds(&rho_trans, &temp_trans, &max_Y[0], &success);
+  check_bounds(&rho_trans, &temp_trans, &max_Y[SCYE], &success);
   assert(success);
 
   Real rho_min, rho_max, temp_min, temp_max;
-  get_bounds(&min_Y[0], &rho_min, &rho_max, &temp_min, &temp_max);
+  get_bounds(&min_Y[SCYE], &rho_min, &rho_max, &temp_min, &temp_max);
 
   assert(rho_max >= rho_trans);
   assert(temp_max >= temp_trans);
@@ -543,14 +597,28 @@ void EOSCompOSETransition::update_bounds() {
 
   for (int iy = 0; iy < m_ny; ++iy) {
     // Eval helmholtz with maximum Abar because it corresponds to the minimum of eps
-    Real eps = exp(eval_helm_at_lnty(ECLOGE, min_ln, min_lT, m_yq[iy], max_Y[1]));
-    Real p = exp(eval_helm_at_lnty(ECLOGP, min_ln, min_lT, m_yq[iy], max_Y[1]));
+    Real eps = exp(eval_helm_at_lnty(ECLOGE, min_ln, min_lT, m_yq[iy], max_Y[SCABAR]));
+    Real p = exp(eval_helm_at_lnty(ECLOGP, min_ln, min_lT, m_yq[iy], max_Y[SCABAR]));
     m_min_h = min(m_min_h, (1 + eps)*mb + p/min_n);
   }
 }
 
+Real EOSCompOSETransition::GetBindingEnergy(Real n, Real T, Real *Y) {
+  Real ln = log(n);
+  Real lt = log(T);
+  if (ln > helm_ln_max or lt > helm_lt_max) {
+    return 0.0;
+  } else if (ln < comp_ln_min or lt < comp_lt_min) {
+    return Y[SCEB];
+  } else {
+    Real Abar = Y[SCABAR];
+    Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lt, Y[SCYE], Abar, 0));
+    Real eps_comp = exp(eval_compose_at_lnty(ECLOGE, ln, lt, Y[SCYE]));
+    return eps_comp - eps_helm;
+  }
+}
 
-void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_fname) {
+void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_fname, std::string heating_fname, Real baryon_mass) {
   #pragma omp critical
   {
     if (not m_initialized) {
@@ -559,6 +627,7 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
 #ifndef USE_PACZYNSKI
       read_helmholtz_table(helm_fname);
 #endif
+      read_heating_table(heating_fname);
 
       // Set the baryon mass in the Helmholtz EOS to the current mb
       Real mb_cgs = mb*eos_units->MassConversion(CGS);
@@ -579,7 +648,7 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
       }
 
       update_bounds();
-      update_baryon_mass();
+      update_baryon_mass(baryon_mass);
       update_bounds();
 
       m_initialized = true;
@@ -588,7 +657,7 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
   }
 }
 
-Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar) const {
+Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar, Real Eb) const {
   Real ln = log(n);
 
   if (std::isnan(var)) {
@@ -597,7 +666,7 @@ Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Y
   }
 
   auto func = [=](Real lT){
-    Real res =  eval_at_lnty(iv, ln, lT, Yq, Abar);
+    Real res =  eval_at_lnty(iv, ln, lT, Yq, Abar, Eb);
     // check nans
     if (std::isnan(res)) {
       std::stringstream msg;
@@ -607,6 +676,7 @@ Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Y
           << "  n = " << n << "\n"
           << "  Yq = " << Yq << "\n"
           << "  Abar = " << Abar << "\n"
+          << "  Eb = " << Eb << "\n"
           << "  lT = " << lT << "\n"
           << "  ln = " << ln << "\n"
           << "  res = " << res;
@@ -648,9 +718,9 @@ Real EOSCompOSETransition::temperature_from_var(int iv, Real var, Real n, Real Y
   // printf("%4d ", n_iter);
 }
 
-Real EOSCompOSETransition::temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Tguess) const {
+Real EOSCompOSETransition::temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Ebr, Real Tguess) const {
   auto func = [=](Real T){
-    return eval_at_nty(iv, n, T, Yq, Abar) - var;
+    return eval_at_nty(iv, n, T, Yq, Abar, Eb) - var;
   };
 
   auto tol = [=] (Real Ta, Real Tb) {
@@ -670,32 +740,44 @@ Real EOSCompOSETransition::temperature_from_var_with_guess(int iv, Real var, Rea
   return (res.first + res.second)/2;
 }
 
-Real EOSCompOSETransition::eval_at_nty(int iv, Real n, Real T, Real Yq, Real Abar) const {
-  return eval_at_lnty(iv, log(n), log(T), Yq, Abar);
+Real EOSCompOSETransition::eval_at_nty(int iv, Real n, Real T, Real Yq, Real Abar, Real Eb) const {
+  return eval_at_lnty(iv, log(n), log(T), Yq, Abar, Eb);
 }
 
-Real EOSCompOSETransition::eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar) const {
-  Real T = exp(lT);
-
+Real EOSCompOSETransition::TransitionFactor(Real n, Real T) const {
+  Real ln = log(n);
   if (((ln > trans_ln_start) and (T > trans_T_start))
       or ln > helm_ln_max){
-    return eval_compose_at_lnty(iv, ln, lT, Yq);
+    return 0.0;
   }
   if ((ln < trans_ln_end) or (T < trans_T_end)) {
-    return eval_helm_at_lnty(iv, ln, lT, Yq, Abar);
+    return 1.0;
 }
 
-  Real q_helmholtz = eval_helm_at_lnty(iv, ln, lT, Yq, Abar);
-  Real q_compose = eval_compose_at_lnty(iv, ln, lT, Yq);
   Real w = 1;
-
   if ((T < trans_T_start) and (T > trans_T_end)) {
     w *= (T - trans_T_end)/m_trans_T_width;
   }
   if ((ln > trans_ln_end) and (ln < trans_ln_start)) {
     w *= (ln - trans_ln_end)/m_trans_ln_width;
   }
+  return w;
+}
 
+Real EOSCompOSETransition::eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const {
+  Real T = exp(lT);
+  Real n = exp(ln);
+
+  Real w = TransitionFactor(n, T);
+
+  if (w == 0.0) {
+    return eval_compose_at_lnty(iv, ln, lT, Yq);
+  }
+  if (w == 1.0) {
+    return eval_helm_at_lnty(iv, ln, lT, Yq, Abar, Eb);
+}
+  Real q_helmholtz = eval_helm_at_lnty(iv, ln, lT, Yq, Abar, Eb);
+  Real q_compose = eval_compose_at_lnty(iv, ln, lT, Yq);
   return q_helmholtz*(1-w) + q_compose*w;
 }
 
@@ -718,7 +800,7 @@ Real EOSCompOSETransition::eval_compose_at_lnty(int iv, Real ln, Real lT, Real Y
                   wt1 * m_table[index(iv, in+1, iy+1, it+1)]));
 }
 
-Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar) const {
+Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const {
   Real rho = exp(ln) * eos_units->DensityConversion(CGS)*mb*eos_units->MassConversion(CGS);
   Real temp = exp(lT) * eos_units->TemperatureConversion(CGS);
   Real Zbar = Abar*Yq;
@@ -736,7 +818,7 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
   switch (iv) {
     case ECLOGE:
       PH_ETOT(&rho, &temp, &Abar, &Zbar, &etot, &success_flag);
-      res = log(etot*CGS.SpecificInternalEnergyConversion(*eos_units));
+      res = log(etot*CGS.SpecificInternalEnergyConversion(*eos_units) + Eb);
       break;
     case ECLOGP:
       PH_PTOT(&rho, &temp, &Abar, &Zbar, &ptot, &success_flag);

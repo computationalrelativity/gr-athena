@@ -38,6 +38,16 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       ECNVARS = 8
     };
 
+    enum ScalarVariables {
+      SCYE    = 0,  //! electron fraction
+      SCABAR  = 1,  //! average baryon number per nucleon
+      SCEB    = 2,  //! tracked Binding energy per baryon
+      SCPENT  = 3,  //! tracked past entropy per baryon
+      SCPTAU  = 4,  //! tracked past expansion timescale
+      SCPYE   = 5,  //! tracked past electron fraction
+      SCNVARS = 6
+    };
+
   protected:
     /// Constructor
     EOSCompOSETransition();
@@ -90,6 +100,13 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// Calculate the electron-lepton chemical potential
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
+    /// Species fractions (not implented, will throw an exception if called)
+    Real FrYn(Real n, Real T, Real *Y);
+    Real FrYp(Real n, Real T, Real *Y);
+    Real FrYh(Real n, Real T, Real *Y);
+    Real AN(Real n, Real T, Real *Y);
+    Real ZN(Real n, Real T, Real *Y);
+
     /// Get the minimum enthalpy per baryon.
     Real MinimumEnthalpy();
 
@@ -113,15 +130,21 @@ class EOSCompOSETransition : public EOSPolicyInterface {
 
   public:
     /// Reads the table files and clalculates transition parameters.
-    void InitializeTables(std::string fname, std::string helm_fname);
+    void InitializeTables(std::string fname, std::string helm_fname, std::string heating_fname, Real baryon_mass);
 
     /// Some setters for parameters
     void SetTransition(Real n_start, Real n_end, Real T_start, Real T_end);
     void SetMaxIteration(int iter_max);
     void SetTemperatureTolerance(Real tol);
 
+    /// Get the NSE value of the binding energy per baryon
+    Real GetBindingEnergy(Real n, Real T, Real *Y);
+
     /// Get the transition parameters
     void PrintParameters();
+
+    /// Get the factor to transition between the two EOSs, as a function of density and temperature
+    Real TransitionFactor(Real n, Real T) const;
 
     /// Get the raw number density
     Real const * GetRawLogNumberDensity() const {
@@ -172,18 +195,20 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void read_compose_table(std::string fname);
     /// Reads the helmholtz table.
     void read_helmholtz_table(std::string fname);
+    /// Reads the table of heating rate fits.
+    void read_heating_table(std::string fname);
     /// Lowers the reference baryon mass to ensure eps > 0.
-    void update_baryon_mass();
+    void update_baryon_mass(Real new_mb);
     void update_bounds();
 
 
     /// Low level inversion function, not intended for outside use
-    Real eval_at_nty(int iv, Real ln, Real lT, Real Yq, Real Abar) const;
-    Real eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar) const;
+    Real eval_at_nty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const;
+    Real eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const;
     Real eval_compose_at_lnty(int iv, Real ln, Real lT, Real Yq) const;
-    Real eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar) const;
-    Real temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar) const;
-    Real temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Tguess) const;
+    Real eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const;
+    Real temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar, Real Eb) const;
+    Real temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Eb, Real Tguess) const;
 
     /// Evaluate interpolation weight for density
     void weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const;
@@ -216,11 +241,18 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     static Real * m_yq;
     static Real * m_table;
 
+    static Real * m_heating_s;
+    static Real * m_heating_ye;
+    static Real * m_heating_tau;
+    static Real * m_heating_table;
+
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     static bool m_initialized;
 
     static Real helm_ln_max;
     static Real helm_lt_max;
+    static Real comp_ln_min;
+    static Real comp_lt_min;
 };
 
 

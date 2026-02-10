@@ -176,7 +176,8 @@ enum HydroInternalDerivedIndex {
   IX_TR_V1   =0,
   IX_TR_V2   =1,
   IX_TR_V3   =2,
-  NIDRV_HYDRO=3};
+  IX_HEAT    =3,
+  NIDRV_HYDRO=4};
 
   // Field-derived quantities:
 enum FieldDerivedIndex {
