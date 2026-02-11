@@ -580,18 +580,16 @@ void EquationOfState::NuclearBinding(
   AA &prim, AA &prim_scalar,
   Coordinates *pco,
   geom_sliced_cc & gsc,
-  AA &hyd_der_int,
+  AA &hyd_der_ms,
   int k,
   int j,
   int il, int iu)
 {
-#if not USETM
-  return;
-#endif
   Real Y[MAX_SPECIES] = {0.0};
   #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
+    const Real time = pco->pmy_block->pmy_mesh->time;
     const Real P = prim(IPR,k,j,i);
     const Real n = prim(IDN,k,j,i)/GetEOS().GetBaryonMass();
     for (int l=0; l<NSCALARS; ++l)
@@ -626,15 +624,23 @@ void EquationOfState::NuclearBinding(
     const Real cur_ent = GetEOS().GetEntropyPerBaryon(n, T, Y);;
     const Real cur_eb = GetEOS().GetBindingEnergy(n, T, Y);
 
-    // Update scalar of past Ye entr and tau with EOS call
+    // Update scalar of past Ye entr tau and freeze out time
     const Real w = GetEOS().TransitionFactor(log(n), T);
-    prim_scalar(GetEOS().SCPYE , k, j, i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
-    prim_scalar(GetEOS().SCPENT, k, j, i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
-    prim_scalar(GetEOS().SCPTAU, k, j, i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;
+    prim_scalar(GetEOS().SCPYE ,k,j,i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
+    prim_scalar(GetEOS().SCPENT,k,j,i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
+    prim_scalar(GetEOS().SCPTAU,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;
+    prim_scalar(GetEOS().SCPTFO,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * time;
+
+    // h u_t < -1 and tau > 0
+    const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && cur_tau > 0) ? w : 0.0;
 
     // Update binding energy and heating
-    prim_scalar(GetEOS().SCEB, k, j, i) = w * Y[GetEOS().SCEB] + (1.0 - w) * cur_eb;
-    // hyd_der_int(IX_HEAT,k,j,i) = heating rate (prim_scalar) * factor to shut down heating in non-ejected matter
+    prim_scalar(GetEOS().SCEB,k,j,i) = w * Y[GetEOS().SCEB] + (1.0 - w) * cur_eb;
+    hyd_der_ms(IX_HEAT, k,j,i) = GetEOS().HeatingRate(
+        prim_scalar(GetEOS().SCPTAU,k,j,i),
+        prim_scalar(GetEOS().SCPYE,k,j,i),
+        prim_scalar(GetEOS().SCPENT,k,j,i),
+        time - prim_scalar(GetEOS().SCPTFO,k,j,i));
   }
 }
 #endif // USE_COMPOSE_TRANSITION_EOS

@@ -125,6 +125,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   std::string compose_table = pin->GetString("hydro", "table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+  std::string heating_table = pin->GetString("hydro", "heating_table");
+
+  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 930.411832325152); // Fe56 mass/baryon in MeV
 
   Real trans_n_start = pin->GetOrAddReal("hydro", "trans_n_start", 0.0);
   Real trans_n_end = pin->GetOrAddReal("hydro", "trans_n_end", 0.0);
@@ -139,7 +142,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
       eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
   }
 
-  eos.InitializeTables(compose_table, helmholtz_table);
+  eos.InitializeTables(compose_table, helmholtz_table, heating_table, baryon_mass);
 
   Real mb = eos.GetBaryonMass();
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);

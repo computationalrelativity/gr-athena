@@ -168,7 +168,12 @@ enum HydroDerivedIndex {
   IX_HU_d_0=7,   // h/h_inf u_t
   IX_CS2=8,   // cs^2
   IX_OM=9,     // Omega = y Wv^x - x Wv^y /(x^2 + y^2)^(1/2) angular velocity
+#if EOS_POLICY_CODE == 4
+  IX_HEAT=10, // heating rate per unit volume (erg/cm^3/s)
+  NDRV_HYDRO=11};
+#else
   NDRV_HYDRO=10};
+#endif
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex {
@@ -176,8 +181,7 @@ enum HydroInternalDerivedIndex {
   IX_TR_V1   =0,
   IX_TR_V2   =1,
   IX_TR_V3   =2,
-  IX_HEAT    =3,
-  NIDRV_HYDRO=4};
+  NIDRV_HYDRO=3};
 
   // Field-derived quantities:
 enum FieldDerivedIndex {

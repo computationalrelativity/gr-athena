@@ -45,7 +45,16 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       SCPENT  = 3,  //! tracked past entropy per baryon
       SCPTAU  = 4,  //! tracked past expansion timescale
       SCPYE   = 5,  //! tracked past electron fraction
-      SCNVARS = 6
+      SCPTFO  = 6,  //! tracked past temperature
+      SCNVARS = 7
+    };
+
+    enum HeatingParameters {
+       HA = 0,
+       HALPHA = 1,
+       HSIGMA = 2,
+       HT0 = 3,
+       HNVARS = 4
     };
 
   protected:
@@ -132,6 +141,9 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// Reads the table files and clalculates transition parameters.
     void InitializeTables(std::string fname, std::string helm_fname, std::string heating_fname, Real baryon_mass);
 
+    /// Evaluate the heating rate fits a t given tau, ye, s and the current time
+    Real HeatingRate(Real tau, Real ye, Real s, Real t);
+
     /// Some setters for parameters
     void SetTransition(Real n_start, Real n_end, Real T_start, Real T_end);
     void SetMaxIteration(int iter_max);
@@ -175,6 +187,11 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       return it + m_nt*(iy + m_ny*(in + m_nn*iv));
     }
 
+    // Indexing used to access the heating data
+    inline ptrdiff_t h_index(int iv, int it, int iy, int is) const {
+      return is + m_h_ns*(iy + m_h_ny*(it + m_h_nt*iv));
+    }
+
     /// Check if the EOS has been initialized properly.
     inline bool IsInitialized() const {
       return m_initialized;
@@ -207,6 +224,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     Real eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const;
     Real eval_compose_at_lnty(int iv, Real ln, Real lT, Real Yq) const;
     Real eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, Real Abar, Real Eb) const;
+    Real eval_heating_at_ltys(int iv, Real lt, Real ye, Real ls) const;
     Real temperature_from_var(int iv, Real var, Real n, Real Yq, Real Abar, Real Eb) const;
     Real temperature_from_var_with_guess(int iv, Real var, Real n, Real Yq, Real Abar, Real Eb, Real Tguess) const;
 
@@ -217,6 +235,13 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     /// Evaluate interpolation weight for temperature
     void weight_idx_lt(Real *w0, Real *w1, int *it, Real log_t) const;
 
+    /// Evaluate interpolation weight for past tau
+    void h_weight_idx_lt(Real *w0, Real *w1, int *it, Real log_t) const;
+    /// Evaluate interpolation weight for past ye
+    void h_weight_idx_ye(Real *w0, Real *w1, int *iy, Real yq) const;
+    /// Evaluate interpolation weight for past entroy
+    void h_weight_idx_ls(Real *w0, Real *w1, int *is, Real log_s) const;
+
   protected:
     boost::uintmax_t max_iter;  // Maximum iterations for root finding
     Real T_tol;  // Tolerance for temperature root finding
@@ -224,6 +249,10 @@ class EOSCompOSETransition : public EOSPolicyInterface {
 
     // these are redefinitions to static from the eos_policy_interface
     static Real mb, max_n, min_n, max_T, min_T, max_Y[MAX_SPECIES], min_Y[MAX_SPECIES];
+
+    static Real h_min_s, h_max_s;
+    static Real h_min_y, h_max_y;
+    static Real h_min_t, h_max_t;
 
   private:
     // Inverse of table spacing
@@ -241,9 +270,12 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     static Real * m_yq;
     static Real * m_table;
 
-    static Real * m_heating_s;
+    // Inverse of heating table spacing
+    static Real m_h_id_lt, m_h_id_y, m_h_id_ls;
+    static int m_h_ns, m_h_nt, m_h_ny;
+    static Real * m_heating_ls;
     static Real * m_heating_ye;
-    static Real * m_heating_tau;
+    static Real * m_heating_ltau;
     static Real * m_heating_table;
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
