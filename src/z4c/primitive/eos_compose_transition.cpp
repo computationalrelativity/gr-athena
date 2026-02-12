@@ -538,7 +538,7 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
   }
   m_h_id_lt = 1.0/(m_heating_tau[1] - m_heating_tau[0]);
 
-  ierr = H5LTread_dataset_double(file_id, "ye", scratch);
+  ierr = H5LTread_dataset_double(file_id, "Y_e", scratch);
     MYH5CHECK(ierr);
   h_min_y = scratch[h_index(0,0,0,0)];
   h_max_y = scratch[h_index(0,m_h_nt-1,m_h_ny-1,m_h_ns-1)];
@@ -547,7 +547,7 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
   }
   m_h_id_y = 1.0/(m_heating_ye[1] - m_heating_ye[0]);
 
-  ierr = H5LTread_dataset_double(file_id, "s", scratch);
+  ierr = H5LTread_dataset_double(file_id, "ent", scratch);
     MYH5CHECK(ierr);
   h_min_s = scratch[h_index(0, 0, 0, 0)];
   h_max_s = scratch[h_index(0, m_h_nt-1, m_h_ny-1, m_h_ns-1)];
@@ -592,22 +592,28 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
 void EOSCompOSETransition::update_baryon_mass(Real new_mb) {
   Real Abar = 1.0;
 
-  // Real new_mb = mb;
-  // for (int in = 0; in < m_nn; ++in) {
-  // Real ln = m_log_nb[in];
-  // if (ln > helm_ln_max) continue;
-  // for (int it = 0; it < m_nt; ++it) {
-  // Real lT = m_log_t[it];
-  // if (lT > helm_lt_max) continue;
-  // for (int iy = 0; iy < m_ny; ++iy) {
-  // Real ye = m_yq[iy];
-  // Real eps = m_table[index(ECLOGE, in, iy, it)];
-  // Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar));
-  // new_mb = min(mb*(1 + eps - eps_helm), new_mb);
-  // }
-  // }
-  // }
+  new_mb = mb;
+  for (int in = 0; in < m_nn; ++in) {
+    Real ln = m_log_nb[in];
+    // if (ln > trans_ln_start) continue;
+    if (ln > helm_ln_max) continue;
+    for (int it = 0; it < m_nt; ++it) {
+      Real lT = m_log_t[it];
+      //if (exp(lT) > trans_T_start) continue;
+      if (lT > helm_lt_max) continue;
+      for (int iy = 0; iy < m_ny; ++iy) {
+        Real ye = m_yq[iy];
+        Real eps = m_table[index(ECLOGE, in, iy, it)]; // not yet log-scaled
+        Real eps_helm = exp(eval_helm_at_lnty(ECLOGE, ln, lT, ye, Abar, 0));
+        Real tmp_mb = mb*(1 + eps - eps_helm);
+        if ((tmp_mb < new_mb) and ((ln < trans_ln_start) or (exp(lT) < trans_T_start))) {
+          printf("eps_helm=%.5e, eps=%.5e at n=%.15e, T=%.15e, ye=%.15e mb=%.15e -> %.15e \n",
+                 eps_helm, eps, exp(ln), exp(lT), ye, new_mb, tmp_mb);
+          new_mb = tmp_mb;
+        }
+  }}}
 
+  printf("EOSCompOSETransition::update_baryon_mass: updating mb from %.15e to %.15e \n", mb, new_mb);
   // Update the baryon mass
   Real mb_ratio = mb/new_mb;
   mb = new_mb;
@@ -616,24 +622,30 @@ void EOSCompOSETransition::update_baryon_mass(Real new_mb) {
 
   // Update the internal energy
   for (int in = 0; in < m_nn; ++in) {
-  for (int it = 0; it < m_nt; ++it) {
-  for (int iy = 0; iy < m_ny; ++iy) {
-    Real eps = m_table[index(ECLOGE, in, iy, it)];
-    Real new_eps = mb_ratio*eps + mb_ratio - 1.0;
-    m_table[index(ECLOGE, in, iy, it)] = log(new_eps);
-
-    // if (ln <= trans_ln_start and exp(lT) <= trans_T_start) assert(new_eps >= eps_helm);
-    Real lT = m_log_t[it];
     Real ln = m_log_nb[in];
-    if ((lT < helm_lt_max and ln < trans_ln_start) or (ln < helm_ln_max and  exp(lT) < trans_T_start)) {
-      Real y = m_yq[iy];
-      Abar = m_table[index(ECABAR, in, iy, it)];
-      Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, y, Abar, 0));
-      if (new_eps < eps_helm) {
-        printf("ln=%.10e lt=%.10e y=%.10e, new_eps=%.10e, eps_helm=%.10e \n", ln, lT, y, new_eps, eps_helm);
+    if (ln > helm_ln_max) continue;
+    for (int it = 0; it < m_nt; ++it) {
+      Real lT = m_log_t[it];
+      if (lT > helm_lt_max) continue;
+      for (int iy = 0; iy < m_ny; ++iy) {
+        Real eps = m_table[index(ECLOGE, in, iy, it)]; // not yet log-scaled
+        Real new_eps = mb_ratio*(eps + 1.0) - 1.0;
+        m_table[index(ECLOGE, in, iy, it)] = log(new_eps);
+
+        // if (ln <= trans_ln_start and exp(lT) <= trans_T_start) assert(new_eps >= eps_helm);
+        Real y = m_yq[iy];
+        if ((ln < trans_ln_start) or (exp(lT) < trans_T_start)) {
+          Abar = m_table[index(ECABAR, in, iy, it)];
+          Real eps_helm =  exp(eval_helm_at_lnty(ECLOGE, ln, lT, y, Abar, 0));
+          //assert (new_eps >= eps_helm);
+          if (new_eps < eps_helm) {
+            printf("n=%.10e t=%.10e y=%.10e, old_eps=%.10e, new_eps=%.10e, eps_helm=%.10e \n", ln, lT, y, eps, new_eps, eps_helm);
+            printf("it, in, iy = %d %d %d \n", it, in, iy);
+          }
+        }
       }
     }
-  }}}
+  }
 }
 
 void EOSCompOSETransition::update_bounds() {
@@ -656,17 +668,14 @@ void EOSCompOSETransition::update_bounds() {
   assert(success);
 
   Real rho_min, rho_max, temp_min, temp_max;
-  get_bounds(&min_Y[SCYE], &rho_min, &rho_max, &temp_min, &temp_max);
+  get_bounds(&min_Y[SCYE], &max_Y[SCYE], &rho_min, &rho_max, &temp_min, &temp_max);
 
   assert(rho_max >= rho_trans);
   assert(temp_max >= temp_trans);
 
-  helm_ln_max = log(rho_max
-                    *CGS.DensityConversion(*eos_units)
-                    *CGS.MassConversion(*eos_units)/mb);
+  helm_ln_max = log(0.1*rho_max*CGS.DensityConversion(*eos_units)*CGS.MassConversion(*eos_units)/mb);
 
-  helm_lt_max = log(temp_max
-                    *CGS.TemperatureConversion(*eos_units));
+  helm_lt_max = log(0.1*temp_max*CGS.TemperatureConversion(*eos_units));
 
   min_n = rho_min / (eos_units->DensityConversion(CGS)
                      * mb * eos_units->MassConversion(CGS));
@@ -747,11 +756,13 @@ void EOSCompOSETransition::InitializeTables(std::string fname, std::string helm_
       }
 
       update_bounds();
+      // PrintParameters();
       update_baryon_mass(baryon_mass);
       update_bounds();
+      // PrintParameters();
 
       m_initialized = true;
-      PrintParameters();
+      // PrintParameters();
     }
   }
 }

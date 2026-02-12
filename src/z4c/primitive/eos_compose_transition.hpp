@@ -358,6 +358,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
 
     void get_bounds(
       Real * ye_min,
+      Real * ye_max,
       Real * rho_min,
       Real * rho_max,
       Real * temp_min,

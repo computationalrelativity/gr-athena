@@ -1747,11 +1747,11 @@ contains
     end subroutine check_bounds
 
     subroutine get_bounds(&
-      ye_min, rho_min, rho_max, temp_min, temp_max&
+      ye_min, ye_max, rho_min, rho_max, temp_min, temp_max&
     ) bind(C, name="get_bounds")
       implicit none
       include 'helm_table_storage.dek'
-      real(c_double), intent(in) :: ye_min
+      real(c_double), intent(in) :: ye_min, ye_max
       real(c_double), intent(out) :: rho_min, temp_min
       real(c_double), intent(out) :: rho_max, temp_max
 
@@ -1764,7 +1764,7 @@ contains
       temp_min = t(1)
       temp_max = t(jmax)
       rho_min = d(1)/ye_min
-      rho_max = d(imax)/ye_min
+      rho_max = d(imax)/ye_max
     end subroutine get_bounds
 
     subroutine set_mb(mb) bind(C, name="set_mb")
