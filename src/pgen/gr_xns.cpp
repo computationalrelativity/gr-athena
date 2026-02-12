@@ -47,7 +47,7 @@ using namespace std;
 namespace XNS {
   
 #define CHECK_V2 (1) // just a check on v^2 computation
-#define DEBUG (1) // to dump some data and info
+#define DEBUG (0) // to dump some data and info
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -430,12 +430,12 @@ namespace XNS {
       }
 
       // v^i
-      vx = vr * sintheta * cosphi + vtheta * costheta * cosphi - vphi * sinphi;
-      vy = vr * sintheta * sinphi + vtheta * costheta * sinphi + vphi * cosphi;
-      vz = vr * costheta - vtheta * sintheta;
+      vx = vr * sintheta * cosphi + vtheta * costheta * cosphi * rp - vphi * sinphi * sintheta * rp;
+      vy = vr * sintheta * sinphi + vtheta * costheta * sinphi * rp + vphi * cosphi * sintheta * rp;
+      vz = vr * costheta - vtheta * sintheta * rp;
 
       // v_i v^i =  \psi^4 \delta_ij v^j v^i
-      return psi4 *(SQR(vx) + SQR(vy) + SQR(vz));
+      return psi4 * (SQR(vx) + SQR(vy) + SQR(vz));
     }
 
     Real CartesianVector(Real vphi,
@@ -459,10 +459,10 @@ namespace XNS {
         cosphi = 0.0;
       }
       
-      vx = - vphi * sinphi; 
-      vy =   vphi * cosphi;
+      vx = - vphi * sinphi * rcylp; 
+      vy =   vphi * cosphi * rcylp;
       vz = 0.0;
-      return psi4 * SQR(vphi);
+      return psi4 * (SQR(vx) + SQR(vy));
     } 
     
   }; // class XNSData
@@ -757,7 +757,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     // Check 
     Real v_x = psi4 * vx;
     Real v_y = psi4 * vy;
-    Real v_z = psi4 * vz; 
+    Real v_z = psi4 * vz;
     Real _v2 = v_x*vx + v_y*vy + v_z*vz;
     assert(std::abs(v2-_v2)<1e-12); // Some formulas are wrong
 
