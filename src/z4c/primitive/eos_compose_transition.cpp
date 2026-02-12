@@ -65,13 +65,19 @@ Real * EOSCompOSETransition::m_table = nullptr;
 Real EOSCompOSETransition::m_id_log_nb = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::m_id_log_t = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::m_id_yq = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::m_h_id_lt = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::m_h_id_y = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::m_h_id_ls = numeric_limits<Real>::quiet_NaN();
 
 int EOSCompOSETransition::m_nn = 0;
 int EOSCompOSETransition::m_nt = 0;
 int EOSCompOSETransition::m_ny = 0;
+
+Real * EOSCompOSETransition::m_heating_ls = nullptr;
+Real * EOSCompOSETransition::m_heating_ye = nullptr;
+Real * EOSCompOSETransition::m_heating_ltau = nullptr;
+Real * EOSCompOSETransition::m_heating_table = nullptr;
+
+Real EOSCompOSETransition::m_h_id_lt = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::m_h_id_y = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::m_h_id_ls = numeric_limits<Real>::quiet_NaN();
 
 int EOSCompOSETransition::m_h_nt = 0;
 int EOSCompOSETransition::m_h_ny = 0;

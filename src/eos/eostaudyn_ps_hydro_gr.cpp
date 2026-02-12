@@ -536,6 +536,11 @@ void EquationOfState::ConservedToPrimitive(
           alpha * oo_W * prim(IVX+a,k,j,i) - gsc.beta_u_(a,i)
         );
       }
+
+#if defined(USE_COMPOSE_TRANSITION_EOS)
+      NuclearBinding(prim, prim_scalar, pco, gsc, ph->derived_ms, k, j, i);
+#endif // USE_COMPOSE_TRANSITION_EOS
+
     }
 
     // derived quantities -----------------------------------------------------

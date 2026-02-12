@@ -361,8 +361,7 @@ class EquationOfState {
       AA &hyd_der_int,
       int k,
       int j,
-      int il,
-      int iu
+      int i
   );
 #endif
 
