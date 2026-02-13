@@ -24,7 +24,6 @@ xorder_eps = 1e-40
 xorder_limit_species = true      # control if species are limited
 xorder_upwind_scalars = false    # should passive scalars be upwinded?
 
-xorder_use_dmp=false
 xorder_use_fb = false              # control if fallback is used
 xorder_use_fb_mask = false        # cpt. fails => state fails
 xorder_use_fb_unphysical = false  # optionally verify (fluid) energy cond.
@@ -282,8 +281,8 @@ full_lim = -0.75
 # element of: {bnsnurates, weakrates, photon, fake, zero, none}
 variety = weakrates
 
-tau_trap = 0
-tau_delta = 0
+tau_trap = 1.0
+tau_delta = 1.0
 max_correction_factor = 1.7
 
 # flooring strategy for weakrates ---------------------------------------------
