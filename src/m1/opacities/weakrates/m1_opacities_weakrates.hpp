@@ -87,6 +87,11 @@ public:
                            "wr_flag_equilibrium",
                            false)
     ),
+    wr_flag_equilibrium_raw(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_flag_equilibrium_raw",
+                           false)
+    ),
     wr_flag_equilibrium_species(
       pin->GetOrAddBoolean("M1_opacities",
                            "wr_flag_equilibrium_species",
@@ -111,6 +116,11 @@ public:
       pin->GetOrAddInteger("M1_opacities",
                            "wr_flag_equilibrium_nn",
                            0)
+    ),
+    wr_correct_trapped(
+      pin->GetOrAddBoolean("M1_opacities",
+                           "wr_correct_trapped",
+                           false)
     ),
     correction_adjust_upward(
       pin->GetOrAddBoolean("M1_opacities",
@@ -1072,27 +1082,14 @@ public:
     }
   }
 
-
-  inline void ApplyOpacityCorrections(int k, int j, int i)
+  // Kirchoff law together with corrections
+  inline void OpacityKirchoffCorrected(
+    const Real dt,
+    const Real tau,
+    int k, int j, int i,
+    const bool use_correction
+  )
   {
-    // numerical shenanigans --------------------------------------------------
-    // BD: TODO- probably better shifted to numerical utils.
-    auto compute_rel_eps = [](Real val) -> Real
-    {
-      constexpr Real machine_eps = std::numeric_limits<Real>::epsilon();
-      constexpr Real base_scale = 10.0;
-      return std::max(base_scale * machine_eps * val,
-                      std::pow(machine_eps, 0.75));
-    };
-
-    auto normalize_denominator = [&](Real val) -> Real
-    {
-      return val;
-      Real rel_eps = compute_rel_eps(val);
-      return (val < rel_eps) ? rel_eps : val;
-    };
-    // ------------------------------------------------------------------------
-
     // Do computations, check validity afterwards
     typedef M1::vars_RadMat RM;
     typedef M1::vars_Rad R;
@@ -1105,68 +1102,82 @@ public:
     const Real oo_sc_sqrt_det_g = OO(pm1->geom.sc_sqrt_det_g(k,j,i));
 
     const int ix_g = 0;  // only 1 group
-    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+    if (use_correction)
     {
-      // const Real sc_n = pm1->eql.sc_n(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
-      // const Real sc_J = pm1->eql.sc_J(ix_g,ix_s)(k,j,i) * oo_sc_sqrt_det_g;
-
-      // equilibrium and incoming energies ------------------------------------
-      Real avg_nrg_eql = (pm1->eql.sc_n(ix_g,ix_s)(k,j,i) > 0)
-        ? (pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
-           pm1->eql.sc_n(ix_g,ix_s)(k,j,i))
-        : 0.0;
-
-      Real avg_nrg_inc;
-
-      if (correction_uses_fiducial_frame)
+      for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
       {
-        avg_nrg_inc = std::max(
-          pm1->rad.sc_J(ix_g,ix_s)(k,j,i) /
-          pm1->rad.sc_n(ix_g,ix_s)(k,j,i),
-          0.0
-        );
-      }
-      else
-      {
-        AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
-        AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
-        AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
-
-        Real dotFv (0.0);
-        for (int a=0; a<N; ++a)
+        if ((!wr_correct_trapped) &&
+            (tau < dt / (opacity_tau_trap + opacity_tau_delta)))
         {
-          dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+          corr_fac[ix_s] = 1.0;
+          continue;
         }
-        avg_nrg_inc = std::max(
-          W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
-          0.0
-        );
+
+        // equilibrium and incoming energies ----------------------------------
+        Real avg_nrg_eql = (pm1->eql.sc_n(ix_g,ix_s)(k,j,i) > 0)
+          ? (pm1->eql.sc_J(ix_g,ix_s)(k,j,i) /
+            pm1->eql.sc_n(ix_g,ix_s)(k,j,i))
+          : 0.0;
+
+        Real avg_nrg_inc;
+
+        if (correction_uses_fiducial_frame)
+        {
+          avg_nrg_inc = std::max(
+            pm1->rad.sc_J(ix_g,ix_s)(k,j,i) /
+            pm1->rad.sc_n(ix_g,ix_s)(k,j,i),
+            0.0
+          );
+        }
+        else
+        {
+          AT_C_sca & sc_E = pm1->lab.sc_E(ix_g,ix_s);
+          AT_N_vec & sp_F_d = pm1->lab.sp_F_d(ix_g,ix_s);
+          AT_C_sca & sc_nG = pm1->lab.sc_nG(ix_g,ix_s);
+
+          Real dotFv (0.0);
+          for (int a=0; a<N; ++a)
+          {
+            dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
+          }
+          avg_nrg_inc = std::max(
+            W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv),
+            0.0
+          );
+        }
+        // --------------------------------------------------------------------
+
+        // Prepare correction factors
+        corr_fac[ix_s] = avg_nrg_inc / avg_nrg_eql;
+
+        if (!std::isfinite(corr_fac[ix_s]))
+          corr_fac[ix_s] = 1.0;
+
+        rm.sc_avg_nrg(ix_g, ix_s)(k, j, i) = avg_nrg_eql;
+
+        if (correction_adjust_upward)
+        {
+          corr_fac[ix_s] = std::max(
+            std::min(corr_fac[ix_s], opacity_corr_fac_max), 1.0
+          );
+        }
+        else
+        {
+          corr_fac[ix_s] =
+              std::max(1.0 / opacity_corr_fac_max,
+                      std::min(corr_fac[ix_s], opacity_corr_fac_max));
+        }
+
+        // need to correct by square
+        corr_fac[ix_s] = SQR(corr_fac[ix_s]);
       }
-      // ----------------------------------------------------------------------
-
-      // Prepare correction factors
-      corr_fac[ix_s] = avg_nrg_inc / avg_nrg_eql;
-
-      if (!std::isfinite(corr_fac[ix_s]))
+    }
+    else
+    {
+      for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+      {
         corr_fac[ix_s] = 1.0;
-
-      rm.sc_avg_nrg(ix_g, ix_s)(k, j, i) = avg_nrg_eql;
-
-      if (correction_adjust_upward)
-      {
-        corr_fac[ix_s] = std::max(
-          std::min(corr_fac[ix_s], opacity_corr_fac_max), 1.0
-        );
       }
-      else
-      {
-        corr_fac[ix_s] =
-            std::max(1.0 / opacity_corr_fac_max,
-                     std::min(corr_fac[ix_s], opacity_corr_fac_max));
-      }
-
-      // need to correct by square
-      corr_fac[ix_s] = SQR(corr_fac[ix_s]);
     }
 
     // apply the correction factors
@@ -1545,10 +1556,6 @@ public:
           false
         );
 
-        // BD: TODO- DEBUG
-        // if ((rho > 1e-7) && (k == 7) && (j == 6) && (i == 5))
-        //   ierr(k,j,i) = 23;
-
         if (ierr(k,j,i))
         {
           calc_state(k,j,i) = cstate::failed;
@@ -1706,6 +1713,21 @@ public:
     }
     // ========================================================================
 
+    // enforce Kirchoff on raw opacities ======================================
+    // over-written later (with correction) if so set
+    {
+      M1_FLOOP3(k, j, i)
+      if (calc_state(k,j,i) == cstate::need)
+      {
+        const bool use_correction = false;
+        const Real tau = std::min(
+          CalculateTau(NUE,k,j,i), CalculateTau(NUA,k,j,i)
+        );
+        OpacityKirchoffCorrected(dt, tau, k, j, i, use_correction);
+      }
+    }
+    // ========================================================================
+
     // corrections based on nn ================================================
     if (wr_fix_nn_densities)
     {
@@ -1723,12 +1745,35 @@ public:
     }
     // ========================================================================
 
+    // equilibrium flag (raw opacities) =======================================
+    if (wr_flag_equilibrium_raw)
+    {
+      M1_FLOOP3(k, j, i)
+      if (calc_state(k,j,i) == cstate::need)
+      {
+        Real rho, T, Y_e;
+        GetHydro(k, j, i, rho, T, Y_e);
+
+        FlagEquilibrium(
+          dt, rho, k, j, i,
+          wr_flag_equilibrium_species
+        );
+      }
+
+      // Optionally smear eql. crit by nn.
+      FlagEquilibriumSmear(calc_state);
+    }
+    // ========================================================================
 
     // correct opacities by energy ratio ======================================
     M1_FLOOP3(k, j, i)
     if (calc_state(k,j,i) == cstate::need)
     {
-      ApplyOpacityCorrections(k, j, i);
+      const bool use_correction = true;
+      const Real tau = std::min(
+        CalculateTau(NUE,k,j,i), CalculateTau(NUA,k,j,i)
+      );
+      OpacityKirchoffCorrected(dt, tau, k, j, i, use_correction);
     }
     // ========================================================================
 
@@ -1823,11 +1868,13 @@ private:
   const bool wr_fix_nn_opacities;
 
   const bool wr_flag_equilibrium;
+  const bool wr_flag_equilibrium_raw;
   const Real wr_flag_equilibrium_dt_factor;
   const bool wr_flag_equilibrium_species;
   const bool wr_flag_equilibrium_nue_equals_nua;
   const bool wr_flag_equilibrium_no_nux;
   const int wr_flag_equilibrium_nn;
+  const bool wr_correct_trapped;
 
   const bool correct_emissivity_nux;
   const bool correction_adjust_upward;
