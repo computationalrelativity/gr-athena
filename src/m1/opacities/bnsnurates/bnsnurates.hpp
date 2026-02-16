@@ -143,7 +143,8 @@ namespace M1::Opacities::BNSNuRates {
 
       // Parameters for bns_nurates
       // Defaults should mimic WeakRates
-      nurates_params.quad_nx_1 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_beta_nucleon_scat", 20);
+      // N.B. max quadrature points is BS_N_MAX/2 = 10 due to 2*n indexing in bns_nurates library
+      nurates_params.quad_nx_1 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_beta_nucleon_scat", 10);
       nurates_params.quad_nx_2 = pin->GetOrAddInteger("bns_nurates", "n_quad_points_pair_bremsstrahlung_lepton_scat", -1);
 
       nurates_params.use_abs_em = pin->GetOrAddBoolean("bns_nurates", "use_abs_em", true); // semilept charge-current proc.

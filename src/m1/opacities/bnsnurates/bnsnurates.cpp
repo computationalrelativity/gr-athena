@@ -373,6 +373,16 @@ namespace M1::Opacities::BNSNuRates {
 	            grey_op_params.m1_pars.J[id_nue], grey_op_params.m1_pars.J[id_anue], grey_op_params.m1_pars.J[id_nux], grey_op_params.m1_pars.J[id_anux]);
 #endif
 
+    if (2 * nurates_params.quadrature_1.nx > BS_N_MAX ||
+        2 * nurates_params.quadrature_2.nx > BS_N_MAX)
+    {
+      std::printf("[bns_nurates]: quadrature nx (%d, %d) exceeds BS_N_MAX/2 = %d. "
+                  "Reduce n_quad_points_* to at most %d to avoid buffer overflow.\n",
+                  nurates_params.quadrature_1.nx, nurates_params.quadrature_2.nx,
+                  BS_N_MAX / 2, BS_N_MAX / 2);
+      std::exit(0);
+    }
+
     // Compute opacities
     M1Opacities opacities = ComputeM1Opacities(&nurates_params.quadrature_1,
 					       &nurates_params.quadrature_2,
