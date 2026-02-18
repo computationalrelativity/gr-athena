@@ -187,7 +187,7 @@
 
 // M1 neutrino rates to enable
 #define M1_WEAKRATES @M1_WEAKRATES@
-#define M1_BNSNURATES @M1_BNSNURATES@
+#define M1_BNS_NURATES @M1_BNS_NURATES@
 
 // ejecta
 #define @EJECTA_ENABLED@

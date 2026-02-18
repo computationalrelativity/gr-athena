@@ -242,6 +242,7 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.tra_rho_min = GoA_Real(
     "tra_rho_min", opt_solver.eql_rho_min
   );
+  opt_solver.eql_t_min = GoA_Real("eql_t_min", 0.0);
 
   opt_solver.flux_lo_fallback_tau_min = GoA_Real(
     "flux_lo_fallback_tau_min", -1

@@ -11,8 +11,8 @@
 
 #if (M1_WEAKRATES)
 #include "opacities/weakrates/m1_opacities_weakrates.hpp"
-#elif (M1_BNSNURATES)
-#include "opacities/bnsnurates/bnsnurates.hpp"
+#elif (M1_BNS_NURATES)
+#include "opacities/bnsnurates/m1_opacities_bns_nurates.hpp"
 #endif
 #include "opacities/m1_opacities.hpp"
 
@@ -45,7 +45,7 @@ void SetEquilibrium(
 
   assert((pm1.N_GRPS == 1) && (pm1.N_SPCS <= 4));
   assert(
-	 ((popac->opt.opacity_variety == oov::bnsnurates) && (pm1.N_SPCS > 1)) ||
+	 ((popac->opt.opacity_variety == oov::bns_nurates) && (pm1.N_SPCS > 1)) ||
 	 ((popac->opt.opacity_variety == oov::weakrates) && (pm1.N_SPCS > 1)) ||
          ((popac->opt.opacity_variety == oov::photon) && (pm1.N_SPCS == 1))
 	 );
@@ -66,9 +66,9 @@ void SetEquilibrium(
 
   const Real w_T = pm1.hydro.sc_T(k,j,i);
 
-  // Short-circuit at low density
-  // Convert from code units to CGS for this comparison?
-  if (w_rho < pm1.opt_solver.eql_rho_min)
+  // Short-circuit at low density or temperature
+  if (w_rho < pm1.opt_solver.eql_rho_min ||
+      w_T < pm1.opt_solver.eql_t_min)
   {
     return;
   }
@@ -186,10 +186,11 @@ void SetEquilibrium_n_nG(
   using namespace Update;
   using namespace Sources;
 
-  // Short-circuit at low density
-  // Convert from code units to CGS for this comparison?
+  // Short-circuit at low density or temperature
   const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
-  if (w_rho < pm1.opt_solver.eql_rho_min)
+  const Real w_T = pm1.hydro.sc_T(k,j,i);
+  if (w_rho < pm1.opt_solver.eql_rho_min ||
+      w_T < pm1.opt_solver.eql_t_min)
   {
     return;
   }
@@ -632,10 +633,11 @@ void SetEquilibrium_E_F_d_n_nG(
   EquationOfState *peos = pmb->peos;
 
   const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
+  const Real w_T = pm1.hydro.sc_T(k,j,i);
 
-  // Short-circuit at low density
-  // Convert from code units to CGS for this comparison?
-  if (w_rho < pm1.opt_solver.eql_rho_min)
+  // Short-circuit at low density or temperature
+  if (w_rho < pm1.opt_solver.eql_rho_min ||
+      w_T < pm1.opt_solver.eql_t_min)
   {
     return;
   }
