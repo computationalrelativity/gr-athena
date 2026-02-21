@@ -121,6 +121,7 @@ class OpacityUtils
     const bool use_averages;
     const bool use_averaging_fix;
     const bool clamp_nonzero;
+    const bool clamp_nonneg_frac_np;
 
     // nearest-neighbor nn fixes
     const bool fix_nn_densities;
@@ -234,6 +235,9 @@ class OpacityUtils
             pin->GetOrAddBoolean("M1_opacities", "use_averaging_fix", false)),
           clamp_nonzero(
             pin->GetOrAddBoolean("M1_opacities", "clamp_nonzero", true)),
+          clamp_nonneg_frac_np(pin->GetOrAddBoolean("M1_opacities",
+                                                    "clamp_nonneg_frac_np",
+                                                    true)),
           fix_nn_densities(
             pin->GetOrAddBoolean("M1_opacities", "fix_nn_densities", false)),
           fix_nn_opacities(

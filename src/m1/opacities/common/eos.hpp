@@ -186,7 +186,10 @@ class EoSWrapper
       return 1.0 - Ye;
     Real Y[1]   = { Ye };
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    return PS_EoS->GetYn(nb_eos, T, Y);
+    Real yn     = PS_EoS->GetYn(nb_eos, T, Y);
+    if (opt_.clamp_nonneg_frac_np)
+      yn = std::max(0.0, yn);
+    return yn;
   }
 
   // Proton fraction from EOS (code-units interface).
@@ -203,7 +206,10 @@ class EoSWrapper
       return Ye;
     Real Y[1]   = { Ye };
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    return PS_EoS->GetYp(nb_eos, T, Y);
+    Real yp     = PS_EoS->GetYp(nb_eos, T, Y);
+    if (opt_.clamp_nonneg_frac_np)
+      yp = std::max(0.0, yp);
+    return yp;
   }
 
   // Particle fractions from EOS (CGS interface).
