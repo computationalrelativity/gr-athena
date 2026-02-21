@@ -39,7 +39,7 @@ class WeakRates {
   WeakRates(
     const Opt& opt,
     Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS)
-      : PS_EoS(PS_EoS), WR_EoS{ opt, PS_EoS }
+      : PS_EoS(PS_EoS), WR_EoS{ opt, PS_EoS }, opt_(opt)
   {
     // my_units (of WeakRates) vs code_units (of GR(M)HD)
     my_units   = &Units::WeakRatesUnits;
@@ -155,6 +155,17 @@ class WeakRates {
     emi_e_nua *= e_rate_conv;
     emi_e_nux *= e_rate_conv;
 
+    // Clamp to non-negative
+    if (opt_.clamp_nonzero)
+    {
+      emi_n_nue = (emi_n_nue < 0.0) ? 0.0 : emi_n_nue;
+      emi_n_nua = (emi_n_nua < 0.0) ? 0.0 : emi_n_nua;
+      emi_n_nux = (emi_n_nux < 0.0) ? 0.0 : emi_n_nux;
+      emi_e_nue = (emi_e_nue < 0.0) ? 0.0 : emi_e_nue;
+      emi_e_nua = (emi_e_nua < 0.0) ? 0.0 : emi_e_nua;
+      emi_e_nux = (emi_e_nux < 0.0) ? 0.0 : emi_e_nux;
+    }
+
     return (err != 0) ? -1 : 0;
   }
 
@@ -217,6 +228,17 @@ class WeakRates {
     abs_e_nua *= k_conv;
     abs_e_nux *= k_conv;
 
+    // Clamp to non-negative
+    if (opt_.clamp_nonzero)
+    {
+      abs_n_nue = (abs_n_nue < 0.0) ? 0.0 : abs_n_nue;
+      abs_n_nua = (abs_n_nua < 0.0) ? 0.0 : abs_n_nua;
+      abs_n_nux = (abs_n_nux < 0.0) ? 0.0 : abs_n_nux;
+      abs_e_nue = (abs_e_nue < 0.0) ? 0.0 : abs_e_nue;
+      abs_e_nua = (abs_e_nua < 0.0) ? 0.0 : abs_e_nua;
+      abs_e_nux = (abs_e_nux < 0.0) ? 0.0 : abs_e_nux;
+    }
+
     return err;
   }
 
@@ -278,6 +300,17 @@ class WeakRates {
     sct_e_nue *= k_conv;
     sct_e_nua *= k_conv;
     sct_e_nux *= k_conv;
+
+    // Clamp to non-negative
+    if (opt_.clamp_nonzero)
+    {
+      sct_n_nue = (sct_n_nue < 0.0) ? 0.0 : sct_n_nue;
+      sct_n_nua = (sct_n_nua < 0.0) ? 0.0 : sct_n_nua;
+      sct_n_nux = (sct_n_nux < 0.0) ? 0.0 : sct_n_nux;
+      sct_e_nue = (sct_e_nue < 0.0) ? 0.0 : sct_e_nue;
+      sct_e_nua = (sct_e_nua < 0.0) ? 0.0 : sct_e_nua;
+      sct_e_nux = (sct_e_nux < 0.0) ? 0.0 : sct_e_nux;
+    }
 
     return err;
   }
@@ -411,6 +444,7 @@ class WeakRates {
 
   private:
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
+  const Opt& opt_;
 
   Units::UnitSystem* my_units;
   Units::UnitSystem* code_units;

@@ -12,6 +12,7 @@
 #include "../../../athena.hpp"
 #include "../common/eos.hpp"
 #include "../common/units.hpp"
+#include "../common/utils.hpp"
 
 // ---- Shield POW macros to avoid compilation warnings ----
 #ifdef POW2
@@ -52,6 +53,7 @@ namespace M1::Opacities::BNS_NuRates::BNSNu_Wrapper
 namespace Units = ::M1::Opacities::Common::Units;
 
 using Common::EoS::EoSWrapper;
+using Opt = Common::OpacityUtils::Opt;
 
 // -----------------------------------------------------------------------
 // BNSNuRatesParams  -  reaction flags, quadrature settings
@@ -91,7 +93,8 @@ class BNSNuRatesWrapper
 {
   public:
 
-  BNSNuRatesWrapper(EoSWrapper* eos, ParameterInput* pin) : pmy_eos(eos)
+  BNSNuRatesWrapper(EoSWrapper* eos, ParameterInput* pin, const Opt& opt)
+    : pmy_eos(eos), opt_(opt)
   {
     code_units    = eos->GetCodeUnits();
     nurates_units = eos->GetNuratesUnits();
@@ -348,15 +351,32 @@ class BNSNuRatesWrapper
     {
       if (!std::isfinite(eta_0[s]))
         ierr++;
+
       if (!std::isfinite(eta[s]))
         ierr++;
+
       if (!std::isfinite(kappa_0_a[s]))
         ierr++;
+
       if (!std::isfinite(kappa_a[s]))
         ierr++;
+
       if (!std::isfinite(kappa_s[s]))
         ierr++;
     }
+
+    // Clamp to non-negative
+    if (opt_.clamp_nonzero)
+    for (int s = 0; s < 4; ++s)
+    {
+      eta_0[s] = (eta_0[s] < 0.0) ? 0.0 : eta_0[s];
+      kappa_0_a[s] = (kappa_0_a[s] < 0.0) ? 0.0 : kappa_0_a[s];
+
+      eta[s] = (eta[s] < 0.0) ? 0.0 : eta[s];
+      kappa_a[s] = (kappa_a[s] < 0.0) ? 0.0 : kappa_a[s];
+      kappa_s[s] = (kappa_s[s] < 0.0) ? 0.0 : kappa_s[s];
+    }
+
 
     return ierr;
   }
@@ -375,6 +395,7 @@ class BNSNuRatesWrapper
 
   private:
   EoSWrapper* pmy_eos;
+  const Opt& opt_;
 
   Units::UnitSystem* code_units;
   Units::UnitSystem* nurates_units;

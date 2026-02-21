@@ -65,7 +65,7 @@ class BNSNuRates
 
     // Create sub-objects
     pmy_eos     = new Common::EoS::EoSWrapper(opu.opt, &(pmb->peos->GetEOS()));
-    pmy_nurates = new BNSNu_Wrapper::BNSNuRatesWrapper(pmy_eos, pin);
+    pmy_nurates = new BNSNu_Wrapper::BNSNuRatesWrapper(pmy_eos, pin, opu.opt);
 
     // Cache unit pointers
     code_units = pmy_eos->GetCodeUnits();

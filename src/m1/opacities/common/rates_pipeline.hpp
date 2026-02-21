@@ -66,6 +66,9 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
 
   M1_FLOOP3(k, j, i)
   {
+    // start by zeroing opacities (overwritten if at a point over cut)
+    opu.SetZeroRadMatAtPoint(k, j, i);
+
 #if defined(Z4C_WITH_HYDRO_ENABLED)
     bool ahf_cut = (pm1->opt_excision.m1_disable_ahf_opac &&
                     (pm1->pmy_block->phydro->excision_mask(k, j, i) < 1));
@@ -76,8 +79,6 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
 #endif
     {
       calc_state(k, j, i) = cstate::none;
-      opu.SetZeroRadMatAtPoint(k, j, i);
-      continue;
     }
   }
   // ========================================================================
@@ -369,15 +370,16 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
 
     if (ierr(k, j, i))
     {
-      if (opu.opt.zero_invalid_radmat)
-      {
-        opu.SetZeroRadMatAtPoint(k, j, i);
-      }
-
+      // Print diagnostics BEFORE zeroing so we see the actual bad values
       if (opu.opt.verbose_warn_weak)
       {
         opu.PrintOpacityDiagnostics(
           "ValidateRadMatQuantities", ierr(k, j, i), dt, k, j, i);
+      }
+
+      if (opu.opt.zero_invalid_radmat)
+      {
+        opu.SetZeroRadMatAtPoint(k, j, i);
       }
     }
   }

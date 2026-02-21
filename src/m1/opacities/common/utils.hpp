@@ -120,6 +120,7 @@ class OpacityUtils
     const bool zero_invalid_radmat;
     const bool use_averages;
     const bool use_averaging_fix;
+    const bool clamp_nonzero;
 
     // nearest-neighbor nn fixes
     const bool fix_nn_densities;
@@ -231,6 +232,8 @@ class OpacityUtils
             pin->GetOrAddBoolean("M1_opacities", "use_averages", false)),
           use_averaging_fix(
             pin->GetOrAddBoolean("M1_opacities", "use_averaging_fix", false)),
+          clamp_nonzero(
+            pin->GetOrAddBoolean("M1_opacities", "clamp_nonzero", true)),
           fix_nn_densities(
             pin->GetOrAddBoolean("M1_opacities", "fix_nn_densities", false)),
           fix_nn_opacities(
@@ -336,7 +339,7 @@ class OpacityUtils
       need_calc && (pmy_block->phydro->u(IDN, k, j, i) > opt.cut_dfloor);
     need_calc =
       need_calc && (pm1->hydro.sc_w_rho(k, j, i) > opt.cut_rho_floor);
-    need_calc = need_calc && (pm1->hydro.sc_T(k, j, i) > opt.cut_tfloor);
+    need_calc = need_calc && (pm1->hydro.sc_T(k, j, i) >= opt.cut_tfloor);
 #endif  // FLUID_ENABLED
 
     return need_calc;
@@ -994,6 +997,10 @@ class OpacityUtils
         // Electron neutrinos & Electron anti-neutrinos
         kap_a_0 = cf * kap_a_0;
         kap_a   = cf * kap_a;
+
+        // Guard against negative opacities
+        kap_a_0 = (!std::isfinite(kap_a_0) || kap_a_0 < 0) ? 0.0 : kap_a_0;
+        kap_a   = (!std::isfinite(kap_a) || kap_a < 0) ? 0.0 : kap_a;
 
         eta_0 = kap_a_0 * n;
         eta   = kap_a * J;
