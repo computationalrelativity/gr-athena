@@ -73,7 +73,7 @@ class BNSNuRates
     eos_units  = pmy_eos->GetEosUnits();
 
     // Initialize common equilibrium solver (replaces BNSNuEquilibrium)
-    solver_.Initialize(pmy_eos);
+    solver_.Initialize(pmy_eos, opu.opt);
   };
 
   ~BNSNuRates()

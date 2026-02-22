@@ -140,6 +140,9 @@ class OpacityUtils
     const bool equilibrium_fallback_thin;
     const bool equilibrium_fallback_zero;
 
+    // weak-equilibrium solver: reduce to 1D when Ye hits EoS boundary
+    const bool equilibrium_ye_bnd_reduce;
+
     // ----- EOS / table-limit parameters (weakrates backend) ----------------
     const bool apply_table_limits_internally;
     const bool enforced_limits_fail;
@@ -264,6 +267,10 @@ class OpacityUtils
           equilibrium_fallback_zero(
             pin->GetOrAddBoolean("M1_opacities",
                                  "equilibrium_fallback_zero",
+                                 false)),
+          equilibrium_ye_bnd_reduce(
+            pin->GetOrAddBoolean("M1_opacities",
+                                 "equilibrium_ye_bnd_reduce",
                                  false)),
           // ----- EOS / table-limit parameters ----------
           apply_table_limits_internally(

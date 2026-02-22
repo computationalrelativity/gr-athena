@@ -72,7 +72,7 @@ class WeakRates {
     atomic_mass = WR_EoS.AtomicMassImpl();
 
     // Initialize common equilibrium solver
-    solver_.Initialize(&WR_EoS);
+    solver_.Initialize(&WR_EoS, opt);
   }
 
   // Destructor

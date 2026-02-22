@@ -25,6 +25,7 @@
 #include "../../../athena.hpp"
 #include "error_codes.hpp"
 #include "fermi.hpp"
+#include "utils.hpp"
 
 namespace M1::Opacities::Common::WeakEquilibrium
 {
@@ -33,9 +34,12 @@ template <typename EoSProvider>
 class WeakEquilibriumSolver
 {
   public:
+  using Opt = OpacityUtils::Opt;
+
   WeakEquilibriumSolver()
       : eos_(nullptr),
         atomic_mass_(0.0),
+        opt_(nullptr),
         eos_rho_min_(0.0),
         eos_rho_max_(0.0),
         eos_temp_min_(0.0),
@@ -45,12 +49,16 @@ class WeakEquilibriumSolver
   {
   }
 
-  //! Initialize the solver with an EoS provider and cutoffs.
+  //! Initialize the solver with an EoS provider and options.
   //  Must be called before SolveWeakEquilibrium.
-  void Initialize(EoSProvider* eos)
+  //
+  //  The Opt reference is stored; the caller must ensure it outlives the
+  //  solver (typically both live on the owning backend object).
+  void Initialize(EoSProvider* eos, const Opt& opt)
   {
     eos_         = eos;
     atomic_mass_ = eos_->AtomicMassImpl();
+    opt_         = &opt;
     eos_->GetTableLimits(eos_rho_min_,
                          eos_rho_max_,
                          eos_temp_min_,
@@ -150,6 +158,32 @@ class WeakEquilibriumSolver
     y_eq[3] = nu_dens[2] / nb;         // heavy-lepton total (all 4 species)
     y_eq[0] = yl - y_eq[1] + y_eq[2];  // fluid electron fraction
 
+    // If equilibrium_ye_bnd_reduce is active, clamp Ye to the EoS table
+    // bounds. When the equilibrium Ye is outside the table (typical for very
+    // neutron-rich states where yl < Ye_min), accept the boundary value
+    // as the best available approximation rather than failing.
+    // Otherwise, preserve the original behavior: reject with
+    // WE_FAIL_INI_ASSIGN_Y_E.
+    if (opt_->equilibrium_ye_bnd_reduce)
+    {
+      y_eq[0] = std::max(y_eq[0], eos_ye_min_);
+      y_eq[0] = std::min(y_eq[0], eos_ye_max_);
+    }
+    else
+    {
+      if (y_eq[0] < eos_ye_min_ || y_eq[0] > eos_ye_max_)
+      {
+        ierr = WE_FAIL_INI_ASSIGN_Y_E;
+        T_eq = T;
+        for (int i = 0; i < 4; i++)
+        {
+          y_eq[i] = y_in[i];
+          e_eq[i] = e_in[i];
+        }
+        return;
+      }
+    }
+
     edens_nu_trap(T_eq, eta, e_dens);
 
     e_eq[1] = e_dens[0] * mev_to_erg;  // electron neutrino [erg/cm^3]
@@ -163,19 +197,6 @@ class WeakEquilibriumSolver
     if (e_eq[0] < e_min)
     {
       ierr = WE_FAIL_INI_ASSIGN_NRG;
-      T_eq = T;
-      for (int i = 0; i < 4; i++)
-      {
-        y_eq[i] = y_in[i];
-        e_eq[i] = e_in[i];
-      }
-      return;
-    }
-
-    // Validate: Ye within table bounds
-    if (y_eq[0] < eos_ye_min_ || y_eq[0] > eos_ye_max_)
-    {
-      ierr = WE_FAIL_INI_ASSIGN_Y_E;
       T_eq = T;
       for (int i = 0; i < 4; i++)
       {
@@ -326,6 +347,7 @@ class WeakEquilibriumSolver
   private:
   EoSProvider* eos_;
   Real atomic_mass_;
+  const Opt* opt_;
 
   // -----------------------------------------------------------------------
   // Newton-Raphson parameters
@@ -337,6 +359,9 @@ class WeakEquilibriumSolver
 
   static constexpr Real delta_ye = 0.005;
   static constexpr Real delta_t  = 0.01;
+
+  // sticky bounds
+  static constexpr int ye_bnd_stuck_limit = 5;
 
   // -----------------------------------------------------------------------
   // Physical constants (CGS + MeV)
@@ -368,7 +393,90 @@ class WeakEquilibriumSolver
   // Internal solver routines
   // -----------------------------------------------------------------------
 
+  //! 1D Newton-Raphson for T with Ye clamped at a boundary value.
+  //
+  //  When the equilibrium Ye lies outside the EoS table, the 2D solver
+  //  stagnates because it cannot push Ye past the boundary.  This reduced
+  //  solver fixes Ye = ye_bnd and solves only the energy conservation
+  //  equation (y[1] = 0) for T.  The lepton conservation equation is
+  //  intentionally unsatisfied with the "missing" lepton fraction absorbed
+  //  by accepting Ye at the boundary.
+  void new_raph_1dim_ye_clamped(Real rho,
+                                Real u,
+                                Real yl,
+                                Real ye_bnd,
+                                Real T_guess,
+                                Real x1[2],
+                                int& ierr)
+  {
+    x1[0] = T_guess;
+    x1[1] = ye_bnd;
+
+    Real y[2] = { 0.0 };
+    func_eq_weak(rho, u, yl, x1, y);
+
+    // For the 1D solve we only care about the energy residual y[1].
+    Real err = std::fabs(y[1]);
+
+    int n_iter = 0;
+
+    while (err > eps_lim && n_iter <= n_max_iter)
+    {
+      // Compute Jacobian (we only need J[1][0] = d(y[1])/dT)
+      Real J[2][2] = { { 0.0 } };
+      int ierr_jac = 0;
+      jacobi_eq_weak(rho, u, yl, x1, J, ierr_jac);
+      if (ierr_jac != 0)
+      {
+        ierr = WE_FAIL_JACOBIAN;
+        return;
+      }
+
+      if (J[1][0] == 0.0)
+      {
+        ierr = WE_FAIL_DET_SINGULAR;
+        return;
+      }
+
+      Real dT = -y[1] / J[1][0];
+
+      // Line-search bisection (1D along T)
+      int n_cut    = 0;
+      Real fac_cut = 1.0;
+      Real err_old = err;
+      Real T_save  = x1[0];
+
+      while (n_cut <= n_cut_max && err >= err_old)
+      {
+        x1[0] = T_save + dT * fac_cut;
+        x1[1] = ye_bnd;
+
+        if (std::isnan(x1[0]))
+        {
+          ierr = WE_FAIL_NEXT_STEP;
+          return;
+        }
+
+        eos_->ApplyTableLimits(rho, x1[0], x1[1]);
+
+        func_eq_weak(rho, u, yl, x1, y);
+        err = std::fabs(y[1]);
+
+        n_cut += 1;
+        fac_cut *= 0.5;
+      }
+
+      n_iter += 1;
+    }
+
+    ierr = (n_iter <= n_max_iter) ? 0 : WE_FAIL_STAGNATED;
+  }
+
   //! 2D Newton-Raphson with KKT boundary handling and line-search bisection.
+  //
+  //  If the 2D solver stagnates with Ye clamped at an EoS table boundary
+  //  and the Newton step wanting to push Ye further out, it falls back to
+  //  new_raph_1dim_ye_clamped to solve for T only at the boundary Ye.
   void new_raph_2dim(Real rho,
                      Real u,
                      Real yl,
@@ -394,6 +502,10 @@ class WeakEquilibriumSolver
     Real dxa[2]     = { 0.0 };
     Real norm[2]    = { 0.0 };
     Real x1_tmp[2]  = { 0.0 };
+
+    // Track how many consecutive iterations Ye is stuck at a boundary
+    // with the Newton step wanting to push it further out.
+    int ye_bnd_stuck_count                  = 0;
 
     while (err > eps_lim && n_iter <= n_max_iter && !KKT)
     {
@@ -431,6 +543,25 @@ class WeakEquilibriumSolver
       else
         norm[1] = 0.0;
 
+      // Detect Ye stuck at boundary with step pointing outward
+      bool ye_at_min = (x1[1] <= eos_ye_min_ && dx1[1] < 0.0);
+      bool ye_at_max = (x1[1] >= eos_ye_max_ && dx1[1] > 0.0);
+      if (opt_->equilibrium_ye_bnd_reduce)
+      {
+        if (ye_at_min || ye_at_max)
+          ye_bnd_stuck_count += 1;
+        else
+          ye_bnd_stuck_count = 0;
+
+        // If stuck at Ye boundary for several iterations, fall back to 1D
+        if (ye_bnd_stuck_count >= ye_bnd_stuck_limit)
+        {
+          Real ye_bnd = ye_at_min ? eos_ye_min_ : eos_ye_max_;
+          new_raph_1dim_ye_clamped(rho, u, yl, ye_bnd, x1[0], x1, ierr);
+          return;
+        }
+      }
+
       Real scal = norm[0] * norm[0] + norm[1] * norm[1];
       if (scal <= 0.5)
         scal = 1.0;
@@ -448,6 +579,13 @@ class WeakEquilibriumSolver
             (dxa[0] * dxa[0] + dxa[1] * dxa[1]) <
               (eps_lim * eps_lim * (dx1[0] * dx1[0] + dx1[1] * dx1[1])))
         {
+          // Before giving up with KKT, try the 1D solver if at Ye boundary
+          if (opt_->equilibrium_ye_bnd_reduce && norm[1] != 0.0)
+          {
+            Real ye_bnd = (norm[1] < 0.0) ? eos_ye_min_ : eos_ye_max_;
+            new_raph_1dim_ye_clamped(rho, u, yl, ye_bnd, x1[0], x1, ierr);
+            return;
+          }
           KKT  = true;
           ierr = WE_FAIL_KKT;
           return;
@@ -459,13 +597,14 @@ class WeakEquilibriumSolver
       Real fac_cut = 1.0;
       Real err_old = err;
 
+      Real x1_save[2] = { x1[0], x1[1] };
+      Real step0      = (on_bnd ? dxa[0] : dx1[0]);
+      Real step1      = (on_bnd ? dxa[1] : dx1[1]);
+
       while (n_cut <= n_cut_max && err >= err_old)
       {
-        Real step0 = (on_bnd ? dxa[0] : dx1[0]);
-        Real step1 = (on_bnd ? dxa[1] : dx1[1]);
-
-        x1_tmp[0] = x1[0] + step0 * fac_cut;
-        x1_tmp[1] = x1[1] + step1 * fac_cut;
+        x1_tmp[0] = x1_save[0] + step0 * fac_cut;
+        x1_tmp[1] = x1_save[1] + step1 * fac_cut;
 
         if (std::isnan(x1_tmp[0]))
         {
@@ -475,15 +614,16 @@ class WeakEquilibriumSolver
 
         eos_->ApplyTableLimits(rho, x1_tmp[0], x1_tmp[1]);
 
-        x1[0] = x1_tmp[0];
-        x1[1] = x1_tmp[1];
-
-        func_eq_weak(rho, u, yl, x1, y);
+        func_eq_weak(rho, u, yl, x1_tmp, y);
         error_func_eq_weak(yl, u, y, err);
 
         n_cut += 1;
         fac_cut *= 0.5;
       }
+
+      // Commit the accepted step
+      x1[0] = x1_tmp[0];
+      x1[1] = x1_tmp[1];
 
       n_iter += 1;
     }
@@ -502,7 +642,7 @@ class WeakEquilibriumSolver
 
     Real e = eos_->GetEnergyDensity(rho, x[0], x[1]);
 
-    Real eta_vec[2] = { 0.0 };
+    Real eta_vec[3] = { 0.0 };
     nu_deg_param_trap(x[0], mus, eta_vec);
     Real eta  = eta_vec[0];
     Real eta2 = eta * eta;
