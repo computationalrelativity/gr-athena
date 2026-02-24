@@ -45,7 +45,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       SCPENT  = 3,  //! tracked past entropy per baryon
       SCPTAU  = 4,  //! tracked past expansion timescale
       SCPYE   = 5,  //! tracked past electron fraction
-      SCPTFO  = 6,  //! tracked past temperature
+      SCPTFO  = 6,  //! tracked time of freeze out
       SCNVARS = 7
     };
 

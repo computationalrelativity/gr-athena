@@ -39,7 +39,7 @@ using namespace std;
   }
 
 EOSCompOSETransition::EOSCompOSETransition() {
-  n_species = 2; // second is abar
+  n_species = 7;
   eos_units = &Nuclear;
   max_iter = 50;
   T_tol = 1e-10;
@@ -576,33 +576,33 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
 
   ierr = H5LTread_dataset_double(file_id, "A", scratch);
     MYH5CHECK(ierr);
-  for (int it = 0; it < m_nn; ++it) {
-  for (int is = 0; is < m_nt; ++is) {
-  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
     m_heating_table[h_index(HA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
   ierr = H5LTread_dataset_double(file_id, "alpha", scratch);
     MYH5CHECK(ierr);
-  for (int it = 0; it < m_nn; ++it) {
-  for (int is = 0; is < m_nt; ++is) {
-  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
     m_heating_table[h_index(HALPHA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
   ierr = H5LTread_dataset_double(file_id, "sigma", scratch);
     MYH5CHECK(ierr);
-  for (int it = 0; it < m_nn; ++it) {
-  for (int is = 0; is < m_nt; ++is) {
-  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
     m_heating_table[h_index(HSIGMA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
   ierr = H5LTread_dataset_double(file_id, "t_0", scratch);
     MYH5CHECK(ierr);
-  for (int it = 0; it < m_nn; ++it) {
-  for (int is = 0; is < m_nt; ++is) {
-  for (int iy = 0; iy < m_ny; ++iy) {
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
     m_heating_table[h_index(HT0, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 }
@@ -738,14 +738,18 @@ Real EOSCompOSETransition::HeatingRate(Real tau, Real ye, Real s, Real t) {
   //  A * (0.5-arctan((t-t_0)/sigma)/pi)^alpha
   // https://arxiv.org/pdf/2111.06870.pdf (eq 2)
 
-  if (not std::isfinite(tau)) {
+  if (not std::isfinite(tau) or tau <= 0.0) {
+    return 0.0;
+  }
+
+  if (not std::isfinite(s) or s <= 0.0) {
     return 0.0;
   }
 
   tau *= code_units->TimeConversion(CGS);;
   t *= code_units->TimeConversion(CGS);;
-  const Real ls = log10(s);
-  const Real ltau = log10(tau);
+  const Real ls = log(s);
+  const Real ltau = log(tau);
   // interpolate the parameters of the fit from the table
   Real A = eval_heating_at_ltys(HA, ltau, ye, ls);
   Real alpha = eval_heating_at_ltys(HALPHA, ltau, ye, ls);
@@ -1050,18 +1054,21 @@ Real EOSCompOSETransition::eval_heating_at_ltys(int iv, Real lt, Real ye, Real l
 
 void EOSCompOSETransition::h_weight_idx_lt(Real *w0, Real *w1, int *it, Real log_tau) const {
   *it = (log_tau - m_heating_ltau[0])*m_h_id_lt;
+  *it = max(0, min(m_h_nt-2, *it));
   *w1 = (log_tau - m_heating_ltau[*it])*m_h_id_lt;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSETransition::h_weight_idx_ye(Real *w0, Real *w1, int *iy, Real ye) const {
   *iy = (ye - m_heating_ye[0])*m_h_id_y;
+  *iy = max(0, min(m_h_ny-2, *iy));
   *w1 = (ye - m_heating_ye[*iy])*m_h_id_y;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSETransition::h_weight_idx_ls(Real *w0, Real *w1, int *is, Real log_s) const {
   *is = (log_s - m_heating_ls[0])*m_h_id_ls;
+  *is = max(0, min(m_h_ns-2, *is));
   *w1 = (log_s - m_heating_ls[*is])*m_h_id_ls;
   *w0 = 1.0 - (*w1);
 }

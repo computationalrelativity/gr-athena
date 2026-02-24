@@ -626,7 +626,7 @@ void EquationOfState::NuclearBinding(
   prim_scalar(GetEOS().SCPYE ,k,j,i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
   prim_scalar(GetEOS().SCPENT,k,j,i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
   prim_scalar(GetEOS().SCPTAU,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;
-  prim_scalar(GetEOS().SCPTFO,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * time;
+  prim_scalar(GetEOS().SCPTFO,k,j,i) = w * Y[GetEOS().SCPTFO] + (1.0 - w) * time;
 
   // h u_t < -1 and tau > 0
   const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_abs > 0) ? w : 0.0;

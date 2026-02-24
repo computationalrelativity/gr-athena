@@ -28,7 +28,7 @@ ColdEOSCompOSE::ColdEOSCompOSE():
   m_np(0),
   m_table(nullptr),
   m_initialized(false) {
-  n_species = NSCALARS;
+  n_species = 2;
   eos_units = &Nuclear;
 }
 

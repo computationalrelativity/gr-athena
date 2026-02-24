@@ -166,6 +166,12 @@ class ColdEOS : public ColdEOSPolicy {
       return mb*eos_units->MassConversion(*code_units)*eos_units->DensityConversion(*code_units);
     }
 
+    //! \fn int GetNSpecies() const
+    //  \brief Get the number of particle species in this EOS.
+    inline int GetNSpecies() const {
+      return n_species;
+    }
+
     inline void SetCodeUnitSystem(UnitSystem* units) {
       code_units = units;
     }
