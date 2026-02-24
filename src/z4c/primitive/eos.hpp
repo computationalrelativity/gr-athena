@@ -81,6 +81,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::MaximumPressure;
     using EOSPolicy::MinimumEnergy;
     using EOSPolicy::MaximumEnergy;
+    using EOSPolicy::MinimumSpecificInternalEnergy;
+    using EOSPolicy::MaximumSpecificInternalEnergy;
 
     using EOSPolicy::FrYn;
     using EOSPolicy::FrYp;
@@ -477,9 +479,11 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the conserved variables were adjusted, false otherwise.
     inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real Bsq) {
-      return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(),
-                            GetTauFloor(std::max(D,min_n*GetBaryonMass()), Y, Bsq),
-                            GetTauFloor(n_atm*GetBaryonMass(), Y_atm, Bsq), n_species);
+      return ConservedFloor(
+          D, Sd, tau, Y, n_atm * GetBaryonMass(),
+          GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq),
+          GetTauFloor(n_atm * GetBaryonMass(), Y_atm, Bsq),
+          n_species);
     }
 
     //! \fn Real GetDensityFloor() const
@@ -514,7 +518,11 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real D, Real *Y, Real Bsq) {
       // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
-      return D*GetSpecificInternalEnergy(D/GetBaryonMass(), T_atm, Y) + 0.5*Bsq;
+      Real n = D/GetBaryonMass();
+      Real eos_tau_floor = MinimumSpecificInternalEnergy(n, Y);
+      Real atm_tau_floor = GetSpecificInternalEnergy(n, T_atm, Y);
+      return D * std::max(eos_tau_floor, atm_tau_floor) + 0.5*Bsq;
+
     }
 
     //! \fn void SetDensityFloor(Real floor)

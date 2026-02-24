@@ -146,6 +146,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real mb = eos.GetBaryonMass();
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
   eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
+  Real ld_n, hd_n, ld_t, hd_t;
+  eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
 
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass

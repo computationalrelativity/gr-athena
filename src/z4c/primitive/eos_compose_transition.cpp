@@ -129,8 +129,14 @@ Real EOSCompOSETransition::TemperatureFromEps(Real n, Real eps, Real *Y, Real Tg
   assert (m_initialized);
   Real eps_min = MinimumSpecificInternalEnergy(n, Y);
   Real eps_max = MaximumSpecificInternalEnergy(n, Y);
-  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T :
-    temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[SCYE], Y[SCABAR], Y[SCEB], Tguess);
+  if (log(n) < helm_ln_max) {
+    if (eps <= eps_min) return min_T;
+    if (eps >= eps_max) return exp(helm_lt_max);
+  } else {
+    if (eps <= eps_min) return exp(comp_lt_min);
+    if (eps >= eps_max) return max_T;
+  }
+  return temperature_from_var_with_guess(ECLOGE, log(eps), n, Y[SCYE], Y[SCABAR], Y[SCEB], Tguess);
 }
 
 Real EOSCompOSETransition::TemperatureFromEntropy(Real n, Real s, Real *Y) {
@@ -149,9 +155,9 @@ Real EOSCompOSETransition::TemperatureFromE(Real n, Real e, Real *Y, Real Tguess
 
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
-  Real p_min = MinimumSpecificInternalEnergy(n, Y);
-  Real p_max = MaximumSpecificInternalEnergy(n, Y);
-  if (log(n) < helm_ln_max) {
+  Real p_min = MinimumPressure(n, Y);
+  Real p_max = MaximumPressure(n, Y);
+  if (log(n) < trans_ln_start) {
     if (p <= p_min) return min_T;
     if (p >= p_max) return exp(helm_lt_max);
   } else {
@@ -164,10 +170,15 @@ Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y) {
 Real EOSCompOSETransition::TemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
   assert (m_initialized);
   Real p_min = MinimumPressure(n, Y);
-  Real p_max = MaximumPressure(n,Y);
-
-  return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
-    temperature_from_var_with_guess(ECLOGP, log(p), n, Y[SCYE], Y[SCABAR], Y[SCEB], Tguess);
+  Real p_max = MaximumPressure(n, Y);
+  if (log(n) < trans_ln_start) {
+    if (p <= p_min) return min_T;
+    if (p >= p_max) return exp(helm_lt_max);
+  } else {
+    if (p <= p_min) return exp(comp_lt_min);
+    if (p >= p_max) return max_T;
+  }
+  return temperature_from_var_with_guess(ECLOGP, log(p), n, Y[SCYE], Y[SCABAR], Y[SCEB], Tguess);
 }
 
 Real EOSCompOSETransition::Energy(Real n, Real T, Real *Y) {
@@ -246,28 +257,28 @@ Real EOSCompOSETransition::MinimumEnthalpy() {
 }
 
 Real EOSCompOSETransition::MinimumPressure(Real n, Real *Y) {
-  if (log(n) > helm_ln_max) {
+  if (log(n) > trans_ln_end) {
     return Pressure(n, exp(comp_lt_min), Y);
   }
   return Pressure(n, min_T, Y);
 }
 
 Real EOSCompOSETransition::MaximumPressure(Real n, Real *Y) {
-  if (log(n) < helm_ln_max) {
+  if (log(n) < trans_ln_start) {
     return Pressure(n, exp(helm_lt_max), Y);
   }
   return Pressure(n, max_T, Y);
 }
 
 Real EOSCompOSETransition::MinimumSpecificInternalEnergy(Real n, Real *Y) {
-  if (log(n) > helm_ln_max) {
+  if (log(n) > trans_ln_end) {
     return SpecificInternalEnergy(n, exp(comp_lt_min), Y);
   }
   return SpecificInternalEnergy(n, min_T, Y);
 }
 
 Real EOSCompOSETransition::MaximumSpecificInternalEnergy(Real n, Real *Y) {
-  if (log(n) < helm_ln_max) {
+  if (log(n) < trans_ln_start) {
     return SpecificInternalEnergy(n, helm_lt_max, Y);
   }
   return SpecificInternalEnergy(n, max_T, Y);

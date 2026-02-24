@@ -182,6 +182,13 @@ class EOSCompOSETransition : public EOSPolicyInterface {
       return exp(trans_ln_start);
     }
 
+    void GetTableBoundaries(Real &ld_n, Real &hd_n, Real &ld_t, Real &hd_t) {
+      ld_n = exp(helm_ln_max);
+      ld_t = exp(helm_lt_max);
+      hd_n = exp(comp_ln_min);
+      hd_t = exp(comp_lt_min);
+    }
+
     // Indexing used to access the data
     inline ptrdiff_t index(int iv, int in, int iy, int it) const {
       return it + m_nt*(iy + m_ny*(in + m_nn*iv));

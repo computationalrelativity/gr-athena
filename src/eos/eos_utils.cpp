@@ -623,6 +623,7 @@ void EquationOfState::NuclearBinding(
 
   // Update scalar of past Ye entr tau and freeze out time
   const Real w = GetEOS().TransitionFactor(log(n), T);
+  hyd_der_ms(IX_TRANS, k, j, i) = w;
   prim_scalar(GetEOS().SCPYE ,k,j,i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
   prim_scalar(GetEOS().SCPENT,k,j,i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
   prim_scalar(GetEOS().SCPTAU,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;

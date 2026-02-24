@@ -170,7 +170,8 @@ enum HydroDerivedIndex {
   IX_OM=9,     // Omega = y Wv^x - x Wv^y /(x^2 + y^2)^(1/2) angular velocity
 #if EOS_POLICY_CODE == 4
   IX_HEAT=10, // heating rate per unit volume (erg/cm^3/s)
-  NDRV_HYDRO=11};
+  IX_TRANS=11, // eos transition factor
+  NDRV_HYDRO=12};
 #else
   NDRV_HYDRO=10};
 #endif
