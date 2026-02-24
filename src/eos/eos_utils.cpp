@@ -629,16 +629,17 @@ void EquationOfState::NuclearBinding(
   prim_scalar(GetEOS().SCPTFO,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * time;
 
   // h u_t < -1 and tau > 0
-  const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && cur_tau > 0) ? w : 0.0;
+  const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_abs > 0) ? w : 0.0;
 
   // Update binding energy and heating
   prim_scalar(GetEOS().SCEB,k,j,i) = w * Y[GetEOS().SCEB] + (1.0 - w) * cur_eb;
-  hyd_der_ms(IX_HEAT, k,j,i) = GetEOS().HeatingRate(
-      prim_scalar(GetEOS().SCPTAU,k,j,i),
-      prim_scalar(GetEOS().SCPYE,k,j,i),
-      prim_scalar(GetEOS().SCPENT,k,j,i),
-      time - prim_scalar(GetEOS().SCPTFO,k,j,i));
 
+  hyd_der_ms(IX_HEAT, k, j, i) =
+      activation_fac *
+      GetEOS().HeatingRate(prim_scalar(GetEOS().SCPTAU, k, j, i),
+                           prim_scalar(GetEOS().SCPYE, k, j, i),
+                           prim_scalar(GetEOS().SCPENT, k, j, i),
+                           time - prim_scalar(GetEOS().SCPTFO, k, j, i));
 }
 #endif // USE_COMPOSE_TRANSITION_EOS
 

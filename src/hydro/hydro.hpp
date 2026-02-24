@@ -150,6 +150,9 @@ class Hydro {
       "hydro.aux.hu_t",
       "hydro.aux.cs2",
       "hydro.aux.Omega",
+#if EOS_POLICY_CODE == 4
+      "hydro.aux.heating_rate",
+#endif
     };
   };
 

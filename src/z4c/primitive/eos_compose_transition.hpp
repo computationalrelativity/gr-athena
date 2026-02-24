@@ -188,8 +188,8 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     }
 
     // Indexing used to access the heating data
-    inline ptrdiff_t h_index(int iv, int it, int iy, int is) const {
-      return is + m_h_ns*(iy + m_h_ny*(it + m_h_nt*iv));
+    inline ptrdiff_t h_index(int iv, int it, int is, int iy) const {
+      return iy + m_h_ny*(is + m_h_ns*(it + m_h_nt*iv));
     }
 
     /// Check if the EOS has been initialized properly.
@@ -352,7 +352,7 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     void check_bounds(
       const Real * rho_trans,
       const Real * temp_trans,
-      const Real * ye_max,
+      const Real * ye_min,
       bool * success
     );
 

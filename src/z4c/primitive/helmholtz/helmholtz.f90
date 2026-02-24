@@ -1717,11 +1717,11 @@ contains
    end subroutine read_helm_table
 
    subroutine check_bounds(&
-     rho_trans, temp_trans, ye_max, success&
+     rho_trans, temp_trans, ye_min, success&
    ) bind(C, name="check_bounds")
       implicit none
       include 'helm_table_storage.dek'
-      real(c_double), intent(in) :: rho_trans, temp_trans, ye_max
+      real(c_double), intent(in) :: rho_trans, temp_trans, ye_min
       logical(c_bool), intent(out) :: success
 
       success = .False.
@@ -1737,9 +1737,10 @@ contains
          return
       end if
 
-      if (rho_trans*ye_max > d(imax)) then
-         write (6, *) 'rho_trans*ye_max > rho_helm_max'
-         write (6, *) 'rho_helm_max = ', d(imax)
+      if (rho_trans*ye_min > d(imax)) then
+         write (6, *) 'rho_trans*ye_min > rho_helm_max'
+         write (6, *) 'rho_trans*ye_min = ', rho_trans*ye_min
+         write (6, *) 'rho_helm_min = ', d(imax)
       return
       end if
 
