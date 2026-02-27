@@ -281,8 +281,8 @@ full_lim = -0.75
 # element of: {bnsnurates, weakrates, photon, fake, zero, none}
 variety = bnsnurates
 
-tau_trap = 1.0
-tau_delta = 1.0
+tau_trap = 0.0
+tau_delta = 0.0
 max_correction_factor = 3
 
 # flooring strategy for weakrates ---------------------------------------------
