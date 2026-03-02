@@ -281,8 +281,8 @@ full_lim = -0.75
 # element of: {bnsnurates, weakrates, photon, fake, zero, none}
 variety = weakrates
 
-tau_trap = 1.0
-tau_delta = 1.0
+tau_trap = 0.0
+tau_delta = 0.0
 max_correction_factor = 1.7
 
 # flooring strategy for weakrates ---------------------------------------------
@@ -394,9 +394,9 @@ y0_atmosphere = 0.5
 <problem> # ===================================================================
 test = homogeneous_medium
 
-rho = 1.619e-5
-Y_e = 0.1
-temperature = 50.0
+rho = 1.117e-3
+Y_e = 0.07
+temperature = 12.39
 velx = 0.0
 vely = 0.0
 velz = 0.0
