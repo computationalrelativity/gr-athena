@@ -883,7 +883,7 @@ elif args["eos"] == "eostaudyn_ps":
     definitions['EOS_POLICY'] = 'EOSCompOSETransition'
     definitions['EOS_POLICY_CODE'] = '4'
     #definitions['EOS_TGUESS'] = '1'
-    definitions["COLDEOS_POLICY"] = "ColdEOSCompOSE"
+    definitions["COLDEOS_POLICY"] = "ColdEOSCompOSETransition"
   else:
     definitions["EOS_POLICY"] = ""
 
@@ -2082,11 +2082,7 @@ if args["eos"] == "none":
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
-# TODO: implement cold transition eos
-if args["eospolicy"] == "eos_compose_transition":
-    cold_policy = "cold_eos_compose"
-else:
-    cold_policy = f'cold_{args["eospolicy"]}'
+cold_policy = f'cold_{args["eospolicy"]}'
 
 files = [
   args["eospolicy"],

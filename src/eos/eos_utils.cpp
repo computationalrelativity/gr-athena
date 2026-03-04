@@ -606,6 +606,7 @@ void EquationOfState::NuclearBinding(
   const Real gyz = gsc.gamma_dd_(1,2,i);
   const Real gzz = gsc.gamma_dd_(2, 2, i);
 
+
   const Real r = std::sqrt(gxx * SQR(x) + gyy * SQR(y) + gzz * SQR(z) + 2.0*(gxy*x*y + gxz*x*z + gyz*y*z));
 
   const Real v_abs = std::sqrt(
@@ -616,24 +617,27 @@ void EquationOfState::NuclearBinding(
          prim(IVX,k,j,i)*prim(IVZ,k,j,i)*gxz +
          prim(IVY,k,j,i)*prim(IVZ,k,j,i)*gyz)
   );
-  const Real cur_tau = r/v_abs;
+  const Real v_r = (prim(IVX,k,j,i)*x + prim(IVY,k,j,i)*y + prim(IVZ,k,j,i)*z)/r;
+
+  //const Real cur_tau = (v_r > 0) ? r/v_abs : 0.0;
+  const Real cur_tau = (v_abs > 0) ? r/v_abs : 0.0;
   const Real cur_Ye = prim_scalar(GetEOS().SCYE, k, j, i);
+  const Real cur_Abar = GetEOS().GetAbar(n, T, Y);;
   const Real cur_ent = GetEOS().GetEntropyPerBaryon(n, T, Y);;
   const Real cur_eb = GetEOS().GetBindingEnergy(n, T, Y);
 
   // Update scalar of past Ye entr tau and freeze out time
-  const Real w = GetEOS().TransitionFactor(log(n), T);
+  const Real w = GetEOS().TransitionFactor(n, T);
   hyd_der_ms(IX_TRANS, k, j, i) = w;
-  prim_scalar(GetEOS().SCPYE ,k,j,i) = w * Y[GetEOS().SCPYE ] + (1.0 - w) * cur_Ye;
-  prim_scalar(GetEOS().SCPENT,k,j,i) = w * Y[GetEOS().SCPENT] + (1.0 - w) * cur_ent;
-  prim_scalar(GetEOS().SCPTAU,k,j,i) = w * Y[GetEOS().SCPTAU] + (1.0 - w) * cur_tau;
-  prim_scalar(GetEOS().SCPTFO,k,j,i) = w * Y[GetEOS().SCPTFO] + (1.0 - w) * time;
+  // TODO do something proper for Abar
+  prim_scalar(GetEOS().SCABAR ,k,j,i) = (1.0 - w) * Y[GetEOS().SCABAR ] + w * cur_Abar;
+  prim_scalar(GetEOS().SCPYE ,k,j,i) = (1.0 - w) * Y[GetEOS().SCPYE ] + w * cur_Ye;
+  prim_scalar(GetEOS().SCPENT,k,j,i) = (1.0 - w) * Y[GetEOS().SCPENT] + w * cur_ent;
+  prim_scalar(GetEOS().SCPTAU,k,j,i) = (1.0 - w) * Y[GetEOS().SCPTAU] + w * cur_tau;
+  prim_scalar(GetEOS().SCPTFO,k,j,i) = (1.0 - w) * Y[GetEOS().SCPTFO] + w * time;
+  prim_scalar(GetEOS().SCEB,  k,j,i) = (1.0 - w) * Y[GetEOS().SCEB  ] + w * cur_eb;
 
-  // h u_t < -1 and tau > 0
-  const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_abs > 0) ? w : 0.0;
-
-  // Update binding energy and heating
-  prim_scalar(GetEOS().SCEB,k,j,i) = w * Y[GetEOS().SCEB] + (1.0 - w) * cur_eb;
+  const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
 
   hyd_der_ms(IX_HEAT, k, j, i) =
       activation_fac *
@@ -641,6 +645,8 @@ void EquationOfState::NuclearBinding(
                            prim_scalar(GetEOS().SCPYE, k, j, i),
                            prim_scalar(GetEOS().SCPENT, k, j, i),
                            time - prim_scalar(GetEOS().SCPTFO, k, j, i));
+
+  // TODO add source term for ABAR
 }
 #endif // USE_COMPOSE_TRANSITION_EOS
 

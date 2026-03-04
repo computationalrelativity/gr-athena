@@ -50,11 +50,13 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     };
 
     enum HeatingParameters {
-       HA = 0,
-       HALPHA = 1,
-       HSIGMA = 2,
+       HLOGA = 0,
+       HLOGALPHA = 1,
+       HLOGSIGMA = 2,
        HT0 = 3,
-       HNVARS = 4
+       HLOGB = 4,
+       HLOGBETA = 5,
+       HNVARS = 6
     };
 
   protected:
@@ -257,9 +259,9 @@ class EOSCompOSETransition : public EOSPolicyInterface {
     // these are redefinitions to static from the eos_policy_interface
     static Real mb, max_n, min_n, max_T, min_T, max_Y[MAX_SPECIES], min_Y[MAX_SPECIES];
 
-    static Real h_min_s, h_max_s;
+    static Real h_min_ls, h_max_ls;
     static Real h_min_y, h_max_y;
-    static Real h_min_t, h_max_t;
+    static Real h_min_lt, h_max_lt;
 
   private:
     // Inverse of table spacing

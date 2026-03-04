@@ -91,12 +91,12 @@ Real EOSCompOSETransition::min_T = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::max_Y[MAX_SPECIES] = {0};
 Real EOSCompOSETransition::min_Y[MAX_SPECIES] = {0};
 
-Real EOSCompOSETransition::h_max_s = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::h_min_s = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::h_max_ls = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::h_min_ls = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::h_max_y = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSETransition::h_min_y = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::h_max_t = numeric_limits<Real>::quiet_NaN();
-Real EOSCompOSETransition::h_min_t = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::h_max_lt = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSETransition::h_min_lt = numeric_limits<Real>::quiet_NaN();
 
 Real EOSCompOSETransition::m_min_h = numeric_limits<Real>::max();
 Real EOSCompOSETransition::m_trans_T_width = numeric_limits<Real>::quiet_NaN();
@@ -279,7 +279,7 @@ Real EOSCompOSETransition::MinimumSpecificInternalEnergy(Real n, Real *Y) {
 
 Real EOSCompOSETransition::MaximumSpecificInternalEnergy(Real n, Real *Y) {
   if (log(n) < trans_ln_start) {
-    return SpecificInternalEnergy(n, helm_lt_max, Y);
+    return SpecificInternalEnergy(n, exp(helm_lt_max), Y);
   }
   return SpecificInternalEnergy(n, max_T, Y);
 }
@@ -543,7 +543,7 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
 
   // Get dataset sizes
   // -------------------------------------------------------------------------
-  ierr = H5LTget_dataset_info(file_id, "ent", size, NULL, NULL);
+  ierr = H5LTget_dataset_info(file_id, "log_A", size, NULL, NULL);
     MYH5CHECK(ierr);
   m_h_nt = size[0];
   m_h_ny = size[1];
@@ -558,55 +558,66 @@ void EOSCompOSETransition::read_heating_table(std::string fname) {
   double * scratch = new double[m_h_nt*m_h_ns*m_h_ny];
 
   // Read tau, ye, s
-  ierr = H5LTread_dataset_double(file_id, "tau", scratch);
+  ierr = H5LTread_dataset_double(file_id, "log_tau", scratch);
     MYH5CHECK(ierr);
-  h_min_t = scratch[h_index(0,0,0,0)];
-  h_max_t = scratch[h_index(0,m_h_nt-1,m_h_ny-1,m_h_ns-1)];
-  for (int it = 0; it < m_h_nt; ++it) {
-    m_heating_ltau[it] = log(scratch[h_index(0,it,0,0)]);
-  }
-  m_h_id_lt = 1.0/(m_heating_ltau[1] - m_heating_ltau[0]);
+  copy(&scratch[0], &scratch[m_h_nt], &m_heating_ltau[0]);
+  h_min_lt = m_heating_ltau[0];
+  h_max_lt = m_heating_ltau[m_h_nt-1];
+  m_h_id_lt = 1/(m_heating_ltau[1] - m_heating_ltau[0]);
 
   ierr = H5LTread_dataset_double(file_id, "Y_e", scratch);
     MYH5CHECK(ierr);
-  h_min_y = scratch[h_index(0,0,0,0)];
-  h_max_y = scratch[h_index(0,m_h_nt-1,m_h_ny-1,m_h_ns-1)];
-  for (int iy = 0; iy < m_h_ny; ++iy) {
-    m_heating_ye[iy] = scratch[h_index(0,0,0,iy)];
-  }
-  m_h_id_y = 1.0/(m_heating_ye[1] - m_heating_ye[0]);
+  copy(&scratch[0], &scratch[m_h_ny], &m_heating_ye[0]);
+  h_min_y = m_heating_ye[0];
+  h_max_y = m_heating_ye[m_h_ny-1];
+  m_h_id_y = 1/(m_heating_ye[1] - m_heating_ye[0]);
 
-  ierr = H5LTread_dataset_double(file_id, "ent", scratch);
+  ierr = H5LTread_dataset_double(file_id, "log_ent", scratch);
     MYH5CHECK(ierr);
-  h_min_s = scratch[h_index(0, 0, 0, 0)];
-  h_max_s = scratch[h_index(0, m_h_nt-1, m_h_ny-1, m_h_ns-1)];
-  for (int is = 0; is < m_h_ns; ++is) {
-    m_heating_ls[is] = log(scratch[h_index(0,0,is,0)]);
-  }
-  m_h_id_ls = 1.0/(m_heating_ls[1] - m_heating_ls[0]);
+  copy(&scratch[0], &scratch[m_h_ns], &m_heating_ls[0]);
+  h_min_ls = m_heating_ls[0];
+  h_max_ls = m_heating_ls[m_h_ns-1];
+  m_h_id_ls = 1/(m_heating_ls[1] - m_heating_ls[0]);
 
-  ierr = H5LTread_dataset_double(file_id, "A", scratch);
+
+  ierr = H5LTread_dataset_double(file_id, "log_A", scratch);
     MYH5CHECK(ierr);
   for (int it = 0; it < m_h_nt; ++it) {
   for (int is = 0; is < m_h_ns; ++is) {
   for (int iy = 0; iy < m_h_ny; ++iy) {
-    m_heating_table[h_index(HA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
+    m_heating_table[h_index(HLOGA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
-  ierr = H5LTread_dataset_double(file_id, "alpha", scratch);
+  ierr = H5LTread_dataset_double(file_id, "log_B", scratch);
     MYH5CHECK(ierr);
   for (int it = 0; it < m_h_nt; ++it) {
   for (int is = 0; is < m_h_ns; ++is) {
   for (int iy = 0; iy < m_h_ny; ++iy) {
-    m_heating_table[h_index(HALPHA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
+    m_heating_table[h_index(HLOGB, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
-  ierr = H5LTread_dataset_double(file_id, "sigma", scratch);
+  ierr = H5LTread_dataset_double(file_id, "log_alpha", scratch);
     MYH5CHECK(ierr);
   for (int it = 0; it < m_h_nt; ++it) {
   for (int is = 0; is < m_h_ns; ++is) {
   for (int iy = 0; iy < m_h_ny; ++iy) {
-    m_heating_table[h_index(HSIGMA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
+    m_heating_table[h_index(HLOGALPHA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
+  }}}
+
+  ierr = H5LTread_dataset_double(file_id, "log_sigma", scratch);
+    MYH5CHECK(ierr);
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
+    m_heating_table[h_index(HLOGSIGMA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
+  }}}
+
+  ierr = H5LTread_dataset_double(file_id, "log_beta", scratch);
+    MYH5CHECK(ierr);
+  for (int it = 0; it < m_h_nt; ++it) {
+  for (int is = 0; is < m_h_ns; ++is) {
+  for (int iy = 0; iy < m_h_ny; ++iy) {
+    m_heating_table[h_index(HLOGBETA, it, is, iy)] = scratch[h_index(0, it, is, iy)];
   }}}
 
   ierr = H5LTread_dataset_double(file_id, "t_0", scratch);
@@ -709,9 +720,9 @@ void EOSCompOSETransition::update_bounds() {
            temp_max, temp_trans);
   }
 
-  helm_ln_max = log(0.1*rho_max*CGS.DensityConversion(*eos_units)*CGS.MassConversion(*eos_units)/mb);
+  helm_ln_max = log(rho_max*CGS.DensityConversion(*eos_units)*CGS.MassConversion(*eos_units)/mb);
 
-  helm_lt_max = log(0.1*temp_max*CGS.TemperatureConversion(*eos_units));
+  helm_lt_max = log(temp_max*CGS.TemperatureConversion(*eos_units));
 
   min_n = rho_min / (eos_units->DensityConversion(CGS)
                      * mb * eos_units->MassConversion(CGS));
@@ -746,8 +757,8 @@ Real EOSCompOSETransition::GetBindingEnergy(Real n, Real T, Real *Y) {
 
 Real EOSCompOSETransition::HeatingRate(Real tau, Real ye, Real s, Real t) {
   // Fit for the heating rate at early times
-  //  A * (0.5-arctan((t-t_0)/sigma)/pi)^alpha
-  // https://arxiv.org/pdf/2111.06870.pdf (eq 2)
+  //  A * (0.5-arctan((t-t_0)/sigma)/pi)^alpha + B*exp(-t/beta)
+  // https://arxiv.org/pdf/2111.06870.pdf (eq 2) + the exp term
 
   if (not std::isfinite(tau) or tau <= 0.0) {
     return 0.0;
@@ -757,16 +768,24 @@ Real EOSCompOSETransition::HeatingRate(Real tau, Real ye, Real s, Real t) {
     return 0.0;
   }
 
-  tau *= code_units->TimeConversion(CGS);;
+  tau *= code_units->TimeConversion(CGS)*1e3;; //ms
   t *= code_units->TimeConversion(CGS);;
   const Real ls = log(s);
   const Real ltau = log(tau);
   // interpolate the parameters of the fit from the table
-  Real A = eval_heating_at_ltys(HA, ltau, ye, ls);
-  Real alpha = eval_heating_at_ltys(HALPHA, ltau, ye, ls);
-  Real sigma = eval_heating_at_ltys(HSIGMA, ltau, ye, ls);
+  Real A = exp(eval_heating_at_ltys(HLOGA, ltau, ye, ls));
+  Real alpha = exp(eval_heating_at_ltys(HLOGALPHA, ltau, ye, ls));
+  Real sigma = exp(eval_heating_at_ltys(HLOGSIGMA, ltau, ye, ls));
   Real t_0 = eval_heating_at_ltys(HT0, ltau, ye, ls);
-  Real rate = A * pow(0.5 - atan((t-t_0)/sigma)/M_PI, alpha);
+  Real beta = exp(eval_heating_at_ltys(HLOGBETA, ltau, ye, ls));
+  Real B = exp(eval_heating_at_ltys(HLOGB, ltau, ye, ls));
+  Real rate = A * pow(0.5 - atan((t-t_0)/sigma)/M_PI, alpha) + B*exp(-t/beta);
+  // check finiteness
+  if (not std::isfinite(rate) or rate < 0.0) {
+    printf("tau=%e, ye=%e, s=%e, t=%e\n", tau, ye, s, t);
+    printf("A=%e, alpha=%e, sigma=%e, t_0=%e, beta=%e, B=%e\n", A, alpha, sigma, t_0, beta, B);
+    return 0.0;
+  }
   return rate*CGS.SpecificInternalEnergyConversion(*code_units)/CGS.TimeConversion(*code_units);
 }
 
@@ -906,15 +925,17 @@ Real EOSCompOSETransition::eval_at_nty(int iv, Real n, Real T, Real Yq, Real Aba
 
 Real EOSCompOSETransition::TransitionFactor(Real n, Real T) const {
   Real ln = log(n);
+  Real lt = log(T);
   if (((ln > trans_ln_start) and (T > trans_T_start))
-      or ln > helm_ln_max){
-    return 0.0;
-  }
-  if ((ln < trans_ln_end) or (T < trans_T_end)) {
+      or (ln > helm_ln_max) or (lt > helm_lt_max)){
     return 1.0;
+  }
+  if ((ln < trans_ln_end) or (T < trans_T_end)
+      or (ln < comp_ln_min) or (lt < comp_lt_min)) {
+    return 0.0;
 }
 
-  Real w = 1;
+  Real w = 1.0;
   if ((T < trans_T_start) and (T > trans_T_end)) {
     w *= (T - trans_T_end)/m_trans_T_width;
   }
@@ -930,10 +951,10 @@ Real EOSCompOSETransition::eval_at_lnty(int iv, Real ln, Real lT, Real Yq, Real 
 
   Real w = TransitionFactor(n, T);
 
-  if (w == 0.0) {
+  if (w == 1.0) {
     return eval_compose_at_lnty(iv, ln, lT, Yq);
   }
-  if (w == 1.0) {
+  if (w == 0.0) {
     return eval_helm_at_lnty(iv, ln, lT, Yq, Abar, Eb);
 }
   Real q_helmholtz = eval_helm_at_lnty(iv, ln, lT, Yq, Abar, Eb);
@@ -983,7 +1004,7 @@ Real EOSCompOSETransition::eval_helm_at_lnty(int iv, Real ln, Real lT, Real Yq, 
   switch (iv) {
     case ECLOGE:
       PH_ETOT(&rho, &temp, &Abar, &Zbar, &etot, &success_flag);
-      res = log(etot*CGS.SpecificInternalEnergyConversion(*eos_units) + Eb);
+      res = log(etot * CGS.SpecificInternalEnergyConversion(*eos_units) + Eb);
       break;
     case ECLOGP:
       PH_PTOT(&rho, &temp, &Abar, &Zbar, &ptot, &success_flag);
@@ -1052,34 +1073,68 @@ Real EOSCompOSETransition::eval_heating_at_ltys(int iv, Real lt, Real ye, Real l
   h_weight_idx_ye(&wy0, &wy1, &iy, ye);
   h_weight_idx_ls(&ws0, &ws1, &is, ls);
 
-  return
-    wt0 * (wy0 * (ws0 * m_table[index(iv, it+0, iy+0, is+0)]   +
-                  ws1 * m_table[index(iv, it+0, iy+0, is+1)])  +
-           wy1 * (ws0 * m_table[index(iv, it+0, iy+1, is+0)]   +
-                  ws1 * m_table[index(iv, it+0, iy+1, is+1)])) +
-    wt1 * (wy0 * (ws0 * m_table[index(iv, it+1, iy+0, is+0)]   +
-                  ws1 * m_table[index(iv, it+1, iy+0, is+1)])  +
-           wy1 * (ws0 * m_table[index(iv, it+1, iy+1, is+0)]   +
-                  ws1 * m_table[index(iv, it+1, iy+1, is+1)]));
+  Real v =
+    wt0 * (ws0 * (wy0 * m_heating_table[h_index(iv, it+0, is+0, iy+0)]   +
+                  wy1 * m_heating_table[h_index(iv, it+0, is+0, iy+1)])  +
+           ws1 * (wy0 * m_heating_table[h_index(iv, it+0, is+1, iy+0)]   +
+                  wy1 * m_heating_table[h_index(iv, it+0, is+1, iy+1)])) +
+    wt1 * (ws0 * (wy0 * m_heating_table[h_index(iv, it+1, is+0, iy+0)]   +
+                  wy1 * m_heating_table[h_index(iv, it+1, is+0, iy+1)])  +
+           ws1 * (wy0 * m_heating_table[h_index(iv, it+1, is+1, iy+0)]   +
+                  wy1 * m_heating_table[h_index(iv, it+1, is+1, iy+1)]));
+  return v;
 }
 
 void EOSCompOSETransition::h_weight_idx_lt(Real *w0, Real *w1, int *it, Real log_tau) const {
   *it = (log_tau - m_heating_ltau[0])*m_h_id_lt;
-  *it = max(0, min(m_h_nt-2, *it));
+  //*it = max(0, min(m_h_nt-2, *it));
+  if (*it < 0) {
+    *it = 0;
+    *w1 = 0;
+    *w0 = 1;
+    return;
+  } else if (*it > m_h_nt-2) {
+    *it = m_h_nt-2;
+    *w1 = 1;
+    *w0 = 0;
+    return;
+  }
   *w1 = (log_tau - m_heating_ltau[*it])*m_h_id_lt;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSETransition::h_weight_idx_ye(Real *w0, Real *w1, int *iy, Real ye) const {
   *iy = (ye - m_heating_ye[0])*m_h_id_y;
-  *iy = max(0, min(m_h_ny-2, *iy));
+  // *iy = max(0, min(m_h_ny-2, *iy));
+  if (*iy < 0) {
+    *iy = 0;
+    *w1 = 0;
+    *w0 = 1;
+    return;
+  } else if (*iy > m_h_ny-2) {
+    *iy = m_h_ny-2;
+    *w1 = 1;
+    *w0 = 0;
+    return;
+  }
   *w1 = (ye - m_heating_ye[*iy])*m_h_id_y;
   *w0 = 1.0 - (*w1);
 }
 
 void EOSCompOSETransition::h_weight_idx_ls(Real *w0, Real *w1, int *is, Real log_s) const {
   *is = (log_s - m_heating_ls[0])*m_h_id_ls;
-  *is = max(0, min(m_h_ns-2, *is));
+  // *is = max(0, min(m_h_ns-2, *is));
+  if (*is < 0) {
+    *is = 0;
+    *w1 = 0;
+    *w0 = 1;
+    return;
+  } else if (*is > m_h_ns-2) {
+    *is = m_h_ns-2;
+    *w1 = 1;
+    *w0 = 0;
+    return;
+  }
   *w1 = (log_s - m_heating_ls[*is])*m_h_id_ls;
   *w0 = 1.0 - (*w1);
 }

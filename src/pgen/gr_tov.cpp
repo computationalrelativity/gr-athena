@@ -1295,13 +1295,19 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #if USETM
           w_p_(i) = ceos->GetPressure(w_rho_(i));
 #if NSCALARS > 0
-          for (int l=0; l<ceos->GetNSpecies(); ++l)
-            prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
+          prim_scalar(0,i) = ceos->GetY(w_rho_(i), 0); // Ye
+#endif
+#if EOS_POLICY_CODE == 4
+          prim_scalar(1,i) = ceos->GetY(w_rho_(i), 1); // Abar
+          prim_scalar(2,i) = 0.0; // binding energy
+          prim_scalar(3,i) = ceos->GetEntropy(w_rho_(i)); // freezeout  entropy
+          prim_scalar(4,i) = 0.0; // freezeout tau
+          prim_scalar(5,i) = ceos->GetY(w_rho_(i), 0); // freezeout Ye
+          prim_scalar(6,i) = 1.0; // time of freezeout
 #endif
 #else
           w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
 #endif
-
 
           // Add velocity perturbation
           const Real x_kji = r_(i) / R;

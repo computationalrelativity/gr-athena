@@ -213,14 +213,13 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
   std::string table = pin->GetString("hydro", "table");
 
-  // read in species names
-  std::string species_names[NSCALARS];
-  for (int i = 0; i < NSCALARS; i++) {
-    species_names[i] = pin->GetOrAddString("hydro", "species_" + std::to_string(i), "Y[e]");
-  }
-
-  eos->ReadColdSliceFromFile(table, species_names);
+  eos->ReadColdSliceFromFile(table);
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+
+#if defined(USE_COMPOSE_TRANSITION_EOS)
+  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 929.4); // slightly below Fe56 mass/baryon in MeV
+  eos->UpdateBaryonMass(baryon_mass);
+#endif
 
 #elif defined(USE_IDEAL_GAS)
   Real k_adi = pin->GetReal("hydro", "k_adi");
@@ -541,9 +540,8 @@ void EquationOfState::ConservedToPrimitive(
       }
 
 #if defined(USE_COMPOSE_TRANSITION_EOS)
-      NuclearBinding(prim, prim_scalar, pco, gsc, ph->derived_ms, k, j, i);
+      NuclearBinding(prim, prim_scalar, pco, gsc, pmy_block_->phydro->derived_ms, k, j, i);
 #endif // USE_COMPOSE_TRANSITION_EOS
-
     }
 
     // derived quantities -----------------------------------------------------

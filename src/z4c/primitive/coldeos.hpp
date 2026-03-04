@@ -57,6 +57,7 @@ class ColdEOS : public ColdEOSPolicy {
     using ColdEOSPolicy::dPdn;
     using ColdEOSPolicy::SpecificInternalEnergy;
     using ColdEOSPolicy::Y;
+    using ColdEOSPolicy::Entropy;
     using ColdEOSPolicy::Enthalpy;
     using ColdEOSPolicy::DensityFromPressure;
 
@@ -121,6 +122,15 @@ class ColdEOS : public ColdEOSPolicy {
   Real GetY(Real rho, int iy) {
       Real n = rho/GetBaryonMass();
       return Y(n, iy);
+    }
+
+    //! \fn Real GetEntropy(Real rho)
+    //
+    //  \param[in] rho  The density
+    //  \return The entropy according to the cold EOS slice.
+    Real GetEntropy(Real rho) {
+      Real n = rho/GetBaryonMass();
+      return Entropy(n)* eos_units->EntropyConversion(*code_units);
     }
 
     //! \fn Real GetEnthalpy(Real rho)
