@@ -656,7 +656,9 @@ void EquationOfState::DerivedQuantities(
     hyd_der_ms(IX_CS2,k,j,i) = std::min(
       hyd_der_ms(IX_CS2,k,j,i), max_cs2
     );
-    hyd_der_ms(IX_OM,k,j,i) = (y*vWx - x*vWy)/std::sqrt(SQR(x) + SQR(y));
+    Real Vx = hyd_der_int(IX_TR_V1,k,j,i);
+    Real Vy = hyd_der_int(IX_TR_V2,k,j,i);
+    hyd_der_ms(IX_OM,k,j,i) = (x*Vy - y*Vx)/(SQR(x) + SQR(y));
 
 
 #if MAGNETIC_FIELDS_ENABLED

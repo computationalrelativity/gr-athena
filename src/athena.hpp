@@ -167,7 +167,7 @@ enum HydroDerivedIndex {
   IX_U_d_0=6, // u_t (downstairs)
   IX_HU_d_0=7,   // h/h_inf u_t
   IX_CS2=8,   // cs^2
-  IX_OM=9,     // Omega = y Wv^x - x Wv^y /(x^2 + y^2)^(1/2) angular velocity
+  IX_OM=9,     // Omega = (- y (alpha v^x -beta^x) + x (alpha v^y - beta^y)) /(x^2 + y^2) angular velocity
   NDRV_HYDRO=10};
 
 // Hydro-derived quantities for internal use
