@@ -315,7 +315,13 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
   M1_FLOOP3(k, j, i)
   if (calc_state(k, j, i) == cstate::need)
   {
+#if (M1_BNS_NURATES)
+    // corrections must not be used if nurates reconstructs
+    // the distributionfunction from the M1 quantities
+    const bool use_correction = b.nrates_use_eq_distr;
+#else
     const bool use_correction = true;
+#endif
     const Real tau =
       std::min(opu.CalculateTau(NUE, k, j, i), opu.CalculateTau(NUA, k, j, i));
     opu.OpacityKirchoffCorrected(dt, tau, k, j, i, use_correction);
