@@ -25,6 +25,7 @@ class BNSNuRates
   public:
   // Shared utility object (public so pipeline code can access opu members)
   Common::OpacityUtils opu;
+  bool nrates_use_eq_distr;
 
   BNSNuRates(MeshBlock* pmb, M1* pm1, ParameterInput* pin)
       : pm1(pm1),
@@ -66,6 +67,8 @@ class BNSNuRates
     // Create sub-objects
     pmy_eos     = new Common::EoS::EoSWrapper(opu.opt, &(pmb->peos->GetEOS()));
     pmy_nurates = new BNSNu_Wrapper::BNSNuRatesWrapper(pmy_eos, pin, opu.opt);
+
+    nrates_use_eq_distr = pmy_nurates->UseEquilibriumDistribution();
 
     // Cache unit pointers
     code_units = pmy_eos->GetCodeUnits();
