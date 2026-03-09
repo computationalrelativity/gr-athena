@@ -295,7 +295,8 @@ SurfaceCartesian::SurfaceCartesian(
   // extract interpolater variety ---------------------------------------------
   {
     static const std::map<std::string, variety_interpolator> opt_vi {
-      {"Lagrange", variety_interpolator::Lagrange}
+      {"Lagrange", variety_interpolator::Lagrange},
+      {"LagrangeLinear", variety_interpolator::LagrangeLinear}
     };
 
     const std::string par_name = "interpolator";
@@ -409,6 +410,14 @@ SurfaceCartesian::SurfaceCartesian(
   this->N_y = ny(use_ix);
   this->N_z = nz(use_ix);
 
+  if ((this->N_x < 1) || (this->N_y < 1) || (this->N_z < 1))
+  {
+    std::ostringstream msg;
+    msg << psurfs->par_block_name << "/nx,ny,nz "
+        << "entries must each be >= 1.\n";
+    ATHENA_ERROR(msg);
+  }
+
   N_pts = this->N_x * this->N_y * this->N_z;
 
   // prepare grids ------------------------------------------------------------
@@ -451,6 +460,15 @@ SurfaceCartesian::SurfaceCartesian(
 
       mask_pinterp_Lag_cc.Fill(nullptr);
       mask_pinterp_Lag_vc.Fill(nullptr);
+      break;
+    }
+    case variety_interpolator::LagrangeLinear:
+    {
+      mask_pinterp_LagLinear_cc.NewAthenaArray(N_x, N_y, N_z);
+      mask_pinterp_LagLinear_vc.NewAthenaArray(N_x, N_y, N_z);
+
+      mask_pinterp_LagLinear_cc.Fill(nullptr);
+      mask_pinterp_LagLinear_vc.Fill(nullptr);
       break;
     }
     default:
@@ -526,10 +544,59 @@ void SurfaceCartesian::PrepareInterpolatorAtPoint(
                                                  tar_coord);
 
       mask_pinterp_Lag_vc(i,j,k) = new LagInterp(origin_vc,
-                                                 delta_vc,
-                                                 size_vc,
-                                                 tar_coord);
+                                                  delta_vc,
+                                                  size_vc,
+                                                  tar_coord);
 
+      break;
+    }
+    case variety_interpolator::LagrangeLinear:
+    {
+      if (mask_pinterp_LagLinear_cc(i,j,k) != nullptr)
+      {
+        delete mask_pinterp_LagLinear_cc(i,j,k);
+        mask_pinterp_LagLinear_cc(i,j,k) = nullptr;
+      }
+
+      if (mask_pinterp_LagLinear_vc(i,j,k) != nullptr)
+      {
+        delete mask_pinterp_LagLinear_vc(i,j,k);
+        mask_pinterp_LagLinear_vc(i,j,k) = nullptr;
+      }
+
+      const Real origin_cc[N] = {
+        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
+      };
+      const Real delta_cc[N] = {
+        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
+      };
+      const int size_cc[N] = {
+        pmb->ncells1, pmb->ncells2, pmb->ncells3
+      };
+
+      const Real origin_vc[N] = {
+        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
+      };
+      const Real delta_vc[N] = {
+        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
+      };
+      int size_vc[N] = {
+        pmb->nverts1, pmb->nverts2, pmb->nverts3
+      };
+
+      Real tar_coord[N] = {
+        x(i), y(j), z(k)
+      };
+
+      mask_pinterp_LagLinear_cc(i,j,k) = new LagInterpLinear(origin_cc,
+                                                              delta_cc,
+                                                              size_cc,
+                                                              tar_coord);
+
+      mask_pinterp_LagLinear_vc(i,j,k) = new LagInterpLinear(origin_vc,
+                                                              delta_vc,
+                                                              size_vc,
+                                                              tar_coord);
       break;
     }
     default:
@@ -609,6 +676,21 @@ void SurfaceCartesian::TearDownInterpolators()
         {
           delete mask_pinterp_Lag_vc(i,j,k);
           mask_pinterp_Lag_vc(i,j,k) = nullptr;
+        }
+        break;
+      }
+      case variety_interpolator::LagrangeLinear:
+      {
+        if (mask_pinterp_LagLinear_cc(i,j,k) != nullptr)
+        {
+          delete mask_pinterp_LagLinear_cc(i,j,k);
+          mask_pinterp_LagLinear_cc(i,j,k) = nullptr;
+        }
+
+        if (mask_pinterp_LagLinear_vc(i,j,k) != nullptr)
+        {
+          delete mask_pinterp_LagLinear_vc(i,j,k);
+          mask_pinterp_LagLinear_vc(i,j,k) = nullptr;
         }
         break;
       }
@@ -747,6 +829,28 @@ Real SurfaceCartesian::InterpolateAtPoint(
       {
         if (mask_pinterp_Lag_vc(tar_i,tar_j,tar_k) != nullptr)
           res = mask_pinterp_Lag_vc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+      }
+      else
+      {
+        assert(false);
+      }
+      break;
+    }
+    case (variety_interpolator::LagrangeLinear):
+    {
+      if (vs == Surfaces::variety_base_grid::cc)
+      {
+        if (mask_pinterp_LagLinear_cc(tar_i,tar_j,tar_k) != nullptr)
+        {
+          res = mask_pinterp_LagLinear_cc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        }
+      }
+      else if (vs == Surfaces::variety_base_grid::vc)
+      {
+        if (mask_pinterp_LagLinear_vc(tar_i,tar_j,tar_k) != nullptr)
+        {
+          res = mask_pinterp_LagLinear_vc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        }
       }
       else
       {

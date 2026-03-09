@@ -325,7 +325,7 @@ class SurfaceCylindrical : public Surface
 
   public:
     enum class variety_sampling { uniform };
-    enum class variety_interpolator { Lagrange };
+    enum class variety_interpolator { Lagrange, LagrangeLinear };
 
     SurfaceCylindrical(Mesh *pm,
                        ParameterInput *pin,
@@ -355,6 +355,7 @@ class SurfaceCylindrical : public Surface
 
     // For storage of interpolators / target point masks
     typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+    typedef LagrangeInterpND<1, 3> LagInterpLinear;
 
     // (i,j) = pointer to MeshBlock (if it exists) within Mesh
     // that contains (th_i, th_j)
@@ -362,6 +363,8 @@ class SurfaceCylindrical : public Surface
 
     AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
     AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;
@@ -412,7 +415,7 @@ class SurfaceCartesian : public Surface
 
   public:
     enum class variety_sampling { uniform, cgl };
-    enum class variety_interpolator { Lagrange };
+    enum class variety_interpolator { Lagrange, LagrangeLinear };
 
     SurfaceCartesian(Mesh *pm,
                      ParameterInput *pin,
@@ -445,6 +448,7 @@ class SurfaceCartesian : public Surface
 
     // For storage of interpolators / target point masks
     typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+    typedef LagrangeInterpND<1, 3> LagInterpLinear;
 
     // (i,j) = pointer to MeshBlock (if it exists) within Mesh
     // that contains (th_i, th_j)
@@ -452,6 +456,8 @@ class SurfaceCartesian : public Surface
 
     AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
     AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;
@@ -460,6 +466,11 @@ class SurfaceCartesian : public Surface
 
     inline void uniform_gr_x(aliases::AA & x_in)
     {
+      if (N_x == 1)
+      {
+        x_in(0) = 0.5 * (x_min + x_max);
+        return;
+      }
       const Real dx = (x_max-x_min) / static_cast<Real>(N_x - 1);
       for (int n=0; n<N_x; ++n)
       {
@@ -469,6 +480,11 @@ class SurfaceCartesian : public Surface
 
     inline void uniform_gr_y(aliases::AA & y_in)
     {
+      if (N_y == 1)
+      {
+        y_in(0) = 0.5 * (y_min + y_max);
+        return;
+      }
       const Real dy = (y_max-y_min) / static_cast<Real>(N_y - 1);
       for (int n=0; n<N_y; ++n)
       {
@@ -478,6 +494,11 @@ class SurfaceCartesian : public Surface
 
     inline void uniform_gr_z(aliases::AA & z_in)
     {
+      if (N_z == 1)
+      {
+        z_in(0) = 0.5 * (z_min + z_max);
+        return;
+      }
       const Real dz = (z_max-z_min) / static_cast<Real>(N_z - 1);
       for (int n=0; n<N_z; ++n)
       {
@@ -487,6 +508,11 @@ class SurfaceCartesian : public Surface
 
     inline void cgl_gr_x(aliases::AA & x_in)
     {
+      if (N_x == 1)
+      {
+        x_in(0) = 0.5 * (x_min + x_max);
+        return;
+      }
       const Real mi = 0.5 * (x_min + x_max);
       const Real hr = 0.5 * (x_max - x_min);
 
@@ -498,6 +524,11 @@ class SurfaceCartesian : public Surface
 
     inline void cgl_gr_y(aliases::AA & y_in)
     {
+      if (N_y == 1)
+      {
+        y_in(0) = 0.5 * (y_min + y_max);
+        return;
+      }
       const Real mi = 0.5 * (y_min + y_max);
       const Real hr = 0.5 * (y_max - y_min);
 
@@ -509,6 +540,11 @@ class SurfaceCartesian : public Surface
 
     inline void cgl_gr_z(aliases::AA & z_in)
     {
+      if (N_z == 1)
+      {
+        z_in(0) = 0.5 * (z_min + z_max);
+        return;
+      }
       const Real mi = 0.5 * (z_min + z_max);
       const Real hr = 0.5 * (z_max - z_min);
 
@@ -544,7 +580,7 @@ class SurfaceSpherical : public Surface
 
   public:
     enum class variety_sampling { uniform };
-    enum class variety_interpolator { Lagrange };
+    enum class variety_interpolator { Lagrange, LagrangeLinear };
 
     SurfaceSpherical(Mesh *pm,
                      ParameterInput *pin,
@@ -573,6 +609,7 @@ class SurfaceSpherical : public Surface
 
     // For storage of interpolators / target point masks
     typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+    typedef LagrangeInterpND<1, 3> LagInterpLinear;
 
     // (i,j) = pointer to MeshBlock (if it exists) within Mesh
     // that contains (th_i, th_j)
@@ -580,6 +617,8 @@ class SurfaceSpherical : public Surface
 
     AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
     AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
+    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;

@@ -292,7 +292,8 @@ SurfaceCylindrical::SurfaceCylindrical(
   // extract interpolater variety ---------------------------------------------
   {
     static const std::map<std::string, variety_interpolator> opt_vi {
-      {"Lagrange", variety_interpolator::Lagrange}
+      {"Lagrange", variety_interpolator::Lagrange},
+      {"LagrangeLinear", variety_interpolator::LagrangeLinear}
     };
 
     const std::string par_name = "interpolator";
@@ -463,6 +464,15 @@ SurfaceCylindrical::SurfaceCylindrical(
       mask_pinterp_Lag_vc.Fill(nullptr);
       break;
     }
+    case variety_interpolator::LagrangeLinear:
+    {
+      mask_pinterp_LagLinear_cc.NewAthenaArray(N_ph, N_z);
+      mask_pinterp_LagLinear_vc.NewAthenaArray(N_ph, N_z);
+
+      mask_pinterp_LagLinear_cc.Fill(nullptr);
+      mask_pinterp_LagLinear_vc.Fill(nullptr);
+      break;
+    }
     default:
     {
       assert(false);
@@ -536,9 +546,59 @@ void SurfaceCylindrical::PrepareInterpolatorAtPoint(
                                                tar_coord);
 
       mask_pinterp_Lag_vc(i,j) = new LagInterp(origin_vc,
-                                               delta_vc,
-                                               size_vc,
-                                               tar_coord);
+                                                delta_vc,
+                                                size_vc,
+                                                tar_coord);
+
+      break;
+    }
+    case variety_interpolator::LagrangeLinear:
+    {
+      if (mask_pinterp_LagLinear_cc(i,j) != nullptr)
+      {
+        delete mask_pinterp_LagLinear_cc(i,j);
+        mask_pinterp_LagLinear_cc(i,j) = nullptr;
+      }
+
+      if (mask_pinterp_LagLinear_vc(i,j) != nullptr)
+      {
+        delete mask_pinterp_LagLinear_vc(i,j);
+        mask_pinterp_LagLinear_vc(i,j) = nullptr;
+      }
+
+      const Real origin_cc[N] = {
+        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
+      };
+      const Real delta_cc[N] = {
+        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
+      };
+      const int size_cc[N] = {
+        pmb->ncells1, pmb->ncells2, pmb->ncells3
+      };
+
+      const Real origin_vc[N] = {
+        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
+      };
+      const Real delta_vc[N] = {
+        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
+      };
+      int size_vc[N] = {
+        pmb->nverts1, pmb->nverts2, pmb->nverts3
+      };
+
+      Real tar_coord[N] = {
+        x_o_ph_z(0,i,j), x_o_ph_z(1,i,j), x_o_ph_z(2,i,j)
+      };
+
+      mask_pinterp_LagLinear_cc(i,j) = new LagInterpLinear(origin_cc,
+                                                            delta_cc,
+                                                            size_cc,
+                                                            tar_coord);
+
+      mask_pinterp_LagLinear_vc(i,j) = new LagInterpLinear(origin_vc,
+                                                            delta_vc,
+                                                            size_vc,
+                                                            tar_coord);
 
       break;
     }
@@ -619,6 +679,21 @@ void SurfaceCylindrical::TearDownInterpolators()
         {
           delete mask_pinterp_Lag_vc(i,j);
           mask_pinterp_Lag_vc(i,j) = nullptr;
+        }
+        break;
+      }
+      case variety_interpolator::LagrangeLinear:
+      {
+        if (mask_pinterp_LagLinear_cc(i,j) != nullptr)
+        {
+          delete mask_pinterp_LagLinear_cc(i,j);
+          mask_pinterp_LagLinear_cc(i,j) = nullptr;
+        }
+
+        if (mask_pinterp_LagLinear_vc(i,j) != nullptr)
+        {
+          delete mask_pinterp_LagLinear_vc(i,j);
+          mask_pinterp_LagLinear_vc(i,j) = nullptr;
         }
         break;
       }
@@ -757,6 +832,28 @@ Real SurfaceCylindrical::InterpolateAtPoint(
       {
         if (mask_pinterp_Lag_vc(tar_i,tar_j) != nullptr)
           res = mask_pinterp_Lag_vc(tar_i,tar_j)->eval(raw_cpt.data());
+      }
+      else
+      {
+        assert(false);
+      }
+      break;
+    }
+    case (variety_interpolator::LagrangeLinear):
+    {
+      if (vs == Surfaces::variety_base_grid::cc)
+      {
+        if (mask_pinterp_LagLinear_cc(tar_i,tar_j) != nullptr)
+        {
+          res = mask_pinterp_LagLinear_cc(tar_i,tar_j)->eval(raw_cpt.data());
+        }
+      }
+      else if (vs == Surfaces::variety_base_grid::vc)
+      {
+        if (mask_pinterp_LagLinear_vc(tar_i,tar_j) != nullptr)
+        {
+          res = mask_pinterp_LagLinear_vc(tar_i,tar_j)->eval(raw_cpt.data());
+        }
       }
       else
       {
