@@ -31,6 +31,8 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
+#include <gsl/gsl_multiroots.h>
+#include <gsl/gsl_vector.h>
 #endif // defined(GSL)
 
 // Forward declarations
@@ -55,6 +57,12 @@ public:
 #if defined(GSL)
   gsl_root_fsolver   * gsl_brent_solver;
   gsl_root_fdfsolver * gsl_newton_solver;
+
+  // Pre-allocated multiroot solvers for implicit integrators (reused per cell)
+  static constexpr size_t GSL_N_SYS = 1 + M1_NDIM;  // E + F_d (= 4)
+  gsl_multiroot_fsolver   * gsl_hybrids_solver;   // FD Jacobian
+  gsl_multiroot_fdfsolver * gsl_hybridsj_solver;  // analytic Jacobian
+  gsl_vector              * gsl_U_i;              // scratch vector
 #endif // defined(GSL)
 
 // methods ====================================================================

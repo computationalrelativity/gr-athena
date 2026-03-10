@@ -63,7 +63,7 @@ CellCenteredXBoundaryVariable::CellCenteredXBoundaryVariable(
 #ifdef MPI_PARALLEL
   // KGF: dead code, leaving for now:
   // cc_phys_id_ = pbval_->ReserveTagVariableIDs(1);
-  cx_phys_id_ = pbval_->bvars_next_phys_id_;
+  cx_phys_id_ = pbval_->AdvanceCounterPhysID(1);
 #endif
   if (pmy_mesh_->multilevel) { // SMR or AMR
     // InitBoundaryData(bd_var_flcor_, BoundaryQuantity::cc_flcor);

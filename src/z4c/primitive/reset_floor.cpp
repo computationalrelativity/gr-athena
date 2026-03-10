@@ -69,9 +69,9 @@ Error ResetFloor::MagnetizationResponse(Real& bsq, Real b_u[3]) {
     Real factor = std::sqrt(max_bsq/bsq);
     bsq = max_bsq;
 
-    b_u[0] /= factor;
-    b_u[1] /= factor;
-    b_u[2] /= factor;
+    b_u[0] *= factor;
+    b_u[1] *= factor;
+    b_u[2] *= factor;
 
     return Error::CONS_ADJUSTED;
   }

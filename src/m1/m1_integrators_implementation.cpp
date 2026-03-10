@@ -455,8 +455,8 @@ void StepImplicitHybrids(
   {
     const size_t N_SYS = 1 + N;
 
-    // values to iterate (seed with initial guess)
-    gsl_vector *U_i = gsl_vector_alloc(N_SYS);
+    // Reuse pre-allocated solver and vector from M1 class
+    gsl_vector *U_i = pm1.gsl_U_i;
     gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
 
     // select function & solver -----------------------------------------------
@@ -465,9 +465,7 @@ void StepImplicitHybrids(
     struct gsl_params par = {pm1, dt, C, P, I, S, _J,
                              i, j, k};
     gsl_multiroot_function mrf = {&Z_E_F_d, N_SYS, &par};
-    gsl_multiroot_fsolver *slv = gsl_multiroot_fsolver_alloc(
-      gsl_multiroot_fsolver_hybrids,
-      N_SYS);
+    gsl_multiroot_fsolver *slv = pm1.gsl_hybrids_solver;
 
     int gsl_status = gsl_multiroot_fsolver_set(slv, &mrf, U_i);
 
@@ -590,10 +588,6 @@ void StepImplicitHybrids(
       pm1.opt_closure.variety = opt_cl;
     }
 
-    // cleanup ----------------------------------------------------------------
-    gsl_multiroot_fsolver_free(slv);
-    gsl_vector_free(U_i);
-
     // Ensure update preserves energy non-negativity
     EnforcePhysical_E_F_d(pm1, C, k, j, i);
   }
@@ -621,8 +615,8 @@ void StepImplicitHybridsJ(
   {
     const size_t N_SYS = 1 + N;
 
-    // values to iterate (seed with initial guess)
-    gsl_vector *U_i = gsl_vector_alloc(N_SYS);
+    // Reuse pre-allocated solver and vector from M1 class
+    gsl_vector *U_i = pm1.gsl_U_i;
     gsl_T2V_E_F_d(U_i, C, k, j, i);                  // C->U_i
 
     // select function & solver -----------------------------------------------
@@ -636,9 +630,7 @@ void StepImplicitHybridsJ(
                                       &ZdZ_E_F_d,
                                       N_SYS,
                                       &par};
-    gsl_multiroot_fdfsolver *slv = gsl_multiroot_fdfsolver_alloc(
-      gsl_multiroot_fdfsolver_hybridsj,
-      N_SYS);
+    gsl_multiroot_fdfsolver *slv = pm1.gsl_hybridsj_solver;
 
 
     int gsl_status = gsl_multiroot_fdfsolver_set(slv, &mrf, U_i);
@@ -783,10 +775,6 @@ void StepImplicitHybridsJ(
 
       pm1.opt_closure.variety = opt_cl;
    }
-
-    // cleanup ----------------------------------------------------------------
-    gsl_multiroot_fdfsolver_free(slv);
-    gsl_vector_free(U_i);
 
     // Ensure update preserves energy non-negativity
     EnforcePhysical_E_F_d(pm1, C, k, j, i);

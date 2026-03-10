@@ -633,8 +633,8 @@ void M1::CalcUpdate(const int stage,
 
   // should we enforce the equilibrium ? --------------------------------------
   if (opt_solver.equilibrium_enforce ||
-      (opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
-      (stage == 1))
+      ((opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
+       (stage == 1)))
   {
 
     for (int k=kl; k<=ku; ++k)

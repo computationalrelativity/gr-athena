@@ -2,7 +2,7 @@
 //  \brief Defines labels for error enumerator.
 #include "ps_error.hpp"
 
-std::string Primitive::ErrorString[10] = {"SUCCESS",
+std::string Primitive::ErrorString[11] = {"SUCCESS",
                                           "RHO_TOO_BIG",
                                           "RHO_TOO_SMALL",
                                           "NANS_IN_CONS",
@@ -11,4 +11,5 @@ std::string Primitive::ErrorString[10] = {"SUCCESS",
                                           "NO_SOLUTION",
                                           "CONS_FLOOR",
                                           "PRIM_FLOOR",
-                                          "CONS_ADJUSTED"};
+                                          "CONS_ADJUSTED",
+                                          "EXCISED"};

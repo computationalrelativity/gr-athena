@@ -44,7 +44,7 @@ class EquationOfState {
   bool verbose = true;
   bool restrict_cs2 = false;
   Real max_cs_W = 10;  // 0.99c
-  Real max_cs2  = 1.0 - SQR(1.0 / SQR(max_cs_W));
+  Real max_cs2  = 1.0 - SQR(1.0 / max_cs_W);
   bool warn_unrestricted_cs2 = false;
   bool recompute_temperature = true;
   bool smooth_temperature = false;

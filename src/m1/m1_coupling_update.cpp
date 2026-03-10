@@ -157,8 +157,8 @@ bool M1::AreSourcesFinite(const int k, const int j, const int i)
     AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
     AT_C_sca & S_sc_nG  = sources.sc_nG(ix_g,ix_s);
 
-    if (!std::isfinite(sources.sc_E(ix_g,ix_s)(k,j,i) ||
-        !std::isfinite(sources.sc_nG(ix_g,ix_s)(k,j,i))))
+    if (!std::isfinite(sources.sc_E(ix_g,ix_s)(k,j,i)) ||
+        !std::isfinite(sources.sc_nG(ix_g,ix_s)(k,j,i)))
     {
       return false;
     }
@@ -263,7 +263,7 @@ void M1::CoupleSourcesHydro(AA & cons)
       ILOOP1(i)
       if (MaskGet(k, j, i))
       {
-        if (!std::isfinite(S_sp_F_d(k,j,i)))
+        if (!std::isfinite(S_sp_F_d(a,k,j,i)))
         {
           pm1->StatePrintPoint(
             "CoupleSourcesHydro [S_sp_F_d] non-finite",

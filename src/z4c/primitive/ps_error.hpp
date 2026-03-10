@@ -28,7 +28,7 @@ struct SolverResult {
   bool cons_adjusted;
 };
 
-extern std::string ErrorString[10];
+extern std::string ErrorString[11];
 } // namespace
 
 #endif

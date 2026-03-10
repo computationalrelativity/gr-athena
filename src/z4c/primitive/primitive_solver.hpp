@@ -603,7 +603,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
 // PrimToCon {{{
 template<typename EOSPolicy, typename ErrorPolicy>
 inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(Real prim[NPRIM], Real cons[NCONS],
-      Real bu[NMAG], Real g3d[NMETRIC]) {
+      Real bu[NMAG], Real g3d[NSPMETRIC]) {
   // Extract the primitive variables
   const Real &n = prim[IDN]; // number density
   const Real Wv_u[3] = {prim[IVX], prim[IVY], prim[IVZ]};

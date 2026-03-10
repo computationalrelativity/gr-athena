@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <limits>
+#include <mutex>
 #include <sstream>
 #include <vector>
 
@@ -279,7 +280,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   // --------------------------------------------------------------------------
   // (GSL) solver setup
-  gsl_set_error_handler_off();
+  static std::once_flag gsl_err_handler_flag;
+  std::call_once(gsl_err_handler_flag, []() {
+    gsl_set_error_handler_off();
+  });
 
   gsl_brent_solver = gsl_root_fsolver_alloc(
     gsl_root_fsolver_brent
@@ -288,6 +292,15 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   gsl_newton_solver = gsl_root_fdfsolver_alloc(
     gsl_root_fdfsolver_newton
   );
+
+  // Pre-allocate multiroot solvers for implicit integrators
+  gsl_hybrids_solver = gsl_multiroot_fsolver_alloc(
+    gsl_multiroot_fsolver_hybrids, GSL_N_SYS
+  );
+  gsl_hybridsj_solver = gsl_multiroot_fdfsolver_alloc(
+    gsl_multiroot_fdfsolver_hybridsj, GSL_N_SYS
+  );
+  gsl_U_i = gsl_vector_alloc(GSL_N_SYS);
 
   // --------------------------------------------------------------------------
   // deal with opacities
@@ -298,8 +311,9 @@ M1::~M1()
 {
   gsl_root_fsolver_free(gsl_brent_solver);
   gsl_root_fdfsolver_free(gsl_newton_solver);
-  // TODO: bug - this can't be deactivated properly with OMP
-  // gsl_set_error_handler(NULL);  // restore default handler
+  gsl_multiroot_fsolver_free(gsl_hybrids_solver);
+  gsl_multiroot_fdfsolver_free(gsl_hybridsj_solver);
+  gsl_vector_free(gsl_U_i);
 
   delete popac;
 }
