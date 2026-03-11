@@ -69,6 +69,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::Pressure;
     using EOSPolicy::Entropy;
     using EOSPolicy::Enthalpy;
+    using EOSPolicy::PressureAndEnthalpy;
     using EOSPolicy::SoundSpeed;
     using EOSPolicy::SpecificInternalEnergy;
     using EOSPolicy::BaryonChemicalPotential;
@@ -258,6 +259,24 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     inline Real GetEnthalpy(Real n, Real T, Real *Y) {
       return Enthalpy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
              (eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units));
+    }
+
+    //! \brief Fused pressure + enthalpy query.
+    //
+    //  For tabulated EOS this avoids redundant weight and log/exp computation.
+    //
+    //  \param[in]  n  The number density
+    //  \param[in]  T  The temperature
+    //  \param[in]  Y  An array of size n_species of the particle fractions.
+    //  \param[out] P  The pressure
+    //  \param[out] h  The enthalpy per mass
+    inline void GetPressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h) {
+      Real T_eos = T*code_units->TemperatureConversion(*eos_units);
+      Real P_eos, h_eos;
+      PressureAndEnthalpy(n, T_eos, Y, &P_eos, &h_eos);
+      *P = P_eos * eos_units->PressureConversion(*code_units);
+      *h = h_eos/mb *
+           (eos_units->EnergyConversion(*code_units)/eos_units->MassConversion(*code_units));
     }
 
     //! \fn Real GetMinimumEnthalpy()

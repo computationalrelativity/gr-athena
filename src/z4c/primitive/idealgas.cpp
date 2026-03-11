@@ -52,6 +52,11 @@ Real IdealGas::Enthalpy(Real n, Real T, Real *Y) {
   return mb + gamma/gammam1*T;
 }
 
+void IdealGas::PressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h) {
+  *P = n*T;
+  *h = mb + gamma/gammam1*T;
+}
+
 Real IdealGas::MinimumEnthalpy() {
   return mb;
 }

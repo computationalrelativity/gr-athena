@@ -117,15 +117,16 @@ class PrimitiveSolver {
         // Estimate the energy density.
         Real eoverD = qbar - mu*rbarsq + 1.0;
         Real ehat = D*eoverD;
-        peos->ApplyEnergyLimits(ehat, nhat, Y);
-        //eoverD = ehat/D;
+        // Note: ApplyEnergyLimits is not needed here because
+        // GetTemperatureFromE already clamps to min_T/max_T when
+        // the energy falls outside the table bounds.
 
         // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
         Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
         peos->ApplyTemperatureLimits(That);
         //ehat = peos->GetEnergy(nhat, That, Y);
-        Real Phat = peos->GetPressure(nhat, That, Y);
-        Real hhat = peos->GetEnthalpy(nhat, That, Y);
+        Real Phat, hhat;
+        peos->GetPressureAndEnthalpy(nhat, That, Y, &Phat, &hhat);
 
         // Now we can get two different estimates for nu = h/W.
         Real nu_a = hhat*iWhat;

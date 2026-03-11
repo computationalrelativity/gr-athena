@@ -65,6 +65,9 @@ class EOSCompOSE : public EOSPolicyInterface {
     /// Calculate the enthalpy per baryon using.
     Real Enthalpy(Real n, Real T, Real *Y);
 
+    /// Fused pressure + enthalpy: single weight computation for both P and h.
+    void PressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h);
+
     /// Calculate the sound speed.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
@@ -169,6 +172,10 @@ class EOSCompOSE : public EOSPolicyInterface {
   private:
     /// Low level function, not intended for outside use
     Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
+    /// Low level function with pre-computed density/composition weights
+    Real temperature_from_var_precomp(int iv, Real var,
+        Real wn0, Real wn1, int in,
+        Real wy0, Real wy1, int iy) const;
     /// Low level evaluation function, not intended for outside use
     Real eval_at_nty(int vi, Real n, Real T, Real Yq) const;
     /// Low level evaluation function, not intended for outside use
@@ -180,6 +187,19 @@ class EOSCompOSE : public EOSPolicyInterface {
     void weight_idx_yq(Real *w0, Real *w1, int *iy, Real yq) const;
     /// Evaluate interpolation weight for temperature
     void weight_idx_lt(Real *w0, Real *w1, int *it, Real log_t) const;
+
+    /// Evaluate table variable at a specific temperature index with
+    /// pre-computed density/composition weights (bilinear, 4 lookups).
+    inline Real eval_at_it(int iv,
+        Real wn0, Real wn1, int in,
+        Real wy0, Real wy1, int iy, int it) const {
+      ptrdiff_t const b00 = index(iv, in,   iy,   it);
+      ptrdiff_t const b01 = index(iv, in,   iy+1, it);
+      ptrdiff_t const b10 = index(iv, in+1, iy,   it);
+      ptrdiff_t const b11 = index(iv, in+1, iy+1, it);
+      return wn0 * (wy0 * m_table[b00] + wy1 * m_table[b01]) +
+             wn1 * (wy0 * m_table[b10] + wy1 * m_table[b11]);
+    }
 
   private:
     // Inverse of table spacing

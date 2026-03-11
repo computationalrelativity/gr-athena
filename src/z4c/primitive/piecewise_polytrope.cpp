@@ -103,6 +103,14 @@ Real PiecewisePolytrope::Enthalpy(Real n, Real T, Real *Y) {
   return (GetColdEnergy(n, p) + GetColdPressure(n, p))/n + gamma_thermal/(gamma_thermal - 1.0)*T;
 }
 
+void PiecewisePolytrope::PressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h) {
+  int p = FindPiece(n);
+  Real e_cold = GetColdEnergy(n, p);
+  Real p_cold = GetColdPressure(n, p);
+  *P = p_cold + n*T;
+  *h = (e_cold + p_cold)/n + gamma_thermal/(gamma_thermal - 1.0)*T;
+}
+
 Real PiecewisePolytrope::MinimumEnthalpy() {
   return mb;
 }

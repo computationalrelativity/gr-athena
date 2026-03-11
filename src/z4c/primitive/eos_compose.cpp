@@ -88,29 +88,56 @@ Real EOSCompOSE::s_mp = numeric_limits<Real>::quiet_NaN();
 
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
-  Real e_min = MinimumEnergy(n, Y);
-  Real e_max = MaximumEnergy(n, Y);
-//  return temperature_from_var(ECLOGE, log(e), n, Y[0]);
-  return (e <= e_min) ? min_T : (e >= e_max) ? max_T : 
-	   temperature_from_var(ECLOGE, log(e), n, Y[0]);
+  // Hoist density and composition weights: computed once, reused for
+  // bounds checks and the inner root-find.
+  int in, iy;
+  Real wn0, wn1, wy0, wy1;
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+
+  // Evaluate log(e) at the table boundaries using 4 lookups each
+  // (the temperature weight is trivially 1 at grid endpoints).
+  Real loge_min = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, 0);
+  Real loge_max = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
+  Real e_min = exp(loge_min);
+  Real e_max = exp(loge_max);
+
+  if (e <= e_min) return min_T;
+  if (e >= e_max) return max_T;
+  return temperature_from_var_precomp(ECLOGE, log(e), wn0, wn1, in, wy0, wy1, iy);
 }
 
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
-  Real p_min = MinimumPressure(n, Y);
-  Real p_max = MaximumPressure(n,Y);
+  int in, iy;
+  Real wn0, wn1, wy0, wy1;
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
 
-  return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
-	       temperature_from_var(ECLOGP, log(p), n, Y[0]);
+  Real logp_min = eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, 0);
+  Real logp_max = eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
+  Real p_min = exp(logp_min);
+  Real p_max = exp(logp_max);
+
+  if (p <= p_min) return min_T;
+  if (p >= p_max) return max_T;
+  return temperature_from_var_precomp(ECLOGP, log(p), wn0, wn1, in, wy0, wy1, iy);
 }
 
 Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real *Y) {
   assert (m_initialized);
-  Real s_min = MinimumEntropy(n, Y);
-  Real s_max = MaximumEntropy(n,Y);
+  int in, iy;
+  Real wn0, wn1, wy0, wy1;
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
 
-  return (s <= s_min) ? min_T : (s >= s_max) ? max_T :
-	       temperature_from_var(ECENT, s, n, Y[0]);
+  // Entropy is stored directly (not in log space).
+  Real s_min = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, 0);
+  Real s_max = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
+
+  if (s <= s_min) return min_T;
+  if (s >= s_max) return max_T;
+  return temperature_from_var_precomp(ECENT, s, wn0, wn1, in, wy0, wy1, iy);
 }
 
 Real EOSCompOSE::Energy(Real n, Real T, Real *Y) {
@@ -133,6 +160,48 @@ Real EOSCompOSE::Enthalpy(Real n, Real T, Real *Y) {
   Real const P = Pressure(n, T, Y);
   Real const e = Energy(n, T, Y);
   return (P + e)/n;
+}
+
+void EOSCompOSE::PressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h) {
+  assert (m_initialized);
+  Real log_n = log(n);
+  Real log_t = log(T);
+  Real Yq = Y[0];
+
+  int in, iy, it;
+  Real wn0, wn1, wy0, wy1, wt0, wt1;
+  weight_idx_ln(&wn0, &wn1, &in, log_n);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
+  weight_idx_lt(&wt0, &wt1, &it, log_t);
+
+  // Interpolate log(P) and log(e) with shared weights.
+  ptrdiff_t bp00 = index(ECLOGP, in,   iy,   it);
+  ptrdiff_t bp01 = index(ECLOGP, in,   iy+1, it);
+  ptrdiff_t bp10 = index(ECLOGP, in+1, iy,   it);
+  ptrdiff_t bp11 = index(ECLOGP, in+1, iy+1, it);
+
+  Real logP =
+    wn0 * (wy0 * (wt0 * m_table[bp00]   + wt1 * m_table[bp00+1]) +
+            wy1 * (wt0 * m_table[bp01]   + wt1 * m_table[bp01+1])) +
+    wn1 * (wy0 * (wt0 * m_table[bp10]   + wt1 * m_table[bp10+1]) +
+            wy1 * (wt0 * m_table[bp11]   + wt1 * m_table[bp11+1]));
+
+  // ECLOGE base offsets: same (in, iy, it) cell, different variable slice.
+  ptrdiff_t be00 = index(ECLOGE, in,   iy,   it);
+  ptrdiff_t be01 = index(ECLOGE, in,   iy+1, it);
+  ptrdiff_t be10 = index(ECLOGE, in+1, iy,   it);
+  ptrdiff_t be11 = index(ECLOGE, in+1, iy+1, it);
+
+  Real logE =
+    wn0 * (wy0 * (wt0 * m_table[be00]   + wt1 * m_table[be00+1]) +
+            wy1 * (wt0 * m_table[be01]   + wt1 * m_table[be01+1])) +
+    wn1 * (wy0 * (wt0 * m_table[be10]   + wt1 * m_table[be10+1]) +
+            wy1 * (wt0 * m_table[be11]   + wt1 * m_table[be11+1]));
+
+  Real Pval = exp(logP);
+  Real eval = exp(logE);
+  *P = Pval;
+  *h = (Pval + eval)/n;
 }
 
 Real EOSCompOSE::SoundSpeed(Real n, Real T, Real *Y) {
@@ -464,59 +533,58 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
   Real wn0, wn1, wy0, wy1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
   weight_idx_yq(&wy0, &wy1, &iy, Yq);
+  return temperature_from_var_precomp(iv, var, wn0, wn1, in, wy0, wy1, iy);
+}
 
-  auto f = [=](int it){
+Real EOSCompOSE::temperature_from_var_precomp(
+    int iv, Real var,
+    Real wn0, Real wn1, int in,
+    Real wy0, Real wy1, int iy) const {
+
+  // Pre-compute the four base offsets for the (iv, in, iy) cell.
+  // Temperature indices are contiguous, so f(it) = m_table[base + it].
+  ptrdiff_t const b00 = index(iv, in,   iy,   0);
+  ptrdiff_t const b01 = index(iv, in,   iy+1, 0);
+  ptrdiff_t const b10 = index(iv, in+1, iy,   0);
+  ptrdiff_t const b11 = index(iv, in+1, iy+1, 0);
+
+  // Lambda: evaluate the bilinear interpolant at temperature index it,
+  // return residual (var - interpolated_value).
+  auto f = [=](int it) -> Real {
     Real var_pt =
-      wn0 * (wy0 * m_table[index(iv, in+0, iy+0, it)]  +
-             wy1 * m_table[index(iv, in+0, iy+1, it)]) +
-      wn1 * (wy0 * m_table[index(iv, in+1, iy+0, it)]  +
-             wy1 * m_table[index(iv, in+1, iy+1, it)]);
-
+      wn0 * (wy0 * m_table[b00 + it] + wy1 * m_table[b01 + it]) +
+      wn1 * (wy0 * m_table[b10 + it] + wy1 * m_table[b11 + it]);
     return var - var_pt;
   };
 
   int ilo = 0;
-  int ihi = m_nt-1;
+  int ihi = m_nt - 1;
   Real flo = f(ilo);
   Real fhi = f(ihi);
-  while (flo*fhi>0){
-    if (ilo == ihi - 1) {
-      break;
-    } else {
-      ilo += 1;
-      flo = f(ilo);
-    }
-  }
-  if (!(flo*fhi <= 0)) {
 
-    Real flo_ = f(0);
-    Real fhi_ = f(m_nt-1);
+  // Binary search for the sign change (replaces the old linear scan).
+  // The table variable is monotone in T at fixed (n, Yq), so there is
+  // at most one sign change.  Binary search finds it in O(log m_nt).
+  if (flo * fhi > 0) {
+    // Should not happen after the caller's bounds check, but handle
+    // gracefully: bracket already at adjacent points is the best we can do.
+  } else {
+    while (ihi - ilo > 1) {
+      int ip = ilo + (ihi - ilo) / 2;
+      Real fp = f(ip);
+      if (fp * flo <= 0) {
+        ihi = ip;
+        fhi = fp;
+      } else {
+        ilo = ip;
+        flo = fp;
+      }
+    }
+  }
 
-    std::cout<<"iv: "<<iv<<std::endl;
-    std::cout<<"var: "<<var<<std::endl;
-    std::cout<<"n: "<<n<<std::endl;
-    std::cout<<"Yq: "<<Yq<<std::endl;
-    std::cout<<"flo: "<<flo<<std::endl;
-    std::cout<<"fhi: "<<fhi<<std::endl;
-    std::cout<<"varlo: "<<var - flo<<std::endl;
-    std::cout<<"varhi: "<<var - fhi<<std::endl;
-  }
-  assert(flo*fhi <= 0);
-  while (ihi - ilo > 1) {
-    int ip = ilo + (ihi - ilo)/2;
-    Real fp = f(ip);
-    if (fp*flo <= 0) {
-      ihi = ip;
-      fhi = fp;
-    }
-    else {
-      ilo = ip;
-      flo = fp;
-    }
-  }
-  assert(ihi - ilo == 1);
-  Real lthi = m_log_t[ihi];
+  assert(ihi - ilo == 1 || flo * fhi <= 0);
   Real ltlo = m_log_t[ilo];
+  Real lthi = m_log_t[ihi];
 
   if (flo == 0) {
     return exp(ltlo);
@@ -525,7 +593,8 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
     return exp(lthi);
   }
 
-  Real lt = m_log_t[ilo] - flo*(lthi - ltlo)/(fhi - flo);
+  // False-position interpolation in log-T for sub-cell accuracy.
+  Real lt = ltlo - flo * (lthi - ltlo) / (fhi - flo);
   return exp(lt);
 }
 
@@ -579,15 +648,17 @@ Real EOSCompOSE::eval_at_lnty(int iv, Real log_n, Real log_t, Real yq) const {
   weight_idx_yq(&wy0, &wy1, &iy, yq);
   weight_idx_lt(&wt0, &wt1, &it, log_t);
 
+  // Pre-compute the four base offsets; it and it+1 are contiguous.
+  ptrdiff_t const b00 = index(iv, in,   iy,   it);
+  ptrdiff_t const b01 = index(iv, in,   iy+1, it);
+  ptrdiff_t const b10 = index(iv, in+1, iy,   it);
+  ptrdiff_t const b11 = index(iv, in+1, iy+1, it);
+
   return
-    wn0 * (wy0 * (wt0 * m_table[index(iv, in+0, iy+0, it+0)]   +
-                  wt1 * m_table[index(iv, in+0, iy+0, it+1)])  +
-           wy1 * (wt0 * m_table[index(iv, in+0, iy+1, it+0)]   +
-                  wt1 * m_table[index(iv, in+0, iy+1, it+1)])) +
-    wn1 * (wy0 * (wt0 * m_table[index(iv, in+1, iy+0, it+0)]   +
-                  wt1 * m_table[index(iv, in+1, iy+0, it+1)])  +
-           wy1 * (wt0 * m_table[index(iv, in+1, iy+1, it+0)]   +
-                  wt1 * m_table[index(iv, in+1, iy+1, it+1)]));
+    wn0 * (wy0 * (wt0 * m_table[b00]   + wt1 * m_table[b00+1]) +
+            wy1 * (wt0 * m_table[b01]   + wt1 * m_table[b01+1])) +
+    wn1 * (wy0 * (wt0 * m_table[b10]   + wt1 * m_table[b10+1]) +
+            wy1 * (wt0 * m_table[b11]   + wt1 * m_table[b11+1]));
 }
 
 //#else //HDF5OUTPUT

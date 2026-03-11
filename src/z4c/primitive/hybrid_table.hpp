@@ -57,6 +57,9 @@ class HybridTable : public EOSPolicyInterface {
     /// Calculate the enthalpy per baryon using.
     Real Enthalpy(Real n, Real T, Real *Y);
 
+    /// Fused pressure + enthalpy query.
+    void PressureAndEnthalpy(Real n, Real T, Real *Y, Real *P, Real *h);
+
     /// Calculate the sound speed.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
