@@ -247,6 +247,16 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       if (FLUID_ENABLED
           && pin->GetOrAddBoolean("time", "xorder_use_fb", false))
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+      if (M1_ENABLED) {
+        bool m1_fb_E  = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E",  false);
+        bool m1_fb_nG = pin->GetOrAddBoolean("M1", "flux_lo_fallback_nG", false);
+        if (m1_fb_E || m1_fb_nG) {
+          int ngrps = pin->GetOrAddInteger("M1", "ngroups",  1);
+          int nspcs = pin->GetOrAddInteger("M1", "nspecies", 1);
+          int ngs   = M1::M1::ixn_Lab::N * ngrps * nspcs;
+          tc.AllocateM1LOFlux(nc1, nc2, nc3, ngs);
+        }
+      }
     }
   }
 
@@ -803,6 +813,16 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       if (FLUID_ENABLED
           && pin->GetOrAddBoolean("time", "xorder_use_fb", false))
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+      if (M1_ENABLED) {
+        bool m1_fb_E  = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E",  false);
+        bool m1_fb_nG = pin->GetOrAddBoolean("M1", "flux_lo_fallback_nG", false);
+        if (m1_fb_E || m1_fb_nG) {
+          int ngrps = pin->GetOrAddInteger("M1", "ngroups",  1);
+          int nspcs = pin->GetOrAddInteger("M1", "nspecies", 1);
+          int ngs   = M1::M1::ixn_Lab::N * ngrps * nspcs;
+          tc.AllocateM1LOFlux(nc1, nc2, nc3, ngs);
+        }
+      }
     }
   }
 
@@ -1521,6 +1541,21 @@ void Mesh::NewTimeStep()
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn void Mesh::ResetAllBlockDt()
+//  \brief Reset new_block_dt_ on every MeshBlock to the maximum sentinel value.
+//
+//  Called once per cycle before any physics task list runs, so that each
+//  subsystem's NewBlockTimeStep() can min-reduce against the sentinel.
+
+void Mesh::ResetAllBlockDt() {
+  MeshBlock *pmb = pblock;
+  while (pmb != nullptr) {
+    pmb->ResetBlockDt();
+    pmb = pmb->next;
+  }
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserBoundaryFunction(BoundaryFace dir, BValHydro my_bc)
 //  \brief Enroll a user-defined boundary function
 
@@ -1994,6 +2029,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
   // calculate the first time step --------------------------------------------
   #pragma omp parallel for num_threads(nthreads)
   for (int i=0; i<nmb; ++i) {
+    pmb_array[i]->ResetBlockDt();
+
     if (FLUID_ENABLED)
       pmb_array[i]->phydro->NewBlockTimeStep();
 

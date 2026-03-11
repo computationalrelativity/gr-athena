@@ -338,6 +338,10 @@ public:
     const int ix, const int iy, const int iz,
     std::string txt_head, std::string txt_tail);
 
+  // Reset per-block timestep to sentinel (max) before NewBlockTimeStep calls.
+  // Must be called once per cycle before any subsystem computes its CFL dt.
+  void ResetBlockDt();
+
 private:
   // if AMR *just* created this block, useful to know.
   bool new_from_amr = false;
@@ -504,6 +508,7 @@ class Mesh {
 
   void NewTimeStep(bool limit_dt_growth);
   void NewTimeStep();
+  void ResetAllBlockDt();
   void OutputCycleDiagnostics();
 
   // returns true when Mesh changes, false otherwise

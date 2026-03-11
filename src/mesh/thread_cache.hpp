@@ -11,10 +11,15 @@
 //    2. Low-order fallback flux scratch arrays (lo_hflux, lo_sflux) used during
 //       hybridization - moved here from per-MeshBlock storage to save memory
 //       (~2 MB per MeshBlock * nMeshBlocks -> ~2 MB * nthreads).
+//    3. M1 radiation low-order fallback flux arrays (m1_lo_flux) used during
+//       M1's property-preservation hybridization - moved here from per-MeshBlock
+//       M1::storage.flux_lo to save memory (~5 MB per MeshBlock * nMeshBlocks
+//       -> ~5 MB * nthreads).
 //
 //  Uses a staged allocation API: each subsystem's scratch is allocated by a
-//  separate method (AllocateFCGeom, AllocateLOFlux, ...).  The caller in
-//  mesh.cpp decides which to call based on compile-time and runtime flags.
+//  separate method (AllocateFCGeom, AllocateLOFlux, AllocateM1LOFlux, ...).
+//  The caller in mesh.cpp decides which to call based on compile-time and
+//  runtime flags.
 //========================================================================================
 
 // C++ headers
@@ -67,6 +72,12 @@ struct ThreadCache {
   AthenaArray<Real> lo_hflux[3];   // (NHYDRO,  ncells3, ncells2, ncells1+1) etc.
   AthenaArray<Real> lo_sflux[3];   // (NSCALARS, ncells3, ncells2, ncells1+1) etc.
 
+  // Per-thread scratch for M1 radiation low-order fallback fluxes.
+  // Face-centered arrays, one per spatial direction.  Left default-constructed
+  // (empty) unless AllocateM1LOFlux() is called.
+  // Dimensions: (ixn_Lab::N * N_GRPS * N_SPCS, ncells3, ncells2, ncells1+1) etc.
+  AthenaArray<Real> m1_lo_flux[3];
+
   //--------------------------------------------------------------------------------------
   //! \fn void AllocateFCGeom(int ncells1, int ncells2, int ncells3)
   //  \brief Allocate the FC geometry cache.  ncells include ghost cells.
@@ -105,6 +116,18 @@ struct ThreadCache {
       lo_sflux[2] = AthenaArray<Real>(NSCALARS, ncells3 + 1, ncells2, ncells1,
                                       (f3 ? DS::allocated : DS::empty));
     }
+  }
+
+  //--------------------------------------------------------------------------------------
+  //! \fn void AllocateM1LOFlux(...)
+  //  \brief Allocate M1 radiation low-order fallback flux scratch.
+  //
+  //  ncells1/2/3 include ghost cells.
+  //  ngs = ixn_Lab::N * N_GRPS * N_SPCS  (first dimension of flux arrays).
+  void AllocateM1LOFlux(int ncells1, int ncells2, int ncells3, int ngs) {
+    m1_lo_flux[0].NewAthenaArray(ngs, ncells3, ncells2, ncells1 + 1);
+    m1_lo_flux[1].NewAthenaArray(ngs, ncells3, ncells2 + 1, ncells1);
+    m1_lo_flux[2].NewAthenaArray(ngs, ncells3 + 1, ncells2, ncells1);
   }
 
   //--------------------------------------------------------------------------------------

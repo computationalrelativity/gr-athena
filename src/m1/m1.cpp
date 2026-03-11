@@ -230,14 +230,10 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
 
   if (opt.flux_lo_fallback)
   {
-    storage.flux_lo[0].NewAthenaArray(ixn_Lab::N*N_GS,
-                                      mbi.nn3, mbi.nn2, mbi.nn1 + 1);
-    storage.flux_lo[1].NewAthenaArray(ixn_Lab::N*N_GS,
-                                      mbi.nn3, mbi.nn2 + 1, mbi.nn1);
-    storage.flux_lo[2].NewAthenaArray(ixn_Lab::N*N_GS,
-                                      mbi.nn3 + 1, mbi.nn2, mbi.nn1);
-
-    SetVarAliasesFluxes(storage.flux_lo, fluxes_lo);
+    // NOTE: storage.flux_lo[3] backing memory is now allocated per-thread in
+    // ThreadCache::m1_lo_flux (see mesh.cpp).  The fluxes_lo aliases are
+    // re-bound to the thread-cache arrays at the start of each CalcFlux task
+    // invocation (see task_list_m1n0.cpp).
 
     if (opt.flux_lo_fallback_species)
     {

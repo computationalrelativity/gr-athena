@@ -15,6 +15,7 @@
 #include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
 #include <iomanip>
 #include <iostream>
+#include <limits>     // numeric_limits
 #include <sstream>
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
@@ -1213,6 +1214,24 @@ void MeshBlock::DebugMeshBlock(
 
     std::printf("%s", txt_tail.c_str());
   }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshBlock::ResetBlockDt()
+//  \brief Reset per-block timestep fields to the maximum sentinel value.
+//
+//  Must be called once per cycle before any subsystem's NewBlockTimeStep()
+//  computes a CFL-constrained dt via std::min.  Without this reset the
+//  min-reduction pattern would accumulate against the previous cycle's
+//  (or the constructor's zero-initialized) value, causing the timestep to
+//  shrink monotonically or be stuck at zero when some subsystems are disabled.
+
+void MeshBlock::ResetBlockDt() {
+  const Real real_max = std::numeric_limits<Real>::max();
+  new_block_dt_            = real_max;
+  new_block_dt_hyperbolic_ = real_max;
+  new_block_dt_parabolic_  = real_max;
+  new_block_dt_user_       = real_max;
 }
 
 //

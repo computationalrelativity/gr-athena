@@ -174,10 +174,10 @@ void Hydro::NewBlockTimeStep() {
     // otherwise, take the smallest of the hyperbolic, parabolic, user timesteps
     min_dt = std::min(min_dt, min_dt_parabolic);
   }
-  pmb->new_block_dt_ = min_dt;
-  pmb->new_block_dt_hyperbolic_ = min_dt_hyperbolic;
-  pmb->new_block_dt_parabolic_ = min_dt_parabolic;
-  pmb->new_block_dt_user_ = min_dt_user;
+  pmb->new_block_dt_ = std::min(pmb->new_block_dt_, min_dt);
+  pmb->new_block_dt_hyperbolic_ = std::min(pmb->new_block_dt_hyperbolic_, min_dt_hyperbolic);
+  pmb->new_block_dt_parabolic_ = std::min(pmb->new_block_dt_parabolic_, min_dt_parabolic);
+  pmb->new_block_dt_user_ = std::min(pmb->new_block_dt_user_, min_dt_user);
 
   return;
 }

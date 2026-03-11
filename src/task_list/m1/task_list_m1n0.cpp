@@ -7,6 +7,11 @@
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
 
+// OpenMP header
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
+
 // Athena++ headers
 #include "../../athena.hpp"
 #include "../../bvals/bvals.hpp"
@@ -17,6 +22,7 @@
 #include "../../m1/m1.hpp"
 #include "../../z4c/z4c.hpp"
 #include "../../trackers/extrema_tracker.hpp"
+#include "../../mesh/mesh.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
 
@@ -303,6 +309,18 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
       // BD: TODO- calculation could be avoided if we computed candidate soln.
       // first; but that would require another storage / a bit of refactoring.
+
+      // Bind fluxes_lo aliases to per-thread scratch (ThreadCache::m1_lo_flux)
+      // instead of per-MeshBlock storage, to reduce memory footprint.
+      {
+#ifdef OPENMP_PARALLEL
+        ThreadCache &cache = pm->thread_cache(omp_get_thread_num());
+#else
+        ThreadCache &cache = pm->thread_cache(0);
+#endif
+        pm1->SetVarAliasesFluxes(cache.m1_lo_flux, pm1->fluxes_lo);
+      }
+
       pm1->CalcFluxes(pm1->storage.u, true);
 
       // construct candidate solution -----------------------------------------

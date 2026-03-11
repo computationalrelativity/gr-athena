@@ -181,6 +181,10 @@ int main(int argc, char *argv[])
       pmesh->OutputCycleDiagnostics();
     }
 
+    // Reset per-block dt to sentinel before any subsystem computes its CFL dt.
+    // Each subsystem's NewBlockTimeStep() will min-reduce against this value.
+    pmesh->ResetAllBlockDt();
+
     if (WAVE_ENABLED)
     {
       gra::evolve::Wave_2O(ptlc, pmesh);
