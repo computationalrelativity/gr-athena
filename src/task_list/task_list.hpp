@@ -30,12 +30,17 @@ class TaskID;
 enum class TaskStatus {fail, success, next};
 enum class TaskListStatus {running, stuck, complete, nothing_to_do};
 
-// success vs. next: They are different (only) when there are more than one MeshBlock per
-// node.  When a task returns “next”, then the code processes the next Task in the same
-// MeshBlock; when it returns “success”, then the TaskList processes the next MeshBlock.
-// “next” should be used when you want to immediately start the next task, for example,
-// start sending the data just calculated in the previous task.  Otherwise, use “success”
-// to process MeshBlocks as evenly as possible.
+// success vs. next: Both mark the task as finished and satisfy downstream dependencies.
+// The difference is only in execution flow within DoAllAvailableTasks():
+//   "next"    - continues the inner for-loop, trying the next task on the same MeshBlock.
+//   "success" - returns TaskListStatus::running, exiting to the outer while-loop in
+//               DoTaskListOneStage(). The block is revisited on the next iteration, which
+//               requires an implicit OpenMP barrier.
+// Prefer "next" in virtually all cases: it allows a MeshBlock to complete its entire
+// local pipeline in one DoAllAvailableTasks() call, minimizing outer-loop iterations
+// and OpenMP barriers.  "success" should only be used if a task genuinely needs to yield
+// to allow cross-block progress (e.g., a blocking receive that cannot proceed until
+// another block's send has executed on a different thread).
 
 //----------------------------------------------------------------------------------------
 //! \class TaskID
