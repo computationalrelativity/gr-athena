@@ -14,6 +14,7 @@ using namespace Primitive;
 ResetFloor::ResetFloor() {
   fail_conserved_floor = false;
   fail_primitive_floor = false;
+  limit_momenta = false;
 #ifdef PRIMITIVE_SOLVER_ADJUST_CONSERVED
   adjust_conserved = true;
 #else
@@ -125,4 +126,18 @@ bool ResetFloor::FailureResponse(Real prim[NPRIM]) {
     prim[IYF + i] = Y_atm[i];
   }
   return true;
+}
+
+/// Cap momentum to enforce S^i S_i <= Ssq_max.
+/// Rescales all three S_i components uniformly by sqrt(Ssq_max / Ssq),
+/// preserving the momentum direction while clamping the magnitude.
+bool ResetFloor::MomentumLimits(Real Sd[3], Real Ssq, Real Ssq_max) {
+  if (limit_momenta && Ssq > Ssq_max && Ssq > 0.0) {
+    Real factor = std::sqrt(Ssq_max / Ssq);
+    Sd[0] *= factor;
+    Sd[1] *= factor;
+    Sd[2] *= factor;
+    return true;
+  }
+  return false;
 }

@@ -154,6 +154,8 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
     eos.SetSpeciesAtmosphere(atmosphere, i);
   }
 
+  // Enable or disable momentum limiting in the C2P solver.
+  eos.SetLimitMomenta(pin->GetOrAddBoolean("hydro", "limit_momenta", false));
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
   // MJ: is this needed

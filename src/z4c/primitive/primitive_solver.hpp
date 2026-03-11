@@ -460,6 +460,21 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     rsqr = Contract(r_u, r_d);
   }
   
+  // Cap momentum so that r^i r_i <= h_min * (q + 1).  When violated, the
+  // conserved state implies v >= 1 and the root-finding bracket is empty.
+  // See ApplyMomentumLimits for the full derivation.
+  {
+    Real Ssq = SquareForm(S_d, g3u);
+    if (peos->ApplyMomentumLimits(S_d, Ssq, tau, D)) {
+      solver_result.cons_adjusted = true;
+      r_d[0] = S_d[0]/D; r_d[1] = S_d[1]/D; r_d[2] = S_d[2]/D;
+      RaiseForm(r_u, r_d, g3u);
+      rsqr = Contract(r_u, r_d);
+      rb = Contract(b_u, r_d);
+      rbsqr = rb * rb;
+    }
+  }
+
   // If rsqr is identically zero, we have zero velocity and can solve the problem analytically.
   /*if (rsqr == 0.0 || rsqr == -0.0) {
     prim[IDN] = D;

@@ -13,6 +13,7 @@ DoNothing::DoNothing() {
   fail_conserved_floor = false;
   fail_primitive_floor = false;
   adjust_conserved = false;
+  limit_momenta = false;
 }
 
 bool DoNothing::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species) {
@@ -50,5 +51,9 @@ bool DoNothing::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species) 
 
 bool DoNothing::FailureResponse(Real prim[NPRIM])
 {
+  return false;
+}
+
+bool DoNothing::MomentumLimits(Real Sd[3], Real Ssq, Real Ssq_max) {
   return false;
 }

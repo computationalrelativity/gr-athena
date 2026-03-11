@@ -49,6 +49,9 @@ class ResetFloor : public ErrorPolicyInterface {
     /// Policy for dealing with failed points
     bool FailureResponse(Real prim[NPRIM]);
 
+    /// Policy for capping momentum to a physical range
+    bool MomentumLimits(Real Sd[3], Real Ssq, Real Ssq_max);
+
   public:
     /// Set the failure mode for conserved flooring
     inline void SetConservedFloorFailure(bool failure) {
@@ -63,6 +66,11 @@ class ResetFloor : public ErrorPolicyInterface {
     /// Set whether or not it's okay to adjust the conserved variables.
     inline void SetAdjustConserved(bool adjust) {
       adjust_conserved = adjust;
+    }
+
+    /// Set whether or not to apply momentum limiting.
+    inline void SetLimitMomenta(bool limit) {
+      limit_momenta = limit;
     }
 };
 

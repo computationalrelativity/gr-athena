@@ -119,6 +119,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using ErrorPolicy::PressureLimits;
     using ErrorPolicy::EnergyLimits;
     using ErrorPolicy::FailureResponse;
+    using ErrorPolicy::MomentumLimits;
 
     // ErrorPolicy member variables
     using ErrorPolicy::n_atm;
@@ -130,6 +131,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using ErrorPolicy::fail_primitive_floor;
     using ErrorPolicy::adjust_conserved;
     using ErrorPolicy::max_bsq;
+    using ErrorPolicy::limit_momenta;
 
   public:
     //! \fn EOS()
@@ -572,6 +574,52 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //! \brief Respond to excess magnetization
     inline Error DoMagnetizationResponse(Real& bsq, Real b_u[3]) {
       return MagnetizationResponse(bsq, b_u);
+    }
+
+    //! \brief Cap momentum to enforce r^i r_i <= h_min * (q + 1)
+    //
+    //  In the Kastaun et al. (2021) conservative-to-primitive framework, the
+    //  root variable mu lies in the bracket [0, 1/h_min].  A valid root exists
+    //  only when the rescaled momentum satisfies
+    //
+    //      r^i r_i  <  h_min * (q + 1),
+    //
+    //  where r_i = S_i / D is the rescaled covariant momentum and q = tau / D
+    //  is the rescaled energy.  In terms of the un-rescaled conserved
+    //  variables this reads
+    //
+    //      S^i S_i  <  D * h_min * (tau + D).
+    //
+    //  Violation means the conserved state implies a superluminal fluid
+    //  velocity (v >= 1), making the root-finding bracket empty and the
+    //  inversion unsolvable.  This can occur due to numerical truncation
+    //  error in the evolution step.
+    //
+    //  Note: the condition above is derived in the zero-B (unmagnetized)
+    //  limit and is *conservative* (sufficient but not necessary) when B != 0.
+    //
+    //  The fix rescales S_i uniformly by sqrt(Ssq_max / Ssq), which clamps
+    //  S^i S_i to the maximum physical value while preserving the momentum
+    //  direction.  The resulting state corresponds to the highest velocity
+    //  consistent with the given D, tau, and the EOS.
+    //
+    //  \param[in,out] Sd   Covariant momentum density (rescaled in-place if limited)
+    //  \param[in]     Ssq  Precomputed squared momentum norm S_i g^{ij} S_j
+    //  \param[in]     tau  Conserved energy variable (tau = e - D)
+    //  \param[in]     D    Conserved baryon density
+    //
+    //  \return true if the momentum was rescaled, false otherwise.
+    //
+    //  Reference: Kastaun et al., Phys. Rev. D 103, 023018 (2021)
+    inline bool ApplyMomentumLimits(Real Sd[3], Real Ssq, Real tau, Real D) {
+      Real h_min = GetMinimumEnthalpy();
+      Real Ssq_max = D * h_min * (tau + D);
+      return MomentumLimits(Sd, Ssq, Ssq_max);
+    }
+
+    //! \brief Enable or disable momentum limiting.
+    inline void SetLimitMomenta(bool limit) {
+      limit_momenta = limit;
     }
 
     //! \brief Limit the density to a physical range

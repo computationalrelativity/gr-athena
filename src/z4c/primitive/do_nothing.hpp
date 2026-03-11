@@ -44,6 +44,9 @@ class DoNothing : public ErrorPolicyInterface {
 
     /// Policy for dealing with failed points
     bool FailureResponse(Real prim[NPRIM]);
+
+    /// Policy for capping momentum to a physical range
+    bool MomentumLimits(Real Sd[3], Real Ssq, Real Ssq_max);
 };
 
 } // namespace
