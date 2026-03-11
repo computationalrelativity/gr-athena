@@ -7,6 +7,11 @@
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
 
+// OpenMP header
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
+
 // Athena++ classes headers
 #include "../../athena.hpp"
 #include "../../bvals/bvals.hpp"
@@ -243,10 +248,23 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
       xorder_use_fb = false;
     }
 
+    // Obtain per-thread geometry cache when hybridization is active.
+    // The HO pass stores FC geometry into the cache; the LO fallback
+    // pass loads it instead of re-interpolating.
+    ThreadCache *cache = nullptr;
+    if (xorder_use_fb) {
+#ifdef OPENMP_PARALLEL
+      cache = &pmb->pmy_mesh->thread_cache(omp_get_thread_num());
+#else
+      cache = &pmb->pmy_mesh->thread_cache(0);
+#endif
+    }
+
     ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
                         hflux, sflux,
                         xorder_style,
-                        num_enlarge_layer);
+                        num_enlarge_layer,
+                        cache);
 
     // if we fall-back and the state is all valid, no need to lmit
     bool skip_limit = false;
@@ -280,13 +298,14 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateHydroScalarFlux(
 
       if (!all_valid)
       {
-        AA(& lo_hflux)[3] = ph->lo_flux;
-        AA(& lo_sflux)[3] = ps->lo_s_flux;
+        AA(& lo_hflux)[3] = cache->lo_hflux;
+        AA(& lo_sflux)[3] = cache->lo_sflux;
 
-        ph->CalculateFluxes(ph->w, ps->r, pf->b, pf->bcc,
-                            lo_hflux, lo_sflux,
-                            pr->xorder_style_fb,
-                            num_enlarge_layer);
+        ph->CalculateFluxesCachedGeometry(ph->w, ps->r, pf->b, pf->bcc,
+                                          lo_hflux, lo_sflux,
+                                          pr->xorder_style_fb,
+                                          num_enlarge_layer,
+                                          *cache);
 
         ph->HybridizeFluxes(hflux, sflux, lo_hflux, lo_sflux, mask);
       }

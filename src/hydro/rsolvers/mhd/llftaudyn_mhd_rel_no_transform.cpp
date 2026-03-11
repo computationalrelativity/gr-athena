@@ -53,6 +53,7 @@ void Hydro::RiemannSolver(
   AT_N_sca & detgamma_,
   AT_N_sca & oo_detgamma_,
   AT_N_sca & sqrt_detgamma_,
+  AT_N_sca & oo_sqrt_detgamma_,
   AA &flux,
   AA &s_flux,
   AA &ey,
@@ -195,17 +196,6 @@ void Hydro::RiemannSolver(
     }
   }
   // --------------------------------------------------------------------------
-
-  // Continue with derived quantities -----------------------------------------
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    detgamma_(i) = SQR(sqrt_detgamma_(i));
-    oo_detgamma_(i)      = OO(detgamma_(i));
-    oo_sqrt_detgamma_(i) = OO(sqrt_detgamma_(i));
-  }
-
-  Inv3Metric(oo_detgamma_, gamma_dd_, gamma_uu_, il, iu);
 
   // lower idx
   LinearAlgebra::SlicedVecMet3Contraction(

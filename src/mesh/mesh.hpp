@@ -30,6 +30,7 @@
 #include "meshblock_tree.hpp"
 #include "../scalars/scalars.hpp"
 #include "../hydro/rescaling.hpp"
+#include "thread_cache.hpp"
 
 // Forward declarations
 class ParameterInput;
@@ -433,6 +434,7 @@ class Mesh {
   // accessors
   int GetNumMeshBlocksThisRank(int my_rank) {return nblist[my_rank];}
   int GetNumMeshThreads() const {return num_mesh_threads_;}
+  ThreadCache& thread_cache(int tid) { return thread_caches_[tid]; }
   std::int64_t GetTotalCells() {return static_cast<std::int64_t> (nbtotal)*
         pblock->block_size.nx1*pblock->block_size.nx2*pblock->block_size.nx3;}
   // FZ: Add this parameter to deal with initial data generation
@@ -617,6 +619,7 @@ private:
   int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
   int root_level, max_level, current_level;
   int num_mesh_threads_;
+  std::vector<ThreadCache> thread_caches_;
   int *nslist, *ranklist, *nblist;
   double *costlist;
   // 8x arrays used exclusively for AMR (not SMR):

@@ -236,6 +236,20 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   else
     block_size.nx3 = mesh_size.nx3;
 
+  // Allocate per-thread scratch caches
+  {
+    int nc1 = block_size.nx1 + 2*NGHOST;
+    int nc2 = (f2) ? block_size.nx2 + 2*NGHOST : 1;
+    int nc3 = (f3) ? block_size.nx3 + 2*NGHOST : 1;
+    thread_caches_.resize(num_mesh_threads_);
+    for (auto &tc : thread_caches_) {
+      tc.AllocateFCGeom(nc1, nc2, nc3);
+      if (FLUID_ENABLED
+          && pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+        tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+    }
+  }
+
   // check consistency of the block and mesh
   if (mesh_size.nx1 % block_size.nx1 != 0
       || mesh_size.nx2 % block_size.nx2 != 0
@@ -777,6 +791,20 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   block_size.nx1 = pin->GetOrAddInteger("meshblock", "nx1", mesh_size.nx1);
   block_size.nx2 = pin->GetOrAddInteger("meshblock", "nx2", mesh_size.nx2);
   block_size.nx3 = pin->GetOrAddInteger("meshblock", "nx3", mesh_size.nx3);
+
+  // Allocate per-thread scratch caches
+  {
+    int nc1 = block_size.nx1 + 2*NGHOST;
+    int nc2 = (f2) ? block_size.nx2 + 2*NGHOST : 1;
+    int nc3 = (f3) ? block_size.nx3 + 2*NGHOST : 1;
+    thread_caches_.resize(num_mesh_threads_);
+    for (auto &tc : thread_caches_) {
+      tc.AllocateFCGeom(nc1, nc2, nc3);
+      if (FLUID_ENABLED
+          && pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+        tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+    }
+  }
 
   // calculate the number of the blocks
   nrbx1 = mesh_size.nx1/block_size.nx1;

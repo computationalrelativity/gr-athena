@@ -24,6 +24,7 @@
 
 #include "../utils/floating_point.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../mesh/thread_cache.hpp"
 
 // OpenMP header
 #ifdef OPENMP_PARALLEL
@@ -45,6 +46,7 @@ void InterpolateGeometry(
   AT_N_sca & oo_detgamma_,
   AT_N_sca & detgamma_,
   AT_N_sca & sqrt_detgamma_,
+  AT_N_sca & oo_sqrt_detgamma_,
   const int ivx,
   const int k, const int j,
   const int il, const int iu
@@ -78,13 +80,20 @@ void InterpolateGeometry(
 
   // chi -> det_gamma [ADM] power
   const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+  const Real chi_half_pow = chi_pow / 2.0;
+  const Real chi_floor = pz4c->opt.chi_div_floor;
+
+  // Runtime specialization: chi_half_pow == -1.5 is the common case
+  // (chi_psi_power == -4 => chi_pow == -3 => chi_half_pow == -1.5)
+  const bool chi_special = (chi_half_pow == -1.5);
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    const Real chi = std::abs(chi_(i));
-    const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
-    sqrt_detgamma_(i) = std::pow(chi_guarded, chi_pow / 2.0);
+    const Real chi_guarded = std::max(std::abs(chi_(i)), chi_floor);
+    sqrt_detgamma_(i) = chi_special
+        ? 1.0 / (chi_guarded * std::sqrt(chi_guarded))
+        : std::pow(chi_guarded, chi_half_pow);
   }
 
   // Metric derived quantities ------------------------------------------------
@@ -95,10 +104,11 @@ void InterpolateGeometry(
   for (int i = il; i <= iu; ++i)
   {
     detgamma_(i) = SQR(sqrt_detgamma_(i));
-    oo_detgamma_(i) = 1. / detgamma_(i);
+    oo_detgamma_(i) = OO(detgamma_(i));
+    oo_sqrt_detgamma_(i) = OO(sqrt_detgamma_(i));
   }
 
-  Inv3Metric(oo_detgamma_, gamma_dd_, gamma_uu_, il, iu);
+  Inv3MetricDiag(oo_detgamma_, gamma_dd_, gamma_uu_, ivx-1, il, iu);
 
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
@@ -351,7 +361,8 @@ void Hydro::CalculateFluxes(AA &w,
                             AA(& hflux)[3],
                             AA(& sflux)[3],
                             Reconstruction::ReconstructionVariant rv,
-                            const int num_enlarge_layer)
+                            const int num_enlarge_layer,
+                            ThreadCache *cache)
 {
   if (flux_reconstruction)
   {
@@ -361,7 +372,7 @@ void Hydro::CalculateFluxes(AA &w,
     return;
   }
 
-  CalculateFluxesCombined(w,r,b,bcc,hflux,sflux,rv,num_enlarge_layer);
+  CalculateFluxesCombined(w,r,b,bcc,hflux,sflux,rv,num_enlarge_layer,cache);
   return;
 }
 
@@ -372,7 +383,8 @@ void Hydro::CalculateFluxesCombined(AA &w,
                                     AA(& hflux)[3],
                                     AA(& sflux)[3],
                                     Reconstruction::ReconstructionVariant rv,
-                                    const int num_enlarge_layer)
+                                    const int num_enlarge_layer,
+                                    ThreadCache *cache)
 {
   MeshBlock *pmb = pmy_block;
 
@@ -443,10 +455,15 @@ void Hydro::CalculateFluxesCombined(AA &w,
       oo_detgamma_,
       detgamma_,
       sqrt_detgamma_,
+      oo_sqrt_detgamma_,
       IVX,
       k, j,
       il, iu
     );
+
+    if (cache)
+      cache->StoreFCGeometry(X1DIR, k, j, il, iu,
+          alpha_, beta_u_, gamma_dd_, sqrt_detgamma_, gamma_uu_, IVX);
 
     pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
 
@@ -485,6 +502,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
       detgamma_,
       oo_detgamma_,
       sqrt_detgamma_,
+      oo_sqrt_detgamma_,
       x1flux, s_x1flux,
       e3x1, e2x1, w_x1f,
       dxw_, lambda_rescaling
@@ -549,10 +567,15 @@ void Hydro::CalculateFluxesCombined(AA &w,
           oo_detgamma_,
           detgamma_,
           sqrt_detgamma_,
+          oo_sqrt_detgamma_,
           IVY,
           k, j,
           il, iu
         );
+
+        if (cache)
+          cache->StoreFCGeometry(X2DIR, k, j, il, iu,
+              alpha_, beta_u_, gamma_dd_, sqrt_detgamma_, gamma_uu_, IVY);
 
         pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED
@@ -590,6 +613,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
           detgamma_,
           oo_detgamma_,
           sqrt_detgamma_,
+          oo_sqrt_detgamma_,
           x2flux, s_x2flux,
           e1x2, e3x2, w_x2f,
           dxw_, lambda_rescaling
@@ -656,10 +680,15 @@ void Hydro::CalculateFluxesCombined(AA &w,
           oo_detgamma_,
           detgamma_,
           sqrt_detgamma_,
+          oo_sqrt_detgamma_,
           IVZ,
           k, j,
           il, iu
         );
+
+        if (cache)
+          cache->StoreFCGeometry(X3DIR, k, j, il, iu,
+              alpha_, beta_u_, gamma_dd_, sqrt_detgamma_, gamma_uu_, IVZ);
 
         pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
 
@@ -697,6 +726,333 @@ void Hydro::CalculateFluxesCombined(AA &w,
           detgamma_,
           oo_detgamma_,
           sqrt_detgamma_,
+          oo_sqrt_detgamma_,
+          x3flux, s_x3flux,
+          e2x3, e1x3, w_x3f,
+          dxw_, lambda_rescaling
+        );
+#endif
+
+        // swap the arrays for the next step (l<->lb)
+        ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
+      }
+    }
+  }
+
+  return;
+
+}
+
+// ----------------------------------------------------------------------------
+// Like CalculateFluxesCombined, but loads FC geometry from a ThreadCache
+// instead of interpolating from the Z4c metric.  Used for the low-order
+// fallback pass in hybridization (xorder_use_fb) to avoid duplicating the
+// expensive InterpolateGeometry calls already done in the high-order pass.
+
+void Hydro::CalculateFluxesCachedGeometry(AA &w,
+                                          AA &r,
+                                          FaceField &b,
+                                          AA &bcc,
+                                          AA(& hflux)[3],
+                                          AA(& sflux)[3],
+                                          Reconstruction::ReconstructionVariant rv,
+                                          const int num_enlarge_layer,
+                                          ThreadCache &cache)
+{
+  MeshBlock *pmb = pmy_block;
+
+  Reconstruction *pr = pmb->precon;
+  PassiveScalars *ps = pmb->pscalars;
+
+  Reconstruction::ReconstructionVariant rv_w = rv;
+  Reconstruction::ReconstructionVariant rv_r = rv;
+  Reconstruction::ReconstructionVariant rv_a = rv;
+  Reconstruction::ReconstructionVariant rv_b = rv;
+
+  // For passive-scalar reconstruction
+  AA mass_flux;
+
+  int il, iu, jl, ju, kl, ku;
+
+#if MAGNETIC_FIELDS_ENABLED
+  // used only to pass to (up-to) 2x RiemannSolver() calls per dimension:
+  // x1:
+  AA &b1 = b.x1f, &w_x1f = pmb->pfield->wght.x1f,
+                  &e3x1 = pmb->pfield->e3_x1f, &e2x1 = pmb->pfield->e2_x1f;
+  // x2:
+  AA &b2 = b.x2f, &w_x2f = pmb->pfield->wght.x2f,
+                  &e1x2 = pmb->pfield->e1_x2f, &e3x2 = pmb->pfield->e3_x2f;
+  // x3:
+  AA &b3 = b.x3f, &w_x3f = pmb->pfield->wght.x3f,
+                  &e1x3 = pmb->pfield->e1_x3f, &e2x3 = pmb->pfield->e2_x3f;
+#endif
+
+  const Real lambda_rescaling = 1.0;
+  const Real eps_alpha = pmb->pz4c->opt.eps_floor;
+
+  //---------------------------------------------------------------------------
+  // i-direction
+  AA &x1flux = hflux[X1DIR];
+  AA s_x1flux;
+
+  if (NSCALARS > 0)
+  {
+    mass_flux.InitWithShallowSlice(hflux[X1DIR], 4, IDN, 1);
+    s_x1flux.InitWithShallowSlice(sflux[X1DIR], 4, 0, NSCALARS);
+  }
+
+  pr->SetIndicialLimitsCalculateFluxes(IVX, il, iu, jl, ju, kl, ku,
+                                       num_enlarge_layer);
+
+  for (int k=kl; k<=ku; ++k)
+  for (int j=jl; j<=ju; ++j)
+  {
+    ReconstructFields(
+      pmb,
+      rv_w, rv_r, rv_a, rv_b,
+      wl_, wr_,
+      rl_, rr_,
+      al_, ar_,
+      w, r, bcc, derived_ms,
+      IVX,
+      k, j, il, iu
+    );
+
+    cache.LoadFCGeometry(X1DIR, k, j, il, iu,
+        alpha_, oo_alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+        oo_sqrt_detgamma_, detgamma_, oo_detgamma_, gamma_uu_,
+        IVX, eps_alpha);
+
+    pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
+
+#if !MAGNETIC_FIELDS_ENABLED
+
+    RiemannSolver(
+      IVX, k, j, il, iu,
+      wl_, wr_,
+      rl_, rr_,
+      al_, ar_,
+      alpha_,
+      oo_alpha_,
+      beta_u_,
+      gamma_dd_,
+      detgamma_,
+      oo_detgamma_,
+      sqrt_detgamma_,
+      x1flux, s_x1flux,
+      dxw_, lambda_rescaling
+    );
+
+#else
+    // x1flux(IBY) = (v1*b2 - v2*b1) = -EMFZ
+    // x1flux(IBZ) = (v1*b3 - v3*b1) =  EMFY
+
+    RiemannSolver(
+      IVX, k, j, il, iu,
+      b1,
+      wl_, wr_,
+      rl_, rr_,
+      al_, ar_,
+      alpha_,
+      oo_alpha_,
+      beta_u_,
+      gamma_dd_,
+      detgamma_,
+      oo_detgamma_,
+      sqrt_detgamma_,
+      oo_sqrt_detgamma_,
+      x1flux, s_x1flux,
+      e3x1, e2x1, w_x1f,
+      dxw_, lambda_rescaling
+    );
+
+#endif
+
+  }
+  //---------------------------------------------------------------------------
+
+  //---------------------------------------------------------------------------
+  // j-direction
+  if (pmb->pmy_mesh->f2)
+  {
+    AA &x2flux = hflux[X2DIR];
+    AA s_x2flux;
+
+    if (NSCALARS > 0)
+    {
+      mass_flux.InitWithShallowSlice(hflux[X2DIR], 4, IDN, 1);
+      s_x2flux.InitWithShallowSlice(sflux[X2DIR], 4, 0, NSCALARS);
+    }
+
+    pr->SetIndicialLimitsCalculateFluxes(IVY, il, iu, jl, ju, kl, ku,
+                                         num_enlarge_layer);
+
+    for (int k=kl; k<=ku; ++k)
+    {
+      ReconstructFields(
+        pmb,
+        rv_w, rv_r, rv_a, rv_b,
+        wl_, wr_,
+        rl_, rr_,
+        al_, ar_,
+        w, r, bcc, derived_ms,
+        IVY,
+        k, jl-1, il, iu
+      );
+
+      for (int j=jl; j<=ju; ++j)
+      {
+
+        ReconstructFields(
+          pmb,
+          rv_w, rv_r, rv_a, rv_b,
+          wlb_, wr_,
+          rlb_, rr_,
+          alb_, ar_,
+          w, r, bcc, derived_ms,
+          IVY,
+          k, j, il, iu
+        );
+
+        cache.LoadFCGeometry(X2DIR, k, j, il, iu,
+            alpha_, oo_alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+            oo_sqrt_detgamma_, detgamma_, oo_detgamma_, gamma_uu_,
+            IVY, eps_alpha);
+
+        pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
+#if !MAGNETIC_FIELDS_ENABLED
+
+        RiemannSolver(
+          IVY, k, j, il, iu,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          x2flux, s_x2flux,
+          dxw_, lambda_rescaling
+        );
+
+#else
+        // flx(IBY) = (v2*b3 - v3*b2) = -EMFX
+        // flx(IBZ) = (v2*b1 - v1*b2) =  EMFZ
+
+        RiemannSolver(
+          IVY, k, j, il, iu,
+          b2,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          oo_sqrt_detgamma_,
+          x2flux, s_x2flux,
+          e1x2, e3x2, w_x2f,
+          dxw_, lambda_rescaling
+        );
+#endif
+
+        // swap the arrays for the next step (l<->lb)
+        ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
+      }
+    }
+  }
+
+  //---------------------------------------------------------------------------
+  // k-direction
+  if (pmb->pmy_mesh->f3)
+  {
+    AA &x3flux = hflux[X3DIR];
+    AA s_x3flux;
+
+    if (NSCALARS > 0)
+    {
+      mass_flux.InitWithShallowSlice(hflux[X3DIR], 4, IDN, 1);
+      s_x3flux.InitWithShallowSlice(sflux[X3DIR], 4, 0, NSCALARS);
+    }
+
+    pr->SetIndicialLimitsCalculateFluxes(IVZ, il, iu, jl, ju, kl, ku,
+                                         num_enlarge_layer);
+
+    for (int j=jl; j<=ju; ++j)
+    { // this loop ordering is intentional
+
+      ReconstructFields(
+        pmb,
+        rv_w, rv_r, rv_a, rv_b,
+        wl_, wr_,
+        rl_, rr_,
+        al_, ar_,
+        w, r, bcc, derived_ms,
+        IVZ,
+        kl-1, j, il, iu
+      );
+
+      for (int k=kl; k<=ku; ++k)
+      {
+        ReconstructFields(
+          pmb,
+          rv_w, rv_r, rv_a, rv_b,
+          wlb_, wr_,
+          rlb_, rr_,
+          alb_, ar_,
+          w, r, bcc, derived_ms,
+          IVZ,
+          k, j, il, iu
+        );
+
+        cache.LoadFCGeometry(X3DIR, k, j, il, iu,
+            alpha_, oo_alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+            oo_sqrt_detgamma_, detgamma_, oo_detgamma_, gamma_uu_,
+            IVZ, eps_alpha);
+
+        pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
+
+#if !MAGNETIC_FIELDS_ENABLED  // Hydro:
+
+        RiemannSolver(
+          IVZ, k, j, il, iu,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          x3flux, s_x3flux,
+          dxw_, lambda_rescaling
+        );
+#else
+        // flx(IBY) = (v3*b1 - v1*b3) = -EMFY
+        // flx(IBZ) = (v3*b2 - v2*b3) =  EMFX
+
+        RiemannSolver(
+          IVZ, k, j, il, iu,
+          b3,
+          wl_, wr_,
+          rl_, rr_,
+          al_, ar_,
+          alpha_,
+          oo_alpha_,
+          beta_u_,
+          gamma_dd_,
+          detgamma_,
+          oo_detgamma_,
+          sqrt_detgamma_,
+          oo_sqrt_detgamma_,
           x3flux, s_x3flux,
           e2x3, e1x3, w_x3f,
           dxw_, lambda_rescaling

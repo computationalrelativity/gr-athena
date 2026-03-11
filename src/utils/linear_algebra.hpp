@@ -162,6 +162,43 @@ inline void Inv3Metric(
   }
 }
 
+// compute a single diagonal component of the inverse 3-metric
+// d=0: gamma^{xx} = (gyy*gzz - gyz^2) * oodetg
+// d=1: gamma^{yy} = (gxx*gzz - gxz^2) * oodetg
+// d=2: gamma^{zz} = (gxx*gyy - gxy^2) * oodetg
+inline Real Inv3MetricDiag(
+  Real const oodetg,
+  Real const gxx, Real const gxy, Real const gxz,
+  Real const gyy, Real const gyz, Real const gzz,
+  int const d)
+{
+  switch (d) {
+    case 0: return (-SQR(gyz) + gyy*gzz)*oodetg;
+    case 1: return (-SQR(gxz) + gxx*gzz)*oodetg;
+    case 2: return (-SQR(gxy) + gxx*gyy)*oodetg;
+    default: return 0;
+  }
+}
+
+// range overload: compute diagonal gamma^{dd} for i in [il, iu]
+inline void Inv3MetricDiag(
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & oodetg,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
+  AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu,
+  int const d,
+  int const il, int const iu)
+{
+  for (int i=il; i<=iu; ++i)
+  {
+    g_uu(d,d,i) = Inv3MetricDiag(
+      oodetg(i),
+      g_dd(0,0,i), g_dd(0,1,i), g_dd(0,2,i),
+      g_dd(1,1,i), g_dd(1,2,i), g_dd(2,2,i),
+      d
+    );
+  }
+}
+
 // compute trace of a rank 2 covariant spatial tensor
 inline Real TraceRank2(
   Real const detginv,

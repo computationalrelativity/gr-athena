@@ -24,6 +24,7 @@
 
 class MeshBlock;
 class ParameterInput;
+struct ThreadCache;
 
 using namespace gra::aliases;
 
@@ -55,7 +56,6 @@ class Hydro {
   AA derived_int;
 
   AA flux[3];  // face-averaged flux vector
-  AA lo_flux[3];
 
   // storage for SMR/AMR
   // TODO(KGF): remove trailing underscore or revert to private:
@@ -248,7 +248,8 @@ public:
                        AA(& hflux)[3],
                        AA(& sflux)[3],
                        Reconstruction::ReconstructionVariant rv,
-                       const int num_enlarge_layer=0);
+                       const int num_enlarge_layer=0,
+                       ThreadCache *cache=nullptr);
 
   void CalculateFluxesCombined(AA &w,
                                AA &r,
@@ -257,7 +258,18 @@ public:
                                AA(& hflux)[3],
                                AA(& sflux)[3],
                                Reconstruction::ReconstructionVariant rv,
-                               const int num_enlarge_layer=0);
+                               const int num_enlarge_layer=0,
+                               ThreadCache *cache=nullptr);
+
+  void CalculateFluxesCachedGeometry(AA &w,
+                                     AA &r,
+                                     FaceField &b,
+                                     AA &bcc,
+                                     AA(& hflux)[3],
+                                     AA(& sflux)[3],
+                                     Reconstruction::ReconstructionVariant rv,
+                                     const int num_enlarge_layer,
+                                     ThreadCache &cache);
 
   void CheckStateWithFluxDivergence(
     const Real wght,
@@ -364,6 +376,7 @@ public:
     AT_N_sca & detgamma_,
     AT_N_sca & oo_detgamma_,
     AT_N_sca & sqrt_detgamma_,
+    AT_N_sca & oo_sqrt_detgamma_,
     AA &flux,
     AA &s_flux,
     AA &ey,
