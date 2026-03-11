@@ -28,12 +28,25 @@ using IOWrapperSizeT = std::uint64_t;
 class IOWrapper {
  public:
 #ifdef MPI_PARALLEL
-  IOWrapper() : fh_(nullptr), comm_(MPI_COMM_WORLD) {}
+  IOWrapper() : fh_(nullptr), comm_(MPI_COMM_WORLD), info_(MPI_INFO_NULL) {}
   void SetCommunicator(MPI_Comm scomm) { comm_=scomm;}
+  // Set MPI-IO hints for parallel file access.  Caller retains ownership of
+  // the MPI_Info object (IOWrapper makes a duplicate).
+  void SetMPIInfo(MPI_Info info) {
+    if (info_ != MPI_INFO_NULL) MPI_Info_free(&info_);
+    if (info != MPI_INFO_NULL)
+      MPI_Info_dup(info, &info_);
+    else
+      info_ = MPI_INFO_NULL;
+  }
 #else
   IOWrapper() {fh_=nullptr;}
 #endif
-  ~IOWrapper() {}
+  ~IOWrapper() {
+#ifdef MPI_PARALLEL
+    if (info_ != MPI_INFO_NULL) MPI_Info_free(&info_);
+#endif
+  }
   // nested type definition of strongly typed/scoped enum in class definition
   enum class FileMode {read, write};
 
@@ -61,6 +74,7 @@ class IOWrapper {
   IOWrapperFile fh_;
 #ifdef MPI_PARALLEL
   MPI_Comm comm_;
+  MPI_Info info_;
 #endif
 };
 #endif // OUTPUTS_IO_WRAPPER_HPP_

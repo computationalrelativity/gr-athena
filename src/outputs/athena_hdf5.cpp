@@ -424,8 +424,16 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 
   // Create new file
 #ifdef MPI_PARALLEL
+  // Provide MPI-IO hints to improve collective write throughput on
+  // parallel filesystems (Lustre, GPFS).  These are hints - the MPI
+  // implementation is free to ignore any that are not applicable.
+  MPI_Info mpi_info;
+  MPI_Info_create(&mpi_info);
+  MPI_Info_set(mpi_info, "romio_cb_write", "enable");
+  MPI_Info_set(mpi_info, "romio_ds_write", "disable");
   hid_t property_list_file = H5Pcreate(H5P_FILE_ACCESS);
-  H5Pset_fapl_mpio(property_list_file, MPI_COMM_WORLD, MPI_INFO_NULL);
+  H5Pset_fapl_mpio(property_list_file, MPI_COMM_WORLD, mpi_info);
+  MPI_Info_free(&mpi_info);
   file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, property_list_file);
   H5Pclose(property_list_file);
 #else
@@ -804,98 +812,103 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
 //   for many small MeshBlocks, this can take most of the output writing time
 
 void ATHDF5Output::MakeXDMF() {
-  std::string filename_aux(filename);
-  filename_aux.append(".xdmf");
-  std::ofstream xdmf(filename_aux.c_str());
+  // Build the entire XDMF document in memory first, then write once.
+  // For runs with many thousands of MeshBlocks the per-block XML generation
+  // dominates output time; buffering avoids per-<< ofstream syscalls.
+  std::ostringstream ss;
 
   // Write header
-  xdmf << "<?xml version=\"1.0\" ?>\n";
-  xdmf << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-  xdmf << "<Xdmf Version=\"2.0\">\n";
-  xdmf << "<Information Name=\"TimeVaryingMetaData\" Value=\"True\"/>\n";
-  xdmf << "<Domain>\n";
-  xdmf << "<Grid Name=\"Mesh\" GridType=\"Collection\">\n";
-  xdmf << " <Time Value=\"" << code_time << "\"/>\n";
+  ss << "<?xml version=\"1.0\" ?>\n";
+  ss << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
+  ss << "<Xdmf Version=\"2.0\">\n";
+  ss << "<Information Name=\"TimeVaryingMetaData\" Value=\"True\"/>\n";
+  ss << "<Domain>\n";
+  ss << "<Grid Name=\"Mesh\" GridType=\"Collection\">\n";
+  ss << " <Time Value=\"" << code_time << "\"/>\n";
 
   // Go through all MeshBlocks
   for (int n_block = 0; n_block < num_blocks_global; ++n_block) {
     // Begin block
-    xdmf << "  <Grid Name=\"MeshBlock" << n_block << "\" GridType=\"Uniform\">\n";
+    ss << "  <Grid Name=\"MeshBlock" << n_block << "\" GridType=\"Uniform\">\n";
 
     // Write topology
     if (nx3 > 1)
-      xdmf << "    <Topology TopologyType=\"3DRectMesh\" NumberOfElements=\"" << nx3+1
+      ss << "    <Topology TopologyType=\"3DRectMesh\" NumberOfElements=\"" << nx3+1
            << " " << nx2+1 << " " << nx1+1 << "\"/>\n";
     else
-      xdmf << "    <Topology TopologyType=\"2DRectMesh\" NumberOfElements=\"" << nx2+1
+      ss << "    <Topology TopologyType=\"2DRectMesh\" NumberOfElements=\"" << nx2+1
            << " " << nx1+1 << "\"/>\n";
 
     // Write geometry
     if (nx3 > 1)
-      xdmf << "    <Geometry GeometryType=\"VXVYVZ\">\n";
+      ss << "    <Geometry GeometryType=\"VXVYVZ\">\n";
     else
-      xdmf << "    <Geometry GeometryType=\"VXVY\">\n";
-    xdmf << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx1+1 << "\">\n";
-    xdmf << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
+      ss << "    <Geometry GeometryType=\"VXVY\">\n";
+    ss << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx1+1 << "\">\n";
+    ss << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
          << " 0 1 1 1 " << nx1+1 << " </DataItem>\n";
-    xdmf << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx1+1
+    ss << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx1+1
          << "\" Format=\"HDF\"> " << filename << ":/x1f </DataItem>\n";
-    xdmf << "      </DataItem>\n";
-    xdmf << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx2+1 << "\">\n";
-    xdmf << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
+    ss << "      </DataItem>\n";
+    ss << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx2+1 << "\">\n";
+    ss << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
          << " 0 1 1 1 " << nx2+1 << " </DataItem>\n";
-    xdmf << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx2+1
+    ss << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx2+1
          << "\" Format=\"HDF\"> " << filename << ":/x2f </DataItem>\n";
-    xdmf << "      </DataItem>\n";
+    ss << "      </DataItem>\n";
     if (nx3 > 1) {
-      xdmf << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx3+1
+      ss << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx3+1
            << "\">\n";
-      xdmf << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
+      ss << "        <DataItem Dimensions=\"3 2\" NumberType=\"Int\"> " << n_block
            << " 0 1 1 1 " << nx3+1 << " </DataItem>\n";
-      xdmf << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx3+1
+      ss << "        <DataItem Dimensions=\"" << num_blocks_global << " " << nx3+1
            << "\" Format=\"HDF\"> " << filename << ":/x3f </DataItem>\n";
-      xdmf << "      </DataItem>\n";
+      ss << "      </DataItem>\n";
     }
-    xdmf << "    </Geometry>\n";
+    ss << "    </Geometry>\n";
 
     // Write description of cell-centered data
     int n_quantity = 0;
     for (int n_dataset = 0; n_dataset < num_datasets; ++n_dataset) {
       for (int n_variable = 0; n_variable < num_variables[n_dataset]; ++n_variable) {
-        xdmf << "    <Attribute Name=\"" << variable_names[n_quantity++]
+        ss << "    <Attribute Name=\"" << variable_names[n_quantity++]
              << "\" Center=\"Cell\">\n";
         if (nx3 > 1) {
-          xdmf << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx3 << " "
+          ss << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx3 << " "
                << nx2 << " " << nx1 << "\">\n";
-          xdmf << "        <DataItem Dimensions=\"3 5\" NumberType=\"Int\"> "
+          ss << "        <DataItem Dimensions=\"3 5\" NumberType=\"Int\"> "
                << n_variable << " " << n_block << " 0 0 0 1 1 1 1 1 1 1 " << nx3 << " "
                << nx2 << " " << nx1 << " </DataItem>\n";
         } else {
-          xdmf << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx2 << " "
+          ss << "      <DataItem ItemType=\"HyperSlab\" Dimensions=\"" << nx2 << " "
                << nx1 << "\">\n";
-          xdmf << "        <DataItem Dimensions=\"3 5\" NumberType=\"Int\"> "
+          ss << "        <DataItem Dimensions=\"3 5\" NumberType=\"Int\"> "
                << n_variable << " " << n_block << " 0 0 0 1 1 1 1 1 1 1 1 " << nx2 << " "
                << nx1 << " </DataItem>\n";
         }
-        xdmf << "        <DataItem Dimensions=\"" << num_variables[n_dataset] << " "
+        ss << "        <DataItem Dimensions=\"" << num_variables[n_dataset] << " "
              << num_blocks_global << " " << nx3 << " " << nx2 << " " << nx1
              << "\" Format=\"HDF\"> " << filename << ":/" << dataset_names[n_dataset]
              << " </DataItem>\n";
-        xdmf << "      </DataItem>\n";
-        xdmf << "    </Attribute>\n";
+        ss << "      </DataItem>\n";
+        ss << "    </Attribute>\n";
       }
     }
 
     // End block
-    xdmf << "  </Grid>\n";
+    ss << "  </Grid>\n";
   }
 
   // Complete header elements
-  xdmf << "</Grid>\n";
-  xdmf << "</Domain>\n";
-  xdmf << "</Xdmf>";
+  ss << "</Grid>\n";
+  ss << "</Domain>\n";
+  ss << "</Xdmf>";
 
-  // Close file
+  // Write the entire document in one call
+  std::string filename_aux(filename);
+  filename_aux.append(".xdmf");
+  std::ofstream xdmf(filename_aux.c_str());
+  xdmf << ss.str();
   xdmf.close();
   return;
 }

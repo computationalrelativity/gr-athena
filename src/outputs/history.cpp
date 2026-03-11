@@ -263,29 +263,71 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
                  MPI_COMM_WORLD);
     }
   }
-  // apply separate chosen operations to each user-defined history output
-  for (int n=0; n<nuser_history_output_; n++)
-  {
-    Real *usr_hst_data = hst_data.get() + NHISTORY_VARS + n;
-    MPI_Op usr_op(MPI_SUM);
-    switch (pm->user_history_ops_[n]) {
-      case UserHistoryOperation::sum:
-        usr_op = MPI_SUM;
-        break;
-      case UserHistoryOperation::max:
-        usr_op = MPI_MAX;
-        break;
-      case UserHistoryOperation::min:
-        usr_op = MPI_MIN;
-        break;
+  // Batch user-defined history reductions: partition into SUM/MAX/MIN groups
+  // and issue at most 3 MPI_Reduce calls instead of N individual ones.
+  if (nuser_history_output_ > 0) {
+    // Count entries per operation type
+    int n_sum = 0, n_max = 0, n_min = 0;
+    for (int n = 0; n < nuser_history_output_; ++n) {
+      switch (pm->user_history_ops_[n]) {
+        case UserHistoryOperation::sum: ++n_sum; break;
+        case UserHistoryOperation::max: ++n_max; break;
+        case UserHistoryOperation::min: ++n_min; break;
+      }
     }
-    if (Globals::my_rank == 0) {
-      MPI_Reduce(MPI_IN_PLACE, usr_hst_data, 1, MPI_ATHENA_REAL, usr_op, 0,
-                 MPI_COMM_WORLD);
-    } else {
-      MPI_Reduce(usr_hst_data, usr_hst_data, 1, MPI_ATHENA_REAL, usr_op, 0,
-                 MPI_COMM_WORLD);
+    // Stack buffers (user history outputs are typically few, <20)
+    constexpr int kMaxStack = 256;
+    Real buf_sum_s[kMaxStack], buf_max_s[kMaxStack], buf_min_s[kMaxStack];
+    int  idx_sum_s[kMaxStack], idx_max_s[kMaxStack], idx_min_s[kMaxStack];
+    // Use heap only if needed
+    std::unique_ptr<Real[]> buf_sum_h, buf_max_h, buf_min_h;
+    std::unique_ptr<int[]>  idx_sum_h, idx_max_h, idx_min_h;
+    Real *buf_sum, *buf_max, *buf_min;
+    int  *idx_sum, *idx_max, *idx_min;
+    if (n_sum <= kMaxStack) { buf_sum = buf_sum_s; idx_sum = idx_sum_s; }
+    else { buf_sum_h.reset(new Real[n_sum]); idx_sum_h.reset(new int[n_sum]);
+           buf_sum = buf_sum_h.get(); idx_sum = idx_sum_h.get(); }
+    if (n_max <= kMaxStack) { buf_max = buf_max_s; idx_max = idx_max_s; }
+    else { buf_max_h.reset(new Real[n_max]); idx_max_h.reset(new int[n_max]);
+           buf_max = buf_max_h.get(); idx_max = idx_max_h.get(); }
+    if (n_min <= kMaxStack) { buf_min = buf_min_s; idx_min = idx_min_s; }
+    else { buf_min_h.reset(new Real[n_min]); idx_min_h.reset(new int[n_min]);
+           buf_min = buf_min_h.get(); idx_min = idx_min_h.get(); }
+    // Gather values into per-op buffers and record original indices
+    int is = 0, ix = 0, in = 0;
+    for (int n = 0; n < nuser_history_output_; ++n) {
+      Real val = hst_data[NHISTORY_VARS + n];
+      switch (pm->user_history_ops_[n]) {
+        case UserHistoryOperation::sum:
+          idx_sum[is] = n; buf_sum[is] = val; ++is; break;
+        case UserHistoryOperation::max:
+          idx_max[ix] = n; buf_max[ix] = val; ++ix; break;
+        case UserHistoryOperation::min:
+          idx_min[in] = n; buf_min[in] = val; ++in; break;
+      }
     }
+    // Issue at most 3 MPI_Reduce calls
+    auto batch_reduce = [](Real *buf, int count, MPI_Op op) {
+      if (count <= 0) return;
+      if (Globals::my_rank == 0) {
+        MPI_Reduce(MPI_IN_PLACE, buf, count, MPI_ATHENA_REAL, op, 0,
+                   MPI_COMM_WORLD);
+      } else {
+        MPI_Reduce(buf, buf, count, MPI_ATHENA_REAL, op, 0,
+                   MPI_COMM_WORLD);
+      }
+    };
+    batch_reduce(buf_sum, n_sum, MPI_SUM);
+    batch_reduce(buf_max, n_max, MPI_MAX);
+    batch_reduce(buf_min, n_min, MPI_MIN);
+    // Scatter results back to hst_data (only rank 0 needs correct values,
+    // but writing back on all ranks is harmless and keeps code simple)
+    for (int i = 0; i < n_sum; ++i)
+      hst_data[NHISTORY_VARS + idx_sum[i]] = buf_sum[i];
+    for (int i = 0; i < n_max; ++i)
+      hst_data[NHISTORY_VARS + idx_max[i]] = buf_max[i];
+    for (int i = 0; i < n_min; ++i)
+      hst_data[NHISTORY_VARS + idx_min[i]] = buf_min[i];
   }
 #endif
 

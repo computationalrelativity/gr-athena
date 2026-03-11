@@ -33,7 +33,7 @@ int IOWrapper::Open(const char* fname, FileMode rw) {
   if (rw == FileMode::read) {
 #ifdef MPI_PARALLEL
     // NOLINTNEXTLINE
-    if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_RDONLY,MPI_INFO_NULL,&fh_)
+    if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_RDONLY,info_,&fh_)
         !=MPI_SUCCESS) // use const_cast to convince the compiler.
 #else
       if ((fh_ = std::fopen(fname,"rb")) == nullptr) // NOLINT
@@ -47,10 +47,10 @@ int IOWrapper::Open(const char* fname, FileMode rw) {
 
   } else if (rw == FileMode::write) {
 #ifdef MPI_PARALLEL
-    MPI_File_delete(const_cast<char*>(fname), MPI_INFO_NULL); // truncation
+    MPI_File_delete(const_cast<char*>(fname), info_); // truncation
     // NOLINTNEXTLINE
     if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                      MPI_INFO_NULL,&fh_) != MPI_SUCCESS)
+                      info_,&fh_) != MPI_SUCCESS)
 #else
       if ((fh_ = std::fopen(fname,"wb")) == nullptr) // NOLINT
 #endif
