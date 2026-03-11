@@ -553,6 +553,9 @@ void Z4c::ADMConstraints(
     }
 
     // Momentum constraint (norm squared)
+    ILOOP1(i) {
+      con.M(k,j,i) = 0.;
+    }
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
@@ -613,6 +616,9 @@ void Z4c::ADMConstraints(
       }
     }
     // Constraint violation Z (norm squared)
+    ILOOP1(i) {
+      con.Z(k,j,i) = 0.;
+    }
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
@@ -620,27 +626,22 @@ void Z4c::ADMConstraints(
                                                 *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
     }
-    // Constraint violation monitor C^2
-    ILOOP1(i) {
-      con.C(k,j,i) = SQR(con.H(k,j,i)) + con.M(k,j,i) + SQR(z4c.Theta(k,j,i)) + 4.0*con.Z(k,j,i);
-    }
-  }
-
-
-  // zero out values beyond fixed radius
-  ILOOP3(k,j,i)
-  {
-    const Real R = std::sqrt(SQR(mbi.x1(i)) + SQR(mbi.x2(j)) + SQR(mbi.x3(k)));
-
-    if (R > pz4c->opt.r_max_con)
+    // Radius cut + constraint violation monitor C^2
     {
-      con.Z(k,j,i) = 0.;
-      con.C(k,j,i) = 0.;
-      con.H(k,j,i) = 0.;
-      con.M(k,j,i) = 0.;
-      for(int a = 0; a < NDIM; ++a)
-      {
-        con.M_d(a,k,j,i) = 0.;
+      const Real r2_max = SQR(pz4c->opt.r_max_con);
+      ILOOP1(i) {
+        const Real R2 = SQR(mbi.x1(i)) + SQR(mbi.x2(j)) + SQR(mbi.x3(k));
+        if (R2 > r2_max) {
+          con.H(k,j,i) = 0.;
+          con.M(k,j,i) = 0.;
+          con.Z(k,j,i) = 0.;
+          con.C(k,j,i) = 0.;
+          for(int a = 0; a < NDIM; ++a)
+            con.M_d(a,k,j,i) = 0.;
+        } else {
+          con.C(k,j,i) = SQR(con.H(k,j,i)) + con.M(k,j,i)
+                        + SQR(z4c.Theta(k,j,i)) + 4.0*con.Z(k,j,i);
+        }
       }
     }
   }

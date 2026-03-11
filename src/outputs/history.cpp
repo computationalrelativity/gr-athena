@@ -165,23 +165,36 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
           // det(\gamma) weighted - using conformal factor this is cheap to do
           if (Z4C_ENABLED)
           {
-            Real const H_err  = std::abs(pz4c->con.H(k,j,i));
-            Real const M2_err = std::abs(pz4c->con.M(k,j,i));
-            Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
-            Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
-            Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
-            Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
-            Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-            Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+            const Real x1 = pmb->pcoord->x1v(i);
+            const Real x2 = pmb->pcoord->x2v(j);
+            const Real x3 = pmb->pcoord->x3v(k);
+            const Real R2 = SQR(x1) + SQR(x2) + SQR(x3);
+            const Real r2_max = SQR(pz4c->opt.r_max_con);
 
-            hst_data[isum++] += vol(i)*SQR(H_err);
-            hst_data[isum++] += vol(i)*M2_err; //M is already squared
-            hst_data[isum++] += vol(i)*SQR(Mx_err);
-            hst_data[isum++] += vol(i)*SQR(My_err);
-            hst_data[isum++] += vol(i)*SQR(Mz_err);
-            hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
-            hst_data[isum++] += vol(i)*SQR(theta);
-            hst_data[isum++] += vol(i)*C2_err; //C is already squared
+            if (R2 <= r2_max)
+            {
+              Real const H_err  = std::abs(pz4c->con.H(k,j,i));
+              Real const M2_err = std::abs(pz4c->con.M(k,j,i));
+              Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
+              Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
+              Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
+              Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
+              Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+              Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+
+              hst_data[isum++] += vol(i)*SQR(H_err);
+              hst_data[isum++] += vol(i)*M2_err; //M is already squared
+              hst_data[isum++] += vol(i)*SQR(Mx_err);
+              hst_data[isum++] += vol(i)*SQR(My_err);
+              hst_data[isum++] += vol(i)*SQR(Mz_err);
+              hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
+              hst_data[isum++] += vol(i)*SQR(theta);
+              hst_data[isum++] += vol(i)*C2_err; //C is already squared
+            }
+            else
+            {
+              isum += 8;
+            }
           }
 
         }
