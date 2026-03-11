@@ -12,6 +12,7 @@
 // TODO(felker): consider moving enums and structs in a new file? bvals_structs.hpp?
 
 // C++ headers
+#include <atomic>    // atomic
 #include <string>    // string
 #include <vector>    // vector
 
@@ -148,13 +149,16 @@ struct NeighborBlock { // aggregate and POD type. Inheritance breaks standard-la
 // one for each type of "BoundaryQuantity" corresponding to BoundaryVariable
 
 template <int n = 56>
-struct BoundaryData { // aggregate and POD (even when MPI_PARALLEL is defined)
+struct BoundaryData { // NOTE: no longer POD due to std::atomic<BoundaryStatus> flags
   static constexpr int kMaxNeighbor = n;
   // KGF: "nbmax" only used in bvals_var.cpp, Init/DestroyBoundaryData()
   int nbmax;  // actual maximum number of neighboring MeshBlocks
   // currently, sflag[] is only used by Multgrid (send buffers are reused each stage in
   // red-black comm. pattern; need to check if they are available) and shearing box
-  BoundaryStatus flag[kMaxNeighbor], sflag[kMaxNeighbor];
+  // NOTE: flag[] and sflag[] are std::atomic to prevent data races when a neighboring
+  // MeshBlock on the same MPI rank writes to this block's recv flag via
+  // CopyVariableBufferSameProcess() (or similar) concurrently with this block reading it.
+  std::atomic<BoundaryStatus> flag[kMaxNeighbor], sflag[kMaxNeighbor];
   Real *send[kMaxNeighbor], *recv[kMaxNeighbor];
 #ifdef MPI_PARALLEL
   MPI_Request req_send[kMaxNeighbor], req_recv[kMaxNeighbor];

@@ -12,6 +12,7 @@
 // C headers
 
 // C++ headers
+#include <atomic>    // atomic
 
 // Athena++ classes headers
 #include "../../athena.hpp"
@@ -201,8 +202,11 @@ public:
   // --------------------------------------------------------------------------
 
 private:
-  BoundaryStatus *flux_north_flag_;
-  BoundaryStatus *flux_south_flag_;
+  // NOTE: flux polar flags are std::atomic to prevent data races when a neighboring
+  // MeshBlock on the same MPI rank writes to this block's flag via
+  // CopyPolarBufferSameProcess() concurrently with this block reading it.
+  std::atomic<BoundaryStatus> *flux_north_flag_;
+  std::atomic<BoundaryStatus> *flux_south_flag_;
   Real **flux_north_send_, **flux_north_recv_;
   Real **flux_south_send_, **flux_south_recv_;
 

@@ -64,7 +64,7 @@ FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(
   if (pbval_->num_north_polar_blocks_ > 0) {
     flux_north_send_ = new Real *[pbval_->num_north_polar_blocks_];
     flux_north_recv_ = new Real *[pbval_->num_north_polar_blocks_];
-    flux_north_flag_ = new BoundaryStatus[pbval_->num_north_polar_blocks_];
+    flux_north_flag_ = new std::atomic<BoundaryStatus>[pbval_->num_north_polar_blocks_];
 #ifdef MPI_PARALLEL
     req_flux_north_send_ = new MPI_Request[pbval_->num_north_polar_blocks_];
     req_flux_north_recv_ = new MPI_Request[pbval_->num_north_polar_blocks_];
@@ -82,7 +82,7 @@ FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(
   if (pbval_->num_south_polar_blocks_ > 0) {
     flux_south_send_ = new Real *[pbval_->num_south_polar_blocks_];
     flux_south_recv_ = new Real *[pbval_->num_south_polar_blocks_];
-    flux_south_flag_ = new BoundaryStatus[pbval_->num_south_polar_blocks_];
+    flux_south_flag_ = new std::atomic<BoundaryStatus>[pbval_->num_south_polar_blocks_];
 #ifdef MPI_PARALLEL
     req_flux_south_send_ = new MPI_Request[pbval_->num_south_polar_blocks_];
     req_flux_south_recv_ = new MPI_Request[pbval_->num_south_polar_blocks_];

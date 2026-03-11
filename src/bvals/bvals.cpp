@@ -354,9 +354,18 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
 
 
 void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
-  // BD: TODO - Dead, warn
+  // NOTE(BD): Shearing-box boundary support is intentionally non-functional in this fork.
+  // The original Athena++ shearing-box implementation (FindShearBlock, SendShearingBox*,
+  // ReceiveShearingBox*, RemapFlux*, etc.) was partially ported but never completed.
+  // All call sites are guarded by `if (SHEARING_BOX)`, which is always false in
+  // gr-athena++ builds. This ATHENA_ERROR serves as a safeguard: if SHEARING_BOX is
+  // ever enabled without restoring the full implementation, this will abort immediately
+  // rather than silently producing incorrect results.
   std::stringstream msg;
-  msg << "StartReceivingShear called" << std::endl;
+  msg << "### FATAL ERROR in StartReceivingShear" << std::endl
+      << "Shearing-box boundaries are not implemented in this fork." << std::endl
+      << "StartReceivingShear was called, but the required infrastructure" << std::endl
+      << "(FindShearBlock, shear buffer communication) has not been ported." << std::endl;
   ATHENA_ERROR(msg);
 
   /*
@@ -585,9 +594,9 @@ void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries()
   const int var_is = pmb->is;
   const int var_ie = pmb->ie;
   const int var_js = pmb->js;
-  const int var_je = pmb->js;
+  const int var_je = pmb->je;
   const int var_ks = pmb->ks;
-  const int var_ke = pmb->ks;
+  const int var_ke = pmb->ke;
 
   int bis = var_is - ng, bie = var_ie + ng,
       bjs = var_js, bje = var_je,

@@ -566,12 +566,12 @@ void FaceCenteredBoundaryVariable::CopyPolarBufferSameProcess(
   if (is_north) {
     target_buf= ptarget_pfbval->flux_north_recv_[pmy_block_->loc.lx3];
     send_buf = flux_north_send_[polar_block_index];
-    BoundaryStatus &target_flag = ptarget_pfbval->flux_north_flag_[pmy_block_->loc.lx3];
+    std::atomic<BoundaryStatus> &target_flag = ptarget_pfbval->flux_north_flag_[pmy_block_->loc.lx3];
     target_flag = BoundaryStatus::arrived;
   } else {
     target_buf= ptarget_pfbval->flux_south_recv_[pmy_block_->loc.lx3];
     send_buf = flux_south_send_[polar_block_index];
-    BoundaryStatus &target_flag = ptarget_pfbval->flux_south_flag_[pmy_block_->loc.lx3];
+    std::atomic<BoundaryStatus> &target_flag = ptarget_pfbval->flux_south_flag_[pmy_block_->loc.lx3];
     target_flag = BoundaryStatus::arrived;
   }
   std::memcpy(target_buf, send_buf, ssize*sizeof(Real));
