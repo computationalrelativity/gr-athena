@@ -51,7 +51,7 @@ void Z4c::GetMatter(
   Z4c_vars z4c;
 
   SetZ4cAliases(storage.u,   z4c);
-  SetADMAliases(storage.adm, adm);
+  SetADMAliases(u_adm, adm);
 
   // regularization factor
   const Real eps_alpha__ = opt.eps_floor;
