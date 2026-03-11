@@ -109,7 +109,52 @@ OutputType::OutputType(OutputParameters oparams) :
     num_vars_(),
     // nested doubly linked list of OutputData:
     pfirst_data_(),  // Initialize head node to nullptr
-    plast_data_() { // Initialize tail node to nullptr
+    plast_data_(),   // Initialize tail node to nullptr
+    free_list_() {   // Initialize free list to nullptr
+}
+
+OutputType::~OutputType() {
+  // Delete any active OutputData nodes
+  OutputData *pdata = pfirst_data_;
+  while (pdata != nullptr) {
+    OutputData *pnext = pdata->pnext;
+    delete pdata;
+    pdata = pnext;
+  }
+  // Delete free-list nodes
+  OutputData *node = free_list_;
+  while (node != nullptr) {
+    OutputData *next = node->pnext;
+    delete node;
+    node = next;
+  }
+}
+
+//----------------------------------------------------------------------------------------
+// OutputData node recycling: free-list allocator
+// After the first MeshBlock, subsequent blocks reuse the same OutputData nodes,
+// eliminating ~(num_vars * num_blocks) heap allocations per output dump.
+
+OutputData* OutputType::AllocNode() {
+  OutputData *node;
+  if (free_list_ != nullptr) {
+    node = free_list_;
+    free_list_ = node->pnext;
+    // Reset recycled node to a clean state
+    node->type.clear();
+    node->name.clear();
+    node->data.DeleteAthenaArray();
+    node->pnext = nullptr;
+    node->pprev = nullptr;
+  } else {
+    node = new OutputData;
+  }
+  return node;
+}
+
+void OutputType::FreeNode(OutputData *node) {
+  node->pnext = free_list_;
+  free_list_ = node;
 }
 
 //----------------------------------------------------------------------------------------
@@ -347,7 +392,7 @@ void LoadOutputDataHydro(
       output_params.variable == "hydro.cons" ||
       output_params.variable == Hydro::ixn_cons::names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Hydro::ixn_cons::names[ix];
     pod->data.InitWithShallowSlice(ph->u, 4, ix, 1);
@@ -360,7 +405,7 @@ void LoadOutputDataHydro(
       output_params.variable == "hydro.prim" ||
       output_params.variable == Hydro::ixn_prim::names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Hydro::ixn_prim::names[ix];
     pod->data.InitWithShallowSlice(ph->w, 4, ix, 1);
@@ -373,7 +418,7 @@ void LoadOutputDataHydro(
     output_params.variable == "hydro.aux" ||
     output_params.variable == Hydro::ixn_derived_ms::names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Hydro::ixn_derived_ms::names[ix];
     pod->data.InitWithShallowSlice(ph->derived_ms, 4, ix, 1);
@@ -400,7 +445,7 @@ void LoadOutputDataPassiveScalars(
   {
     const std::string scalar_name_cons = root_name_cons + std::to_string(n);
 
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = scalar_name_cons;
     pod->data.InitWithShallowSlice(ps->s, 4, n, 1);
@@ -414,7 +459,7 @@ void LoadOutputDataPassiveScalars(
   {
     const std::string scalar_name_prim = root_name_prim + std::to_string(n);
 
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = scalar_name_prim;
     pod->data.InitWithShallowSlice(ps->r, 4, n, 1);
@@ -437,7 +482,7 @@ void LoadOutputDataMagneticFields(
       output_params.variable == "B.bcc" ||
       output_params.variable == Field::ixn_cc::names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Field::ixn_cc::names[ix];
     pod->data.InitWithShallowSlice(pf->bcc, 4, ix, 1);
@@ -455,7 +500,7 @@ void LoadOutputDataMagneticFields(
       &(pf->b.x1f), &(pf->b.x2f), &(pf->b.x3f)
     };
 
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Field::ixn_fc::names[ix];
     pod->data.InitWithShallowSlice(*b_fc[ix], 4, 0, 1);
@@ -467,7 +512,7 @@ void LoadOutputDataMagneticFields(
   if (output_params.variable == "field.aux" ||
       output_params.variable == Field::ixn_derived_ms::names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Field::ixn_derived_ms::names[ix];
     pod->data.InitWithShallowSlice(pf->derived_ms, 4, ix, 1);
@@ -498,7 +543,7 @@ void LoadOutputDataM1(
 
     AA & data_ = sca_(ix_g, ix_s).array();
 
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = name + "_" + idx_GS;
     pod->data.InitWithShallowSlice(data_, 4, 0, 1);
@@ -517,7 +562,7 @@ void LoadOutputDataM1(
 
     for (int a = 0; a < N; ++a)
     {
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
       pod->data.InitWithShallowSlice(data_, 4, a, 1);
@@ -541,7 +586,7 @@ void LoadOutputDataM1(
       // Tensor-index to AA super-index reduction
       const int I = sym_(ix_g, ix_s).idxmap(a,b);
 
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a) +
                   std::to_string(b);
@@ -562,7 +607,7 @@ void LoadOutputDataM1(
 
     for (int a = 0; a < D; ++a)
     {
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + idx_GS + "_" + std::to_string(a);
       pod->data.InitWithShallowSlice(data_, 4, a, 1);
@@ -576,7 +621,7 @@ void LoadOutputDataM1(
   {
     AA & data_ = sca_.array();
 
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = name;
     pod->data.InitWithShallowSlice(data_, 4, 0, 1);
@@ -590,7 +635,7 @@ void LoadOutputDataM1(
 
     for (int a = 0; a < N; ++a)
     {
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
       pod->data.InitWithShallowSlice(data_, 4, a, 1);
@@ -609,7 +654,7 @@ void LoadOutputDataM1(
       // Tensor-index to AA super-index reduction
       const int I = sym_.idxmap(a,b);
 
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a) + std::to_string(b);
       pod->data.InitWithShallowSlice(data_, 4, I, 1);
@@ -624,7 +669,7 @@ void LoadOutputDataM1(
 
     for (int a = 0; a < D; ++a)
     {
-      pod = new OutputData;
+      pod = pot->AllocNode();
       pod->type = "SCALARS";
       pod->name = name + "_" + std::to_string(a);
       pod->data.InitWithShallowSlice(data_, 4, a, 1);
@@ -764,7 +809,7 @@ void LoadOutputDataZ4c(
       output_params.variable == "geom.z4c" ||
       output_params.variable == Z4c::Z4c_names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Z4c::Z4c_names[ix];
     pod->data.InitWithShallowSlice(pz4c->storage.u,ix,1);
@@ -777,7 +822,7 @@ void LoadOutputDataZ4c(
       output_params.variable == "geom.adm" ||
       output_params.variable == Z4c::ADM_names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Z4c::ADM_names[ix];
     pod->data.InitWithShallowSlice(pz4c->storage.adm,ix,1);
@@ -790,7 +835,7 @@ void LoadOutputDataZ4c(
       output_params.variable == "geom.con" ||
       output_params.variable == Z4c::Constraint_names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Z4c::Constraint_names[ix];
     pod->data.InitWithShallowSlice(pz4c->storage.con,ix,1);
@@ -803,7 +848,7 @@ void LoadOutputDataZ4c(
       output_params.variable == "geom.mat" ||
       output_params.variable == Z4c::Matter_names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Z4c::Matter_names[ix];
     pod->data.InitWithShallowSlice(pz4c->storage.mat,ix,1);
@@ -816,7 +861,7 @@ void LoadOutputDataZ4c(
       output_params.variable == "geom.weyl" ||
       output_params.variable == Z4c::Weyl_names[ix])
   {
-    pod = new OutputData;
+    pod = pot->AllocNode();
     pod->type = "SCALARS";
     pod->name = Z4c::Weyl_names[ix];
     pod->data.InitWithShallowSlice(pz4c->storage.weyl,ix,1);
@@ -870,7 +915,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // (lab-frame) density
   if (output_params.variable.compare("D") == 0 ||
       output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "dens";
     pod->data.InitWithShallowSlice(phyd->u, 4, IDN, 1);
@@ -881,7 +926,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // (rest-frame) density
   if (output_params.variable.compare("d") == 0 ||
       output_params.variable.compare("prim") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "rho";
     pod->data.InitWithShallowSlice(phyd->w, 4, IDN, 1);
@@ -893,7 +938,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   if (NON_BAROTROPIC_EOS) {
     if (output_params.variable.compare("E") == 0 ||
         output_params.variable.compare("cons") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "Etot";
       pod->data.InitWithShallowSlice(phyd->u, 4, IEN, 1);
@@ -904,7 +949,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     // pressure
     if (output_params.variable.compare("p") == 0 ||
         output_params.variable.compare("prim") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "press";
       pod->data.InitWithShallowSlice(phyd->w, 4, IPR, 1);
@@ -916,7 +961,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // momentum vector
   if (output_params.variable.compare("m") == 0 ||
       output_params.variable.compare("cons") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "VECTORS";
     pod->name = "mom";
     pod->data.InitWithShallowSlice(phyd->u, 4, IM1, 3);
@@ -925,7 +970,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     if (output_params.cartesian_vector) {
       AthenaArray<Real> src;
       src.InitWithShallowSlice(phyd->u, 4, IM1, 3);
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "VECTORS";
       pod->name = "mom_xyz";
       pod->data.NewAthenaArray(3, phyd->u.GetDim3(), phyd->u.GetDim2(),
@@ -938,7 +983,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 
   // each component of momentum
   if (output_params.variable.compare("m1") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "mom1";
     pod->data.InitWithShallowSlice(phyd->u, 4, IM1, 1);
@@ -946,7 +991,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     num_vars_++;
   }
   if (output_params.variable.compare("m2") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "mom2";
     pod->data.InitWithShallowSlice(phyd->u, 4, IM2, 1);
@@ -954,7 +999,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     num_vars_++;
   }
   if (output_params.variable.compare("m3") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "mom3";
     pod->data.InitWithShallowSlice(phyd->u, 4, IM3, 1);
@@ -965,7 +1010,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // velocity vector
   if (output_params.variable.compare("v") == 0 ||
       output_params.variable.compare("prim") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "VECTORS";
     pod->name = "vel";
     pod->data.InitWithShallowSlice(phyd->w, 4, IVX, 3);
@@ -974,7 +1019,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     if (output_params.cartesian_vector) {
       AthenaArray<Real> src;
       src.InitWithShallowSlice(phyd->w, 4, IVX, 3);
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "VECTORS";
       pod->name = "vel_xyz";
       pod->data.NewAthenaArray(3, phyd->w.GetDim3(), phyd->w.GetDim2(),
@@ -988,7 +1033,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   // each component of velocity
   if (output_params.variable.compare("vx") == 0 ||
       output_params.variable.compare("v1") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "vel1";
     pod->data.InitWithShallowSlice(phyd->w, 4, IVX, 1);
@@ -997,7 +1042,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   }
   if (output_params.variable.compare("vy") == 0 ||
       output_params.variable.compare("v2") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "vel2";
     pod->data.InitWithShallowSlice(phyd->w, 4, IVY, 1);
@@ -1006,7 +1051,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   }
   if (output_params.variable.compare("vz") == 0 ||
       output_params.variable.compare("v3") == 0) {
-    pod = new OutputData;
+    pod = AllocNode();
     pod->type = "SCALARS";
     pod->name = "vel3";
     pod->data.InitWithShallowSlice(phyd->w, 4, IVZ, 1);
@@ -1017,7 +1062,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   if (WAVE_ENABLED) {
     if (output_params.variable.compare("wave") == 0 ||
         output_params.variable.compare("wave_u") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "wU";
       pod->data.InitWithShallowSlice(pwave->u, 0, 1);
@@ -1027,7 +1072,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 
     if (output_params.variable.compare("wave") == 0 ||
         output_params.variable.compare("wave_pi") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "wPI";
       pod->data.InitWithShallowSlice(pwave->u, 1, 1);
@@ -1036,7 +1081,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     if (output_params.variable.compare("wave") == 0 ||
         output_params.variable.compare("wave_exact") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "wExact";
       pod->data.InitWithShallowSlice(pwave->exact, 0, 1);
@@ -1045,7 +1090,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     if (output_params.variable.compare("wave") == 0 ||
         output_params.variable.compare("wave_error") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "wError";
       pod->data.InitWithShallowSlice(pwave->error, 0, 1);
@@ -1062,7 +1107,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     if (output_params.variable.compare("bcc") == 0 ||
         output_params.variable.compare("prim") == 0 ||
         output_params.variable.compare("cons") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "VECTORS";
       pod->name = "Bcc";
       pod->data.InitWithShallowSlice(pfld->bcc, 4, IB1, 3);
@@ -1071,7 +1116,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       if (output_params.cartesian_vector) {
         AthenaArray<Real> src;
         src.InitWithShallowSlice(pfld->bcc, 4, IB1, 3);
-        pod = new OutputData;
+        pod = AllocNode();
         pod->type = "VECTORS";
         pod->name = "Bcc_xyz";
         pod->data.NewAthenaArray(3, pfld->bcc.GetDim3(), pfld->bcc.GetDim2(),
@@ -1084,7 +1129,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
 
     // each component of cell-centered magnetic field
     if (output_params.variable.compare("bcc1") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "Bcc1";
       pod->data.InitWithShallowSlice(pfld->bcc, 4, IB1, 1);
@@ -1092,7 +1137,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       num_vars_++;
     }
     if (output_params.variable.compare("bcc2") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "Bcc2";
       pod->data.InitWithShallowSlice(pfld->bcc, 4, IB2, 1);
@@ -1100,7 +1145,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       num_vars_++;
     }
     if (output_params.variable.compare("bcc3") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "Bcc3";
       pod->data.InitWithShallowSlice(pfld->bcc, 4, IB3, 1);
@@ -1110,7 +1155,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     // each component of face-centered magnetic field
     if (output_params.variable.compare("b1") == 0
         || output_params.variable.compare("b") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "B1";
       pod->data.InitWithShallowSlice(pfld->b.x1f, 4, 0, 1);
@@ -1119,7 +1164,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     if (output_params.variable.compare("b2") == 0
         || output_params.variable.compare("b") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "B2";
       pod->data.InitWithShallowSlice(pfld->b.x2f, 4, 0, 1);
@@ -1128,7 +1173,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
     }
     if (output_params.variable.compare("b3") == 0
         || output_params.variable.compare("b") == 0) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       pod->name = "B3";
       pod->data.InitWithShallowSlice(pfld->b.x3f, 4, 0, 1);
@@ -1148,7 +1193,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         ns=iv, ne=iv;
     }
     for (int n = ns; n <= ne; ++n) {
-      pod = new OutputData;
+      pod = AllocNode();
       pod->type = "SCALARS";
       if (pmb->user_out_var_names_[n].length() != 0) {
         pod->name = pmb->user_out_var_names_[n];
@@ -1166,7 +1211,7 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   for (int n = 0; n < pmb->nuser_out_var; ++n) {
     if (pmb->user_out_var_names_[n].length() != 0) {
       if (output_params.variable.compare(pmb->user_out_var_names_[n]) == 0) {
-        pod = new OutputData;
+        pod = AllocNode();
         pod->type = "SCALARS";
         pod->name = pmb->user_out_var_names_[n];
         pod->data.InitWithShallowSlice(pmb->user_out_var, 4, n, 1);
@@ -1226,7 +1271,7 @@ void OutputType::ReplaceOutputDataNode(OutputData *pold, OutputData *pnew) {
     pnew->pprev->pnext = pnew;
     pnew->pnext->pprev = pnew;
   }
-  delete pold;
+  FreeNode(pold);
 }
 
 //----------------------------------------------------------------------------------------
@@ -1236,9 +1281,9 @@ void OutputType::ReplaceOutputDataNode(OutputData *pold, OutputData *pnew) {
 void OutputType::ClearOutputData() {
   OutputData *pdata = pfirst_data_;
   while (pdata != nullptr) {
-    OutputData *pdata_old = pdata;
-    pdata = pdata->pnext;
-    delete pdata_old;
+    OutputData *pnext = pdata->pnext;
+    FreeNode(pdata);
+    pdata = pnext;
   }
   // reset pointers to head and tail nodes of doubly linked list:
   pfirst_data_ = nullptr;
@@ -1450,7 +1495,7 @@ bool OutputType::SliceOutputData(MeshBlock *pmb, int dim) {
   pdata = pfirst_data_;
 
   while (pdata != nullptr) {
-    pnew = new OutputData;
+    pnew = AllocNode();
     pnew->type = pdata->type;
     pnew->name = pdata->name;
     int nx4 = pdata->data.GetDim4();
@@ -1515,7 +1560,7 @@ void OutputType::SumOutputData(MeshBlock* pmb, int dim) {
   OutputData *pdata = pfirst_data_;
 
   while (pdata != nullptr) {
-    OutputData *pnew = new OutputData;
+    OutputData *pnew = AllocNode();
     pnew->type = pdata->type;
     pnew->name = pdata->name;
     int nx4 = pdata->data.GetDim4();

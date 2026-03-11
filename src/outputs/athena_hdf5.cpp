@@ -7,6 +7,7 @@
 // C headers
 
 // C++ headers
+#include <algorithm>  // std::max
 #include <cstdio>     // snprintf()
 #include <cstring>    // strlen(), strncpy()
 #include <fstream>    // ofstream
@@ -36,6 +37,11 @@
 #include <mpi.h>   // MPI_COMM_WORLD, MPI_INFO_NULL
 #endif
 
+// memcpy row-packing in WriteOutputFile requires H5Real and Real to have the same size
+// so that AthenaArray's contiguous storage can be block-copied directly.
+static_assert(sizeof(H5Real) == sizeof(Real),
+              "H5Real and Real must have the same size for memcpy row-packing");
+
 //----------------------------------------------------------------------------------------
 //! \fn void ATHDF5Output:::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
 //  \brief Cycles over all MeshBlocks and writes OutputData in the Athena++ HDF5 format,
@@ -63,26 +69,21 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   hid_t property_list;                         // properties for writing
 
   int num_blocks_local;                        // number of MeshBlocks on this Mesh
-  int *levels_mesh;                            // array of refinement levels on Mesh
-  std::int64_t *locations_mesh;                // array of logical locations on Mesh
-  H5Real *x1f_mesh;                            // array of x1 values on Mesh
-  H5Real *x2f_mesh;                            // array of x2 values on Mesh
-  H5Real *x3f_mesh;                            // array of x3 values on Mesh
-  H5Real *x1v_mesh;                            // array of x1 values on Mesh
-  H5Real *x2v_mesh;                            // array of x2 values on Mesh
-  H5Real *x3v_mesh;                            // array of x3 values on Mesh
-  H5Real **data_buffers;                       // array of data buffers
 
   MeshBlock *pmb = pm->pblock;
   OutputData* pod;
   int max_blocks_global = pm->nbtotal;
   int max_blocks_local = pm->nblist[Globals::my_rank];
   int first_block = pm->nslist[Globals::my_rank];
-  bool *active_flags = new bool[max_blocks_local];
   std::string variable = output_params.variable;
 
+  // Ensure active_flags_ is large enough (EnsureBuffers will handle the rest later)
+  if (max_blocks_local > alloc_max_blocks_local_) {
+    active_flags_.resize(max_blocks_local);
+    alloc_max_blocks_local_ = max_blocks_local;
+  }
   for (int i=0; i<max_blocks_local; i++)
-    active_flags[i] = true;
+    active_flags_[i] = true;
 
   // shooting a blank just for getting the variable names
   out_is = pmb->is; out_ie = pmb->ie;
@@ -106,7 +107,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // face-centered data packed into 1 dataset:
     if (MAGNETIC_FIELDS_ENABLED)
       num_datasets += 1;
-    num_variables = new int[num_datasets];
+    num_variables_vec_.resize(num_datasets);
+    num_variables = num_variables_vec_.data();
 
     // n_dataset = 0: all cell-centered AthenaArray variable data of the same size
     // Hydro conserved variables:
@@ -127,11 +129,14 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     }
   } else {
     num_datasets = 1;
-    num_variables = new int[num_datasets];
+    num_variables_vec_.resize(num_datasets);
+    num_variables = num_variables_vec_.data();
     num_variables[0] = num_vars_;
   }
-  dataset_names = new char[num_datasets][max_name_length+1];
-  variable_names = new char[num_vars_][max_name_length+1];
+  dataset_names_vec_.resize(num_datasets);
+  dataset_names = reinterpret_cast<char(*)[max_name_length+1]>(dataset_names_vec_.data());
+  variable_names_vec_.resize(num_vars_);
+  variable_names = reinterpret_cast<char(*)[max_name_length+1]>(variable_names_vec_.data());
 
   // set dataset names
   int n_dataset_names = 0;
@@ -186,19 +191,19 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       if (output_params.output_slicex1) {
         if (pmb->block_size.x1min >  output_params.x1_slice
             || pmb->block_size.x1max <= output_params.x1_slice)
-          active_flags[nb] = false;
+          active_flags_[nb] = false;
       }
       if (output_params.output_slicex2) {
         if (pmb->block_size.x2min >  output_params.x2_slice
             || pmb->block_size.x2max <= output_params.x2_slice)
-          active_flags[nb] = false;
+          active_flags_[nb] = false;
       }
       if (output_params.output_slicex3) {
         if (pmb->block_size.x3min >  output_params.x3_slice
             || pmb->block_size.x3max <= output_params.x3_slice)
-          active_flags[nb] = false;
+          active_flags_[nb] = false;
       }
-      if (active_flags[nb]) nba++;
+      if (active_flags_[nb]) nba++;
       nb++;
       pmb = pmb->next;
     }
@@ -239,23 +244,23 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   if (output_params.output_sumx2) nx2=1;
   if (output_params.output_sumx3) nx3=1;
 
-  // Allocate contiguous buffers for data in memory
-  levels_mesh = new int[num_blocks_local];
-  locations_mesh = new std::int64_t[num_blocks_local * 3];
-  x1f_mesh = new H5Real[num_blocks_local * (nx1+1)];
-  x2f_mesh = new H5Real[num_blocks_local * (nx2+1)];
-  x3f_mesh = new H5Real[num_blocks_local * (nx3+1)];
-  x1v_mesh = new H5Real[num_blocks_local * nx1];
-  x2v_mesh = new H5Real[num_blocks_local * nx2];
-  x3v_mesh = new H5Real[num_blocks_local * nx3];
-  data_buffers = new H5Real *[num_datasets];
-  for (int n = 0; n < num_datasets; ++n)
-    data_buffers[n] = new H5Real[num_variables[n]*num_blocks_local*nx3*nx2*nx1];
+  // Ensure persistent buffers are large enough; only reallocates when dimensions grow
+  EnsureBuffers(max_blocks_local, num_blocks_local, nx1, nx2, nx3,
+                num_datasets, num_variables);
+  // Set up local pointers aliasing into member vectors
+  int *levels_mesh               = levels_mesh_.data();
+  std::int64_t *locations_mesh   = locations_mesh_.data();
+  H5Real *x1f_mesh               = x1f_mesh_.data();
+  H5Real *x2f_mesh               = x2f_mesh_.data();
+  H5Real *x3f_mesh               = x3f_mesh_.data();
+  H5Real *x1v_mesh               = x1v_mesh_.data();
+  H5Real *x2v_mesh               = x2v_mesh_.data();
+  H5Real *x3v_mesh               = x3v_mesh_.data();
 
   int nb = 0, nba = 0;
   while (pmb != nullptr) {
     // Load the output data
-    if (active_flags[nb]) {
+    if (active_flags_[nb]) {
       // set the default size because TransformOutputData will override it
       out_is = pmb->is; out_ie = pmb->ie;
       out_js = pmb->js; out_je = pmb->je;
@@ -348,6 +353,10 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
       }
 
       // store the data into the data_buffers
+      // Use memcpy per row: the innermost (i) dimension is contiguous in AthenaArray,
+      // so each (v,k,j) combination is a row of (out_ie-out_is+1) elements that can
+      // be block-copied.
+      const int row_size = out_ie - out_is + 1;
       if (variable.compare("prim") == 0 || variable.compare("cons") == 0) {
         int n_dataset = 0;
         int ndv = 0;
@@ -363,9 +372,12 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             int index = 0;
             for (int k = out_ks; k <= out_ke; k++) {
               for (int j = out_js; j <= out_je; j++) {
-                for (int i = out_is; i <= out_ie; i++, index++)
-                  data_buffers[n_dataset][(ndv*num_blocks_local+nba)*nx3*nx2*nx1+index]
-                      = pod->data(v,k,j,i);
+                std::memcpy(
+                    &data_storage_[n_dataset]
+                        [(ndv*num_blocks_local+nba)*nx3*nx2*nx1 + index],
+                    &pod->data(v, k, j, out_is),
+                    row_size * sizeof(H5Real));
+                index += row_size;
               }
             }
           }
@@ -381,9 +393,12 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
             int index = 0;
             for (int k = out_ks; k <= out_ke; k++) {
               for (int j = out_js; j <= out_je; j++) {
-                for (int i = out_is; i <= out_ie; i++, index++)
-                  data_buffers[0][(ndv*num_blocks_local+nba)*nx3*nx2*nx1+index]
-                      = pod->data(v,k,j,i);
+                std::memcpy(
+                    &data_storage_[0]
+                        [(ndv*num_blocks_local+nba)*nx3*nx2*nx1 + index],
+                    &pod->data(v, k, j, out_is),
+                    row_size * sizeof(H5Real));
+                index += row_size;
               }
             }
           }
@@ -583,29 +598,36 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     filespaces_vars_blocks_nx3_nx2_nx1[n] = H5Screate_simple(5, dims_count, NULL);
   }
 
+  // Create dataset creation property list: skip default zero-fill since every
+  // cell will be written explicitly.  This avoids a redundant memset + I/O pass
+  // over the full dataset extent.
+  hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
+  H5Pset_fill_time(dcpl, H5D_FILL_TIME_NEVER);
+
   // Create datasets
   dataset_levels = H5Dcreate(file, "Levels", H5T_STD_I32BE, filespace_blocks,
-                             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                             H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_locations = H5Dcreate(file, "LogicalLocations", H5T_STD_I64BE,
                                 filespace_blocks_3,
-                                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                                H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x1f = H5Dcreate(file, "x1f", H5T_NATIVE_REAL, filespace_blocks_nx1,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x2f = H5Dcreate(file, "x2f", H5T_NATIVE_REAL, filespace_blocks_nx2,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x3f = H5Dcreate(file, "x3f", H5T_NATIVE_REAL, filespace_blocks_nx3,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x1v = H5Dcreate(file, "x1v", H5T_NATIVE_REAL, filespace_blocks_nx1v,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x2v = H5Dcreate(file, "x2v", H5T_NATIVE_REAL, filespace_blocks_nx2v,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   dataset_x3v = H5Dcreate(file, "x3v", H5T_NATIVE_REAL, filespace_blocks_nx3v,
-                          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                          H5P_DEFAULT, dcpl, H5P_DEFAULT);
   datasets_celldata = new hid_t[num_datasets];
   for (int n = 0; n < num_datasets; ++n)
     datasets_celldata[n] = H5Dcreate(file, dataset_names[n], H5T_NATIVE_REAL,
                                      filespaces_vars_blocks_nx3_nx2_nx1[n],
-                                     H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                                     H5P_DEFAULT, dcpl, H5P_DEFAULT);
+  H5Pclose(dcpl);
 
   // Prepare local (hyperslabbed) dataspaces for writing datasets to file
   dims_start[0] = first_block;
@@ -707,7 +729,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   for (int n = 0; n < num_datasets; ++n)
     H5Dwrite(datasets_celldata[n], H5T_NATIVE_REAL,
              memspaces_vars_blocks_nx3_nx2_nx1[n], filespaces_vars_blocks_nx3_nx2_nx1[n],
-             property_list, data_buffers[n]);
+             property_list, data_storage_[n].data());
 
 
   // Close property list
@@ -760,22 +782,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   if (Globals::my_rank == 0 && write_xdmf != 0)
     MakeXDMF();
 
-  // Delete data storage
-  delete[] num_variables;
-  delete[] dataset_names;
-  delete[] variable_names;
-  delete[] levels_mesh;
-  delete[] locations_mesh;
-  delete[] x1f_mesh;
-  delete[] x2f_mesh;
-  delete[] x3f_mesh;
-  delete[] x1v_mesh;
-  delete[] x2v_mesh;
-  delete[] x3v_mesh;
-  for (int n = 0; n < num_datasets; ++n)
-    delete[] data_buffers[n];
-  delete[] data_buffers;
-  delete[] active_flags;
+  // Persistent buffers (vectors) are retained for reuse across dumps.
+  // No delete[] needed - memory is managed by std::vector destructors.
 
   // Reset parameters for next time file is written
   output_params.file_number++;
@@ -890,6 +898,52 @@ void ATHDF5Output::MakeXDMF() {
   // Close file
   xdmf.close();
   return;
+}
+
+//----------------------------------------------------------------------------------------
+// Ensure persistent buffers are large enough for the current dump.
+// Only reallocates when dimensions grow; buffers are never shrunk.
+
+void ATHDF5Output::EnsureBuffers(int max_blocks_local_arg, int num_blocks_local_arg,
+                                 int nx1_arg, int nx2_arg, int nx3_arg,
+                                 int num_datasets_arg, const int *num_variables_arg) {
+  // --- active_flags: sized to max_blocks_local (one per local MeshBlock) ---
+  if (max_blocks_local_arg > alloc_max_blocks_local_) {
+    active_flags_.resize(max_blocks_local_arg);
+    alloc_max_blocks_local_ = max_blocks_local_arg;
+  }
+
+  // --- metadata arrays: sized to num_blocks_local (active blocks after slicing) ---
+  if (num_blocks_local_arg > alloc_num_blocks_local_
+      || nx1_arg > alloc_nx1_ || nx2_arg > alloc_nx2_ || nx3_arg > alloc_nx3_) {
+    int nbl = std::max(num_blocks_local_arg, alloc_num_blocks_local_);
+    int n1  = std::max(nx1_arg, alloc_nx1_);
+    int n2  = std::max(nx2_arg, alloc_nx2_);
+    int n3  = std::max(nx3_arg, alloc_nx3_);
+
+    levels_mesh_.resize(nbl);
+    locations_mesh_.resize(nbl * 3);
+    x1f_mesh_.resize(nbl * (n1 + 1));
+    x2f_mesh_.resize(nbl * (n2 + 1));
+    x3f_mesh_.resize(nbl * (n3 + 1));
+    x1v_mesh_.resize(nbl * n1);
+    x2v_mesh_.resize(nbl * n2);
+    x3v_mesh_.resize(nbl * n3);
+
+    alloc_num_blocks_local_ = nbl;
+    alloc_nx1_ = n1;
+    alloc_nx2_ = n2;
+    alloc_nx3_ = n3;
+  }
+
+  // --- data storage: one contiguous buffer per dataset ---
+  data_storage_.resize(num_datasets_arg);
+  for (int n = 0; n < num_datasets_arg; ++n) {
+    std::size_t needed = static_cast<std::size_t>(num_variables_arg[n])
+                         * num_blocks_local_arg * nx3_arg * nx2_arg * nx1_arg;
+    if (data_storage_[n].size() < needed)
+      data_storage_[n].resize(needed);
+  }
 }
 
 #endif  // HDF5OUTPUT

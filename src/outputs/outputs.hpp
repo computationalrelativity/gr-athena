@@ -11,8 +11,11 @@
 // C headers
 
 // C++ headers
-#include <cstdio>  // std::size_t
+#include <array>
+#include <cstdint>  // std::int64_t
+#include <cstdio>   // std::size_t
 #include <string>
+#include <vector>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
@@ -96,7 +99,7 @@ class OutputType {
   explicit OutputType(OutputParameters oparams);
 
   // rule of five:
-  virtual ~OutputType() = default;
+  virtual ~OutputType();
   // copy constructor and assignment operator (pnext_type, pfirst_data, etc. are shallow
   // copied)
   OutputType(const OutputType& copy_other) = default;
@@ -120,6 +123,9 @@ class OutputType {
   void SumOutputData(MeshBlock *pmb, int dim);
   void CalculateCartesianVector(AthenaArray<Real> &src, AthenaArray<Real> &dst,
                                 Coordinates *pco);
+  // Allocate/recycle OutputData nodes via a free list to avoid repeated new/delete
+  OutputData* AllocNode();
+  void FreeNode(OutputData *node);
   // following pure virtual function must be implemented in all derived classes
   virtual void WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) = 0;
 
@@ -128,6 +134,8 @@ class OutputType {
   // nested doubly linked list of OutputData nodes (of the same OutputType):
   OutputData *pfirst_data_;  // ptr to head OutputData node in doubly linked list
   OutputData *plast_data_;   // ptr to tail OutputData node in doubly linked list
+  // free list of recycled OutputData nodes (singly linked via pnext):
+  OutputData *free_list_;
 };
 
 //----------------------------------------------------------------------------------------
@@ -187,15 +195,41 @@ class ATHDF5Output : public OutputType {
   // BD: TODO - why is this hard-coded like this?
   static const int max_name_length = 50;  // maximum length of names excluding \0
 
-  // Metadata
+  // Metadata (persisted across dumps for MakeXDMF)
   std::string filename;                       // name of athdf file
-  double code_time;                            // time in code unit for XDMF
+  double code_time;                           // time in code unit for XDMF
   int num_blocks_global;                      // number of MeshBlocks in simulation
   int nx1, nx2, nx3;                          // sizes of MeshBlocks
   int num_datasets;                           // count of datasets to output
-  int *num_variables;                         // list of counts of variables per dataset
-  char (*dataset_names)[max_name_length+1];   // array of C-string names of datasets
-  char (*variable_names)[max_name_length+1];  // array of C-string names of variables
+
+  // Persistent name arrays - reused across dumps
+  std::vector<int> num_variables_vec_;
+  // Convenience raw pointer (alias into num_variables_vec_.data())
+  int *num_variables = nullptr;
+  std::vector<std::array<char, max_name_length+1>> dataset_names_vec_;
+  std::vector<std::array<char, max_name_length+1>> variable_names_vec_;
+  // Convenience raw pointers for HDF5 attribute writes (alias cast)
+  char (*dataset_names)[max_name_length+1] = nullptr;
+  char (*variable_names)[max_name_length+1] = nullptr;
+
+  // Persistent data buffers - reused across dumps, only reallocated if
+  // block count or mesh geometry changes (e.g. after AMR regrid).
+  int alloc_max_blocks_local_ = 0;
+  int alloc_num_blocks_local_ = 0;
+  int alloc_nx1_ = 0, alloc_nx2_ = 0, alloc_nx3_ = 0;
+  std::vector<bool>          active_flags_;
+  std::vector<int>           levels_mesh_;
+  std::vector<std::int64_t>  locations_mesh_;
+  std::vector<H5Real>        x1f_mesh_, x2f_mesh_, x3f_mesh_;
+  std::vector<H5Real>        x1v_mesh_, x2v_mesh_, x3v_mesh_;
+  // One contiguous buffer per dataset for cell data
+  std::vector<std::vector<H5Real>> data_storage_;
+
+  // Ensure persistent buffers are large enough for the current dump.
+  // Only reallocates when dimensions grow.
+  void EnsureBuffers(int max_blocks_local, int num_blocks_local,
+                     int nx1, int nx2, int nx3,
+                     int num_datasets, const int *num_variables);
 };
 #endif
 
