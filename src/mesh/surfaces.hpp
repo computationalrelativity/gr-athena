@@ -23,6 +23,7 @@ namespace gra::mesh::surfaces {
 // ============================================================================
 
 // Forward declare
+class Surface;
 class SurfaceCartesian;
 class SurfaceCylindrical;
 class SurfaceSpherical;
@@ -168,7 +169,7 @@ class Surfaces
 
   public:
     Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix);
-    virtual ~Surfaces() = default;
+    virtual ~Surfaces();
 
   public:
     Mesh *pmesh;
@@ -205,120 +206,74 @@ class Surfaces
     bool write_final;
     bool is_final = false;
 
+    // number of individual surfaces in this collection
+    int num_surf = 0;
+
+    // per-surface pointers (owned by this collection, deleted in destructor)
+    std::vector<Surface *> psurf;
+
   public:
 
     // Check whether a surface is active
-    virtual bool IsActive(const Real time) { return true; };
+    bool IsActive(const Real time);
     // Reduction (call on each surface in Surfaces collection)
-    virtual void Reduce(const int ncycle, const Real time,
-                        const bool is_final) { };
+    void Reduce(const int ncycle, const Real time,
+                const bool is_final);
     // Teardown and prepare interpolators on each Surface
-    virtual void ReinitializeSurfaces(const int ncycle,
-                                      const Real time) { };
+    void ReinitializeSurfaces(const int ncycle,
+                              const Real time);
+
+    // finish writing operations
+    void WriteBlock();
+    // write all surfaces asynchronously
+    void WriteAllSurfaces(const Real time);
+
+  private:
+    std::future<void> write_future;
 };
 
 class SurfacesCartesian : public Surfaces
 {
   public:
     SurfacesCartesian(Mesh *pm, ParameterInput *pin, const int par_ix);
-    ~SurfacesCartesian();
-
-  public:
-    const int num_surf;
-
-    std::vector<SurfaceCartesian *> psurf;
-
-  public:
-    virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time,
-                        const bool is_final) override;
-    virtual void ReinitializeSurfaces(const int ncycle,
-                                      const Real time) override;
-
-    // finish writing operations
-    void WriteBlock();
-    // write all surfaces asynchronously
-    void WriteAllSurfaces(const Real time);
-
-  private:
-    std::future<void> write_future;
 };
 
 class SurfacesCylindrical : public Surfaces
 {
   public:
     SurfacesCylindrical(Mesh *pm, ParameterInput *pin, const int par_ix);
-    ~SurfacesCylindrical();
-
-  public:
-    const int num_radii;
-
-    std::vector<SurfaceCylindrical *> psurf;
-
-  public:
-    virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time,
-                        const bool is_final) override;
-    virtual void ReinitializeSurfaces(const int ncycle,
-                                      const Real time) override;
-
-    // finish writing operations
-    void WriteBlock();
-    // write all surfaces asynchronously
-    void WriteAllSurfaces(const Real time);
-
-  private:
-    std::future<void> write_future;
 };
 
 class SurfacesSpherical : public Surfaces
 {
   public:
     SurfacesSpherical(Mesh *pm, ParameterInput *pin, const int par_ix);
-    ~SurfacesSpherical();
-
-  public:
-    const int num_radii;
-
-    std::vector<SurfaceSpherical *> psurf;
-
-  public:
-    virtual bool IsActive(const Real time) override;
-    virtual void Reduce(const int ncycle, const Real time,
-                        const bool is_final) override;
-    virtual void ReinitializeSurfaces(const int ncycle,
-                                      const Real time) override;
-
-    // finish writing operations
-    void WriteBlock();
-    // write all surfaces asynchronously
-    void WriteAllSurfaces(const Real time);
-
-  private:
-    std::future<void> write_future;
 };
 
 
 // single surface class -------------------------------------------------------
 class Surface
 {
+  // The collection class needs access to write_hdf5() for async writes
+  friend Surfaces;
+
   public:
     Surface(Mesh *pm,
             ParameterInput *pin,
             Surfaces *psurfs,
             const int surf_ix);
-    virtual ~Surface() = default;
+    virtual ~Surface();
 
     // General interface for the reduction
-    virtual void Reduce(const int ncycle, const Real time) { };
+    void Reduce(const int ncycle, const Real time);
     // Compute phase: prepare interpolators + interpolate (no MPI)
-    virtual void Reduce_Compute() { };
+    void Reduce_Compute();
     // Communicate phase: MPI_Allreduce of u_vars
-    virtual void Reduce_Communicate() { };
+    void Reduce_Communicate();
     // Set up from scratch (cleaning up internally) surface interp etc
     // active=false: only tear down (AMR invalidated MeshBlock pointers)
     // active=true:  tear down + re-prepare interpolators
-    virtual void ReinitializeSurface(const bool active = true) {};
+    void ReinitializeSurface(const bool active = true);
 
   public:
 
@@ -342,20 +297,52 @@ class Surface
                                       const int nix);
 
   protected:
-    virtual void write_hdf5(const Real time) { };
+    void write_hdf5(const Real time);
     void hdf5_get_next_filename(std::string & filename);
+
+    // Geometry-specific: write coordinate scalars and arrays to HDF5 file
+    virtual void write_hdf5_coordinates(hid_t & id_file,
+                                        const std::string & six) = 0;
+
+    // Geometry-specific: set up interpolators for the grid
+    virtual void PrepareInterpolators() = 0;
+    // Geometry-specific: interpolate all variables on the grid
+    virtual void DoInterpolations() = 0;
+
+    // Tear down interpolators (clear pools, reset masks)
+    void TearDownInterpolators();
+    // Chunked MPI_Allreduce on u_vars
+    void MPI_Reduce();
 
   protected:
     Mesh * pm;
     Surfaces *psurfs;
 
     const int surf_ix;
+
+    // For storage of interpolators / target point masks
+    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
+    typedef LagrangeInterpND<1, 3> LagInterpLinear;
+
+    // Contiguous interpolator pools (one entry per occupied grid point)
+    std::vector<LagInterp> interp_pool_Lag_cc;
+    std::vector<LagInterp> interp_pool_Lag_vc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
+
+    // Index into interp_pool_*; -1 means no interpolator at this grid point
+    AthenaArray<int> mask_interp_idx_cc;
+    AthenaArray<int> mask_interp_idx_vc;
+
+    // Pointer to MeshBlock that owns each grid point (geometry-specific shape)
+    AthenaArray<MeshBlock *> mask_mb;
+
+    // have we allocated interpolators for a given grid structure?
+    bool prepared = false;
 };
 
 class SurfaceCylindrical : public Surface
 {
-  friend SurfacesCylindrical;
-
   public:
     enum class variety_sampling { uniform };
     enum class variety_interpolator { Lagrange, LagrangeLinear };
@@ -364,13 +351,6 @@ class SurfaceCylindrical : public Surface
                        ParameterInput *pin,
                        Surfaces *psurfs,
                        const int surf_ix);
-
-    ~SurfaceCylindrical();
-
-    virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void Reduce_Compute() override;
-    virtual void Reduce_Communicate() override;
-    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 
@@ -387,27 +367,6 @@ class SurfaceCylindrical : public Surface
 
     variety_sampling vs;
     variety_interpolator vi;
-
-    // For storage of interpolators / target point masks
-    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
-    typedef LagrangeInterpND<1, 3> LagInterpLinear;
-
-    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
-    // that contains (th_i, th_j)
-    AthenaArray<MeshBlock *> mask_mb;
-
-    // Contiguous interpolator pools (one entry per occupied grid point)
-    std::vector<LagInterp> interp_pool_Lag_cc;
-    std::vector<LagInterp> interp_pool_Lag_vc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
-
-    // Index into interp_pool_*; -1 means no interpolator at this grid point
-    AthenaArray<int> mask_interp_idx_cc;
-    AthenaArray<int> mask_interp_idx_vc;
-
-    // have we allocated interpolators for a given grid structure?
-    bool prepared = false;
 
   private:
 
@@ -431,27 +390,23 @@ class SurfaceCylindrical : public Surface
 
   // interpolator specific ----------------------------------------------------
   private:
-    void PrepareInterpolators();
-    void TearDownInterpolators();
+    virtual void PrepareInterpolators() override;
+    virtual void DoInterpolations() override;
 
-    void DoInterpolations();
     Real InterpolateAtPoint(aliases::AA & raw_cpt,
                             Surfaces::variety_base_grid vs,
                             const int tar_i, const int tar_j);
 
-    void MPI_Reduce();
-
   // output specific ----------------------------------------------------------
   protected:
-    virtual void write_hdf5(const Real time) override;
+    virtual void write_hdf5_coordinates(hid_t & id_file,
+                                        const std::string & six) override;
 
 };
 
 
 class SurfaceCartesian : public Surface
 {
-  friend SurfacesCartesian;
-
   public:
     enum class variety_sampling { uniform, cgl };
     enum class variety_interpolator { Lagrange, LagrangeLinear };
@@ -460,13 +415,6 @@ class SurfaceCartesian : public Surface
                      ParameterInput *pin,
                      Surfaces *psurfs,
                      const int surf_ix);
-
-    ~SurfaceCartesian();
-
-    virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void Reduce_Compute() override;
-    virtual void Reduce_Communicate() override;
-    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 
@@ -486,27 +434,6 @@ class SurfaceCartesian : public Surface
 
     variety_sampling vs;
     variety_interpolator vi;
-
-    // For storage of interpolators / target point masks
-    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
-    typedef LagrangeInterpND<1, 3> LagInterpLinear;
-
-    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
-    // that contains (th_i, th_j)
-    AthenaArray<MeshBlock *> mask_mb;
-
-    // Contiguous interpolator pools (one entry per occupied grid point)
-    std::vector<LagInterp> interp_pool_Lag_cc;
-    std::vector<LagInterp> interp_pool_Lag_vc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
-
-    // Index into interp_pool_*; -1 means no interpolator at this grid point
-    AthenaArray<int> mask_interp_idx_cc;
-    AthenaArray<int> mask_interp_idx_vc;
-
-    // have we allocated interpolators for a given grid structure?
-    bool prepared = false;
 
   private:
 
@@ -602,26 +529,22 @@ class SurfaceCartesian : public Surface
 
   // interpolator specific ----------------------------------------------------
   private:
-    void PrepareInterpolators();
-    void TearDownInterpolators();
+    virtual void PrepareInterpolators() override;
+    virtual void DoInterpolations() override;
 
-    void DoInterpolations();
     Real InterpolateAtPoint(aliases::AA & raw_cpt,
                             Surfaces::variety_base_grid vs,
                             const int tar_i, const int tar_j, const int tar_k);
 
-    void MPI_Reduce();
-
   // output specific ----------------------------------------------------------
   private:
-    virtual void write_hdf5(const Real time) override;
+    virtual void write_hdf5_coordinates(hid_t & id_file,
+                                        const std::string & six) override;
 
 };
 
 class SurfaceSpherical : public Surface
 {
-  friend SurfacesSpherical;
-
   public:
     enum class variety_sampling { uniform };
     enum class variety_interpolator { Lagrange, LagrangeLinear };
@@ -630,13 +553,6 @@ class SurfaceSpherical : public Surface
                      ParameterInput *pin,
                      Surfaces *psurfs,
                      const int surf_ix);
-
-    ~SurfaceSpherical();
-
-    virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void Reduce_Compute() override;
-    virtual void Reduce_Communicate() override;
-    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 
@@ -652,27 +568,6 @@ class SurfaceSpherical : public Surface
 
     variety_sampling vs;
     variety_interpolator vi;
-
-    // For storage of interpolators / target point masks
-    typedef LagrangeInterpND<2 * NGHOST - 1, 3> LagInterp;
-    typedef LagrangeInterpND<1, 3> LagInterpLinear;
-
-    // (i,j) = pointer to MeshBlock (if it exists) within Mesh
-    // that contains (th_i, th_j)
-    AthenaArray<MeshBlock *> mask_mb;
-
-    // Contiguous interpolator pools (one entry per occupied grid point)
-    std::vector<LagInterp> interp_pool_Lag_cc;
-    std::vector<LagInterp> interp_pool_Lag_vc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
-    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
-
-    // Index into interp_pool_*; -1 means no interpolator at this grid point
-    AthenaArray<int> mask_interp_idx_cc;
-    AthenaArray<int> mask_interp_idx_vc;
-
-    // have we allocated interpolators for a given grid structure?
-    bool prepared = false;
 
   private:
 
@@ -696,19 +591,17 @@ class SurfaceSpherical : public Surface
 
   // interpolator specific ----------------------------------------------------
   private:
-    void PrepareInterpolators();
-    void TearDownInterpolators();
+    virtual void PrepareInterpolators() override;
+    virtual void DoInterpolations() override;
 
-    void DoInterpolations();
     Real InterpolateAtPoint(aliases::AA & raw_cpt,
                             Surfaces::variety_base_grid vs,
                             const int tar_i, const int tar_j);
 
-    void MPI_Reduce();
-
   // output specific ----------------------------------------------------------
   private:
-    virtual void write_hdf5(const Real time) override;
+    virtual void write_hdf5_coordinates(hid_t & id_file,
+                                        const std::string & six) override;
 
 };
 

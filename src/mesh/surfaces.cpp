@@ -1,4 +1,6 @@
 #include "surfaces.hpp"
+#include <algorithm> // std::min
+#include <cstring>   // std::memcpy
 #include <limits>
 #include <map>
 #include <string>
@@ -211,6 +213,196 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
 
   }
 
+}
+
+Surfaces::~Surfaces()
+{
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
+
+  for (auto surf : psurf) {
+    delete surf;
+  }
+  psurf.resize(0);
+}
+
+bool Surfaces::IsActive(const Real time)
+{
+  if ((start_time >= 0) && time < start_time)
+  {
+    return false;
+  }
+
+  if ((stop_time >= 0) && time > stop_time)
+  {
+    return false;
+  }
+  return true;
+}
+
+void Surfaces::WriteBlock()
+{
+  if (write_future.valid())
+  {
+    write_future.get();
+  }
+}
+
+void Surfaces::WriteAllSurfaces(const Real time)
+{
+  // launch async write in background
+  write_future = std::async(std::launch::async, [this, time]()
+  {
+    // each surface can write its own contribution
+    for (auto &surf : psurf)
+    {
+      surf->write_hdf5(time);
+    }
+
+    // debug
+    std::printf("%s @ time = %.3e async out!\n", par_block_name.c_str(), time);
+  });
+}
+
+void Surfaces::Reduce(const int ncycle, const Real time,
+                      const bool is_final)
+{
+  // do not perform reduction if we are outside specified ranges --------------
+  if (!IsActive(time))
+  {
+    return;
+  }
+  // --------------------------------------------------------------------------
+
+  // filename update for final write
+  this->is_final = is_final;
+  if (is_final && !write_final)
+  {
+    return;
+  }
+
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
+
+  // Phase 1: compute interpolations on all surfaces --------------------------
+  for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
+  {
+    psurf[surf_ix]->Reduce_Compute();
+  }
+
+  // Phase 2: batched MPI_Allreduce across all surfaces -----------------------
+#ifdef MPI_PARALLEL
+  {
+    // compute total element count across all surfaces
+    size_t total_elems = 0;
+    for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
+    {
+      total_elems += static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+    }
+
+    // pack all u_vars into one contiguous buffer
+    std::vector<Real> buf(total_elems);
+    size_t offset = 0;
+    for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
+    {
+      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+      std::memcpy(buf.data() + offset,
+                  psurf[surf_ix]->u_vars.data(),
+                  n * sizeof(Real));
+      offset += n;
+    }
+
+    // single chunked MPI_Allreduce on the contiguous buffer
+    const size_t total_bytes = total_elems * sizeof(Real);
+    const size_t max_chunk_bytes =
+      static_cast<size_t>(DBG_SURF_CHUNK) * 1024 * 1024;
+    size_t start_byte = 0;
+
+    while (start_byte < total_bytes)
+    {
+      size_t bytes_left = total_bytes - start_byte;
+      size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
+      int count = static_cast<int>(chunk_bytes / sizeof(Real));
+
+      MPI_Allreduce(MPI_IN_PLACE,
+                    buf.data() + start_byte / sizeof(Real),
+                    count,
+                    MPI_ATHENA_REAL,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
+
+      start_byte += count * sizeof(Real);
+    }
+
+    // scatter results back to each surface's u_vars
+    offset = 0;
+    for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
+    {
+      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+      std::memcpy(psurf[surf_ix]->u_vars.data(),
+                  buf.data() + offset,
+                  n * sizeof(Real));
+      offset += n;
+    }
+  }
+#endif
+
+  // Phase 3: synchronous writes ----------------------------------------------
+  if (dump_data && !can_async)
+  {
+    if (Globals::my_rank == write_rank)
+    {
+      for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
+      {
+        psurf[surf_ix]->write_hdf5(time);
+      }
+    }
+  }
+
+  if (dump_data)
+  {
+    // immediate, blocking write complete, update file_number here;
+    // in the case of async this is also safe as it starts reduced by 1
+    if (!is_final)
+    {
+      file_number++;
+      pin->OverwriteParameter(par_block_name, "file_number", file_number);
+    }
+
+    // launch writes in the background asynchronously
+    if (can_async)
+    {
+      // only write-rank actually does the write
+      if (Globals::my_rank == write_rank)
+      {
+        WriteAllSurfaces(time);
+      }
+    }
+  }
+}
+
+void Surfaces::ReinitializeSurfaces(const int ncycle, const Real time)
+{
+  if (can_async)
+  {
+    // Ensure any current writes complete before changing data
+    WriteBlock();
+  }
+
+  // After AMR, MeshBlock pointers held by surfaces are stale.
+  // Always tear down; only re-prepare if the surface is active.
+  const bool active = IsActive(time);
+
+  for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
+  {
+    psurf[surf_ix]->ReinitializeSurface(active);
+  }
 }
 
 // Surface implementations ----------------------------------------------------
@@ -811,6 +1003,60 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
   return ret;
 }
 
+void Surface::write_hdf5(const Real T)
+{
+#ifdef HDF5OUTPUT
+  if (Globals::my_rank == psurfs->write_rank)
+  {
+    std::string filename;
+    hdf5_get_next_filename(filename);
+
+    // write to existing file if multiple-radii being dumped
+    const bool use_existing = surf_ix > 0;
+    hid_t id_file = hdf5_touch_file(filename, use_existing);
+
+    std::stringstream ssix;
+    ssix << std::setw(2) << std::setfill('0') << std::to_string(surf_ix);
+    const std::string six { ssix.str() };
+
+    // scalars [grid] + 1d arrays [grid] - geometry-specific
+    hdf5_write_scalar(id_file, "/coordinates/" + six + "/T", T);
+    write_hdf5_coordinates(id_file, six);
+
+    // field arrays --------------------------------------------------------------
+    int ix_dump = 0;
+
+    std::string full_path_base { "/fields/" + six };
+
+    for (int v=0; v<psurfs->variables.GetSize(); ++v)
+    {
+      Surfaces::variety_data vd = psurfs->variables(v);
+
+      // get HDF5 group prefix e.g. from "M1.lab" extract "M1"
+      const std::string & var_type =
+        psurfs->map_to_variety_prefix.at(vd);
+
+      for (int n=0; n<N_cpts(v); ++n)
+      {
+        // slice into next field component to dump
+        AA sl_u (u_vars, ix_dump, 1);
+
+        std::string var_name = GetNameFieldComponent(vd, n);
+        std::string full_path = full_path_base + "/" + var_type + "/";
+        full_path += var_name;
+
+        hdf5_write_arr_nd(id_file, full_path, sl_u);
+        ix_dump++;
+      }
+    }
+
+    // Finally close
+    hdf5_close_file(id_file);
+  }
+
+#endif
+}
+
 void Surface::hdf5_get_next_filename(std::string & filename)
 {
   if (psurfs->is_final)
@@ -835,6 +1081,107 @@ void Surface::hdf5_get_next_filename(std::string & filename)
     filename = psurfs->file_basename + "." + psurfs->par_block_name + ".";
     filename += ss_i.str() + ".hdf5";
   }
+}
+
+Surface::~Surface()
+{
+  TearDownInterpolators();
+}
+
+void Surface::TearDownInterpolators()
+{
+  if (!prepared)
+  {
+    return;
+  }
+
+  // clean up mask containing salient MeshBlock
+  mask_mb.Fill(nullptr);
+
+  // clear interpolator pools and reset index arrays
+  interp_pool_Lag_cc.clear();
+  interp_pool_Lag_vc.clear();
+  interp_pool_LagLinear_cc.clear();
+  interp_pool_LagLinear_vc.clear();
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
+
+  prepared = false;
+}
+
+void Surface::ReinitializeSurface(const bool active)
+{
+  TearDownInterpolators();
+  if (active)
+  {
+    PrepareInterpolators();
+  }
+}
+
+void Surface::Reduce_Compute()
+{
+  // ensure we have prepared the interpolators --------------------------------
+  if (!prepared)
+  {
+    PrepareInterpolators();
+  }
+
+  // use pre-allocated interpolators on desired data --------------------------
+  DoInterpolations();
+}
+
+void Surface::Reduce_Communicate()
+{
+  MPI_Reduce();
+}
+
+void Surface::Reduce(const int ncycle, const Real time)
+{
+  Reduce_Compute();
+
+  // MPI logic for surface reduction to all ranks -----------------------------
+  Reduce_Communicate();
+  // --------------------------------------------------------------------------
+
+  // finally write ------------------------------------------------------------
+  if (psurfs->dump_data && !psurfs->can_async)
+  {
+    if (Globals::my_rank == psurfs->write_rank)
+    {
+      write_hdf5(time);
+    }
+  }
+  // --------------------------------------------------------------------------
+}
+
+void Surface::MPI_Reduce()
+{
+#ifdef MPI_PARALLEL
+  size_t total_bytes = u_vars.GetSizeInBytes();
+
+  // max chunk size in bytes
+  size_t max_chunk_bytes = DBG_SURF_CHUNK * 1024 * 1024;
+  size_t start_byte = 0;
+
+  // Pointer to the contiguous data
+  Real* data_ptr = u_vars.data();
+
+  while (start_byte < total_bytes) {
+    // Compute number of elements for this chunk
+    size_t bytes_left = total_bytes - start_byte;
+    size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
+    int count = static_cast<int>(chunk_bytes / sizeof(Real));
+
+    MPI_Allreduce(MPI_IN_PLACE,
+                  data_ptr + start_byte / sizeof(Real),
+                  count,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+
+    start_byte += count * sizeof(Real);
+  }
+#endif
 }
 
 // ============================================================================
