@@ -172,6 +172,16 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
     int jl = pmb->js, ju = pmb->je;
     int kl = pmb->ks, ku = pmb->ke;
 
+    // Recompute cell-centred B from the (already updated) face-centred field
+    // on the physical interior so that C2P sees a bcc consistent with the
+    // current stage.  The global bcc refresh happens later in
+    // PhysicalBoundary_Hyd, but PrimitivesPhysical runs before that task.
+    if (MAGNETIC_FIELDS_ENABLED)
+    {
+      pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                     il, iu, jl, ju, kl, ku);
+    }
+
     static const int coarseflag = 0;
     peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
                                ps->s, ps->r,

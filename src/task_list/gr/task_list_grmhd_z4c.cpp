@@ -1079,7 +1079,6 @@ TaskStatus GRMHD_Z4c::ReceiveScalars(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::next;
 }
 
 
