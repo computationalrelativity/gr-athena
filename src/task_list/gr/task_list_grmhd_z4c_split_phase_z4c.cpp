@@ -116,7 +116,8 @@ void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
       ATHENA_ERROR(msg);
     }
 
-    // Initialize time abscissae
+    // Initialize time abscissae (also done in Phase_MHD; repeated here for
+    // consistency in case task lists are ever assembled separately)
     PrepareStageAbscissae(stage, pmb);
 
     // Auxiliary var u1 needs 0-init at the beginning of each cycle

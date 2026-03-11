@@ -139,13 +139,7 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
                "xorder_p_fb",
                "xorder_eps",
                xorder_style_p_fb,
-               xorder_eps);
-
-    xorder_use_fb_unphysical = pin->GetOrAddBoolean(
-      "time", "xorder_use_fb_unphysical", false);
-
-    xorder_use_fb_mask = pin->GetOrAddBoolean(
-      "time", "xorder_use_fb_mask", false);
+                xorder_eps);
   }
 
   xorder_floor_primitives = pin->GetOrAddBoolean(

@@ -221,8 +221,9 @@ TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
+    return TaskStatus::success;
   }
-  return TaskStatus::success;
+  return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
@@ -545,7 +546,6 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
   } else {
     return TaskStatus::next;
   }
-  return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------

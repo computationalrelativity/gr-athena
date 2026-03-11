@@ -132,7 +132,8 @@ void GRMHD_Z4c_Phase_MHD_com::StartupTaskList(MeshBlock *pmb, int stage)
 
   if (stage == 1)
   {
-    // Initialize time abscissae
+    // Initialize time abscissae (also done in Phase_MHD; repeated here for
+    // consistency in case task lists are ever assembled separately)
     PrepareStageAbscissae(stage, pmb);
   }
 
@@ -329,7 +330,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveScalars(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
 }
 
 
