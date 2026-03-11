@@ -22,7 +22,7 @@ inline T Dot(
   const AthenaTensor<T, TensorSymm::NONE, D, 1> & v_u_,
   const int i)
 {
-  Real out (0);
+  T out (0);
   for (int a=0; a<D; ++a)
   {
     out += v_d_(a,i) * v_u_(a,i);
@@ -66,6 +66,7 @@ inline void Det3Metric(
   int const k, int const j,
   int const il, int const iu)
 {
+  #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     detg_(i) = Det3Metric(
@@ -112,6 +113,7 @@ inline void Inv3Metric(
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu,
   int const il, int const iu)
 {
+  #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     Inv3Metric(
@@ -131,6 +133,7 @@ inline void Inv3Metric(
   int const k, int const j,
   int const il, int const iu)
 {
+  #pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     Inv3Metric(
@@ -149,6 +152,7 @@ inline void Inv3Metric(
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> & g_uu,
   int const il, int const iu)
 {
+#pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     const Real oodetg = 1. / Det3Metric(g_dd, i);
@@ -188,6 +192,7 @@ inline void Inv3MetricDiag(
   int const d,
   int const il, int const iu)
 {
+#pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     g_uu(d,d,i) = Inv3MetricDiag(
@@ -214,18 +219,21 @@ inline Real TraceRank2(
   );
 }
 
+// N.B. detg_ is the determinant det(g_dd); the scalar TraceRank2 expects
+// the prefactor 1/det(g), so we divide here.
 inline void TraceRank2(
   AthenaTensor<Real, TensorSymm::NONE, 3, 0> & Tr_,
-  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & detginv_,
+  AthenaTensor<Real, TensorSymm::NONE, 3, 0> const & detg_,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g_dd,
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S_dd,
   int const k, int const j,
   int const il, int const iu)
 {
+#pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     Tr_(i) = TraceRank2(
-      1.0 / detginv_(i),
+      1.0 / detg_(i),
       g_dd(0,0,k,j,i), g_dd(0,1,k,j,i), g_dd(0,2,k,j,i),
       g_dd(1,1,k,j,i), g_dd(1,2,k,j,i), g_dd(2,2,k,j,i),
       S_dd(0,0,k,j,i), S_dd(0,1,k,j,i), S_dd(0,2,k,j,i),
@@ -240,16 +248,30 @@ inline void TraceRank2(
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & S_dd_,
   int const il, int const iu)
 {
+#pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     Tr_(i) = 0;
   }
 
+  // Exploit SYM2 symmetry: g_uu and S_dd are both symmetric, so
+  // Tr = g^{ab} S_{ab} = sum_{a} g^{aa} S_{aa} + 2 sum_{a<b} g^{ab} S_{ab}
   for (int a=0; a<3; ++a)
-  for (int b=0; b<3; ++b)
-  for (int i=il; i<=iu; ++i)
   {
-    Tr_(i) += g_uu_(a,b,i) * S_dd_(a,b,i);
+#pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      Tr_(i) += g_uu_(a,a,i) * S_dd_(a,a,i);
+    }
+  }
+  for (int a=0; a<3; ++a)
+  for (int b=a+1; b<3; ++b)
+  {
+#pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      Tr_(i) += 2.0 * g_uu_(a,b,i) * S_dd_(a,b,i);
+    }
   }
 
 }
@@ -381,6 +403,7 @@ inline void InnerProductSlicedVec3Metric(
   AthenaTensor<Real, TensorSymm::SYM2, 3, 2> const & g,
   int const il, int const iu)
 {
+#pragma omp simd
   for (int i=il; i<=iu; ++i)
   {
     norm2_v(i) = InnerProductSlicedVec3Metric(
@@ -607,16 +630,23 @@ inline void ApplyLinearTransform(
 {
 
   for (int a=0; a<D; ++a)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(a,i) = 0;
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(a,i) = 0;
+    }
   }
 
   for (int a=0; a<D; ++a)
   for (int b=0; b<D; ++b)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(a,i) += T_mat(a,b) * src(b,i);
+    const T coeff = T_mat(a,b);
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(a,i) += coeff * src(b,i);
+    }
   }
 
 }
@@ -631,18 +661,25 @@ inline void ApplyLinearTransform(
 {
   for (int b=0; b<D; ++b)
   for (int a=0; a<=b; ++a)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(a,b,i) = 0;
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(a,b,i) = 0;
+    }
   }
 
   for (int b=0; b<D; ++b)
   for (int a=0; a<=b; ++a)
   for (int l=0; l<D; ++l)
   for (int m=0; m<D; ++m)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(a,b,i) += T_mat_A(a,l) * T_mat_B(b,m) * src(l,m,i);
+    const T coeff = T_mat_A(a,l) * T_mat_B(b,m);
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(a,b,i) += coeff * src(l,m,i);
+    }
   }
 
 }
@@ -659,9 +696,12 @@ inline void ApplyLinearTransform(
   for (int c=0; c<D; ++c)
   for (int b=0; b<D; ++b)
   for (int a=0; a<=b; ++a)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(c,a,b,i) = 0;
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(c,a,b,i) = 0;
+    }
   }
 
   for (int c=0; c<D; ++c)
@@ -670,9 +710,13 @@ inline void ApplyLinearTransform(
   for (int l=0; l<D; ++l)
   for (int n=0; n<D; ++n)
   for (int m=0; m<D; ++m)
-  for (int i=il; i<=iu; ++i)
   {
-    dst(c,a,b,i) += T_mat_A(c,l) * T_mat_B(a,m) * T_mat_C(b,n) * src(l,m,n,i);
+    const T coeff = T_mat_A(c,l) * T_mat_B(a,m) * T_mat_C(b,n);
+    #pragma omp simd
+    for (int i=il; i<=iu; ++i)
+    {
+      dst(c,a,b,i) += coeff * src(l,m,n,i);
+    }
   }
 
 
