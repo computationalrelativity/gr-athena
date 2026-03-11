@@ -43,6 +43,11 @@
                        3 * (WAVE_ENABLED) + \
                        8 * (Z4C_ENABLED))
 
+// Index of the WAVE "err-max-pw" slot (a max, not a sum).
+// Only meaningful when WAVE_ENABLED=1.
+#define NHISTORY_WAVE_ABSMA_IDX (((NHYDRO) + 3) * (FLUID_ENABLED) + \
+                                 (NFIELD) + (NSCALARS) + 2)
+
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::HistoryFile()
 //  \brief Writes a history file
@@ -50,7 +55,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
 {
   MeshBlock *pmb = pm->pblock;
   Real real_max = std::numeric_limits<Real>::max();
-  Real real_min = std::numeric_limits<Real>::min();
+  Real real_lowest = std::numeric_limits<Real>::lowest();
   AthenaArray<Real> vol(pmb->ncells1);
 
   const int nuser_history_output_ = pm->user_history_func_.size();
@@ -66,7 +71,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
         hst_data[NHISTORY_VARS+n] = 0.0;
         break;
       case UserHistoryOperation::max:
-        hst_data[NHISTORY_VARS+n] = 0;
+        hst_data[NHISTORY_VARS+n] = real_lowest;
         break;
       case UserHistoryOperation::min:
         hst_data[NHISTORY_VARS+n] = real_max;
@@ -157,7 +162,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             abs_ma = (abs_ma < std::abs(wave_error)) ? std::abs(wave_error) : abs_ma;
             hst_data[isum++] += vol(i)*std::abs(wave_error);
             hst_data[isum++] += vol(i)*SQR(wave_error);
-            hst_data[isum++] = abs_ma;
+            isum++; // skip abs_ma slot (filled per-MeshBlock below)
           }
 
           // BD: TODO - compute the norm properly;
@@ -201,6 +206,12 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
       }
     }
 
+    // Update the WAVE abs_ma slot with the running max across MeshBlocks
+    // (this is a max-reduction quantity, not a sum)
+    if (WAVE_ENABLED) {
+      hst_data[NHISTORY_WAVE_ABSMA_IDX] =
+          std::max(abs_ma, hst_data[NHISTORY_WAVE_ABSMA_IDX]);
+    }
 
     for (int n=0; n<nuser_history_output_; ++n)
     {
@@ -225,6 +236,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
   }  // end loop over MeshBlocks
 
 #ifdef MPI_PARALLEL
+  // The WAVE abs_ma slot is a max-reduction, not a sum. Save it before
+  // the MPI_SUM reduction so we can reduce it separately with MPI_MAX.
+  Real wave_absma_local = 0.0;
+  if (WAVE_ENABLED) {
+    wave_absma_local = hst_data[NHISTORY_WAVE_ABSMA_IDX];
+  }
+
   // sum built-in/predefined hst_data[] over all ranks
   if (Globals::my_rank == 0) {
     MPI_Reduce(MPI_IN_PLACE, hst_data.get(), NHISTORY_VARS, MPI_ATHENA_REAL, MPI_SUM, 0,
@@ -232,6 +250,18 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
   } else {
     MPI_Reduce(hst_data.get(), hst_data.get(), NHISTORY_VARS, MPI_ATHENA_REAL, MPI_SUM,
                0, MPI_COMM_WORLD);
+  }
+
+  // Correct the WAVE abs_ma slot: reduce with MPI_MAX instead of MPI_SUM
+  if (WAVE_ENABLED) {
+    if (Globals::my_rank == 0) {
+      MPI_Reduce(MPI_IN_PLACE, &wave_absma_local, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+                 MPI_COMM_WORLD);
+      hst_data[NHISTORY_WAVE_ABSMA_IDX] = wave_absma_local;
+    } else {
+      MPI_Reduce(&wave_absma_local, &wave_absma_local, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
+                 MPI_COMM_WORLD);
+    }
   }
   // apply separate chosen operations to each user-defined history output
   for (int n=0; n<nuser_history_output_; n++)

@@ -1559,8 +1559,9 @@ void OutputType::SumOutputData(MeshBlock* pmb, int dim) {
       }
     }
 
+    // NOTE: ReplaceOutputDataNode deletes pdata, so advance via pnew
     ReplaceOutputDataNode(pdata, pnew);
-    pdata = pdata->pnext;
+    pdata = pnew->pnext;
   }
 
   // modify array indices

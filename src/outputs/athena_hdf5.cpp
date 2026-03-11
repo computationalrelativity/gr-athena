@@ -452,22 +452,15 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   code_time = static_cast<H5Real>(time); // output time for xdmf
 
   // Write coordinate system
-  /*
-  if (std::strlen(COORDINATE_SYSTEM) > max_name_length) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in athdf5 initialization\n"
-        << "Coordinate name too long\n";
-    ATHENA_ERROR(msg);
+  {
+    hid_t coord_string_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(coord_string_type, strlen(COORDINATE_SYSTEM));
+    attribute = H5Acreate2(file, "Coordinates", coord_string_type, dataspace_scalar,
+                           H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(attribute, coord_string_type, COORDINATE_SYSTEM);
+    H5Aclose(attribute);
+    H5Tclose(coord_string_type);
   }
-  */
-  attribute = H5Acreate2(file, "Coordinates", string_type, dataspace_scalar,
-                         H5P_DEFAULT, H5P_DEFAULT);
-
-  // BD: issue here but not with char** (i.e. DatasetNames) write later?
-  H5Tset_size(string_type, strlen(COORDINATE_SYSTEM));
-  H5Awrite(attribute, string_type, COORDINATE_SYSTEM);
-  H5Aclose(attribute);
-  H5Tset_size(string_type, max_name_length+1);
 
   // Write extent of grid in x1-direction
   double coord_range[3];
@@ -555,7 +548,8 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   H5Awrite(attribute, string_type, hash_string);
   H5Aclose(attribute);
 
-  // Close attribute dataspaces
+  // Close attribute dataspaces and string type
+  H5Tclose(string_type);
   H5Sclose(dataspace_scalar);
   H5Sclose(dataspace_triple);
   H5Sclose(dataspace_dataset_list);
@@ -692,7 +686,7 @@ void ATHDF5Output::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   // Write refinement level and logical location
   H5Dwrite(dataset_levels, H5T_NATIVE_INT, memspace_blocks, filespace_blocks,
            property_list, levels_mesh);
-  H5Dwrite(dataset_locations, H5T_NATIVE_LONG, memspace_blocks_3, filespace_blocks_3,
+  H5Dwrite(dataset_locations, H5T_NATIVE_INT64, memspace_blocks_3, filespace_blocks_3,
            property_list, locations_mesh);
 
   // Write coordinates
