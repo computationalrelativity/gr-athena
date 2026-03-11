@@ -49,10 +49,7 @@ class LagrangeInterp1D {
       m_coord(coord),
       m_mid_flag(false),
       m_npoint(order + 1),
-      m_out_of_bounds(false),
-      point(m_point),
-      npoint(m_npoint),
-      out_of_bounds(m_out_of_bounds) {
+      m_out_of_bounds(false) {
       // Check if we are in the middle between two grid points
 #ifdef LOCALINTERP_SYMMETRIC
       if(0 == order % 2) {
@@ -125,6 +122,15 @@ class LagrangeInterp1D {
       }
 #endif
     }
+
+    // Rule of five: delete copy (self-referential access patterns make copies
+    // error-prone); default move is safe now that reference members have been
+    // replaced with accessor methods.
+    LagrangeInterp1D(const LagrangeInterp1D&) = delete;
+    LagrangeInterp1D& operator=(const LagrangeInterp1D&) = delete;
+    LagrangeInterp1D(LagrangeInterp1D&&) = default;
+    LagrangeInterp1D& operator=(LagrangeInterp1D&&) = default;
+    ~LagrangeInterp1D() = default;
 
     //! Evaluates the interpolator
     template<typename T>
@@ -263,11 +269,11 @@ class LagrangeInterp1D {
 #endif
   public:
     //! Index of the first point of the interpolation stencil
-    int const & point;
+    int point() const { return m_point; }
     //! Number of points needed for the interpolation
-    int const & npoint;
-    //! The stencil
-    bool const & out_of_bounds;
+    int npoint() const { return m_npoint; }
+    //! The stencil was shifted to avoid going out of bounds
+    bool out_of_bounds() const { return m_out_of_bounds; }
 };
 
 template<int ndim, int D>
@@ -301,8 +307,7 @@ class LagrangeInterpND {
         int const siz[ndim],
         //! [in] Interpolation point
         Real const coord[ndim]):
-        m_out_of_bounds(false),
-        out_of_bounds(m_out_of_bounds) {
+        m_out_of_bounds(false) {
       for(int d = 0; d < ndim; ++d) {
         m_origin[d] = origin[d];
         m_delta[d] = delta[d];
@@ -311,9 +316,50 @@ class LagrangeInterpND {
         mp_interp[d] = new (&m_interp_scratch[d][0])
           LagrangeInterp1D<order>(m_origin[d], m_delta[d],
               m_siz[d], m_coord[d]);
-        m_out_of_bounds = m_out_of_bounds || mp_interp[d]->out_of_bounds;
+        m_out_of_bounds = m_out_of_bounds || mp_interp[d]->out_of_bounds();
       }
     }
+
+    // Rule of five -------------------------------------------------------
+    // Delete copy - mp_interp[] contains self-pointers into m_interp_scratch
+    // that would dangle after a shallow copy.
+    LagrangeInterpND(const LagrangeInterpND&) = delete;
+    LagrangeInterpND& operator=(const LagrangeInterpND&) = delete;
+
+    // Move constructor: bitwise-copy all storage, then fix up the self-pointers
+    // in mp_interp[] to reference this object's own scratch buffers.
+    LagrangeInterpND(LagrangeInterpND&& o) noexcept
+        : m_out_of_bounds(o.m_out_of_bounds) {
+      std::memcpy(m_origin, o.m_origin, sizeof(m_origin));
+      std::memcpy(m_delta, o.m_delta, sizeof(m_delta));
+      std::memcpy(m_siz, o.m_siz, sizeof(m_siz));
+      std::memcpy(m_coord, o.m_coord, sizeof(m_coord));
+      std::memcpy(m_interp_scratch, o.m_interp_scratch, sizeof(m_interp_scratch));
+      for (int d = 0; d < ndim; ++d) {
+        mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order>*>(
+            &m_interp_scratch[d][0]);
+      }
+    }
+
+    // Move assignment: same logic as move constructor.
+    LagrangeInterpND& operator=(LagrangeInterpND&& o) noexcept {
+      if (this != &o) {
+        m_out_of_bounds = o.m_out_of_bounds;
+        std::memcpy(m_origin, o.m_origin, sizeof(m_origin));
+        std::memcpy(m_delta, o.m_delta, sizeof(m_delta));
+        std::memcpy(m_siz, o.m_siz, sizeof(m_siz));
+        std::memcpy(m_coord, o.m_coord, sizeof(m_coord));
+        std::memcpy(m_interp_scratch, o.m_interp_scratch, sizeof(m_interp_scratch));
+        for (int d = 0; d < ndim; ++d) {
+          mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order>*>(
+              &m_interp_scratch[d][0]);
+        }
+      }
+      return *this;
+    }
+
+    ~LagrangeInterpND() = default;
+    // -------------------------------------------------------------------- 
 
     // Evaluate interpolation
     // der is the derivative direction (-1 for no derivative)
@@ -342,16 +388,16 @@ class LagrangeInterpND {
         ) const {
       assert(D >= 0 && D < ndim);
       if(D == 0) {
-        int gidx = mp_interp[0]->point;
+        int gidx = mp_interp[0]->point();
         int stride = 1;
         for(int d = 1; d < ndim; ++d) {
           stride *= m_siz[d-1];
-          gidx += stride * (mp_interp[d]->point + pos[d]);
+          gidx += stride * (mp_interp[d]->point() + pos[d]);
         }
-        std::memcpy(&vals[0][0], &gf[gidx], mp_interp[0]->npoint*sizeof(T));
+        std::memcpy(&vals[0][0], &gf[gidx], mp_interp[0]->npoint()*sizeof(T));
       }
       else {
-        for(pos[D] = 0; pos[D] < mp_interp[D]->npoint; ++pos[D]) {
+        for(pos[D] = 0; pos[D] < mp_interp[D]->npoint(); ++pos[D]) {
           m_fill_stencil<T, NextStencil<ndim, D>::value, der>(gf, pos, vals);
           if (D - 1 == der) {
             vals[D][pos[D]] = mp_interp[D-1]->eval_diff(vals[D-1], 1);
@@ -370,12 +416,13 @@ class LagrangeInterpND {
     Real m_coord[ndim];
     bool m_out_of_bounds;
 
-    // 1D interpolators (will be placed on the stack)
+    // 1D interpolators (constructed via placement new into scratch storage)
     LagrangeInterp1D<order> * mp_interp[ndim];
     // Scratch space used for placement new
     char m_interp_scratch[ndim][sizeof(LagrangeInterp1D<order>)];
   public:
-    bool const & out_of_bounds;
+    //! True if any dimension's stencil was shifted to stay in bounds
+    bool out_of_bounds() const { return m_out_of_bounds; }
 };
 
 
