@@ -77,9 +77,9 @@ GRDynamical::GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool coarse_flag)
   if (ndim > 2)
   {
     for (int k = kll; k <= kuu; ++k) {
-      const Real x2_m = x3f(k);
-      const Real x2_p = x3f(k + 1);
-      x3v(k) = 0.5 * (x2_m + x2_p);
+      const Real x3_m = x3f(k);
+      const Real x3_p = x3f(k + 1);
+      x3v(k) = 0.5 * (x3_m + x3_p);
     }
     for (int k = kll; k <= kuu - 1; ++k) {
       dx3v(k) = x3v(k + 1) - x3v(k);
@@ -292,8 +292,8 @@ void GRDynamical::AddCoordTermsDivergence(
 
     CC_PCO_ILOOP1(i)
     {
-      Real alpha__ = regularize_near_zero(alpha_(i), eps_alpha__);
-      oo_alpha_(i) = OO(alpha__);
+      alpha_(i) = regularize_near_zero(alpha_(i), eps_alpha__);
+      oo_alpha_(i) = OO(alpha_(i));
     }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)

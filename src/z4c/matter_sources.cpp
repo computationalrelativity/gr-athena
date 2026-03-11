@@ -96,6 +96,8 @@ void Z4c::GetMatter(
     AT_N_vec v_u(mbi.nn1);
 
 #if MAGNETIC_FIELDS_ENABLED
+    AT_N_sca alpha_reg(mbi.nn1);
+    AT_N_sca oo_alpha( mbi.nn1);
     AT_N_vec bb_u(  mbi.nn1);
     AT_N_vec bi_u(  mbi.nn1);
     AT_N_vec bi_d(  mbi.nn1);
@@ -132,8 +134,9 @@ void Z4c::GetMatter(
         Real T = ph->derived_ms(IX_T,k,j,i);
 #else
         Real T = peos->GetEOS().GetTemperatureFromP(n, w_p(i), Y);
-#endif
 
+        // VC path: matter fields are interpolated to vertex centres and may
+        // violate primitive floors, so re-apply them here.
         Real Wvu[3] = { };
         for (int ix=0; ix<3; ++ix)
         {
@@ -148,6 +151,7 @@ void Z4c::GetMatter(
         {
           w_r(l,i) = Y[l];
         }
+#endif
 #endif
 
 #if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
@@ -199,13 +203,18 @@ void Z4c::GetMatter(
       }
 
 #if MAGNETIC_FIELDS_ENABLED
+      ILOOP1(i)
+      {
+        alpha_reg(i) = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
+        oo_alpha(i) = OO(alpha_reg(i));
+      }
+
       b0_u.ZeroClear();
       for(int a=0;a<NDIM;++a)
       {
         ILOOP1(i)
         {
-          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
-          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i) * OO(alpha__);
+          b0_u(i) += W(i)*bb_u(a,i)*v_d(a,i) * oo_alpha(i);
         }
       }
 
@@ -225,9 +234,8 @@ void Z4c::GetMatter(
       {
         ILOOP1(i)
         {
-          Real alpha__ = regularize_near_zero(adm.alpha(k,j,i), eps_alpha__);
-          bi_u(a,i) = (bb_u(a,i)+adm.alpha(k,j,i)*b0_u(i)*W(i)*(v_u(a,i)-
-                       adm.beta_u(a,k,j,i)*OO(alpha__)))/W(i);
+          bi_u(a,i) = (bb_u(a,i)+alpha_reg(i)*b0_u(i)*W(i)*(v_u(a,i)-
+                       adm.beta_u(a,k,j,i)*oo_alpha(i)))/W(i);
         }
       }
 
@@ -249,7 +257,7 @@ void Z4c::GetMatter(
 
       ILOOP1(i)
       {
-        bsq(i) = adm.alpha(k,j,i)*adm.alpha(k,j,i)*b0_u(i)*b0_u(i) / SQR(W(i));
+        bsq(i) = SQR(alpha_reg(i))*SQR(b0_u(i)) / SQR(W(i));
       }
 
       for(int a=0;a<NDIM;++a)
@@ -272,11 +280,11 @@ void Z4c::GetMatter(
         Real const pb_sum = (w_p(i)+bsq(i)/2.0);
 
         mat.rho(k,j,i) = (wb_fac-pb_sum -
-                          adm.alpha(k,j,i)*adm.alpha(k,j,i)*b0_u(i)*b0_u(i));
+                          SQR(alpha_reg(i))*SQR(b0_u(i)));
 
-        mat.S_d(0,k,j,i) = wb_fac*v_d(0,i)-b0_u(i)*bi_d(0,i)*adm.alpha(k,j,i);
-        mat.S_d(1,k,j,i) = wb_fac*v_d(1,i)-b0_u(i)*bi_d(1,i)*adm.alpha(k,j,i);
-        mat.S_d(2,k,j,i) = wb_fac*v_d(2,i)-b0_u(i)*bi_d(2,i)*adm.alpha(k,j,i);
+        mat.S_d(0,k,j,i) = wb_fac*v_d(0,i)-b0_u(i)*bi_d(0,i)*alpha_reg(i);
+        mat.S_d(1,k,j,i) = wb_fac*v_d(1,i)-b0_u(i)*bi_d(1,i)*alpha_reg(i);
+        mat.S_d(2,k,j,i) = wb_fac*v_d(2,i)-b0_u(i)*bi_d(2,i)*alpha_reg(i);
 
         mat.S_dd(0,0,k,j,i) = (wb_fac*v_d(0,i)*v_d(0,i) +
                                pb_sum*adm.g_dd(0,0,k,j,i)-bi_d(0,i)*bi_d(0,i));
