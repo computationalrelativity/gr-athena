@@ -363,10 +363,15 @@ class SurfaceCylindrical : public Surface
     // that contains (th_i, th_j)
     AthenaArray<MeshBlock *> mask_mb;
 
-    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
-    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
+    // Contiguous interpolator pools (one entry per occupied grid point)
+    std::vector<LagInterp> interp_pool_Lag_cc;
+    std::vector<LagInterp> interp_pool_Lag_vc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
+
+    // Index into interp_pool_*; -1 means no interpolator at this grid point
+    AthenaArray<int> mask_interp_idx_cc;
+    AthenaArray<int> mask_interp_idx_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;
@@ -394,7 +399,6 @@ class SurfaceCylindrical : public Surface
   // interpolator specific ----------------------------------------------------
   private:
     void PrepareInterpolators();
-    void PrepareInterpolatorAtPoint(MeshBlock * pmb, const int i, const int j);
     void TearDownInterpolators();
 
     void DoInterpolations();
@@ -456,10 +460,15 @@ class SurfaceCartesian : public Surface
     // that contains (th_i, th_j)
     AthenaArray<MeshBlock *> mask_mb;
 
-    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
-    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
+    // Contiguous interpolator pools (one entry per occupied grid point)
+    std::vector<LagInterp> interp_pool_Lag_cc;
+    std::vector<LagInterp> interp_pool_Lag_vc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
+
+    // Index into interp_pool_*; -1 means no interpolator at this grid point
+    AthenaArray<int> mask_interp_idx_cc;
+    AthenaArray<int> mask_interp_idx_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;
@@ -559,8 +568,6 @@ class SurfaceCartesian : public Surface
   // interpolator specific ----------------------------------------------------
   private:
     void PrepareInterpolators();
-    void PrepareInterpolatorAtPoint(MeshBlock * pmb,
-                                    const int i, const int j, const int k);
     void TearDownInterpolators();
 
     void DoInterpolations();
@@ -617,10 +624,15 @@ class SurfaceSpherical : public Surface
     // that contains (th_i, th_j)
     AthenaArray<MeshBlock *> mask_mb;
 
-    AthenaArray<LagInterp *> mask_pinterp_Lag_cc;
-    AthenaArray<LagInterp *> mask_pinterp_Lag_vc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_cc;
-    AthenaArray<LagInterpLinear *> mask_pinterp_LagLinear_vc;
+    // Contiguous interpolator pools (one entry per occupied grid point)
+    std::vector<LagInterp> interp_pool_Lag_cc;
+    std::vector<LagInterp> interp_pool_Lag_vc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_cc;
+    std::vector<LagInterpLinear> interp_pool_LagLinear_vc;
+
+    // Index into interp_pool_*; -1 means no interpolator at this grid point
+    AthenaArray<int> mask_interp_idx_cc;
+    AthenaArray<int> mask_interp_idx_vc;
 
     // have we allocated interpolators for a given grid structure?
     bool prepared = false;
@@ -648,7 +660,6 @@ class SurfaceSpherical : public Surface
   // interpolator specific ----------------------------------------------------
   private:
     void PrepareInterpolators();
-    void PrepareInterpolatorAtPoint(MeshBlock * pmb, const int i, const int j);
     void TearDownInterpolators();
 
     void DoInterpolations();

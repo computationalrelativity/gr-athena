@@ -2,6 +2,12 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <tuple>   // std::tuple
+#include <vector>
+
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
 
 #include "../coordinates/coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
@@ -444,35 +450,14 @@ SurfaceCartesian::SurfaceCartesian(
     }
   }
 
-  // pointer arrays for interpolators -----------------------------------------
+  // index arrays for interpolators -------------------------------------------
   mask_mb.NewAthenaArray(N_x, N_y, N_z);
   mask_mb.Fill(nullptr);
 
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      mask_pinterp_Lag_cc.NewAthenaArray(N_x, N_y, N_z);
-      mask_pinterp_Lag_vc.NewAthenaArray(N_x, N_y, N_z);
-
-      mask_pinterp_Lag_cc.Fill(nullptr);
-      mask_pinterp_Lag_vc.Fill(nullptr);
-      break;
-    }
-    case variety_interpolator::LagrangeLinear:
-    {
-      mask_pinterp_LagLinear_cc.NewAthenaArray(N_x, N_y, N_z);
-      mask_pinterp_LagLinear_vc.NewAthenaArray(N_x, N_y, N_z);
-
-      mask_pinterp_LagLinear_cc.Fill(nullptr);
-      mask_pinterp_LagLinear_vc.Fill(nullptr);
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
+  mask_interp_idx_cc.NewAthenaArray(N_x, N_y, N_z);
+  mask_interp_idx_vc.NewAthenaArray(N_x, N_y, N_z);
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
 
 
   // finally allocate storage for result of interpolation ---------------------
@@ -490,155 +475,168 @@ SurfaceCartesian::~SurfaceCartesian()
   TearDownInterpolators();
 }
 
-void SurfaceCartesian::PrepareInterpolatorAtPoint(
-  MeshBlock * pmb, const int i, const int j, const int k)
-{
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      if (mask_pinterp_Lag_cc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_Lag_cc(i,j,k);
-        mask_pinterp_Lag_cc(i,j,k) = nullptr;
-      }
-
-      if (mask_pinterp_Lag_vc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_Lag_vc(i,j,k);
-        mask_pinterp_Lag_vc(i,j,k) = nullptr;
-      }
-
-      // CC vars
-      const Real origin_cc[N] = {
-        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
-      };
-      const Real delta_cc[N] = {
-        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
-      };
-      const int size_cc[N] = {
-        pmb->ncells1, pmb->ncells2, pmb->ncells3
-      };
-
-      // VC
-      const Real origin_vc[N] = {
-        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
-      };
-      const Real delta_vc[N] = {
-        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
-      };
-      int size_vc[N] = {
-        pmb->nverts1, pmb->nverts2, pmb->nverts3
-      };
-
-      Real tar_coord[N] = {
-        x(i), y(j), z(k)
-      };
-
-      mask_pinterp_Lag_cc(i,j,k) = new LagInterp(origin_cc,
-                                                 delta_cc,
-                                                 size_cc,
-                                                 tar_coord);
-
-      mask_pinterp_Lag_vc(i,j,k) = new LagInterp(origin_vc,
-                                                  delta_vc,
-                                                  size_vc,
-                                                  tar_coord);
-
-      break;
-    }
-    case variety_interpolator::LagrangeLinear:
-    {
-      if (mask_pinterp_LagLinear_cc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_LagLinear_cc(i,j,k);
-        mask_pinterp_LagLinear_cc(i,j,k) = nullptr;
-      }
-
-      if (mask_pinterp_LagLinear_vc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_LagLinear_vc(i,j,k);
-        mask_pinterp_LagLinear_vc(i,j,k) = nullptr;
-      }
-
-      const Real origin_cc[N] = {
-        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
-      };
-      const Real delta_cc[N] = {
-        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
-      };
-      const int size_cc[N] = {
-        pmb->ncells1, pmb->ncells2, pmb->ncells3
-      };
-
-      const Real origin_vc[N] = {
-        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
-      };
-      const Real delta_vc[N] = {
-        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
-      };
-      int size_vc[N] = {
-        pmb->nverts1, pmb->nverts2, pmb->nverts3
-      };
-
-      Real tar_coord[N] = {
-        x(i), y(j), z(k)
-      };
-
-      mask_pinterp_LagLinear_cc(i,j,k) = new LagInterpLinear(origin_cc,
-                                                              delta_cc,
-                                                              size_cc,
-                                                              tar_coord);
-
-      mask_pinterp_LagLinear_vc(i,j,k) = new LagInterpLinear(origin_vc,
-                                                              delta_vc,
-                                                              size_vc,
-                                                              tar_coord);
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
-}
-
 void SurfaceCartesian::PrepareInterpolators()
 {
-  // BD: TODO - could be optimized further
   if (prepared)
   {
     return;
   }
 
-  // Connect target (th_i, ph_j) to salient MeshBlock pointer -----------------
-  MeshBlock * pmb = pm->pblock;
+  // Reserve pool capacity (upper bound: every grid point gets an interpolator)
+  const int N_pts_max = N_x * N_y * N_z;
+  switch (vi)
+  {
+    case variety_interpolator::Lagrange:
+      interp_pool_Lag_cc.reserve(N_pts_max);
+      interp_pool_Lag_vc.reserve(N_pts_max);
+      break;
+    case variety_interpolator::LagrangeLinear:
+      interp_pool_LagLinear_cc.reserve(N_pts_max);
+      interp_pool_LagLinear_vc.reserve(N_pts_max);
+      break;
+    default:
+      assert(false);
+  }
 
-  int nthreads = pm->GetNumMeshThreads();
-  (void)nthreads;
+  // --- Per-thread storage for interpolators built in the parallel region -----
+#ifdef OPENMP_PARALLEL
+  const int nthreads = pm->GetNumMeshThreads();
+#else
+  const int nthreads = 1;
+#endif
+
+  struct ThreadLocalInterps {
+    std::vector<LagInterp>       lag_cc, lag_vc;
+    std::vector<LagInterpLinear> laglin_cc, laglin_vc;
+    // Grid indices of occupied points (for writing mask_interp_idx later)
+    std::vector<std::tuple<int,int,int>> occupied;
+  };
+  std::vector<ThreadLocalInterps> tls(nthreads);
+
+  // Connect target (x_i, y_j, z_k) to salient MeshBlock pointer -------------
+  MeshBlock * pmb = pm->pblock;
 
   while (pmb != nullptr)
   {
-    // Given current MeshBlock check whether grid intersects (excluding ghosts)
-    [&] {
-      #pragma omp parallel for collapse(3) num_threads(nthreads)
-      for (int i=0; i<N_x; ++i)
-      for (int j=0; j<N_y; ++j)
-      for (int k=0; k<N_z; ++k)
-      {
-        const Real x_1 = x(i);
-        const Real x_2 = y(j);
-        const Real x_3 = z(k);
+    // Grid origin / spacing are constant for this MeshBlock
+    const Real origin_cc[N] = {
+      pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
+    };
+    const Real delta_cc[N] = {
+      pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
+    };
+    const int size_cc[N] = {
+      pmb->ncells1, pmb->ncells2, pmb->ncells3
+    };
 
-        if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+    const Real origin_vc[N] = {
+      pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
+    };
+    const Real delta_vc[N] = {
+      pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
+    };
+    const int size_vc[N] = {
+      pmb->nverts1, pmb->nverts2, pmb->nverts3
+    };
+
+    #pragma omp parallel for num_threads(nthreads) collapse(3)
+    for (int i = 0; i < N_x; ++i)
+    {
+      for (int j = 0; j < N_y; ++j)
+      {
+        for (int k = 0; k < N_z; ++k)
         {
-          mask_mb(i, j, k) = pmb;
-          PrepareInterpolatorAtPoint(pmb, i, j, k);
+          const Real x_1 = x(i);
+          const Real x_2 = y(j);
+          const Real x_3 = z(k);
+
+          if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+          {
+            // Each (i,j,k) is unique per iteration - safe to write without lock
+            mask_mb(i, j, k) = pmb;
+
+#ifdef OPENMP_PARALLEL
+            const int tid = omp_get_thread_num();
+#else
+            const int tid = 0;
+#endif
+            ThreadLocalInterps & tl = tls[tid];
+
+            const Real tar_coord[N] = { x_1, x_2, x_3 };
+
+            switch (vi)
+            {
+              case variety_interpolator::Lagrange:
+              {
+                tl.lag_cc.emplace_back(origin_cc, delta_cc, size_cc, tar_coord);
+                tl.lag_vc.emplace_back(origin_vc, delta_vc, size_vc, tar_coord);
+                tl.occupied.emplace_back(i, j, k);
+                break;
+              }
+              case variety_interpolator::LagrangeLinear:
+              {
+                tl.laglin_cc.emplace_back(origin_cc, delta_cc, size_cc, tar_coord);
+                tl.laglin_vc.emplace_back(origin_vc, delta_vc, size_vc, tar_coord);
+                tl.occupied.emplace_back(i, j, k);
+                break;
+              }
+              default:
+                assert(false);
+            }
+          }
         }
       }
-    }();
+    }
 
     pmb = pmb->next;
+  }
+
+  // --- Serial merge: move thread-local interpolators into global pools ------
+  for (int t = 0; t < nthreads; ++t)
+  {
+    ThreadLocalInterps & tl = tls[t];
+
+    switch (vi)
+    {
+      case variety_interpolator::Lagrange:
+      {
+        const int base_cc = static_cast<int>(interp_pool_Lag_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_Lag_vc.size());
+
+        for (size_t n = 0; n < tl.lag_cc.size(); ++n)
+        {
+          interp_pool_Lag_cc.push_back(std::move(tl.lag_cc[n]));
+          interp_pool_Lag_vc.push_back(std::move(tl.lag_vc[n]));
+
+          const int gi = std::get<0>(tl.occupied[n]);
+          const int gj = std::get<1>(tl.occupied[n]);
+          const int gk = std::get<2>(tl.occupied[n]);
+          mask_interp_idx_cc(gi, gj, gk) = base_cc + static_cast<int>(n);
+          mask_interp_idx_vc(gi, gj, gk) = base_vc + static_cast<int>(n);
+        }
+        break;
+      }
+      case variety_interpolator::LagrangeLinear:
+      {
+        const int base_cc = static_cast<int>(interp_pool_LagLinear_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_LagLinear_vc.size());
+
+        for (size_t n = 0; n < tl.laglin_cc.size(); ++n)
+        {
+          interp_pool_LagLinear_cc.push_back(std::move(tl.laglin_cc[n]));
+          interp_pool_LagLinear_vc.push_back(std::move(tl.laglin_vc[n]));
+
+          const int gi = std::get<0>(tl.occupied[n]);
+          const int gj = std::get<1>(tl.occupied[n]);
+          const int gk = std::get<2>(tl.occupied[n]);
+          mask_interp_idx_cc(gi, gj, gk) = base_cc + static_cast<int>(n);
+          mask_interp_idx_vc(gi, gj, gk) = base_vc + static_cast<int>(n);
+        }
+        break;
+      }
+      default:
+        assert(false);
+    }
   }
   // --------------------------------------------------------------------------
 
@@ -655,48 +653,13 @@ void SurfaceCartesian::TearDownInterpolators()
   // clean up mask containing salient MeshBlock
   mask_mb.Fill(nullptr);
 
-  for (int i=0; i<N_x; ++i)
-  for (int j=0; j<N_y; ++j)
-  for (int k=0; k<N_z; ++k)
-  {
-    switch (vi)
-    {
-      case variety_interpolator::Lagrange:
-      {
-        if (mask_pinterp_Lag_cc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_Lag_cc(i,j,k);
-          mask_pinterp_Lag_cc(i,j,k) = nullptr;
-        }
-
-        if (mask_pinterp_Lag_vc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_Lag_vc(i,j,k);
-          mask_pinterp_Lag_vc(i,j,k) = nullptr;
-        }
-        break;
-      }
-      case variety_interpolator::LagrangeLinear:
-      {
-        if (mask_pinterp_LagLinear_cc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_LagLinear_cc(i,j,k);
-          mask_pinterp_LagLinear_cc(i,j,k) = nullptr;
-        }
-
-        if (mask_pinterp_LagLinear_vc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_LagLinear_vc(i,j,k);
-          mask_pinterp_LagLinear_vc(i,j,k) = nullptr;
-        }
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
-  }
+  // clear interpolator pools and reset index arrays
+  interp_pool_Lag_cc.clear();
+  interp_pool_Lag_vc.clear();
+  interp_pool_LagLinear_cc.clear();
+  interp_pool_LagLinear_vc.clear();
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
 
   prepared = false;
 }
@@ -749,39 +712,9 @@ void SurfaceCartesian::Reduce(const int ncycle, const Real time)
   // --------------------------------------------------------------------------
 };
 
-/*
 void SurfaceCartesian::MPI_Reduce()
 {
 #ifdef MPI_PARALLEL
-
-  int N_cpts_total = 0;
-  for (int cix=0; cix<N_cpts.GetSize(); ++cix)
-  {
-    N_cpts_total += N_cpts(cix);
-  }
-
-  int rank;
-  static const int root = 0;
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  // Useful to have the data on all ranks
-  MPI_Allreduce(MPI_IN_PLACE,
-                &(u_vars(0,0,0,0)),
-                N_cpts_total * N_x * N_y * N_z,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
-#endif
-}
-*/
-
-void SurfaceCartesian::MPI_Reduce()
-{
-#ifdef MPI_PARALLEL
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
   size_t total_bytes = u_vars.GetSizeInBytes();
 
   // max chunk size in bytes
@@ -815,6 +748,9 @@ Real SurfaceCartesian::InterpolateAtPoint(
 {
   Real res = 0;
 
+  const int idx_cc = mask_interp_idx_cc(tar_i, tar_j, tar_k);
+  const int idx_vc = mask_interp_idx_vc(tar_i, tar_j, tar_k);
+
   switch (vi)
   {
     case (variety_interpolator::Lagrange):
@@ -822,13 +758,13 @@ Real SurfaceCartesian::InterpolateAtPoint(
       // call suitable interpolator
       if (vs == Surfaces::variety_base_grid::cc)
       {
-        if (mask_pinterp_Lag_cc(tar_i,tar_j,tar_k) != nullptr)
-          res = mask_pinterp_Lag_cc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        if (idx_cc >= 0)
+          res = interp_pool_Lag_cc[idx_cc].eval(raw_cpt.data());
       }
       else if (vs == Surfaces::variety_base_grid::vc)
       {
-        if (mask_pinterp_Lag_vc(tar_i,tar_j,tar_k) != nullptr)
-          res = mask_pinterp_Lag_vc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        if (idx_vc >= 0)
+          res = interp_pool_Lag_vc[idx_vc].eval(raw_cpt.data());
       }
       else
       {
@@ -840,16 +776,16 @@ Real SurfaceCartesian::InterpolateAtPoint(
     {
       if (vs == Surfaces::variety_base_grid::cc)
       {
-        if (mask_pinterp_LagLinear_cc(tar_i,tar_j,tar_k) != nullptr)
+        if (idx_cc >= 0)
         {
-          res = mask_pinterp_LagLinear_cc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+          res = interp_pool_LagLinear_cc[idx_cc].eval(raw_cpt.data());
         }
       }
       else if (vs == Surfaces::variety_base_grid::vc)
       {
-        if (mask_pinterp_LagLinear_vc(tar_i,tar_j,tar_k) != nullptr)
+        if (idx_vc >= 0)
         {
-          res = mask_pinterp_LagLinear_vc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+          res = interp_pool_LagLinear_vc[idx_vc].eval(raw_cpt.data());
         }
       }
       else

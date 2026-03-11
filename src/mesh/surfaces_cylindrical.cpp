@@ -2,6 +2,12 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>  // std::pair
+#include <vector>
+
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
 
 #include "../coordinates/coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
@@ -446,35 +452,14 @@ SurfaceCylindrical::SurfaceCylindrical(
     }
   }
 
-  // pointer arrays for interpolators -----------------------------------------
+  // index arrays for interpolators -------------------------------------------
   mask_mb.NewAthenaArray(N_ph, N_z);
   mask_mb.Fill(nullptr);
 
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      mask_pinterp_Lag_cc.NewAthenaArray(N_ph, N_z);
-      mask_pinterp_Lag_vc.NewAthenaArray(N_ph, N_z);
-
-      mask_pinterp_Lag_cc.Fill(nullptr);
-      mask_pinterp_Lag_vc.Fill(nullptr);
-      break;
-    }
-    case variety_interpolator::LagrangeLinear:
-    {
-      mask_pinterp_LagLinear_cc.NewAthenaArray(N_ph, N_z);
-      mask_pinterp_LagLinear_vc.NewAthenaArray(N_ph, N_z);
-
-      mask_pinterp_LagLinear_cc.Fill(nullptr);
-      mask_pinterp_LagLinear_vc.Fill(nullptr);
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
+  mask_interp_idx_cc.NewAthenaArray(N_ph, N_z);
+  mask_interp_idx_vc.NewAthenaArray(N_ph, N_z);
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
 
 
   // finally allocate storage for result of interpolation ---------------------
@@ -492,157 +477,163 @@ SurfaceCylindrical::~SurfaceCylindrical()
   TearDownInterpolators();
 }
 
-void SurfaceCylindrical::PrepareInterpolatorAtPoint(
-  MeshBlock * pmb, const int i, const int j)
-{
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      if (mask_pinterp_Lag_cc(i,j) != nullptr)
-      {
-        delete mask_pinterp_Lag_cc(i,j);
-        mask_pinterp_Lag_cc(i,j) = nullptr;
-      }
-
-      if (mask_pinterp_Lag_vc(i,j) != nullptr)
-      {
-        delete mask_pinterp_Lag_vc(i,j);
-        mask_pinterp_Lag_vc(i,j) = nullptr;
-      }
-
-      // CC vars
-      const Real origin_cc[N] = {
-        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
-      };
-      const Real delta_cc[N] = {
-        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
-      };
-      const int size_cc[N] = {
-        pmb->ncells1, pmb->ncells2, pmb->ncells3
-      };
-
-      // VC
-      const Real origin_vc[N] = {
-        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
-      };
-      const Real delta_vc[N] = {
-        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
-      };
-      int size_vc[N] = {
-        pmb->nverts1, pmb->nverts2, pmb->nverts3
-      };
-
-      Real tar_coord[N] = {
-        x_o_ph_z(0,i,j), x_o_ph_z(1,i,j), x_o_ph_z(2,i,j)
-      };
-
-      mask_pinterp_Lag_cc(i,j) = new LagInterp(origin_cc,
-                                               delta_cc,
-                                               size_cc,
-                                               tar_coord);
-
-      mask_pinterp_Lag_vc(i,j) = new LagInterp(origin_vc,
-                                                delta_vc,
-                                                size_vc,
-                                                tar_coord);
-
-      break;
-    }
-    case variety_interpolator::LagrangeLinear:
-    {
-      if (mask_pinterp_LagLinear_cc(i,j) != nullptr)
-      {
-        delete mask_pinterp_LagLinear_cc(i,j);
-        mask_pinterp_LagLinear_cc(i,j) = nullptr;
-      }
-
-      if (mask_pinterp_LagLinear_vc(i,j) != nullptr)
-      {
-        delete mask_pinterp_LagLinear_vc(i,j);
-        mask_pinterp_LagLinear_vc(i,j) = nullptr;
-      }
-
-      const Real origin_cc[N] = {
-        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
-      };
-      const Real delta_cc[N] = {
-        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
-      };
-      const int size_cc[N] = {
-        pmb->ncells1, pmb->ncells2, pmb->ncells3
-      };
-
-      const Real origin_vc[N] = {
-        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
-      };
-      const Real delta_vc[N] = {
-        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
-      };
-      int size_vc[N] = {
-        pmb->nverts1, pmb->nverts2, pmb->nverts3
-      };
-
-      Real tar_coord[N] = {
-        x_o_ph_z(0,i,j), x_o_ph_z(1,i,j), x_o_ph_z(2,i,j)
-      };
-
-      mask_pinterp_LagLinear_cc(i,j) = new LagInterpLinear(origin_cc,
-                                                            delta_cc,
-                                                            size_cc,
-                                                            tar_coord);
-
-      mask_pinterp_LagLinear_vc(i,j) = new LagInterpLinear(origin_vc,
-                                                            delta_vc,
-                                                            size_vc,
-                                                            tar_coord);
-
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
-}
-
 void SurfaceCylindrical::PrepareInterpolators()
 {
-  // BD: TODO - could be optimized further
   if (prepared)
   {
     return;
   }
 
-  // Connect target (th_i, ph_j) to salient MeshBlock pointer -----------------
-  MeshBlock * pmb = pm->pblock;
+  // Reserve pool capacity (upper bound: every grid point gets an interpolator)
+  const int N_pts_max = N_ph * N_z;
+  switch (vi)
+  {
+    case variety_interpolator::Lagrange:
+      interp_pool_Lag_cc.reserve(N_pts_max);
+      interp_pool_Lag_vc.reserve(N_pts_max);
+      break;
+    case variety_interpolator::LagrangeLinear:
+      interp_pool_LagLinear_cc.reserve(N_pts_max);
+      interp_pool_LagLinear_vc.reserve(N_pts_max);
+      break;
+    default:
+      assert(false);
+  }
 
-  int nthreads = pm->GetNumMeshThreads();
-  (void)nthreads;
+  // --- Per-thread storage for interpolators built in the parallel region -----
+#ifdef OPENMP_PARALLEL
+  const int nthreads = pm->GetNumMeshThreads();
+#else
+  const int nthreads = 1;
+#endif
+
+  struct ThreadLocalInterps {
+    std::vector<LagInterp>       lag_cc, lag_vc;
+    std::vector<LagInterpLinear> laglin_cc, laglin_vc;
+    // Grid indices of occupied points (for writing mask_interp_idx later)
+    std::vector<std::pair<int,int>> occupied;
+  };
+  std::vector<ThreadLocalInterps> tls(nthreads);
+
+  // Connect target (ph_i, z_j) to salient MeshBlock pointer -----------------
+  MeshBlock * pmb = pm->pblock;
 
   while (pmb != nullptr)
   {
-    // Given current MeshBlock check whether grid intersects (excluding ghosts)
-    [&] {
-      #pragma omp parallel for collapse(2) num_threads(nthreads)
-      for (int i=0; i<N_ph; ++i)
-      {
-        for (int j=0; j<N_z; ++j)
-        {
-          const Real x_1 = x_o_ph_z(0,i,j);
-          const Real x_2 = x_o_ph_z(1,i,j);
-          const Real x_3 = x_o_ph_z(2,i,j);
+    // Grid origin / spacing are constant for this MeshBlock
+    const Real origin_cc[N] = {
+      pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
+    };
+    const Real delta_cc[N] = {
+      pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
+    };
+    const int size_cc[N] = {
+      pmb->ncells1, pmb->ncells2, pmb->ncells3
+    };
 
-          if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+    const Real origin_vc[N] = {
+      pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
+    };
+    const Real delta_vc[N] = {
+      pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
+    };
+    const int size_vc[N] = {
+      pmb->nverts1, pmb->nverts2, pmb->nverts3
+    };
+
+    #pragma omp parallel for num_threads(nthreads) collapse(2)
+    for (int i = 0; i < N_ph; ++i)
+    {
+      for (int j = 0; j < N_z; ++j)
+      {
+        const Real x_1 = x_o_ph_z(0,i,j);
+        const Real x_2 = x_o_ph_z(1,i,j);
+        const Real x_3 = x_o_ph_z(2,i,j);
+
+        if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+        {
+          // Each (i,j) is unique per iteration - safe to write without lock
+          mask_mb(i,j) = pmb;
+
+#ifdef OPENMP_PARALLEL
+          const int tid = omp_get_thread_num();
+#else
+          const int tid = 0;
+#endif
+          ThreadLocalInterps & tl = tls[tid];
+
+          const Real tar_coord[N] = { x_1, x_2, x_3 };
+
+          switch (vi)
           {
-            mask_mb(i,j) = pmb;
-            PrepareInterpolatorAtPoint(pmb, i, j);
+            case variety_interpolator::Lagrange:
+            {
+              tl.lag_cc.emplace_back(origin_cc, delta_cc, size_cc, tar_coord);
+              tl.lag_vc.emplace_back(origin_vc, delta_vc, size_vc, tar_coord);
+              tl.occupied.emplace_back(i, j);
+              break;
+            }
+            case variety_interpolator::LagrangeLinear:
+            {
+              tl.laglin_cc.emplace_back(origin_cc, delta_cc, size_cc, tar_coord);
+              tl.laglin_vc.emplace_back(origin_vc, delta_vc, size_vc, tar_coord);
+              tl.occupied.emplace_back(i, j);
+              break;
+            }
+            default:
+              assert(false);
           }
         }
       }
-    }();
+    }
 
     pmb = pmb->next;
+  }
+
+  // --- Serial merge: move thread-local interpolators into global pools ------
+  for (int t = 0; t < nthreads; ++t)
+  {
+    ThreadLocalInterps & tl = tls[t];
+
+    switch (vi)
+    {
+      case variety_interpolator::Lagrange:
+      {
+        const int base_cc = static_cast<int>(interp_pool_Lag_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_Lag_vc.size());
+
+        for (size_t k = 0; k < tl.lag_cc.size(); ++k)
+        {
+          interp_pool_Lag_cc.push_back(std::move(tl.lag_cc[k]));
+          interp_pool_Lag_vc.push_back(std::move(tl.lag_vc[k]));
+
+          const int gi = tl.occupied[k].first;
+          const int gj = tl.occupied[k].second;
+          mask_interp_idx_cc(gi, gj) = base_cc + static_cast<int>(k);
+          mask_interp_idx_vc(gi, gj) = base_vc + static_cast<int>(k);
+        }
+        break;
+      }
+      case variety_interpolator::LagrangeLinear:
+      {
+        const int base_cc = static_cast<int>(interp_pool_LagLinear_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_LagLinear_vc.size());
+
+        for (size_t k = 0; k < tl.laglin_cc.size(); ++k)
+        {
+          interp_pool_LagLinear_cc.push_back(std::move(tl.laglin_cc[k]));
+          interp_pool_LagLinear_vc.push_back(std::move(tl.laglin_vc[k]));
+
+          const int gi = tl.occupied[k].first;
+          const int gj = tl.occupied[k].second;
+          mask_interp_idx_cc(gi, gj) = base_cc + static_cast<int>(k);
+          mask_interp_idx_vc(gi, gj) = base_vc + static_cast<int>(k);
+        }
+        break;
+      }
+      default:
+        assert(false);
+    }
   }
   // --------------------------------------------------------------------------
 
@@ -659,47 +650,13 @@ void SurfaceCylindrical::TearDownInterpolators()
   // clean up mask containing salient MeshBlock
   mask_mb.Fill(nullptr);
 
-  for (int i=0; i<N_ph; ++i)
-  for (int j=0; j<N_z; ++j)
-  {
-    switch (vi)
-    {
-      case variety_interpolator::Lagrange:
-      {
-        if (mask_pinterp_Lag_cc(i,j) != nullptr)
-        {
-          delete mask_pinterp_Lag_cc(i,j);
-          mask_pinterp_Lag_cc(i,j) = nullptr;
-        }
-
-        if (mask_pinterp_Lag_vc(i,j) != nullptr)
-        {
-          delete mask_pinterp_Lag_vc(i,j);
-          mask_pinterp_Lag_vc(i,j) = nullptr;
-        }
-        break;
-      }
-      case variety_interpolator::LagrangeLinear:
-      {
-        if (mask_pinterp_LagLinear_cc(i,j) != nullptr)
-        {
-          delete mask_pinterp_LagLinear_cc(i,j);
-          mask_pinterp_LagLinear_cc(i,j) = nullptr;
-        }
-
-        if (mask_pinterp_LagLinear_vc(i,j) != nullptr)
-        {
-          delete mask_pinterp_LagLinear_vc(i,j);
-          mask_pinterp_LagLinear_vc(i,j) = nullptr;
-        }
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
-  }
+  // clear interpolator pools and reset index arrays
+  interp_pool_Lag_cc.clear();
+  interp_pool_Lag_vc.clear();
+  interp_pool_LagLinear_cc.clear();
+  interp_pool_LagLinear_vc.clear();
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
 
   prepared = false;
 }
@@ -752,39 +709,9 @@ void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
   // --------------------------------------------------------------------------
 };
 
-/*
 void SurfaceCylindrical::MPI_Reduce()
 {
 #ifdef MPI_PARALLEL
-
-  int N_cpts_total = 0;
-  for (int cix=0; cix<N_cpts.GetSize(); ++cix)
-  {
-    N_cpts_total += N_cpts(cix);
-  }
-
-  int rank;
-  static const int root = 0;
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  // Useful to have the data on all ranks
-  MPI_Allreduce(MPI_IN_PLACE,
-                &(u_vars(0,0,0)),
-                N_cpts_total * N_ph * N_z,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
-#endif
-}
-*/
-
-void SurfaceCylindrical::MPI_Reduce()
-{
-#ifdef MPI_PARALLEL
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
   size_t total_bytes = u_vars.GetSizeInBytes();
 
   // max chunk size in bytes
@@ -818,6 +745,9 @@ Real SurfaceCylindrical::InterpolateAtPoint(
 {
   Real res = 0;
 
+  const int idx_cc = mask_interp_idx_cc(tar_i, tar_j);
+  const int idx_vc = mask_interp_idx_vc(tar_i, tar_j);
+
   switch (vi)
   {
     case (variety_interpolator::Lagrange):
@@ -825,13 +755,13 @@ Real SurfaceCylindrical::InterpolateAtPoint(
       // call suitable interpolator
       if (vs == Surfaces::variety_base_grid::cc)
       {
-        if (mask_pinterp_Lag_cc(tar_i,tar_j) != nullptr)
-          res = mask_pinterp_Lag_cc(tar_i,tar_j)->eval(raw_cpt.data());
+        if (idx_cc >= 0)
+          res = interp_pool_Lag_cc[idx_cc].eval(raw_cpt.data());
       }
       else if (vs == Surfaces::variety_base_grid::vc)
       {
-        if (mask_pinterp_Lag_vc(tar_i,tar_j) != nullptr)
-          res = mask_pinterp_Lag_vc(tar_i,tar_j)->eval(raw_cpt.data());
+        if (idx_vc >= 0)
+          res = interp_pool_Lag_vc[idx_vc].eval(raw_cpt.data());
       }
       else
       {
@@ -843,16 +773,16 @@ Real SurfaceCylindrical::InterpolateAtPoint(
     {
       if (vs == Surfaces::variety_base_grid::cc)
       {
-        if (mask_pinterp_LagLinear_cc(tar_i,tar_j) != nullptr)
+        if (idx_cc >= 0)
         {
-          res = mask_pinterp_LagLinear_cc(tar_i,tar_j)->eval(raw_cpt.data());
+          res = interp_pool_LagLinear_cc[idx_cc].eval(raw_cpt.data());
         }
       }
       else if (vs == Surfaces::variety_base_grid::vc)
       {
-        if (mask_pinterp_LagLinear_vc(tar_i,tar_j) != nullptr)
+        if (idx_vc >= 0)
         {
-          res = mask_pinterp_LagLinear_vc(tar_i,tar_j)->eval(raw_cpt.data());
+          res = interp_pool_LagLinear_vc[idx_vc].eval(raw_cpt.data());
         }
       }
       else
