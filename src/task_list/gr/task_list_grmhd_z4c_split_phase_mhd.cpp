@@ -115,8 +115,9 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
   if (MAGNETIC_FIELDS_ENABLED)
   {
-    // compute MHD fluxes (can be done whenever), integrate field
-    Add(CALC_FLDFLX, NONE, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
+    // compute corner EMFs from face EMFs + weights produced by the Riemann
+    // solver in CALC_HYDSCLRFLX, then integrate the magnetic field via CT
+    Add(CALC_FLDFLX, CALC_HYDSCLRFLX, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
     Add(SEND_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF);
     Add(RECV_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF);
 #ifdef USE_COMM_DEPENDENCY

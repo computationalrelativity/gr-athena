@@ -358,8 +358,13 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd(MeshBlock *pmb, int stage)
   {
     BoundaryValues * pb = pmb->pbval;
 
-    const Real t_end = this->t_end(stage, pmb);
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
+    // For re-scatter (stage < 1): use current time and zero dt (no time
+    // interpolation needed). Avoids out-of-bounds access on stage_wghts[-1].
+    // Mirrors the pattern in Mesh::FinalizeHydroPrimRP / FinalizeHydroConsRP.
+    const Real t_end    = (stage >= 1) ? this->t_end(stage, pmb)
+                                       : pmb->pmy_mesh->time;
+    const Real dt_scaled = (stage >= 1) ? this->dt_scaled(stage, pmb)
+                                        : 0.0;
 
     pb->ProlongateBoundariesHydro(t_end, dt_scaled);
 
@@ -378,8 +383,13 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd(MeshBlock *pmb, int sta
     PassiveScalars *ps = pmb->pscalars;
     BoundaryValues *pbval = pmb->pbval;
 
-    const Real t_end = this->t_end(stage, pmb);
-    const Real dt_scaled = this->dt_scaled(stage, pmb);
+    // For re-scatter (stage < 1): use current time and zero dt (no time
+    // interpolation needed). Avoids out-of-bounds access on stage_wghts[-1].
+    // Mirrors the pattern in Mesh::FinalizeHydroPrimRP / FinalizeHydroConsRP.
+    const Real t_end    = (stage >= 1) ? this->t_end(stage, pmb)
+                                       : pmb->pmy_mesh->time;
+    const Real dt_scaled = (stage >= 1) ? this->dt_scaled(stage, pmb)
+                                        : 0.0;
 
     // Swap Hydro and (possibly) passive scalar quantities in BoundaryVariable
     // interface from conserved to primitive formulations:
