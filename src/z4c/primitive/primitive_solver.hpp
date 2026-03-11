@@ -193,7 +193,8 @@ class PrimitiveSolver {
     bool use_toms_748;
 
     /// Constructor
-    PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos) {
+    PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy> *eos) : peos(eos),
+        validate_density(true), tighten_bracket(true), use_toms_748(false) {
       //root = NumTools::Root();
       tol = 1e-15;
       root.iterations = 30;
@@ -453,7 +454,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
     Real Bsq = SquareVector(B_u, g3d);
     D = Bsq/bsqr;
     r_d[0] = S_d[0]/D; r_d[1] = S_d[1]/D; r_d[2] = S_d[2]/D;
-    RaiseForm(r_u, r_d, g3d);
+    RaiseForm(r_u, r_d, g3u);
     rb = Contract(b_u, r_d);
     rbsqr = rb*rb;
     q = tau/D;
