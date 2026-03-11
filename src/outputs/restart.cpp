@@ -12,9 +12,7 @@
 #include <cstdio>    // snprintf()
 #include <cstring>   // memcpy()
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -137,7 +135,8 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
     // collect and write user Mesh data
     if (udsize != 0) {
-      std::unique_ptr<char[]> ud(new char[udsize]);
+      ud_buf_.resize(udsize);
+      char *ud = ud_buf_.data();
       IOWrapperSizeT udoffset = 0;
       for (int n=0; n<pm->nint_user_mesh_data_; n++) {
         std::memcpy(&(ud[udoffset]), pm->iuser_mesh_data[n].data(),
@@ -174,18 +173,20 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
         udoffset += pm->ptracker_extrema->c_x3.GetSizeInBytes();
       }
 
-      resfile.Write(ud.get(), 1, udsize);
+      resfile.Write(ud, 1, udsize);
     }
   }
 
   // allocate memory for the ID list and the data
-  std::unique_ptr<char[]> idlist(new char[listsize*mynb]);
+  idlist_buf_.resize(listsize*mynb);
+  char *idlist = idlist_buf_.data();
 
 #if !defined(DBG_RST_WRITE_PER_MB)
-  std::unique_ptr<char[]> data(new char[mynb*datasize]);
+  data_buf_.resize(mynb*datasize);
 #else
-  std::unique_ptr<char[]> data(new char[datasize]);
+  data_buf_.resize(datasize);
 #endif // DBG_RST_WRITE_PER_MB
+  char *data = data_buf_.data();
 
   // Loop over MeshBlocks and pack the meta data
   pmb = pm->pblock;
@@ -200,18 +201,18 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   // write the ID list collectively
   IOWrapperSizeT myoffset = headeroffset + listsize*myns;
-  resfile.Write_at_all(idlist.get(), listsize, mynb, myoffset);
+  resfile.Write_at_all(idlist, listsize, mynb, myoffset);
 
-  // idlist freed automatically by unique_ptr
+  // idlist buffer persists across dumps (no deallocation needed)
 
   // Loop over MeshBlocks and pack the data
   pmb = pm->pblock;
   int b = 0;
   while (pmb != nullptr) {
 #if !defined(DBG_RST_WRITE_PER_MB)
-    char *pdata = &(data.get()[pmb->lid*datasize]);
+    char *pdata = &(data[pmb->lid*datasize]);
 #else
-    char *pdata = data.get();
+    char *pdata = data;
 #endif // DBG_RST_WRITE_PER_MB
     char *pdata_start = pdata;  // record start for size validation
     // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
@@ -307,9 +308,9 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 #if defined (DBG_RST_WRITE_PER_MB)
     myoffset = headeroffset + listsize*nbtotal + datasize*(myns+b);
     if (b < nbmin)
-      resfile.Write_at_all(data.get(), datasize, 1, myoffset);
+      resfile.Write_at_all(data, datasize, 1, myoffset);
     else
-      resfile.Write_at(data.get(), datasize, 1, myoffset);
+      resfile.Write_at(data, datasize, 1, myoffset);
 #endif // DBG_RST_WRITE_PER_MB
 
     b++;
@@ -320,7 +321,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 #if !defined (DBG_RST_WRITE_PER_MB)
   // now write restart data in parallel
   myoffset = headeroffset + listsize*nbtotal + datasize*myns;
-  resfile.Write_at_all(data.get(), datasize, mynb, myoffset);
+  resfile.Write_at_all(data, datasize, mynb, myoffset);
 #endif // DBG_RST_WRITE_PER_MB
   resfile.Close();
 }

@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -41,10 +42,30 @@ int IsBigEndian() {
 }
 
 namespace {
-inline void Swap4Bytes(void *vdat) {
-  char tmp, *dat = static_cast<char *>(vdat);
-  tmp = dat[0];  dat[0] = dat[3];  dat[3] = tmp;
-  tmp = dat[1];  dat[1] = dat[2];  dat[2] = tmp;
+// Byte-swap an array of `n` 32-bit values in-place (for endianness conversion).
+//
+// Each 32-bit value has its four bytes reversed:
+//   input  bytes:  [ B3 B2 B1 B0 ]  (MSB-first within a uint32_t)
+//   output bytes:  [ B0 B1 B2 B3 ]
+//
+// The four shift-and-mask operations each isolate one input byte and move it
+// to the mirrored position:
+//   (v >> 24) & 0x000000FF  -- B3 moved to byte 0 (lowest)
+//   (v >>  8) & 0x0000FF00  -- B2 moved to byte 1
+//   (v <<  8) & 0x00FF0000  -- B1 moved to byte 2
+//   (v << 24) & 0xFF000000  -- B0 moved to byte 3 (highest)
+//
+// OR-ing yields the reversed value.  Compilers recognise this pattern and
+// typically emit a single bswap (x86) or rev (ARM) instruction per element.
+inline void SwapBytes4N(void *vdat, int n) {
+  auto *p = static_cast<std::uint32_t *>(vdat);
+  for (int i = 0; i < n; ++i) {
+    std::uint32_t v = p[i];
+    p[i] = ((v >> 24) & 0x000000FF)
+         | ((v >>  8) & 0x0000FF00)
+         | ((v <<  8) & 0x00FF0000)
+         | ((v << 24) & 0xFF000000);
+  }
 }
 } // namespace
 
@@ -57,6 +78,28 @@ inline void Swap4Bytes(void *vdat) {
 void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
   MeshBlock *pmb = pm->pblock;
   int big_end = IsBigEndian(); // =1 on big endian machine
+
+  // Pre-allocate the float buffer once for all MeshBlocks.  All blocks have
+  // uniform dimensions, so the required size is the same for every block.
+  // The buffer must hold max(ncoord1,ncoord2,ncoord3)*3 floats (enough for
+  // coordinate data and for vector cell data with nvar <= 3).
+  std::vector<float> data_buf;
+  if (pmb != nullptr) {
+    int nc1 = pmb->ie - pmb->is + 1;
+    int nc2 = pmb->je - pmb->js + 1;
+    int nc3 = pmb->ke - pmb->ks + 1;
+    if (output_params.include_ghost_zones) {
+      nc1 += 2*NGHOST;
+      if (nc2 > 1) nc2 += 2*NGHOST;
+      if (nc3 > 1) nc3 += 2*NGHOST;
+    }
+    // vertex count = cell count + 1 for dimensions with more than one cell
+    int nv1 = nc1 + (nc1 > 1 ? 1 : 0);
+    int nv2 = nc2 + (nc2 > 1 ? 1 : 0);
+    int nv3 = nc3 + (nc3 > 1 ? 1 : 0);
+    int nd = std::max({nv1, nv2, nv3});
+    data_buf.resize(3 * nd);
+  }
 
   // Loop over MeshBlocks
   while (pmb != nullptr) {
@@ -129,10 +172,9 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     int ncoord3 = ncells3;
     if (ncells3 > 1) ncoord3++;
 
-    float *data;
+    float *data = data_buf.data();
     int ndata = std::max(ncoord1, ncoord2);
     ndata = std::max(ndata, ncoord3);
-    data = new float[3*ndata];
 
     // Specify the type of data, dimensions, and coordinates.  If N>1, then write N+1
     // cell faces as binary floats.  If N=1, then write 1 cell center position.
@@ -148,7 +190,7 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         data[i-out_is] = static_cast<float>(pmb->pcoord->x1f(i));
       }
     }
-    if (!big_end) {for (int i=0; i<ncoord1; ++i) Swap4Bytes(&data[i]);}
+    if (!big_end) SwapBytes4N(data, ncoord1);
     std::fwrite(data, sizeof(float), static_cast<std::size_t>(ncoord1), pfile);
 
     // write x2-coordinates as binary float in big endian order
@@ -160,7 +202,7 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         data[j-out_js] = static_cast<float>(pmb->pcoord->x2f(j));
       }
     }
-    if (!big_end) {for (int i=0; i<ncoord2; ++i) Swap4Bytes(&data[i]);}
+    if (!big_end) SwapBytes4N(data, ncoord2);
     std::fwrite(data, sizeof(float), static_cast<std::size_t>(ncoord2), pfile);
 
     // write x3-coordinates as binary float in big endian order
@@ -172,7 +214,7 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
         data[k-out_ks] = static_cast<float>(pmb->pcoord->x3f(k));
       }
     }
-    if (!big_end) {for (int i=0; i<ncoord3; ++i) Swap4Bytes(&data[i]);}
+    if (!big_end) SwapBytes4N(data, ncoord3);
     std::fwrite(data, sizeof(float), static_cast<std::size_t>(ncoord3), pfile);
 
     //  5. Data.  An arbitrary number of scalars and vectors can be written (every node
@@ -195,10 +237,7 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
           }
 
           // write data in big endian order
-          if (!big_end) {
-            for (int i=0; i<(nvar*ncells1); ++i)
-              Swap4Bytes(&data[i]);
-          }
+          if (!big_end) SwapBytes4N(data, nvar*ncells1);
           std::fwrite(data, sizeof(float), static_cast<std::size_t>(nvar*ncells1), pfile);
         }
       }
@@ -207,7 +246,6 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // don't forget to close the output file and clean up ptrs to data in OutputData
     std::fclose(pfile);
     ClearOutputData();  // required when LoadOutputData() is used.
-    delete [] data;
     pmb = pmb->next;
   }  // end loop over MeshBlocks
 

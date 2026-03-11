@@ -124,6 +124,9 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
     for (int k=out_ks; k<=out_ke; ++k) {
       for (int j=out_js; j<=out_je; ++j) {
         for (int i=out_is; i<=out_ie; ++i) {
+          // Hold the FILE stream lock across all fprintf calls for this cell
+          // (one output line) to avoid per-call mutex acquire/release overhead.
+          flockfile(pfile);
           // write x1, x2, x3 indices and coordinates on start of new line
           if (out_is != out_ie) {
             std::fprintf(pfile, "%04d", i);
@@ -161,6 +164,7 @@ void FormattedTableOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool f
             pdata_inner_loop = pdata_inner_loop->pnext;
           }
           std::fprintf(pfile,"\n"); // terminate line
+          funlockfile(pfile);
         }
       }
     }

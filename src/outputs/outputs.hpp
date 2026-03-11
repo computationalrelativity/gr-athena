@@ -177,6 +177,13 @@ class RestartOutput : public OutputType {
  public:
   explicit RestartOutput(OutputParameters oparams) : OutputType(oparams) {}
   void WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) override;
+
+ private:
+  // Persistent buffers reused across dumps to avoid repeated heap allocation.
+  // resize() is a no-op when the size hasn't changed (the common case).
+  std::vector<char> ud_buf_;      // user Mesh data (rank 0 only, small)
+  std::vector<char> idlist_buf_;  // block ID + cost list
+  std::vector<char> data_buf_;    // packed MeshBlock restart data
 };
 
 #ifdef HDF5OUTPUT
