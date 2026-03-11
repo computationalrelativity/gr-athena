@@ -156,7 +156,7 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -164,28 +164,28 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
 
 TaskStatus GRMHD_Z4c_Phase_Finalize::UserWork(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->UserWorkInLoop();
 
   // TODO: BD- this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
 TaskStatus GRMHD_Z4c_Phase_Finalize::CheckRefinement(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_Finalize::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -197,12 +197,12 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::Z4c_Weyl(MeshBlock *pmb, int stage)
                        pmb->pz4c->storage.weyl);
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_Finalize::ADM_Constraints(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -214,7 +214,7 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::ADM_Constraints(MeshBlock *pmb, int stage)
                          pz4c->storage.mat, pz4c->storage.u);
 
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // new dt ---------------------------------------------------------------------
@@ -222,13 +222,13 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
   // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:Fin\n", "@E:Fin\n");
 
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   //NB using the Z4C version of this fn rather than fluid - potential issue?
   Z4c *pz4c = pmb->pz4c;
   pz4c->NewBlockTimeStep();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // Recouple ADM sources -------------------------------------------------------
@@ -248,7 +248,7 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::UpdateSource(MeshBlock *pmb, int stage)
                     ps->r,
                     pf->bcc);
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }

@@ -46,7 +46,7 @@ TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   Z4c *pz4c = pmb->pz4c;
@@ -58,14 +58,14 @@ TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
                        pz4c->storage.mat,
                        pz4c->storage.u);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus PostAMR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
   if (!pmb->IsNewFromAMR())
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   Z4c *pz4c = pmb->pz4c;
@@ -75,7 +75,7 @@ TaskStatus PostAMR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
   pz4c->Z4cWeyl(pz4c->storage.adm,
                 pz4c->storage.mat,
                 pz4c->storage.weyl);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //

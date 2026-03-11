@@ -159,7 +159,7 @@ TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
   ::M1::M1 * pm1 = pmb->pm1;
 
   pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -176,7 +176,7 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -192,7 +192,7 @@ TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
     pm1->CalcFiducialVelocity();
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -204,7 +204,7 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->CalcClosure(pm1->storage.u);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -221,7 +221,7 @@ TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -240,11 +240,11 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
     Real const dt = pm->dt;
     // Real const dt = pm->dt * dt_fac[stage - 1];
     pm1->CalcOpacity(dt, pm1->storage.u);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else if (stage <= nstages)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -560,7 +560,7 @@ TaskStatus M1N0::SendM1(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -581,7 +581,7 @@ TaskStatus M1N0::ReceiveM1(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -597,7 +597,7 @@ TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
   if (stage <= nstages)
   {
     pm1->ubvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -612,7 +612,7 @@ TaskStatus M1N0::Prolongation(MeshBlock *pmb, int stage)
     Real const dt = pm->dt * dt_fac[stage - 1];
     Real t_end_stage = pm->time + dt;
     pbval->ProlongateBoundariesM1(t_end_stage, dt);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -641,7 +641,7 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
       pm1->mbi.ng);
 
     pm1->enable_user_bc = false;
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -650,17 +650,17 @@ TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::Analysis(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pm1->PerformAnalysis();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->M1UserWorkInLoop();
 
@@ -669,7 +669,7 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 #endif
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -678,18 +678,18 @@ TaskStatus M1N0::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
 
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pm1->NewBlockTimeStep();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Flag cells for MeshBlocks (de)refinement
 TaskStatus M1N0::CheckRefinement(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }

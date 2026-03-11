@@ -207,7 +207,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::ClearAllBoundary(MeshBlock *pmb, int stage)
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::matter_flux_corrected);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -344,7 +344,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionHydro(
 {
   Hydro *ph = pmb->phydro;
   ph->hbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF(
@@ -352,7 +352,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF(
 {
   Field *pf = pmb->pfield;
   pf->fbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -453,7 +453,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::SendScalarFlux(MeshBlock *pmb, int stage)
   PassiveScalars * ps = pmb->pscalars;
 
   ps->sbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 

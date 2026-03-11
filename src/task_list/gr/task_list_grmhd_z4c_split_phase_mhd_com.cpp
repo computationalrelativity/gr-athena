@@ -149,7 +149,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ClearAllBoundary(MeshBlock *pmb, int stage)
   pb->ClearBoundary(BoundaryCommSubset::matter);
 
   // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:MHD_com\n", "@E:MHD_com\n");
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -181,7 +181,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -203,7 +203,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SendHydro(MeshBlock *pmb, int stage)
 #endif
     ph->hbvar.SendBoundaryBuffers();
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -216,7 +216,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SendField(MeshBlock *pmb, int stage)
     Field * pf = pmb->pfield;
 
     pf->fbvar.SendBoundaryBuffers();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -237,7 +237,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveHydro(MeshBlock *pmb, int stage)
   }
 
   if (ret) {
-    return TaskStatus::success;
+    return TaskStatus::next;
   } else {
     return TaskStatus::fail;
   }
@@ -253,7 +253,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveField(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
   if (ret) {
-    return TaskStatus::success;
+    return TaskStatus::next;
   } else {
     return TaskStatus::fail;
   }
@@ -269,7 +269,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage
     pmb->SetBoundaryVariablesConserved();
 #endif  // DBG_USE_CONS_BC
     ph->hbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -282,7 +282,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesField(MeshBlock *pmb, int stage
     Field *pf = pmb->pfield;
 
     pf->fbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -305,7 +305,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SendScalars(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -324,7 +324,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveScalars(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -345,7 +345,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesScalars(MeshBlock *pmb, int sta
     pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
     ps->sbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -368,7 +368,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd(MeshBlock *pmb, int stage)
 
     pb->ProlongateBoundariesHydro(t_end, dt_scaled);
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -423,7 +423,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd(MeshBlock *pmb, int sta
     pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;

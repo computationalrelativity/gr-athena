@@ -56,7 +56,7 @@ TaskStatus Aux_Z4c::WeylDecompose(MeshBlock *pmb, int stage)
     }
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //

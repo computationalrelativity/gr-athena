@@ -148,7 +148,7 @@ TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
   BoundaryValues *pb = pmb->pbval;
   pb->ClearBoundary(BoundaryCommSubset::z4c);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -243,7 +243,7 @@ TaskStatus GR_Z4c::SendZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SendBoundaryBuffers();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -266,7 +266,7 @@ TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -281,7 +281,7 @@ TaskStatus GR_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -304,7 +304,7 @@ TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
@@ -331,45 +331,45 @@ TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::UserWork(MeshBlock *pmb, int stage) {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->UserWorkInLoop();
 
   // BD: TODO - this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
 #ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 #endif // DBG_ALGCONSTR_ALL
 
   Z4c *pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 {
   // BD: this map is only required on the final stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Z4c *pz4c = pmb->pz4c;
   pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -379,14 +379,14 @@ TaskStatus GR_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
     pz4c->Z4cWeyl(pz4c->storage.adm, pz4c->storage.mat, pz4c->storage.weyl);
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 #if CCE_ENABLED
 TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage)
 {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   using namespace gra::triggers;
   typedef Triggers::TriggerVariant tvar;
@@ -413,13 +413,13 @@ TaskStatus GR_Z4c::CCEDump(MeshBlock *pmb, int stage)
     }
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 #endif
 
 TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -435,30 +435,30 @@ TaskStatus GR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
                          pz4c->storage.mat, pz4c->storage.u);
 
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   Z4c *pz4c = pmb->pz4c;
   pz4c->NewBlockTimeStep();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GR_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 /*
 TaskStatus GR_Z4c::AssertFinite(MeshBlock *pmb, int stage) {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm = pmb->pmy_mesh;
 
@@ -470,7 +470,7 @@ TaskStatus GR_Z4c::AssertFinite(MeshBlock *pmb, int stage) {
     pmb->pz4c->assert_is_finite_z4c();
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 */
 

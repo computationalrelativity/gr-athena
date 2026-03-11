@@ -136,7 +136,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
   pb->ClearBoundary(BoundaryCommSubset::z4c);
 
   // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:Z4c\n", "@E:Z4c\n");
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -215,7 +215,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::SendZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SendBoundaryBuffers();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -239,7 +239,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -254,7 +254,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -278,7 +278,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
@@ -303,19 +303,19 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
   } else {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
 #ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 #endif // DBG_ALGCONSTR_ALL
 
   Z4c *pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
@@ -324,7 +324,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
   {
     Z4c *pz4c = pmb->pz4c;
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -334,7 +334,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
 {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   using namespace gra::triggers;
   typedef Triggers::TriggerVariant tvar;
@@ -361,7 +361,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
     }
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 #endif
 

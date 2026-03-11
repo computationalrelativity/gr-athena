@@ -106,7 +106,7 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
 TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
   pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -225,7 +225,7 @@ TaskStatus Wave_2O::SendWave(MeshBlock *pmb, int stage)
   } else {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -255,7 +255,7 @@ TaskStatus Wave_2O::ReceiveWave(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -281,7 +281,7 @@ TaskStatus Wave_2O::SetBoundariesWave(MeshBlock *pmb, int stage)
       pmb->pwave->ubvar_cx.SetBoundaries();
     }
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -306,7 +306,7 @@ TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -334,35 +334,35 @@ TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 TaskStatus Wave_2O::UserWork(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->WaveUserWorkInLoop();
 
   // BD: TODO - this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus Wave_2O::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pwave->NewBlockTimeStep();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
 TaskStatus Wave_2O::CheckRefinement(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }

@@ -536,7 +536,7 @@ TaskStatus GRMHD_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
   pb->ClearBoundary(BoundaryCommSubset::all);
 
   // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:Z4c\n", "@E:Z4c\n");
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -583,14 +583,14 @@ TaskStatus GRMHD_Z4c::SendFluxCorrectionHydro(MeshBlock *pmb, int stage)
 {
   Hydro *ph = pmb->phydro;
   ph->hbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c::SendFluxCorrectionEMF(MeshBlock *pmb, int stage)
 {
   Field *pf = pmb->pfield;
   pf->fbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -732,7 +732,7 @@ TaskStatus GRMHD_Z4c::SendHydro(MeshBlock *pmb, int stage)
 #endif
     ph->hbvar.SendBoundaryBuffers();
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -745,7 +745,7 @@ TaskStatus GRMHD_Z4c::SendField(MeshBlock *pmb, int stage)
     Field * pf = pmb->pfield;
 
     pf->fbvar.SendBoundaryBuffers();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -766,7 +766,7 @@ TaskStatus GRMHD_Z4c::ReceiveHydro(MeshBlock *pmb, int stage)
   }
 
   if (ret) {
-    return TaskStatus::success;
+    return TaskStatus::next;
   } else {
     return TaskStatus::fail;
   }
@@ -782,7 +782,7 @@ TaskStatus GRMHD_Z4c::ReceiveField(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
   if (ret) {
-    return TaskStatus::success;
+    return TaskStatus::next;
   } else {
     return TaskStatus::fail;
   }
@@ -798,7 +798,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesHydro(MeshBlock *pmb, int stage)
     pmb->SetBoundaryVariablesConserved();
 #endif  // DBG_USE_CONS_BC
     ph->hbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -811,7 +811,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesField(MeshBlock *pmb, int stage)
     Field *pf = pmb->pfield;
 
     pf->fbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -829,7 +829,7 @@ TaskStatus GRMHD_Z4c::Prolongation_Hyd(MeshBlock *pmb, int stage)
 
     pb->ProlongateBoundariesHydro(t_end, dt_scaled);
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -879,7 +879,7 @@ TaskStatus GRMHD_Z4c::Primitives(MeshBlock *pmb, int stage)
 
     // Update w1 to have the state of w
     ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -930,7 +930,7 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
     pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -939,23 +939,23 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Hyd(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c::UserWork(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->UserWorkInLoop();
 
   // TODO: BD- this should be shifted to its own task
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
 TaskStatus GRMHD_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -971,7 +971,7 @@ TaskStatus GRMHD_Z4c::SendScalarFlux(MeshBlock *pmb, int stage)
   PassiveScalars * ps = pmb->pscalars;
 
   ps->sbvar.SendFluxCorrection();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -1054,7 +1054,7 @@ TaskStatus GRMHD_Z4c::SendScalars(MeshBlock *pmb, int stage)
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -1073,13 +1073,13 @@ TaskStatus GRMHD_Z4c::ReceiveScalars(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 
@@ -1095,7 +1095,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesScalars(MeshBlock *pmb, int stage)
     pmb->SetBoundaryVariablesConserved();
 #endif // DBG_USE_CONS_BC
     ps->sbvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -1176,7 +1176,7 @@ TaskStatus GRMHD_Z4c::SendZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SendBoundaryBuffers();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -1200,7 +1200,7 @@ TaskStatus GRMHD_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
 
   if (ret)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else
   {
@@ -1215,7 +1215,7 @@ TaskStatus GRMHD_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
     Z4c *pz4c = pmb->pz4c;
 
     pz4c->ubvar.SetBoundaries();
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -1239,7 +1239,7 @@ TaskStatus GRMHD_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
     return TaskStatus::fail;
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
@@ -1264,19 +1264,19 @@ TaskStatus GRMHD_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
   } else {
     return TaskStatus::fail;
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
 {
 #ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 #endif // DBG_ALGCONSTR_ALL
 
   Z4c *pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
@@ -1285,7 +1285,7 @@ TaskStatus GRMHD_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
   {
     Z4c *pz4c = pmb->pz4c;
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
@@ -1293,7 +1293,7 @@ TaskStatus GRMHD_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -1305,14 +1305,14 @@ TaskStatus GRMHD_Z4c::Z4c_Weyl(MeshBlock *pmb, int stage)
                        pmb->pz4c->storage.weyl);
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 #if CCE_ENABLED
 TaskStatus GRMHD_Z4c::CCEDump(MeshBlock *pmb, int stage)
 {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   using namespace gra::triggers;
   typedef Triggers::TriggerVariant tvar;
@@ -1339,13 +1339,13 @@ TaskStatus GRMHD_Z4c::CCEDump(MeshBlock *pmb, int stage)
     }
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 #endif
 
 TaskStatus GRMHD_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success;
+  if (stage != nstages) return TaskStatus::next;
 
   Mesh *pm   = pmb->pmy_mesh;
   Z4c  *pz4c = pmb->pz4c;
@@ -1357,18 +1357,18 @@ TaskStatus GRMHD_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)
                          pz4c->storage.mat, pz4c->storage.u);
 
   }
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // new dt ---------------------------------------------------------------------
 TaskStatus GRMHD_Z4c::NewBlockTimeStep(MeshBlock *pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages) return TaskStatus::next; // only do on last stage
 
   //NB using the Z4C version of this fn rather than fluid - potential issue?
   Z4c *pz4c = pmb->pz4c;
   pz4c->NewBlockTimeStep();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // Recouple ADM sources -------------------------------------------------------
@@ -1388,7 +1388,7 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
                     ps->r,
                     pf->bcc);
 
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }

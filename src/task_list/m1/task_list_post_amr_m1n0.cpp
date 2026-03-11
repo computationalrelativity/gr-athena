@@ -50,7 +50,7 @@ TaskStatus PostAMR_M1N0::UpdateBackground(MeshBlock *pmb, int stage)
   ::M1::M1 * pm1 = pmb->pm1;
   pm1->UpdateGeometry(pm1->geom, pm1->scratch);
   pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -59,7 +59,7 @@ TaskStatus PostAMR_M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
   pm1->CalcFiducialVelocity();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -68,7 +68,7 @@ TaskStatus PostAMR_M1N0::CalcClosure(MeshBlock *pmb, int stage)
 {
   ::M1::M1 * pm1 = pmb->pm1;
   pm1->CalcClosure(pm1->storage.u);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -78,7 +78,7 @@ TaskStatus PostAMR_M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
   ::M1::M1 * pm1 = pmb->pm1;
 
   pm1->CalcFiducialFrame(pm1->storage.u);
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -89,13 +89,13 @@ TaskStatus PostAMR_M1N0::CalcOpacity(MeshBlock *pmb, int stage)
 
   if (!pmb->IsNewFromAMR())
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   const Real dt = pmb->pmy_mesh->dt;
   pm1->CalcOpacity(dt, pm1->storage.u);
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
@@ -105,12 +105,12 @@ TaskStatus PostAMR_M1N0::Analysis(MeshBlock *pmb, int stage)
 
   if (!pmb->IsNewFromAMR())
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   pm1->PerformAnalysis();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 //
