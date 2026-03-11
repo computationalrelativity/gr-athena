@@ -1230,6 +1230,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   M_info.x_max.NewAthenaArray(ndim);
   M_info.dx_min.NewAthenaArray(ndim);
   M_info.dx_max.NewAthenaArray(ndim);
+  M_info.max_level = 0;
 
   // Surface init needs to come after MeshBlocks have been initialized
   gra::mesh::surfaces::InitSurfaces(this, pin);
@@ -2482,10 +2483,11 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     }
   }
 
+  max_level = 0;
   for (int nix = 0; nix < nmb; ++nix)
   {
     MeshBlock *pmb = pmb_array[nix];
-    max_level = pmb->loc.level - root_level;
+    max_level = std::max(max_level, pmb->loc.level - root_level);
   }
 
 
