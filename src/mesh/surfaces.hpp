@@ -285,7 +285,9 @@ class Surface
     // General interface for the reduction
     virtual void Reduce(const int ncycle, const Real time) { };
     // Set up from scratch (cleaning up internally) surface interp etc
-    virtual void ReinitializeSurface() {};
+    // active=false: only tear down (AMR invalidated MeshBlock pointers)
+    // active=true:  tear down + re-prepare interpolators
+    virtual void ReinitializeSurface(const bool active = true) {};
 
   public:
 
@@ -335,7 +337,7 @@ class SurfaceCylindrical : public Surface
     ~SurfaceCylindrical();
 
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurface() override;
+    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 
@@ -425,7 +427,7 @@ class SurfaceCartesian : public Surface
     ~SurfaceCartesian();
 
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurface() override;
+    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 
@@ -590,7 +592,7 @@ class SurfaceSpherical : public Surface
     ~SurfaceSpherical();
 
     virtual void Reduce(const int ncycle, const Real time) override;
-    virtual void ReinitializeSurface() override;
+    virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
 

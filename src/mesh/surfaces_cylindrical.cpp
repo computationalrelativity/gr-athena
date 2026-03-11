@@ -144,22 +144,19 @@ void SurfacesCylindrical::Reduce(const int ncycle, const Real time,
 
 void SurfacesCylindrical::ReinitializeSurfaces(const int ncycle, const Real time)
 {
-  // do not reinitialize if we are outside specified ranges -------------------
-  if (!IsActive(time))
-  {
-    return;
-  }
-  // --------------------------------------------------------------------------
-
   if (can_async)
   {
     // Ensure any current writes complete before changing data
     WriteBlock();
   }
 
+  // After AMR, MeshBlock pointers held by surfaces are stale.
+  // Always tear down; only re-prepare if the surface is active.
+  const bool active = IsActive(time);
+
   for (int surf_ix=0; surf_ix<num_radii; ++surf_ix)
   {
-    psurf[surf_ix]->ReinitializeSurface();
+    psurf[surf_ix]->ReinitializeSurface(active);
   }
 }
 
@@ -217,7 +214,7 @@ void SurfaceCylindrical::write_hdf5(const Real T)
         if (it->second == vd)
         {
           var_type = it->first;
-          continue;
+          break;
         }
       }
       var_type = var_type.substr(0, var_type.find("."));
@@ -707,10 +704,13 @@ void SurfaceCylindrical::TearDownInterpolators()
   prepared = false;
 }
 
-void SurfaceCylindrical::ReinitializeSurface()
+void SurfaceCylindrical::ReinitializeSurface(const bool active)
 {
   TearDownInterpolators();
-  PrepareInterpolators();
+  if (active)
+  {
+    PrepareInterpolators();
+  }
 }
 
 void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
@@ -807,7 +807,7 @@ void SurfaceCylindrical::MPI_Reduce()
                   MPI_SUM,
                   MPI_COMM_WORLD);
 
-    start_byte += chunk_bytes;
+    start_byte += count * sizeof(Real);
   }
 #endif
 }
