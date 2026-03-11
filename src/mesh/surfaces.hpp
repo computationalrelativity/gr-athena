@@ -79,6 +79,27 @@ class Surfaces
       M1_radmat_sc_avg_nrg_02,
     };
 
+  private:
+    // Build reverse map: variety_data enum -> HDF5 group prefix
+    // (substring before the first '.', or the full key if no '.')
+    static std::map<variety_data, std::string> BuildVarietyPrefixMap(
+      const std::map<std::string, variety_data> & fwd)
+    {
+      std::map<variety_data, std::string> rev;
+      for (auto const & kv : fwd)
+      {
+        auto dot = kv.first.find('.');
+        std::string prefix = (dot != std::string::npos)
+          ? kv.first.substr(0, dot)
+          : kv.first;
+        // first entry wins - all entries sharing an enum value have the
+        // same prefix, so order does not matter
+        rev.emplace(kv.second, std::move(prefix));
+      }
+      return rev;
+    }
+
+  public:
     // N.B. variables must contain a "."; it is used in dump-naming
     const std::map<std::string, variety_data> map_to_variety_data {
 #if Z4C_ENABLED
@@ -119,6 +140,12 @@ class Surfaces
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
 #endif
+    };
+
+    // Reverse map: variety_data enum -> HDF5 group prefix string
+    // (built once from map_to_variety_data at construction time)
+    const std::map<variety_data, std::string> map_to_variety_prefix {
+      BuildVarietyPrefixMap(map_to_variety_data)
     };
 
     enum class variety_base_grid {
@@ -284,6 +311,10 @@ class Surface
 
     // General interface for the reduction
     virtual void Reduce(const int ncycle, const Real time) { };
+    // Compute phase: prepare interpolators + interpolate (no MPI)
+    virtual void Reduce_Compute() { };
+    // Communicate phase: MPI_Allreduce of u_vars
+    virtual void Reduce_Communicate() { };
     // Set up from scratch (cleaning up internally) surface interp etc
     // active=false: only tear down (AMR invalidated MeshBlock pointers)
     // active=true:  tear down + re-prepare interpolators
@@ -337,6 +368,8 @@ class SurfaceCylindrical : public Surface
     ~SurfaceCylindrical();
 
     virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce_Compute() override;
+    virtual void Reduce_Communicate() override;
     virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
@@ -431,6 +464,8 @@ class SurfaceCartesian : public Surface
     ~SurfaceCartesian();
 
     virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce_Compute() override;
+    virtual void Reduce_Communicate() override;
     virtual void ReinitializeSurface(const bool active = true) override;
 
   private:
@@ -599,6 +634,8 @@ class SurfaceSpherical : public Surface
     ~SurfaceSpherical();
 
     virtual void Reduce(const int ncycle, const Real time) override;
+    virtual void Reduce_Compute() override;
+    virtual void Reduce_Communicate() override;
     virtual void ReinitializeSurface(const bool active = true) override;
 
   private:

@@ -1,4 +1,6 @@
 #include "surfaces.hpp"
+#include <algorithm> // std::min
+#include <cstring>   // std::memcpy
 #include <limits>
 #include <map>
 #include <string>
@@ -120,10 +122,79 @@ void SurfacesCylindrical::Reduce(const int ncycle, const Real time,
     WriteBlock();
   }
 
-  // perform all the reductions
+  // Phase 1: compute interpolations on all surfaces --------------------------
   for (int surf_ix=0; surf_ix<num_radii; ++surf_ix)
   {
-    psurf[surf_ix]->Reduce(ncycle, time);
+    psurf[surf_ix]->Reduce_Compute();
+  }
+
+  // Phase 2: batched MPI_Allreduce across all radii --------------------------
+#ifdef MPI_PARALLEL
+  {
+    // compute total element count across all surfaces
+    size_t total_elems = 0;
+    for (int surf_ix = 0; surf_ix < num_radii; ++surf_ix)
+    {
+      total_elems += static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+    }
+
+    // pack all u_vars into one contiguous buffer
+    std::vector<Real> buf(total_elems);
+    size_t offset = 0;
+    for (int surf_ix = 0; surf_ix < num_radii; ++surf_ix)
+    {
+      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+      std::memcpy(buf.data() + offset,
+                  psurf[surf_ix]->u_vars.data(),
+                  n * sizeof(Real));
+      offset += n;
+    }
+
+    // single chunked MPI_Allreduce on the contiguous buffer
+    const size_t total_bytes = total_elems * sizeof(Real);
+    const size_t max_chunk_bytes =
+      static_cast<size_t>(DBG_SURF_CHUNK) * 1024 * 1024;
+    size_t start_byte = 0;
+
+    while (start_byte < total_bytes)
+    {
+      size_t bytes_left = total_bytes - start_byte;
+      size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
+      int count = static_cast<int>(chunk_bytes / sizeof(Real));
+
+      MPI_Allreduce(MPI_IN_PLACE,
+                    buf.data() + start_byte / sizeof(Real),
+                    count,
+                    MPI_ATHENA_REAL,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
+
+      start_byte += count * sizeof(Real);
+    }
+
+    // scatter results back to each surface's u_vars
+    offset = 0;
+    for (int surf_ix = 0; surf_ix < num_radii; ++surf_ix)
+    {
+      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+      std::memcpy(psurf[surf_ix]->u_vars.data(),
+                  buf.data() + offset,
+                  n * sizeof(Real));
+      offset += n;
+    }
+  }
+#endif
+
+  // Phase 3: synchronous writes ----------------------------------------------
+  if (dump_data && !can_async)
+  {
+    if (Globals::my_rank == write_rank)
+    {
+      for (int surf_ix = 0; surf_ix < num_radii; ++surf_ix)
+      {
+        psurf[surf_ix]->write_hdf5(time);
+      }
+    }
   }
 
   if (dump_data)
@@ -212,18 +283,9 @@ void SurfaceCylindrical::write_hdf5(const Real T)
     {
       Surfaces::variety_data vd = psurfs->variables(v);
 
-      // get name prior to initial point i.e. from "M1.lab" extract "M1"
-      std::string var_type;
-      for (auto it = psurfs->map_to_variety_data.begin();
-                it != psurfs->map_to_variety_data.end(); ++it)
-      {
-        if (it->second == vd)
-        {
-          var_type = it->first;
-          break;
-        }
-      }
-      var_type = var_type.substr(0, var_type.find("."));
+      // get HDF5 group prefix e.g. from "M1.lab" extract "M1"
+      const std::string & var_type =
+        psurfs->map_to_variety_prefix.at(vd);
 
       // DEBUG
       /*
@@ -670,7 +732,7 @@ void SurfaceCylindrical::ReinitializeSurface(const bool active)
   }
 }
 
-void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
+void SurfaceCylindrical::Reduce_Compute()
 {
   // ensure we have prepared the interpolators --------------------------------
   if (!prepared)
@@ -692,10 +754,19 @@ void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
 
   // use pre-allocated interpolators on desired data --------------------------
   DoInterpolations();
-  // --------------------------------------------------------------------------
+}
+
+void SurfaceCylindrical::Reduce_Communicate()
+{
+  MPI_Reduce();
+}
+
+void SurfaceCylindrical::Reduce(const int ncycle, const Real time)
+{
+  Reduce_Compute();
 
   // MPI logic for surface reduction to all ranks -----------------------------
-  MPI_Reduce();
+  Reduce_Communicate();
   // --------------------------------------------------------------------------
 
   // finally write ------------------------------------------------------------
@@ -808,6 +879,31 @@ void SurfaceCylindrical::DoInterpolations()
   int nthreads = pm->GetNumMeshThreads();
   (void)nthreads;
 
+  // precompute loop-invariant lookups ----------------------------------------
+  // variable_sampling(vix) and GetRemappedFieldIndex(vd, cix) do not depend
+  // on the grid point (i,j), so we hoist them out of the parallel region.
+  std::vector<Surfaces::variety_base_grid> vbg_pre(N_vars);
+  int total_cpts = 0;
+  for (int vix = 0; vix < N_vars; ++vix)
+  {
+    vbg_pre[vix] = psurfs->variable_sampling(vix);
+    total_cpts += N_cpts(vix);
+  }
+
+  // flattened array of remapped component indices, indexed by ix_dump
+  std::vector<int> mapped_cix_pre(total_cpts);
+  {
+    int ix = 0;
+    for (int vix = 0; vix < N_vars; ++vix)
+    {
+      Surfaces::variety_data vd = psurfs->variables(vix);
+      for (int cix = 0; cix < N_cpts(vix); ++cix)
+      {
+        mapped_cix_pre[ix++] = GetRemappedFieldIndex(vd, cix);
+      }
+    }
+  }
+
   // deal with fields & their components --------------------------------------
   #pragma omp parallel for num_threads(nthreads) collapse(2)
   for (int i=0; i<N_ph; ++i)
@@ -823,18 +919,14 @@ void SurfaceCylindrical::DoInterpolations()
       AA & raw_var = *GetRawData(psurfs->variables(vix),
                                  mask_mb(i,j));
 
-      Surfaces::variety_base_grid vbg = psurfs->variable_sampling(vix);
+      const Surfaces::variety_base_grid vbg = vbg_pre[vix];
 
       // interpolate field component to the specified target point
       for (int cix=0; cix<N_cpts(vix); ++cix)
       {
         // slice to current function component for interp
-        const int mapped_cix = GetRemappedFieldIndex(
-          psurfs->variables(vix), cix
-        );
-        AA sl_u(raw_var, mapped_cix, 1);
+        AA sl_u(raw_var, mapped_cix_pre[ix_dump], 1);
 
-        // const int ix_dump = cix + vix * N_cpts(vix);
         u_vars(ix_dump,i,j) = InterpolateAtPoint(sl_u, vbg, i, j);
         ix_dump++;
       }
