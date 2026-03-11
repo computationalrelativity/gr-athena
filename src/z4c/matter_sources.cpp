@@ -152,6 +152,11 @@ void Z4c::GetMatter(
           w_r(l,i) = Y[l];
         }
 #endif
+        // propagate floored velocity back
+        for (int ix = 0; ix < 3; ++ix)
+        {
+          w_utilde_u(ix, i) = Wvu[ix];
+        }
 #endif
 
 #if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)

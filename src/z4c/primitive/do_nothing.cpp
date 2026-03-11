@@ -49,7 +49,7 @@ bool DoNothing::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species) 
   return false;
 }
 
-bool DoNothing::FailureResponse(Real prim[NPRIM])
+bool DoNothing::FailureResponse(Real prim[NPRIM], int n_species)
 {
   return false;
 }

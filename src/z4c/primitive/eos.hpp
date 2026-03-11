@@ -36,7 +36,7 @@
 //    bool SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
 //    void PressureLimits(Real& P, Real P_min, Real P_max);
 //    void EnergyLimits(Real& e, Real e_min, Real e_max);
-//    void FailureResponse(Real prim[NPRIM])
+//    void FailureResponse(Real prim[NPRIM], int n_species)
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
@@ -492,7 +492,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \brief Set the atmosphere abundance used by the EOS ErrorPolicy for species i.
     inline void SetSpeciesAtmosphere(Real atmo, int i) {
       assert((i < n_species) && "Not enough species");
-      Y_atm[i] = std::min(1.0, std::max(0.0, atmo));
+      Y_atm[i] = std::min(max_Y[i], std::max(min_Y[i], atmo));
     }
 
     //! \fn void SetThreshold(Real threshold)
@@ -674,7 +674,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \brief Respond to a failed solve.
     inline bool DoFailureResponse(Real prim[NPRIM]) {
-      bool result = FailureResponse(prim);
+      bool result = FailureResponse(prim, n_species);
       if (result) {
         // Adjust the pressure to be consistent with the new primitive variables.
         prim[IPR] = GetPressure(prim[IDN], prim[ITM], &prim[IYF]);

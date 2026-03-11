@@ -67,9 +67,6 @@
 // BD: If enabled, task-list completion of comm is barrier prior to clear_allbnd
 #define @USE_COMM_DEPENDENCY@
 
-// BD: If enabled, allow for idempotency check in C2P
-#define NO_DBG_IDEMPOTENT_C2P
-
 // Write restarts by MeshBlock instead of in one hit; should avoid spurious
 // dumps
 #define DBG_RST_WRITE_PER_MB

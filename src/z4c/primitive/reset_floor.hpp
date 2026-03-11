@@ -47,7 +47,7 @@ class ResetFloor : public ErrorPolicyInterface {
     void EnergyLimits(Real& e, Real e_min, Real e_max);
 
     /// Policy for dealing with failed points
-    bool FailureResponse(Real prim[NPRIM]);
+    bool FailureResponse(Real prim[NPRIM], int n_species);
 
     /// Policy for capping momentum to a physical range
     bool MomentumLimits(Real Sd[3], Real Ssq, Real Ssq_max);

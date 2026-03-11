@@ -278,15 +278,6 @@ void ReconstructFields(
     // now depending on settings unpack limited / floored
     if (pr->xorder_floor_primitives)
     {
-      wl_(IDN,i) = mb * nl__;
-      wr_(IDN,i) = mb * nr__;
-
-      for (int n=0; n<NDIM; ++n)
-      {
-        wl_(IVX+n,i) = Wvul__[n];
-        wr_(IVX+n,i) = Wvur__[n];
-      }
-
       peos->GetEOS().ApplyTemperatureLimits(al_(IX_T,i));
       peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T,i));
 
@@ -296,6 +287,16 @@ void ReconstructFields(
       const bool flr__ = peos->GetEOS().ApplyPrimitiveFloor(
         nr__, Wvur__, wr_(IPR,i), ar_(IX_T,i), Yr__
       );
+
+      // propagate floored density and velocity back
+      wl_(IDN,i) = mb * nl__;
+      wr_(IDN,i) = mb * nr__;
+
+      for (int n=0; n<NDIM; ++n)
+      {
+        wl_(IVX+n,i) = Wvul__[n];
+        wr_(IVX+n,i) = Wvur__[n];
+      }
     }
 
     if (!pr->xorder_use_aux_h)

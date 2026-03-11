@@ -116,13 +116,13 @@ bool ResetFloor::SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species)
 
 /// Perform failure response.
 /// In this case, we simply floor everything.
-bool ResetFloor::FailureResponse(Real prim[NPRIM]) {
+bool ResetFloor::FailureResponse(Real prim[NPRIM], int n_species) {
   prim[IDN] = n_atm;
   prim[IVX] = 0.0;
   prim[IVY] = 0.0;
   prim[IVZ] = 0.0;
   prim[ITM] = T_atm;
-  for (int i = 0; i < MAX_SPECIES; i++) {
+  for (int i = 0; i < n_species; i++) {
     prim[IYF + i] = Y_atm[i];
   }
   return true;

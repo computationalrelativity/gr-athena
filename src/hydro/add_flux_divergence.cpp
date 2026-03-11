@@ -185,6 +185,8 @@ void Hydro::CheckStateWithFluxDivergence(
     all_valid = all_valid && is_valid;
   }
 
+  // Optional conservative tau validity check (tau >= 0). This is strictly
+  // weaker than the EOS-dependent floor enforced later in C2P.
   if (pr->xorder_min_tau_zero)
   {
     for (int k=ks-nel; k<=ke+nel; ++k)
@@ -513,6 +515,8 @@ void Hydro::LimitMaskFluxDivergence(
     mask(k,j,i) = theta;
   }
 
+  // Optional conservative tau flux limiter (tau >= 0). This is strictly
+  // weaker than the EOS-dependent floor enforced later in C2P.
   if (pr->xorder_min_tau_zero)
   {
     const Real tau_floor = 0;
@@ -658,6 +662,12 @@ void Hydro::EnforceFloorsLimits(
   }
 
   // energy density -----------------------------------------------------------
+  // Optional hardcoded tau >= 0 clamp (gated behind xorder_min_tau_zero,
+  // default: off). The EOS-dependent tau floor (D*epsilon(n_atm,T_atm,Y_atm)
+  // + 0.5*B^2) is always enforced later in ConservedToPrimitive, making this
+  // strictly weaker. The commented-out code below is a prototype of applying
+  // the EOS-dependent floor here; it was reverted because it duplicates the
+  // C2P floor and would require extra EOS evaluations at every cell.
   if (pmb->precon->xorder_min_tau_zero)
   for (int k=kl; k<=ku; ++k)
   for (int j=jl; j<=ju; ++j)
