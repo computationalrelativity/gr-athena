@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -136,7 +137,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
     // collect and write user Mesh data
     if (udsize != 0) {
-      char *ud = new char[udsize];
+      std::unique_ptr<char[]> ud(new char[udsize]);
       IOWrapperSizeT udoffset = 0;
       for (int n=0; n<pm->nint_user_mesh_data_; n++) {
         std::memcpy(&(ud[udoffset]), pm->iuser_mesh_data[n].data(),
@@ -173,18 +174,17 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
         udoffset += pm->ptracker_extrema->c_x3.GetSizeInBytes();
       }
 
-      resfile.Write(ud, 1, udsize);
-      delete [] ud;
+      resfile.Write(ud.get(), 1, udsize);
     }
   }
 
   // allocate memory for the ID list and the data
-  char *idlist = new char[listsize*mynb];
+  std::unique_ptr<char[]> idlist(new char[listsize*mynb]);
 
 #if !defined(DBG_RST_WRITE_PER_MB)
-  char *data = new char[mynb*datasize];
+  std::unique_ptr<char[]> data(new char[mynb*datasize]);
 #else
-  char *data = new char[datasize];
+  std::unique_ptr<char[]> data(new char[datasize]);
 #endif // DBG_RST_WRITE_PER_MB
 
   // Loop over MeshBlocks and pack the meta data
@@ -200,20 +200,20 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   // write the ID list collectively
   IOWrapperSizeT myoffset = headeroffset + listsize*myns;
-  resfile.Write_at_all(idlist, listsize, mynb, myoffset);
+  resfile.Write_at_all(idlist.get(), listsize, mynb, myoffset);
 
-  // deallocate the idlist array
-  delete [] idlist;
+  // idlist freed automatically by unique_ptr
 
   // Loop over MeshBlocks and pack the data
   pmb = pm->pblock;
   int b = 0;
   while (pmb != nullptr) {
 #if !defined(DBG_RST_WRITE_PER_MB)
-    char *pdata = &(data[pmb->lid*datasize]);
+    char *pdata = &(data.get()[pmb->lid*datasize]);
 #else
-    char *pdata = data;
+    char *pdata = data.get();
 #endif // DBG_RST_WRITE_PER_MB
+    char *pdata_start = pdata;  // record start for size validation
     // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
     // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
 
@@ -289,14 +289,27 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
                   pmb->ruser_meshblock_data[n].GetSizeInBytes());
       pdata += pmb->ruser_meshblock_data[n].GetSizeInBytes();
     }
+    // Verify packed data size matches GetBlockSizeInBytes() - if these diverge,
+    // the restart file is silently corrupted.
+    {
+      IOWrapperSizeT packed = static_cast<IOWrapperSizeT>(pdata - pdata_start);
+      if (packed != datasize) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in function [RestartOutput::WriteOutputFile]"
+            << std::endl
+            << "Restart packing size mismatch: packed " << packed
+            << " bytes but GetBlockSizeInBytes() = " << datasize << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
     pmb = pmb->next;
 
 #if defined (DBG_RST_WRITE_PER_MB)
     myoffset = headeroffset + listsize*nbtotal + datasize*(myns+b);
     if (b < nbmin)
-      resfile.Write_at_all(data, datasize, 1, myoffset);
+      resfile.Write_at_all(data.get(), datasize, 1, myoffset);
     else
-      resfile.Write_at(data, datasize, 1, myoffset);
+      resfile.Write_at(data.get(), datasize, 1, myoffset);
 #endif // DBG_RST_WRITE_PER_MB
 
     b++;
@@ -307,8 +320,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 #if !defined (DBG_RST_WRITE_PER_MB)
   // now write restart data in parallel
   myoffset = headeroffset + listsize*nbtotal + datasize*myns;
-  resfile.Write_at_all(data, datasize, mynb, myoffset);
+  resfile.Write_at_all(data.get(), datasize, mynb, myoffset);
 #endif // DBG_RST_WRITE_PER_MB
   resfile.Close();
-  delete [] data;
 }

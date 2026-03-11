@@ -99,7 +99,7 @@ void VTKOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) {
     // open file for output
     FILE *pfile;
     std::stringstream msg;
-    if ((pfile = std::fopen(fname.c_str(), "w")) == nullptr) {
+    if ((pfile = std::fopen(fname.c_str(), "wb")) == nullptr) {
       msg << "### FATAL ERROR in function [VTKOutput::WriteOutputFile]"
           <<std::endl<< "Output file '" <<fname<< "' could not be opened" <<std::endl;
       ATHENA_ERROR(msg);

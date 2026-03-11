@@ -79,7 +79,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
     }
   }
 
-  int ix_cons_dens, ix_cons_scalar;
+  int ix_cons_dens = 0, ix_cons_scalar = 0;
 
   // Loop over MeshBlocks
   while (pmb != nullptr) {

@@ -71,7 +71,8 @@ struct OutputParameters {
                        output_sumx1(false), output_sumx2(false), output_sumx3(false),
                        include_ghost_zones(false), cartesian_vector(false),
                        vc(false),
-                       islice(0), jslice(0), kslice(0) {}
+                       islice(0), jslice(0), kslice(0),
+                       x1_slice(0.0), x2_slice(0.0), x3_slice(0.0) {}
 };
 
 //----------------------------------------------------------------------------------------
@@ -100,10 +101,10 @@ class OutputType {
 
   // rule of five:
   virtual ~OutputType();
-  // copy constructor and assignment operator (pnext_type, pfirst_data, etc. are shallow
-  // copied)
-  OutputType(const OutputType& copy_other) = default;
-  OutputType& operator=(const OutputType& copy_other) = default;
+  // Prevent copies - destructor owns linked-list and free-list nodes, so
+  // shallow copies would cause double-free.
+  OutputType(const OutputType&) = delete;
+  OutputType& operator=(const OutputType&) = delete;
   // move constructor and assignment operator
   OutputType(OutputType&&) = default;
   OutputType& operator=(OutputType&&) = default;

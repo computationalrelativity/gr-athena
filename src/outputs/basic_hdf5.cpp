@@ -54,7 +54,7 @@ void hdf5_write_arr_nd(
 
   const int ndim = arr.GetNumDim();
 
-  hsize_t dim[ndim];
+  hsize_t dim[6];  // AthenaArray supports at most 6 dimensions
   for (int n=0; n<ndim; ++n)
   {
     dim[n] = arr.GetDim(ndim-n);
