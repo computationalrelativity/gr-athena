@@ -511,9 +511,10 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   const int hbnx2 = bnx2 / 2 + 1;
   const int hbnx3 = bnx3 / 2 + 1;
 
-  const int ndg1 = NGHOST;
-  const int ndg2 = (f2 > 0) ? NGHOST : 0;
-  const int ndg3 = (f3 > 0) ? NGHOST : 0;
+  const int min_vc_ng = std::min(NCGHOST, NGHOST);
+  const int ndg1 = min_vc_ng;
+  const int ndg2 = (f2 > 0) ? min_vc_ng : 0;
+  const int ndg3 = (f3 > 0) ? min_vc_ng : 0;
 
   bssame += vbnx1 * vbnx2 * vbnx3 * nx4_vc_tot;
   bsc2f += nx4_vc_tot * (
@@ -941,9 +942,9 @@ void Mesh::PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf,
   }
 
   // vertex-centered ----------------------------------------------------------
-  int ndg1 = NGHOST;
-  int ndg2 = (f2 > 0) ? NGHOST : 0;
-  int ndg3 = (f3 > 0) ? NGHOST : 0;
+  int ndg1 = std::min(NCGHOST, NGHOST);
+  int ndg2 = (f2 > 0) ? std::min(NCGHOST, NGHOST) : 0;
+  int ndg3 = (f3 > 0) ? std::min(NCGHOST, NGHOST) : 0;
 
   int vc_il, vc_iu;
   int vc_jl, vc_ju;
@@ -1733,9 +1734,9 @@ void Mesh::FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf) {
   }
 
   // vertex-centered ----------------------------------------------------------
-  int ndg1 = NGHOST;
-  int ndg2 = (f2 > 0) ? NGHOST : 0;
-  int ndg3 = (f3 > 0) ? NGHOST : 0;
+  int ndg1 = std::min(NCGHOST, NGHOST);
+  int ndg2 = (f2 > 0) ? std::min(NCGHOST, NGHOST) : 0;
+  int ndg3 = (f3 > 0) ? std::min(NCGHOST, NGHOST) : 0;
 
   const int vc_il = pb->civs - ndg1;
   const int vc_iu = pb->cive + ndg1;
