@@ -683,9 +683,9 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   RebuildBlockByGid();
 
   // Step 8. Receive the data and load into MeshBlocks
-  // This is a test: try MPI_Waitall later.
 #ifdef MPI_PARALLEL
   if (nrecv != 0) {
+    MPI_Waitall(nrecv, req_recv, MPI_STATUSES_IGNORE);
     int rb_idx = 0;     // recv buffer index
     for (int n=nbs; n<=nbe; n++) {
       int on = newtoold[n];
@@ -694,19 +694,16 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
       MeshBlock *pb = FindMeshBlock(n);
       if (oloc.level == nloc.level) { // same
         if (ranklist[on] == Globals::my_rank) continue;
-        MPI_Wait(&(req_recv[rb_idx]), MPI_STATUS_IGNORE);
         FinishRecvSameLevel(pb, recvbuf[rb_idx]);
         rb_idx++;
       } else if (oloc.level > nloc.level) { // f2c
         for (int l=0; l<nleaf; l++) {
           if (ranklist[on+l] == Globals::my_rank) continue;
-          MPI_Wait(&(req_recv[rb_idx]), MPI_STATUS_IGNORE);
           FinishRecvFineToCoarseAMR(pb, recvbuf[rb_idx], loclist[on+l]);
           rb_idx++;
         }
       } else { // c2f
         if (ranklist[on] == Globals::my_rank) continue;
-        MPI_Wait(&(req_recv[rb_idx]), MPI_STATUS_IGNORE);
         FinishRecvCoarseToFineAMR(pb, recvbuf[rb_idx]);
         rb_idx++;
       }
