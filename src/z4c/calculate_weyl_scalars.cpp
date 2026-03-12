@@ -280,15 +280,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
       }
     }
 
-    Gamma_u.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
-      ILOOP1(i) {
-        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
-      }
-    }
-
     // -----------------------------------------------------------------------------------
     // Ricci tensor and Ricci scalar
     //
@@ -334,14 +325,6 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
         K(i) += K_ud(a,a,i);
       }
     }
-    // K^a_b K^b_a
-    KK.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        KK(i) += K_ud(a,b,i) * K_ud(b,a,i);
-      }
-    }
     // Covariant derivative of K
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
@@ -356,30 +339,10 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
         }
       }
     }
-    DK_udd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c)
-    for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
-        DK_udd(a,b,c,i) += g_uu(a,d,i) * DK_ddd(d,b,c,i);
-      }
-    }
 
 
 
 
-
-    // -----------------------------------------------------------------------------------
-    // Trace of the matter stress tensor
-    //
-    S.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        S(i) += g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
-      }
-    }
 
     //------------------------------------------------------------------------------------
     //     Construct tetrad
@@ -487,92 +450,74 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
 	    }
     }
 
-    //   Riem3_dddd = Riemann tensor of spacelike hypersurface
-    //   Riemm4_dddd = Riemann tensor of 4D spacetime
-    //   Riemm4_ddd  = Riemann tensor of 4D spacetime contracted once with n
-    //   Riemm4_dd  = Riemann tensor of 4D spacetime contracted twice with n
-    Riem3_dddd.ZeroClear();
-    Riemm4_dddd.ZeroClear();
-    Riemm4_ddd.ZeroClear();
-    Riemm4_dd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        for(int c = 0; c < NDIM; ++c){
-          for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
-              Riem3_dddd(a,b,c,d,i) = adm.g_dd(a,c,k,j,i)*R_dd(b,d,i) +adm.g_dd(b,d,k,j,i)*R_dd(a,c,i)
-                                      - adm.g_dd(a,d,k,j,i)*R_dd(b,c,i) - adm.g_dd(b,c,k,j,i)*R_dd(a,d,i)
-                                      - 0.5*R(i)*adm.g_dd(a,c,k,j,i)*adm.g_dd(b,d,k,j,i)
-                                      + 0.5*R(i)*adm.g_dd(a,d,k,j,i)*adm.g_dd(b,c,k,j,i);
-              Riemm4_dddd(a,b,c,d,i) = Riem3_dddd(a,b,c,d,i) + adm.K_dd(a,c,k,j,i)*adm.K_dd(b,d,k,j,i)
-                                      - adm.K_dd(a,d,k,j,i)*adm.K_dd(b,c,k,j,i);
-            }
-          }
-        }
-      }
-    }
-
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        for(int c = 0; c < NDIM; ++c){
-          ILOOP1(i){
-            Riemm4_ddd(a,b,c,i) = - (DK_ddd(c,a,b,i) - DK_ddd(b,a,c,i));
-          }
-        }
-      }
-    }
-
-
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        ILOOP1(i){
-          Riemm4_dd(a,b,i) = R_dd(a,b,i) + K(i)*adm.K_dd(a,b,k,j,i);
-        }
-        for(int c = 0; c < NDIM; ++c){
-          for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
-              Riemm4_dd(a,b,i) += - g_uu(c,d,i)*adm.K_dd(a,c,k,j,i)*adm.K_dd(d,b,k,j,i);
-            }
-          }
-        }
-      }
-    }
-
+    // ---------------------------------------------------------------------------------
+    // Fused Psi4 computation: each 4D Riemann component is evaluated as a local
+    // scalar and immediately accumulated into rpsi4/ipsi4, avoiding intermediate
+    // storage of Riem3_dddd (81), Riemm4_dddd (81), Riemm4_ddd (27), and
+    // Riemm4_dd (9) scratch arrays.
+    // ---------------------------------------------------------------------------------
     ILOOP1(i) {
       weyl.rpsi4(k,j,i) = 0;
       weyl.ipsi4(k,j,i) = 0;
     }
 
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        ILOOP1(i){
-          weyl.rpsi4(k,j,i) += - FR4 * Riemm4_dd(a,b,i) * (
-            vvec(a,i) * vvec(b,i) - (-wvec(a,i) * (-wvec(b,i)))
-          );
-          weyl.ipsi4(k,j,i) += - FR4 * Riemm4_dd(a,b,i) * (
-            -vvec(a,i) * wvec(b,i) - wvec(a,i)*vvec(b,i)
-          );
-        }
-        for(int c = 0; c < NDIM; ++c){
-          ILOOP1(i){
-            weyl.rpsi4(k,j,i) += 0.5 * Riemm4_ddd(a,c,b,i) * uvec(c,i) * (
-              vvec(a,i) * vvec(b,i) - (-wvec(a,i)*(-wvec(b,i)))
-            );
-            weyl.ipsi4(k,j,i) += 0.5 * Riemm4_ddd(a,c,b,i) * uvec(c,i) * (
-              -vvec(a,i) * wvec(b,i) - wvec(a,i)*vvec(b,i)
-            );
-          }
-          for(int d = 0; d < NDIM; ++d){
-            ILOOP1(i){
-              weyl.rpsi4(k,j,i) += -FR4 * (Riemm4_dddd(d,a,c,b,i) * uvec(d,i) * uvec(c,i)) * (
-                vvec(a,i) * vvec(b,i) - (-wvec(a,i)*(-wvec(b,i)))
-              );
-              weyl.ipsi4(k,j,i) += -FR4 * (Riemm4_dddd(d,a,c,b,i) * uvec(d,i) * uvec(c,i)) * (
-                -vvec(a,i) * wvec(b,i) - wvec(a,i)*vvec(b,i)
-              );
-            }
-          }
-        }
+    // Phase A: Riemm4_dd contribution (Ricci + K*K - K_ac g^cd K_db)
+    for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b) {
+      ILOOP1(i) {
+        Real R4_ab = R_dd(a,b,i) + K(i) * adm.K_dd(a,b,k,j,i);
+        for (int c = 0; c < NDIM; ++c)
+        for (int d = 0; d < NDIM; ++d)
+          R4_ab -= g_uu(c,d,i) * adm.K_dd(a,c,k,j,i) * adm.K_dd(d,b,k,j,i);
+
+        const Real Tr = vvec(a,i) * vvec(b,i) - wvec(a,i) * wvec(b,i);
+        const Real Ti = -vvec(a,i) * wvec(b,i) - wvec(a,i) * vvec(b,i);
+        weyl.rpsi4(k,j,i) += -FR4 * R4_ab * Tr;
+        weyl.ipsi4(k,j,i) += -FR4 * R4_ab * Ti;
+      }
+    }
+
+    // Phase B: Riemm4_ddd contribution (Codazzi equation)
+    // Riemm4_ddd(A,B,C) = -(DK_ddd(C,A,B) - DK_ddd(B,A,C))
+    // Consumed as Riemm4_ddd(a,c,b) => A=a, B=c, C=b
+    //   = -(DK_ddd(b,a,c) - DK_ddd(c,a,b))
+    for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    for (int c = 0; c < NDIM; ++c) {
+      ILOOP1(i) {
+        const Real R4_acb = -(DK_ddd(b,a,c,i) - DK_ddd(c,a,b,i));
+        const Real Tr = vvec(a,i) * vvec(b,i) - wvec(a,i) * wvec(b,i);
+        const Real Ti = -vvec(a,i) * wvec(b,i) - wvec(a,i) * vvec(b,i);
+        weyl.rpsi4(k,j,i) += 0.5 * R4_acb * uvec(c,i) * Tr;
+        weyl.ipsi4(k,j,i) += 0.5 * R4_acb * uvec(c,i) * Ti;
+      }
+    }
+
+    // Phase C: Riemm4_dddd contribution (Gauss equation)
+    // Riemm4_dddd(A,B,C,D) = g(A,C)*R(B,D) + g(B,D)*R(A,C)
+    //                       - g(A,D)*R(B,C) - g(B,C)*R(A,D)
+    //                       - 0.5*R*(g(A,C)*g(B,D) - g(A,D)*g(B,C))
+    //                       + K(A,C)*K(B,D) - K(A,D)*K(B,C)
+    // Consumed as Riemm4_dddd(d,a,c,b) => A=d, B=a, C=c, D=b
+    for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    for (int c = 0; c < NDIM; ++c)
+    for (int d = 0; d < NDIM; ++d) {
+      ILOOP1(i) {
+        const Real R4_dacb =
+            adm.g_dd(d,c,k,j,i) * R_dd(a,b,i)
+          + adm.g_dd(a,b,k,j,i) * R_dd(d,c,i)
+          - adm.g_dd(d,b,k,j,i) * R_dd(a,c,i)
+          - adm.g_dd(a,c,k,j,i) * R_dd(d,b,i)
+          - 0.5 * R(i) * (adm.g_dd(d,c,k,j,i) * adm.g_dd(a,b,k,j,i)
+                         - adm.g_dd(d,b,k,j,i) * adm.g_dd(a,c,k,j,i))
+          + adm.K_dd(d,c,k,j,i) * adm.K_dd(a,b,k,j,i)
+          - adm.K_dd(d,b,k,j,i) * adm.K_dd(a,c,k,j,i);
+
+        const Real Tr = vvec(a,i) * vvec(b,i) - wvec(a,i) * wvec(b,i);
+        const Real Ti = -vvec(a,i) * wvec(b,i) - wvec(a,i) * vvec(b,i);
+        weyl.rpsi4(k,j,i) += -FR4 * R4_dacb * uvec(d,i) * uvec(c,i) * Tr;
+        weyl.ipsi4(k,j,i) += -FR4 * R4_dacb * uvec(d,i) * uvec(c,i) * Ti;
       }
     }
 

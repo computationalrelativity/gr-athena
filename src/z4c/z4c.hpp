@@ -652,10 +652,6 @@ private:
   AT_N_vec wvec;        // phi vector in tetrad
   AT_N_sca dotp1;       // dot product in Gram-Schmidt orthonormalisation
   AT_N_sca dotp2;       // second dot product in G-S orthonormalisation
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riem3_dddd;  // 3D Riemann tensor
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 4> Riemm4_dddd; // 4D Riemann tensor
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 3> Riemm4_ddd;  // 4D Riemann * n^a
-  AT_N_T2  Riemm4_dd;   // 4D Riemann *n^a*n^c
 
   // Aux vars handling cx/vc matter interpolation
   AT_N_sca ms_detgamma_;

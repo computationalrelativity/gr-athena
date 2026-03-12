@@ -431,10 +431,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   wvec.NewAthenaTensor(mbi.nn1);
   dotp1.NewAthenaTensor(mbi.nn1);
   dotp2.NewAthenaTensor(mbi.nn1);
-  Riem3_dddd.NewAthenaTensor(mbi.nn1);
-  Riemm4_dddd.NewAthenaTensor(mbi.nn1);
-  Riemm4_ddd.NewAthenaTensor(mbi.nn1);
-  Riemm4_dd.NewAthenaTensor(mbi.nn1);
 
   // To handle inter-grid interpolation ---------------------------------------
   if (Z4C_ENABLED && FLUID_ENABLED)
