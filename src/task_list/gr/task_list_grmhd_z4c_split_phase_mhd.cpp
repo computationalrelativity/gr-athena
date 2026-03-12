@@ -59,11 +59,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
-#ifdef USE_COMM_DEPENDENCY
-  // Accumulate MPI communication tasks:
-  TaskID COMM = NONE;
-#endif
-
   // (M)HD sub-system logic ---------------------------------------------------
 
   // weighted average of prior stages
@@ -75,9 +70,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
   // collect receive operations
   TaskID RECV_FLX = NONE;
-#ifdef USE_COMM_DEPENDENCY
-  COMM = COMM | RECV_FLX;
-#endif
 
   if (multilevel)
   {
@@ -87,9 +79,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
         &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionHydro);
     Add(RECV_HYDFLX, CALC_HYDSCLRFLX,
         &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectHydroFlux);
-#ifdef USE_COMM_DEPENDENCY
-    COMM = COMM | SEND_HYDFLX | RECV_HYDFLX;
-#endif
   }
 
   if (NSCALARS > 0)
@@ -102,10 +91,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
           &GRMHD_Z4c_Phase_MHD::SendScalarFlux);
       Add(RECV_SCLRFLX, CALC_HYDSCLRFLX,
           &GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux);
-
-#ifdef USE_COMM_DEPENDENCY
-      COMM = COMM | SEND_SCLRFLX | RECV_SCLRFLX;
-#endif
     }
   }
 
@@ -125,9 +110,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
     Add(CALC_FLDFLX, CALC_HYDSCLRFLX, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
     Add(SEND_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF);
     Add(RECV_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF);
-#ifdef USE_COMM_DEPENDENCY
-    COMM = COMM | SEND_FLDFLX | RECV_FLDFLX;
-#endif
     Add(INT_FLD,     RECV_FLDFLX, &GRMHD_Z4c_Phase_MHD::IntegrateField);
   }
 
@@ -139,13 +121,8 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
     FIN = FIN | INT_FLD | SEND_FLDFLX;
   }
 
-#ifdef USE_COMM_DEPENDENCY
-  // We are done with MPI communication
-  Add(CLEAR_ALLBND, COMM, &GRMHD_Z4c_Phase_MHD::ClearAllBoundary);
-#else
   // We are done for the (M)HD phase
   Add(CLEAR_ALLBND, FIN, &GRMHD_Z4c_Phase_MHD::ClearAllBoundary);
-#endif
 
 }
 

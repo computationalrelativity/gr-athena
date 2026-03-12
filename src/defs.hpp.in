@@ -66,9 +66,6 @@
 // BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
 #define @DBG_FALLBACK_NO_TABLE_LIMITS@
 
-// BD: If enabled, task-list completion of comm is barrier prior to clear_allbnd
-#define @USE_COMM_DEPENDENCY@
-
 // Write restarts by MeshBlock instead of in one hit; should avoid spurious
 // dumps
 #define DBG_RST_WRITE_PER_MB

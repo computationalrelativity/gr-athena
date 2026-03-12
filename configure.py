@@ -98,9 +98,6 @@
 #
 #   -ejecta             enable ejecta (requires PrimitiveSolver)
 #
-# Tasklist:
-#   -tasklist_comm_dependency    ensure communication during task-list completes prior to clear_bnd
-#
 # development stuff:
 #
 #    -compiler_sanitize_address  sanitizers
@@ -306,12 +303,6 @@ parser.add_argument(
   help="DBG_FALLBACK_NO_TABLE_LIMITS",
 )
 
-parser.add_argument(
-  "-tasklist_comm_dependency",
-  action="store_true",
-  default=False,
-  help="ensure communication during task-list completes prior to clear_bnd.",
-)
 
 # -f argument
 parser.add_argument(
@@ -1264,11 +1255,6 @@ else:
     "NO_DBG_FALLBACK_NO_TABLE_LIMITS"
   )
 
-# -tasklist_comm_dependency argument
-if args["tasklist_comm_dependency"]:
-  definitions["USE_COMM_DEPENDENCY"] = "USE_COMM_DEPENDENCY"
-else:
-  definitions["USE_COMM_DEPENDENCY"] = "NO_USE_COMM_DEPENDENCY"
 
 # --cxx=[name] argument
 if args["cxx"] == "g++":
