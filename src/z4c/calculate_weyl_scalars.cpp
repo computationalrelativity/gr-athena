@@ -45,6 +45,10 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
   ADM_vars adm;
   SetADMAliases(u_adm, adm);
 
+  // Z4c aliases needed for chain-rule assembly of physical metric derivatives
+  Z4c_vars z4c;
+  SetZ4cAliases(storage.u, z4c);
+
   Matter_vars mat;
   SetMatterAliases(u_mat, mat);
 
@@ -104,37 +108,143 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
   return;
 #endif // DBG_WEYL_SWSH_SEED_CART
 
+  //---------------------------------------------------------------------------
+  // NOTE: 3D conformal first derivatives (dalpha_d_3d, dchi_d_3d,
+  // dbeta_du_3d, dg_ddd_3d) are pre-computed by PrepareZ4cDerivatives().
+  // Physical metric derivatives are assembled via chain rule below.
+  //---------------------------------------------------------------------------
+
   ILOOP2(k,j) {
 
 
     // -----------------------------------------------------------------------------------
-    // derivatives
+    // Chain-rule assembly of physical metric derivatives from conformal quantities
     //
-    // first derivatives of g and K
+    // gamma_ab = chi^(4/p) * g~_ab
+    // d_c(gamma_ab) = chi^(4/p) * [d_c(g~_ab) + (4/p)/chi * g~_ab * dchi_c]
+    //
+    // d_a d_b(gamma_cd) = chi^(4/p) * {d_a d_b(g~_cd)
+    //   + (4/p)/chi * [dchi_a * d_b(g~_cd) + dchi_b * d_a(g~_cd) + ddchi_ab * g~_cd]
+    //   + (4/p)(4/p - 1)/chi^2 * dchi_a * dchi_b * g~_cd}
+    //
+    // For chi_psi_power == -4 (default): 4/p = -1, 4/p - 1 = -2
+    //   chi^(4/p) = 1/chi  (no std::pow needed)
+    //
+    const Real p = pz4c->opt.chi_psi_power;
+
+    // --- Pass 0: load ddchi_dd from 3D storage ---
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        ddchi_dd(a,b,i) = ddchi_dd_3d(a,b,k,j,i);
+      }
+    }
+
+    if (p == -4.) {
+    // --- Specialized path: p == -4, fac = -1, fac2 = -2, chi^(4/p) = 1/chi ---
+
+    // --- Pass 1: first derivatives of physical metric + K ---
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = fd->Dx(c, adm.g_dd(a,b,k,j,i));
+        const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+        dg_ddd(c,a,b,i) = oochi * (dg_ddd_3d(c,a,b,k,j,i)
+                         - oochi * z4c.g_dd(a,b,k,j,i) * dchi_d_3d(c,k,j,i));
         dK_ddd(c,a,b,i) = fd->Dx(c, adm.K_dd(a,b,k,j,i));
       }
     }
-    // second derivatives of g
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
+
+    // --- Pass 2: second derivatives of physical metric ---
     for(int c = 0; c < NDIM; ++c)
-    for(int d = 0; d < NDIM; ++d) {
+    for(int d = c; d < NDIM; ++d)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
       if(a == b) {
         ILOOP1(i) {
-          ddg_dddd(a,a,c,d,i) = fd->Dxx(a, adm.g_dd(c,d,k,j,i));
+          const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = oochi * (ddg_conf
+                               - oochi * (2.0 * dchi_a * dg_ddd_3d(a,c,d,k,j,i)
+                                         + ddchi_dd(a,a,i) * gtil_cd)
+                               + 2.0 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
         }
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = fd->Dxy(a, b, adm.g_dd(c,d,k,j,i));
+          const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real dchi_b = dchi_d_3d(b,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = oochi * (ddg_conf
+                               - oochi * (dchi_a * dg_ddd_3d(b,c,d,k,j,i)
+                                         + dchi_b * dg_ddd_3d(a,c,d,k,j,i)
+                                         + ddchi_dd(a,b,i) * gtil_cd)
+                               + 2.0 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
         }
       }
     }
+
+    } else {
+    // --- General path: arbitrary chi_psi_power ---
+    const Real fac = 4.0 / p;            // 4/p
+    const Real fac2 = fac - 1.0;         // 4/p - 1
+
+    // --- Pass 1: first derivatives of physical metric + K ---
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+        const Real psi4 = std::pow(chi_g, fac);
+        const Real oochi = 1.0 / chi_g;
+        dg_ddd(c,a,b,i) = psi4 * (dg_ddd_3d(c,a,b,k,j,i)
+                         + fac * oochi * z4c.g_dd(a,b,k,j,i) * dchi_d_3d(c,k,j,i));
+        dK_ddd(c,a,b,i) = fd->Dx(c, adm.K_dd(a,b,k,j,i));
+      }
+    }
+
+    // --- Pass 2: second derivatives of physical metric ---
+    for(int c = 0; c < NDIM; ++c)
+    for(int d = c; d < NDIM; ++d)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      if(a == b) {
+        ILOOP1(i) {
+          const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+          const Real psi4 = std::pow(chi_g, fac);
+          const Real oochi = 1.0 / chi_g;
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = psi4 * (ddg_conf
+                               + fac * oochi * (2.0 * dchi_a * dg_ddd_3d(a,c,d,k,j,i)
+                                               + ddchi_dd(a,a,i) * gtil_cd)
+                               + fac * fac2 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
+        }
+      }
+      else {
+        ILOOP1(i) {
+          const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+          const Real psi4 = std::pow(chi_g, fac);
+          const Real oochi = 1.0 / chi_g;
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real dchi_b = dchi_d_3d(b,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = psi4 * (ddg_conf
+                               + fac * oochi * (dchi_a * dg_ddd_3d(b,c,d,k,j,i)
+                                               + dchi_b * dg_ddd_3d(a,c,d,k,j,i)
+                                               + ddchi_dd(a,b,i) * gtil_cd)
+                               + fac * fac2 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
+        }
+      }
+    }
+
+    } // end chi_psi_power branch
 
     // -----------------------------------------------------------------------------------
     // inverse metric

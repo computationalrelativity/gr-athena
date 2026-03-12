@@ -82,7 +82,6 @@ AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
   root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
-  use_stored_metric_drvts = pin->GetBoolean("z4c", "store_metric_drvts");
     
   // Initial guess
   parname = "initial_radius_";
@@ -399,86 +398,6 @@ void AHF::Write(int iter, Real time)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::MetricDerivatives(MeshBlock * pmb)
-// \brief compute drvts of ADM metric at MB level
-// Use 2nd order FD for simplicity and avoid using ghosts
-// This assumes there is a special storage for the ADM drvts at the MB level:
-//   pmb->pz4c->aux_g_ddd
-void AHF::MetricDerivatives(MeshBlock * pmy_block)
-{
-  Z4c *pz4c = pmy_block->pz4c;  // also needed for LOOP macros etc.
-
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd; // 3-metric  (NDIM=3 in z4c.hpp)
-  adm_g_dd.InitWithShallowSlice(pmy_block->pz4c->storage.adm, Z4c::I_ADM_gxx);
-  pz4c->aux_g_ddd.ZeroClear();
-
-#if (DEBUG_OUTPUT)
-  FILE *fp, *fpd;
-  std::string fname ="metricderiv_gxx_";
-  std::string fnamed="metricderiv_dgxxdx_";
-  std::stringstream ss;
-  ss << pmy_block;
-  fname += ss.str()+".txt";
-  fnamed+= ss.str()+".txt";
-  fp = fopen(fname.c_str(),"w");
-  fpd= fopen(fnamed.c_str(),"w");
-#endif
-
-  Real oofdz = 1.0 / pz4c->mbi.dx3(0);
-  Real oofdy = 1.0 / pz4c->mbi.dx2(0);
-  Real oofdx = 1.0 / pz4c->mbi.dx1(0);
-  GLOOP2(k,j){
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        GLOOP1(i){
-          if (i==IX_IL-GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j, i ) );
-          } else if (i==IX_IU+GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j, i ) - adm_g_dd(a,b,k,j,i-1) );
-          } else {
-            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j,i-1) );
-          }
-
-          if (j==IX_JL-GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k, j ,i) );
-          } else if (j==IX_JU+GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k, j ,i) - adm_g_dd(a,b,k,j-1,i) );
-          } else {
-            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k,j-1,i) );
-          }
-
-          if (k==IX_KL-GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b, k ,j,i) );
-          } else if (k==IX_KU+GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b, k ,j,i) - adm_g_dd(a,b,k-1,j,i) );
-          } else {
-            pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b,k-1,j,i) );
-          }
-
-#if (DEBUG_OUTPUT)
-          if (a==0 && b==0){
-            fprintf(fp, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j),
-                pz4c->mbi.x3(k), adm_g_dd(0,0,k,j,i));
-            fprintf(fpd, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j),
-                pz4c->mbi.x3(k), pz4c->aux_g_ddd(0,0,0,k,j,i));
-          }
-#endif
-
-        }
-      }
-    }
-  }
-
-  adm_g_dd.DeleteAthenaTensor();
-
-#if (DEBUG_OUTPUT)
-  fclose(fp);
-  fclose(fpd);
-#endif
-
-}
-
-//----------------------------------------------------------------------------------------
 // \!fn void AHF::MetricInterp(MeshBlock * pmb)
 // \brief interpolate metric on the surface n
 // Flag here the surface points contained (on this rank)
@@ -583,11 +502,7 @@ void AHF::MetricInterp(MeshBlock * pmb)
           if (bitant_sym)  {
             if (c == 2) bitant_z_fac *= -1;
           }
-	  if (use_stored_metric_drvts) {
-	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux.dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
-	  } else {
-	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
-	  }
+	  dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux.dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
         }
       }
 
@@ -1081,28 +996,6 @@ void AHF::SurfaceIntegrals()
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn bool AHF::CalculateMetricDerivatives(int iter, Real time)
-// \brief calculate metric derivatives (if not stored)
-bool AHF::CalculateMetricDerivatives(int iter, Real time)
-{
-  if (use_stored_metric_drvts) return false;
-  if((time < start_time) || (time > stop_time)) return false;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
-  if (iter % compute_every_iter != 0) return false;
-
-  // Compute and store ADM metric drvts at this iteration
-  MeshBlock * pmb = pmesh->pblock;
-  while (pmb != nullptr) {
-    Z4c *pz4c = pmb->pz4c;
-    pz4c->aux_g_ddd.NewAthenaTensor(pz4c->mbi.nn3, pz4c->mbi.nn2, pz4c->mbi.nn1);
-    MetricDerivatives(pmb);
-    pmb = pmb->next;
-  }
-
-  return true;
-}
-
-//----------------------------------------------------------------------------------------
 // \!fn void AHF::Find(int iter, Real time)
 // \brief Search for the horizons
 void AHF::Find(int iter, Real time)
@@ -1127,25 +1020,6 @@ void AHF::Find(int iter, Real time)
     parname = "ah_found_a0_" + std::to_string(nh);
     pin->SetBoolean("ahf", parname, ah_found);
   }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn bool AHF::DeleteMetricDerivatives(int iter, Real time)
-// \brief DeleteMetricDerivatives
-bool AHF::DeleteMetricDerivatives(int iter, Real time)
-{
-  if (use_stored_metric_drvts) return false;
-  if((time < start_time) || (time > stop_time)) return false;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
-  if (iter % compute_every_iter != 0) return false;
-
-  // Delete tensors
-  MeshBlock * pmb = pmesh->pblock;
-  while (pmb != nullptr) {
-    pmb->pz4c->aux_g_ddd.DeleteAthenaTensor();
-    pmb = pmb->next;
-  }
-  return true;
 }
 
 //----------------------------------------------------------------------------------------

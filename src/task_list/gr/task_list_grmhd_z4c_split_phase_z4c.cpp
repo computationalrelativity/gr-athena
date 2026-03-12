@@ -59,7 +59,8 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
 #endif
 
   // Z4c sub-system logic ---------------------------------------------------
-  Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
+  Add(INIT_Z4C_DERIV, NONE,          &GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives);
+  Add(CALC_Z4CRHS, INIT_Z4C_DERIV,   &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
   Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c_Phase_Z4c::IntegrateZ4c);
 
   // Should be able to do this
@@ -82,7 +83,11 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   }
 
   Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr);
-  Add(Z4C_TO_ADM, ALG_CONSTR,   &GRMHD_Z4c_Phase_Z4c::Z4cToADM);
+
+  // Pre-compute conformal derivative 3D arrays from post-communication z4c.u
+  Add(PREP_Z4C_DERIV, ALG_CONSTR, &GRMHD_Z4c_Phase_Z4c::PrepareZ4cDerivatives);
+
+  Add(Z4C_TO_ADM, PREP_Z4C_DERIV, &GRMHD_Z4c_Phase_Z4c::Z4cToADM);
 
 #if CCE_ENABLED
     Add(CCE_DUMP, Z4C_TO_ADM,   &GRMHD_Z4c_Phase_Z4c::CCEDump);
@@ -364,6 +369,30 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
   return TaskStatus::next;
 }
 #endif
+
+// Pre-compute conformal derivative 3D arrays ---------------------------------
+TaskStatus GRMHD_Z4c_Phase_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->PrepareZ4cDerivatives(pz4c->storage.u);
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
+
+// One-time initialization of derivative 3D arrays for fresh MeshBlocks -------
+TaskStatus GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
 
 //
 // :D

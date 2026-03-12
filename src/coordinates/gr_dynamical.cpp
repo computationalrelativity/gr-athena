@@ -304,17 +304,18 @@ void GRDynamical::AddCoordTermsDivergence(
       GetGeometricFieldDerCC(dbeta_du_,   adm_beta_u,   a, k, j);
     }
 #else
+    // Read pre-computed physical derivatives from storage.aux
     for (int a=0; a<NDIM; ++a)
     CC_PCO_ILOOP1(i)
     {
-      dalpha_d_(a,i) = fd_cx->Dx(a, adm_alpha(k,j,i));
+      dalpha_d_(a,i) = pz4c->aux.dalpha_d(a,k,j,i);
     }
 
     for (int a=0; a<NDIM; ++a)
     for (int b=0; b<NDIM; ++b)
     CC_PCO_ILOOP1(i)
     {
-      dbeta_du_(b,a,i) = fd_cx->Dx(b, adm_beta_u(a,k,j,i));
+      dbeta_du_(b,a,i) = pz4c->aux.dbeta_du(b,a,k,j,i);
     }
 
     for (int a=0; a<NDIM; ++a)
@@ -322,7 +323,7 @@ void GRDynamical::AddCoordTermsDivergence(
     for (int c=0; c<NDIM; ++c)
     CC_PCO_ILOOP1(i)
     {
-      dgamma_ddd_(c,a,b,i) = fd_cx->Dx(c, adm_gamma_dd(a,b,k,j,i));
+      dgamma_ddd_(c,a,b,i) = pz4c->aux.dg_ddd(c,a,b,k,j,i);
     }
 #endif // DBG_FD_CX_COORDDIV
 

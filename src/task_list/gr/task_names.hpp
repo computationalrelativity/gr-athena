@@ -34,6 +34,9 @@ const TaskID ASSERT_FIN(15);
 const TaskID Z4C_WEYL(16);
 const TaskID CCE_DUMP(18);
 
+const TaskID PREP_Z4C_DERIV(17);
+const TaskID INIT_Z4C_DERIV(19);
+
 }  // TaskNames::GeneralRelativity::GR_Z4c
 
 namespace TaskNames::GeneralRelativity::GRMHD_Z4c {
@@ -99,6 +102,9 @@ const TaskID PROLONG_Z4C(61);
 const TaskID PHY_BVAL_Z4C(62);
 
 const TaskID CCE_DUMP(63);
+
+const TaskID PREP_Z4C_DERIV(2);
+const TaskID INIT_Z4C_DERIV(20);
 
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c
 
@@ -176,6 +182,9 @@ const TaskID Z4C_TO_ADM(50);
 
 const TaskID CCE_DUMP(52);
 
+const TaskID PREP_Z4C_DERIV(51);
+const TaskID INIT_Z4C_DERIV(53);
+
 const TaskID CLEAR_ALLBND(60);
 
 } // TaskNames::GeneralRelativity::GRMHD_Z4c_Split::Phase_Z4c
@@ -212,6 +221,8 @@ namespace TaskNames::GeneralRelativity::PostAMR_Z4c {
 
 const TaskID NONE(0);
 // const TaskID CLEAR_ALLBND(1);
+
+const TaskID PREP_Z4C_DERIV(1);
 
 const TaskID ADM_CONSTR(8);
 const TaskID Z4C_WEYL(9);

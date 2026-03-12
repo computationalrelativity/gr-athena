@@ -180,8 +180,14 @@ void Z4c::Z4cToADM(AthenaArray<Real> & u, AthenaArray<Real> & u_adm) {
     }
 
     // psi4
-    GLOOP1(i) {
-      adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+    if (opt.chi_psi_power == -4.) {
+      GLOOP1(i) {
+        adm.psi4(k,j,i) = 1.0 / z4c.chi(k,j,i);
+      }
+    } else {
+      GLOOP1(i) {
+        adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+      }
     }
     // g_ab
     for(int a = 0; a < NDIM; ++a)
@@ -247,14 +253,26 @@ void Z4c::Z4cToADM(AA & u, AA & u_adm,
     }
 
     // psi4
-    #pragma omp simd
-    for (int i = il; i <= iu; ++i)
-    {
-      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+    if (opt.chi_psi_power == -4.) {
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
       {
-        continue;
+        if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+        {
+          continue;
+        }
+        adm.psi4(k,j,i) = 1.0 / z4c.chi(k,j,i);
       }
-      adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+    } else {
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
+      {
+        if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+        {
+          continue;
+        }
+        adm.psi4(k,j,i) = std::pow(z4c.chi(k,j,i), 4./opt.chi_psi_power);
+      }
     }
 
     // g_ab
@@ -324,35 +342,141 @@ void Z4c::ADMConstraints(
   Z4c_vars z4c;
   SetZ4cAliases(u_z4c, z4c);
 
+  //---------------------------------------------------------------------------
+  // NOTE: 3D conformal first derivatives (dalpha_d_3d, dchi_d_3d,
+  // dbeta_du_3d, dg_ddd_3d) are pre-computed by PrepareZ4cDerivatives().
+  // Physical metric derivatives are assembled via chain rule below.
+  //---------------------------------------------------------------------------
+
   ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
-    // derivatives
+    // Chain-rule assembly of physical metric derivatives from conformal quantities
     //
-    // first derivatives of g and K
+    // gamma_ab = chi^(4/p) * g~_ab
+    // d_c(gamma_ab) = chi^(4/p) * [d_c(g~_ab) + (4/p)/chi * g~_ab * dchi_c]
+    //
+    // d_a d_b(gamma_cd) = chi^(4/p) * {d_a d_b(g~_cd)
+    //   + (4/p)/chi * [dchi_a * d_b(g~_cd) + dchi_b * d_a(g~_cd) + ddchi_ab * g~_cd]
+    //   + (4/p)(4/p - 1)/chi^2 * dchi_a * dchi_b * g~_cd}
+    //
+    // For chi_psi_power == -4 (default): 4/p = -1, 4/p - 1 = -2
+    //   chi^(4/p) = 1/chi  (no std::pow needed)
+    //
+    const Real p = pz4c->opt.chi_psi_power;
+
+    // --- Pass 0: load ddchi_dd from 3D storage ---
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        ddchi_dd(a,b,i) = ddchi_dd_3d(a,b,k,j,i);
+      }
+    }
+
+    if (p == -4.) {
+    // --- Specialized path: p == -4, fac = -1, fac2 = -2, chi^(4/p) = 1/chi ---
+
+    // --- Pass 1: first derivatives of physical metric + K ---
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = fd->Dx(c, adm.g_dd(a,b,k,j,i));
+        const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+        dg_ddd(c,a,b,i) = oochi * (dg_ddd_3d(c,a,b,k,j,i)
+                         - oochi * z4c.g_dd(a,b,k,j,i) * dchi_d_3d(c,k,j,i));
         dK_ddd(c,a,b,i) = fd->Dx(c, adm.K_dd(a,b,k,j,i));
       }
     }
-    // second derivatives of g
+
+    // --- Pass 2: second derivatives of physical metric ---
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c)
     for(int d = c; d < NDIM; ++d) {
       if(a == b) {
         ILOOP1(i) {
-          ddg_dddd(a,a,c,d,i) = fd->Dxx(a, adm.g_dd(c,d,k,j,i));
+          const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = oochi * (ddg_conf
+                               - oochi * (2.0 * dchi_a * dg_ddd_3d(a,c,d,k,j,i)
+                                         + ddchi_dd(a,a,i) * gtil_cd)
+                               + 2.0 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
         }
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = fd->Dxy(a, b, adm.g_dd(c,d,k,j,i));
+          const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real dchi_b = dchi_d_3d(b,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = oochi * (ddg_conf
+                               - oochi * (dchi_a * dg_ddd_3d(b,c,d,k,j,i)
+                                         + dchi_b * dg_ddd_3d(a,c,d,k,j,i)
+                                         + ddchi_dd(a,b,i) * gtil_cd)
+                               + 2.0 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
         }
       }
     }
+
+    } else {
+    // --- General path: arbitrary chi_psi_power ---
+    const Real fac = 4.0 / p;            // 4/p
+    const Real fac2 = fac - 1.0;         // 4/p - 1
+
+    // --- Pass 1: first derivatives of physical metric + K ---
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b) {
+      ILOOP1(i) {
+        const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+        const Real psi4 = std::pow(chi_g, fac);
+        const Real oochi = 1.0 / chi_g;
+        dg_ddd(c,a,b,i) = psi4 * (dg_ddd_3d(c,a,b,k,j,i)
+                         + fac * oochi * z4c.g_dd(a,b,k,j,i) * dchi_d_3d(c,k,j,i));
+        dK_ddd(c,a,b,i) = fd->Dx(c, adm.K_dd(a,b,k,j,i));
+      }
+    }
+
+    // --- Pass 2: second derivatives of physical metric ---
+    for(int a = 0; a < NDIM; ++a)
+    for(int b = a; b < NDIM; ++b)
+    for(int c = 0; c < NDIM; ++c)
+    for(int d = c; d < NDIM; ++d) {
+      if(a == b) {
+        ILOOP1(i) {
+          const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+          const Real psi4 = std::pow(chi_g, fac);
+          const Real oochi = 1.0 / chi_g;
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,a,c,d,i) = psi4 * (ddg_conf
+                               + fac * oochi * (2.0 * dchi_a * dg_ddd_3d(a,c,d,k,j,i)
+                                               + ddchi_dd(a,a,i) * gtil_cd)
+                               + fac * fac2 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
+        }
+      }
+      else {
+        ILOOP1(i) {
+          const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+          const Real psi4 = std::pow(chi_g, fac);
+          const Real oochi = 1.0 / chi_g;
+          const Real dchi_a = dchi_d_3d(a,k,j,i);
+          const Real dchi_b = dchi_d_3d(b,k,j,i);
+          const Real gtil_cd = z4c.g_dd(c,d,k,j,i);
+          const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = psi4 * (ddg_conf
+                               + fac * oochi * (dchi_a * dg_ddd_3d(b,c,d,k,j,i)
+                                               + dchi_b * dg_ddd_3d(a,c,d,k,j,i)
+                                               + ddchi_dd(a,b,i) * gtil_cd)
+                               + fac * fac2 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
+        }
+      }
+    }
+
+    } // end chi_psi_power branch
 
     // -----------------------------------------------------------------------------------
     // inverse metric
@@ -565,12 +689,12 @@ void Z4c::ADMConstraints(
     // -----------------------------------------------------------------------------------
     // derivatives
     //
-    // first derivatives of g and K
+    // first derivatives of conformal metric (read from stored 3D arrays)
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a)
     for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = fd->Dx(c, z4c.g_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = dg_ddd_3d(c,a,b,k,j,i);
       }
     }
 
@@ -675,48 +799,153 @@ void Z4c::MatterVacuum(AthenaArray<Real> & u_mat) {
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void Z4c::ADMDerivatives(AthenaArray<Real> & uAthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux)
-// \brief compute and store ADM metric derivatives 
+// \!fn void Z4c::PrepareZ4cDerivatives(AthenaArray<Real> & u)
+// \brief Pre-compute 3D first derivatives of conformal Z4c fields
+//
+// Computes d(alpha)/dx_b, d(chi)/dx_b, d(beta^c)/dx_b, d(g~_cd)/dx_b
+// over extended stencil ranges and stores in 3D arrays (dalpha_d_3d, etc.).
+// These arrays are consumed by:
+//   - Z4cRHS (next substep, replacing its own pre-pass)
+//   - ADMConstraints, Z4cWeyl (last substep, via chain rule)
 
-void Z4c::ADMDerivatives(AthenaArray<Real> & u, AthenaArray<Real> & u_adm, AthenaArray<Real> & u_aux) {
-
+void Z4c::PrepareZ4cDerivatives(AthenaArray<Real> & u) {
   Z4c_vars z4c;
   SetZ4cAliases(u, z4c);
 
-  ADM_vars adm;
-  SetADMAliases(u_adm, adm);
+  const int ng_ext = NGHOST - 1;
+  for (int b = 0; b < NDIM; ++b) {
+    const int klo = (b == 2) ? IX_KL : (IX_KL - (pz4c->mbi.f3 ? ng_ext : 0));
+    const int khi = (b == 2) ? IX_KU : (IX_KU + (pz4c->mbi.f3 ? ng_ext : 0));
+    const int jlo = (b == 1) ? IX_JL : (IX_JL - (pz4c->mbi.f2 ? ng_ext : 0));
+    const int jhi = (b == 1) ? IX_JU : (IX_JU + (pz4c->mbi.f2 ? ng_ext : 0));
+    const int ilo = (b == 0) ? IX_IL : (IX_IL - ng_ext);
+    const int ihi = (b == 0) ? IX_IU : (IX_IU + ng_ext);
+    for (int k = klo; k <= khi; ++k)
+    for (int j = jlo; j <= jhi; ++j) {
+      // Scalars: alpha, chi
+      _Pragma("omp simd")
+      for (int i = ilo; i <= ihi; ++i) {
+        dalpha_d_3d(b,k,j,i) = fd->Dx(b, z4c.alpha(k,j,i));
+        dchi_d_3d(b,k,j,i)   = fd->Dx(b, z4c.chi(k,j,i));
+      }
+      // Vectors: beta
+      for (int c = 0; c < NDIM; ++c) {
+        _Pragma("omp simd")
+        for (int i = ilo; i <= ihi; ++i) {
+          dbeta_du_3d(b,c,k,j,i) = fd->Dx(b, z4c.beta_u(c,k,j,i));
+        }
+      }
+      // Symmetric tensors: g_dd (conformal)
+      for (int c = 0; c < NDIM; ++c)
+      for (int d = c; d < NDIM; ++d) {
+        _Pragma("omp simd")
+        for (int i = ilo; i <= ihi; ++i) {
+          dg_ddd_3d(b,c,d,k,j,i) = fd->Dx(b, z4c.g_dd(c,d,k,j,i));
+        }
+      }
+    }
+  }
 
-  Aux_vars aux;
-  SetAuxAliases(u_aux, aux);
-  aux.dalpha_d.Fill(NAN);
-  aux.dbeta_du.Fill(NAN);
-  aux.dg_ddd.Fill(NAN);
+  // Second derivatives of chi: 3 diagonal Dxx + 3 off-diagonal Dx on dchi_d_3d.
+  // Stored in 3D so Z4cRHS, ADMConstraints, and Z4cWeyl can read without recomputing.
+  for (int a = 0; a < NDIM; ++a) {
+    ILOOP2(k,j) {
+      ILOOP1(i) {
+        ddchi_dd_3d(a,a,k,j,i) = fd->Dxx(a, z4c.chi(k,j,i));
+      }
+    }
+    for (int b = a+1; b < NDIM; ++b) {
+      ILOOP2(k,j) {
+        ILOOP1(i) {
+          ddchi_dd_3d(a,b,k,j,i) = fd->Dx(a, dchi_d_3d(b,k,j,i));
+        }
+      }
+    }
+  }
+
+  // Fill storage.aux with physical (ADM) derivatives via chain rule
+  // This makes derivatives available for hydro/M1 source terms.
+  //
+  // d_c(gamma_ab) = chi^(4/p) * [d_c(g~_ab) + (4/p)/chi * g~_ab * dchi_c]
+  //
+  const Real p = pz4c->opt.chi_psi_power;
+
+  if (p == -4.) {
+  // Specialized path: 4/p = -1, chi^(4/p) = 1/chi
+  ILOOP3(k,j,i)
+  {
+    const Real oochi = 1.0 / chiRegularized(z4c.chi(k,j,i));
+
+    for(int c = 0; c < NDIM; ++c) {
+      const Real dchi_c = dchi_d_3d(c,k,j,i);
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b) {
+        aux.dg_ddd(c,a,b,k,j,i) = oochi * (dg_ddd_3d(c,a,b,k,j,i)
+                                 - oochi * z4c.g_dd(a,b,k,j,i) * dchi_c);
+        if(a != b)
+          aux.dg_ddd(c,b,a,k,j,i) = aux.dg_ddd(c,a,b,k,j,i);
+      }
+    }
+
+    // Shift derivatives (direct copy from stored conformal = physical)
+    for(int c = 0; c < NDIM; ++c)
+    for(int a = 0; a < NDIM; ++a) {
+      aux.dbeta_du(c,a,k,j,i) = dbeta_du_3d(c,a,k,j,i);
+    }
+
+    // Lapse derivatives (direct copy from stored conformal = physical)
+    for(int c = 0; c < NDIM; ++c) {
+      aux.dalpha_d(c,k,j,i) = dalpha_d_3d(c,k,j,i);
+    }
+  }
+  } else {
+  // General path: arbitrary chi_psi_power
+  const Real fac = 4.0 / p;
 
   ILOOP3(k,j,i)
   {
+    const Real chi_g = chiRegularized(z4c.chi(k,j,i));
+    const Real chi_pow = std::pow(chi_g, fac);
+    const Real oochi = 1.0 / chi_g;
 
-    // first derivatives of g 
-    for(int c = 0; c < NDIM; ++c)
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      aux.dg_ddd(c,a,b,k,j,i) = fd->Dx(c, adm.g_dd(a,b,k,j,i));
+    for(int c = 0; c < NDIM; ++c) {
+      const Real dchi_c = dchi_d_3d(c,k,j,i);
+      for(int a = 0; a < NDIM; ++a)
+      for(int b = a; b < NDIM; ++b) {
+        aux.dg_ddd(c,a,b,k,j,i) = chi_pow * (dg_ddd_3d(c,a,b,k,j,i)
+                                 + fac * oochi * z4c.g_dd(a,b,k,j,i) * dchi_c);
+        if(a != b)
+          aux.dg_ddd(c,b,a,k,j,i) = aux.dg_ddd(c,a,b,k,j,i);
+      }
     }
 
-    // first derivatives of shift 
+    // Shift derivatives (direct copy from stored conformal = physical)
     for(int c = 0; c < NDIM; ++c)
     for(int a = 0; a < NDIM; ++a) {
-      aux.dbeta_du(c,a,k,j,i) = fd->Dx(c, z4c.beta_u(a,k,j,i));
+      aux.dbeta_du(c,a,k,j,i) = dbeta_du_3d(c,a,k,j,i);
     }
 
-    // first derivatives of shift 
+    // Lapse derivatives (direct copy from stored conformal = physical)
     for(int c = 0; c < NDIM; ++c) {
-      aux.dalpha_d(c,k,j,i) = fd->Dx(c, z4c.alpha(k,j,i));
+      aux.dalpha_d(c,k,j,i) = dalpha_d_3d(c,k,j,i);
     }
-
-    //TODO need more?    
-    
   }
+  } // end chi_psi_power branch
+}
 
+//----------------------------------------------------------------------------------------
+// \!fn void Z4c::InitializeZ4cDerivatives(AthenaArray<Real> & u)
+// \brief One-time initialization of 3D derivative arrays for fresh MeshBlocks
+//
+// On a fresh MeshBlock (or after AMR), the stored 3D derivative arrays have
+// not yet been filled by PrepareZ4cDerivatives. This function fills them so
+// that the first Z4cRHS call can safely read from them. Subsequent substeps
+// use PREP_Z4C_DERIV instead.
+
+void Z4c::InitializeZ4cDerivatives(AthenaArray<Real> & u) {
+  if (z4c_derivs_initialized) return;
+  PrepareZ4cDerivatives(u);
+  z4c_derivs_initialized = true;
 }
 
 
@@ -746,13 +975,24 @@ void Z4c::PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm)
   }
   */
   // conformal factor based
-  const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
-  GLOOP3(k, j, i)
-  {
-    const Real chi = std::abs(z4c.chi(k,j,i));
-    const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
-    aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
-                                                    chi_pow / 2.0);
+  // For chi_psi_power == -4: chi_pow/2 = -3/2, so chi^(-3/2) = 1/(chi*sqrt(chi))
+  if (pz4c->opt.chi_psi_power == -4.) {
+    GLOOP3(k, j, i)
+    {
+      const Real chi = std::abs(z4c.chi(k,j,i));
+      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      aux_extended.gs_sqrt_detgamma(k,j,i) = 1.0 / (chi_guarded
+                                                      * std::sqrt(chi_guarded));
+    }
+  } else {
+    const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
+    GLOOP3(k, j, i)
+    {
+      const Real chi = std::abs(z4c.chi(k,j,i));
+      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                       chi_pow / 2.0);
+    }
   }
 
 #if FLUID_ENABLED
@@ -809,27 +1049,35 @@ void Z4c::PrepareAuxExtended(
       (mbi.kl <= k) && (k <= mbi.ku)
     );
 
-    #pragma omp simd
-    for (int i = il; i <= iu; ++i)
-    {
-      if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+    // conformal factor based
+    // For chi_psi_power == -4: chi_pow/2 = -3/2, so chi^(-3/2) = 1/(chi*sqrt(chi))
+    if (pz4c->opt.chi_psi_power == -4.) {
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
       {
-        continue;
+        if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+        {
+          continue;
+        }
+        const Real chi = std::abs(z4c.chi(k,j,i));
+        const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+        aux_extended.gs_sqrt_detgamma(k,j,i) = 1.0 / (chi_guarded
+                                                        * std::sqrt(chi_guarded));
       }
-
-      // direct method
-      /*
-      aux_extended.gs_sqrt_detgamma(k,j,i) = std::sqrt(
-        Det3Metric(adm.g_dd,k,j,i)
-      );
-      */
-      // conformal factor based
+    } else {
       const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
-      const Real chi = std::abs(z4c.chi(k,j,i));
-      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
-      aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
-                                                      chi_pow / 2.0);
-
+      #pragma omp simd
+      for (int i = il; i <= iu; ++i)
+      {
+        if (sp_kj && (mbi.il <= i) && (i <= mbi.iu))
+        {
+          continue;
+        }
+        const Real chi = std::abs(z4c.chi(k,j,i));
+        const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+        aux_extended.gs_sqrt_detgamma(k,j,i) = std::pow(chi_guarded,
+                                                         chi_pow / 2.0);
+      }
     }
   }
 

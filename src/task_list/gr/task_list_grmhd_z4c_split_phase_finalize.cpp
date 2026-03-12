@@ -54,6 +54,9 @@ GRMHD_Z4c_Phase_Finalize::GRMHD_Z4c_Phase_Finalize(ParameterInput *pin,
   Add(CONS2PRIMG, NONE, &GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts);
   Add(UPDATE_SRC, CONS2PRIMG, &GRMHD_Z4c_Phase_Finalize::UpdateSource);
 
+  // Note: conformal derivative 3D arrays were already filled by
+  // Phase_Z4c::PREP_Z4C_DERIV on the final substep and persist on the
+  // MeshBlock, so ADM_CONSTR and Z4C_WEYL can read them directly.
   Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c_Phase_Finalize::ADM_Constraints);
   Add(Z4C_WEYL, UPDATE_SRC, &GRMHD_Z4c_Phase_Finalize::Z4c_Weyl);
 

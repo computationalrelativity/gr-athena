@@ -233,9 +233,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   opt.shift_eta_TP_ix = pin->GetOrAddInteger("z4c", "shift_eta_TP_ix", 0);
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
 
-  opt.store_metric_drvts =
-      pin->GetOrAddBoolean("z4c", "store_metric_drvts", false);
-
   opt.communicate_aux_adm =
       pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
@@ -311,29 +308,27 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   SetZ4cAliases(storage.u, z4c);
   SetWeylAliases(storage.weyl, weyl);
 
-  if (opt.store_metric_drvts)
+  // Allocate and set up auxiliary ADM derivative storage (always on)
+  storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
+
+  // immediately set aliases for later convenience
+  SetAuxAliases(storage.aux, aux);
+
+  if (opt.communicate_aux_adm)
   {
-    storage.aux.NewAthenaArray(N_AUX, mbi.nn3, mbi.nn2, mbi.nn1);
+    if (pmb->pmy_mesh->multilevel)
+      coarse_adm_.NewAthenaArray(N_AUX, mbi.cnn3, mbi.cnn2, mbi.cnn1);
 
-    // immediately set aliases for later convenience
-    SetAuxAliases(storage.aux, aux);
+    adm_abvar = new FCN_CC_CX_VC(
+      CellCenteredBoundaryVariable,
+      CellCenteredXBoundaryVariable,
+      VertexCenteredBoundaryVariable
+    )(pmb, &storage.aux, &coarse_adm_, empty_flux);
 
-    if (opt.communicate_aux_adm)
-    {
-      if (pmb->pmy_mesh->multilevel)
-        coarse_adm_.NewAthenaArray(N_AUX, mbi.cnn3, mbi.cnn2, mbi.cnn1);
-
-      adm_abvar = new FCN_CC_CX_VC(
-        CellCenteredBoundaryVariable,
-        CellCenteredXBoundaryVariable,
-        VertexCenteredBoundaryVariable
-      )(pmb, &storage.aux, &coarse_adm_, empty_flux);
-
-      // register for boundary prolongation
-      adm_abvar->bvar_index = pmb->pbval->bvars.size();
-      pmb->pbval->bvars.push_back(adm_abvar);
-      pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
-    }
+    // register for boundary prolongation
+    adm_abvar->bvar_index = pmb->pbval->bvars.size();
+    pmb->pbval->bvars.push_back(adm_abvar);
+    pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
   }
 
 
@@ -413,6 +408,15 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   ddbeta_ddu.NewAthenaTensor(mbi.nn1);
   ddg_dddd.NewAthenaTensor(mbi.nn1);
 
+  // 3D first-derivative storage for Dxy optimization
+  dalpha_d_3d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  dchi_d_3d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  dbeta_du_3d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+  dg_ddd_3d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
+  // 3D second-derivative storage for chi
+  ddchi_dd_3d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+
   Lchi.NewAthenaTensor(mbi.nn1);
   LKhat.NewAthenaTensor(mbi.nn1);
   LTheta.NewAthenaTensor(mbi.nn1);
@@ -464,7 +468,7 @@ Z4c::~Z4c()
 {
   delete pz4c_amr;
 
-  if (opt.store_metric_drvts && opt.communicate_aux_adm)
+  if (opt.communicate_aux_adm)
   {
     delete adm_abvar;
   }

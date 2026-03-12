@@ -58,6 +58,13 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 #endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
   //---------------------------------------------------------------------------
 
+  //---------------------------------------------------------------------------
+  // NOTE: 3D first derivatives (dalpha_d_3d, dchi_d_3d, dbeta_du_3d,
+  // dg_ddd_3d) are now pre-computed by PrepareZ4cDerivatives() (called as
+  // PREP_Z4C_DERIV task in the previous substep, or by
+  // InitializeZ4cDerivatives() on the very first substep).
+  //---------------------------------------------------------------------------
+
   ILOOP2(k,j) {
     // -----------------------------------------------------------------------------------
     // 1st derivatives
@@ -65,8 +72,8 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // Scalars
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
-        dalpha_d(a,i) = fd->Dx(a, z4c.alpha(k,j,i));
-        dchi_d(a,i)   = fd->Dx(a, z4c.chi(k,j,i));
+        dalpha_d(a,i) = dalpha_d_3d(a,k,j,i);
+        dchi_d(a,i)   = dchi_d_3d(a,k,j,i);
         dKhat_d(a,i)  = fd->Dx(a, z4c.Khat(k,j,i));
         dTheta_d(a,i) = fd->Dx(a, z4c.Theta(k,j,i));
       }
@@ -75,7 +82,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b) {
       ILOOP1(i) {
-        dbeta_du(b,a,i) = fd->Dx(b, z4c.beta_u(a,k,j,i));
+        dbeta_du(b,a,i) = dbeta_du_3d(b,a,k,j,i);
         dGam_du(b,a,i)  = fd->Dx(b, z4c.Gam_u(a,k,j,i));
       }
     }
@@ -84,7 +91,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     for(int b = a; b < NDIM; ++b)
     for(int c = 0; c < NDIM; ++c) {
       ILOOP1(i) {
-        dg_ddd(c,a,b,i) = fd->Dx(c, z4c.g_dd(a,b,k,j,i));
+        dg_ddd(c,a,b,i) = dg_ddd_3d(c,a,b,k,j,i);
         dA_ddd(c,a,b,i) = fd->Dx(c, z4c.A_dd(a,b,k,j,i));
       }
     }
@@ -92,16 +99,16 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // -----------------------------------------------------------------------------------
     // 2nd derivatives
     //
-    // Scalars
+    // Scalars: lapse 2nd derivatives (stencil) + chi 2nd derivatives (load from 3D)
     for(int a = 0; a < NDIM; ++a) {
       ILOOP1(i) {
         ddalpha_dd(a,a,i) = fd->Dxx(a, z4c.alpha(k,j,i));
-        ddchi_dd(a,a,i) = fd->Dxx(a, z4c.chi(k,j,i));
+        ddchi_dd(a,a,i) = ddchi_dd_3d(a,a,k,j,i);
       }
       for(int b = a + 1; b < NDIM; ++b) {
         ILOOP1(i) {
-          ddalpha_dd(a,b,i) = fd->Dxy(a, b, z4c.alpha(k,j,i));
-          ddchi_dd(a,b,i) = fd->Dxy(a, b, z4c.chi(k,j,i));
+          ddalpha_dd(a,b,i) = fd->Dx(a, dalpha_d_3d(b,k,j,i));
+          ddchi_dd(a,b,i) = ddchi_dd_3d(a,b,k,j,i);
         }
       }
     }
@@ -116,7 +123,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
       }
       else {
         ILOOP1(i) {
-          ddbeta_ddu(a,b,c,i) = fd->Dxy(a, b, z4c.beta_u(c,k,j,i));
+          ddbeta_ddu(a,b,c,i) = fd->Dx(a, dbeta_du_3d(b,c,k,j,i));
         }
       }
     }
@@ -132,7 +139,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
       }
       else {
         ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = fd->Dxy(a, b, z4c.g_dd(c,d,k,j,i));
+          ddg_dddd(a,b,c,d,i) = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
         }
       }
     }

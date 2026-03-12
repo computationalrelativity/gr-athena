@@ -49,7 +49,8 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 #endif
 
   {
-    Add(CALC_Z4CRHS, NONE,        &GR_Z4c::CalculateZ4cRHS);
+    Add(INIT_Z4C_DERIV, NONE,          &GR_Z4c::InitializeZ4cDerivatives);
+    Add(CALC_Z4CRHS, INIT_Z4C_DERIV,   &GR_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GR_Z4c::IntegrateZ4c);
 
     Add(SEND_Z4C, INT_Z4C, &GR_Z4c::SendZ4c);
@@ -72,10 +73,13 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 
     Add(ALG_CONSTR, PHY_BVAL,   &GR_Z4c::EnforceAlgConstr);
 
-    Add(Z4C_TO_ADM, ALG_CONSTR, &GR_Z4c::Z4cToADM);
+    // Pre-compute conformal derivative 3D arrays from post-communication z4c.u
+    Add(PREP_Z4C_DERIV, ALG_CONSTR, &GR_Z4c::PrepareZ4cDerivatives);
 
-    Add(ADM_CONSTR, Z4C_TO_ADM, &GR_Z4c::ADM_Constraints);
-    Add(Z4C_WEYL,   Z4C_TO_ADM, &GR_Z4c::Z4c_Weyl);
+    Add(Z4C_TO_ADM, PREP_Z4C_DERIV, &GR_Z4c::Z4cToADM);
+
+    Add(ADM_CONSTR, (Z4C_TO_ADM | PREP_Z4C_DERIV), &GR_Z4c::ADM_Constraints);
+    Add(Z4C_WEYL,   (Z4C_TO_ADM | PREP_Z4C_DERIV), &GR_Z4c::Z4c_Weyl);
 
 #if CCE_ENABLED
     Add(CCE_DUMP, Z4C_TO_ADM, &GR_Z4c::CCEDump);
@@ -453,6 +457,30 @@ TaskStatus GR_Z4c::CheckRefinement(MeshBlock *pmb, int stage)
 
   pmb->pmr->CheckRefinementCondition();
   return TaskStatus::next;
+}
+
+// Pre-compute conformal derivative 3D arrays ---------------------------------
+TaskStatus GR_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->PrepareZ4cDerivatives(pz4c->storage.u);
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
+
+// One-time initialization of derivative 3D arrays for fresh MeshBlocks -------
+TaskStatus GR_Z4c::InitializeZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
 }
 
 /*

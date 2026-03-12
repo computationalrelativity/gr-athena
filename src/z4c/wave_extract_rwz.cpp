@@ -43,12 +43,6 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh * pmesh, ParameterInput * pin, int n):
   verbose = pin->GetOrAddBoolean("rwz_extraction", "verbose", false);
   subtract_background = pin->GetOrAddBoolean("rwz_extraction", "subtract_background", false);
   
-  if (!(pin->GetBoolean("z4c", "store_metric_drvts"))) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
-	<< "Z4c 'store_metric_drvts' needs to be activated " << std::endl;
-    ATHENA_ERROR(msg);
-  }
   
   Nrad = n; 
   std::string n_str = std::to_string(n);
@@ -1079,8 +1073,7 @@ void WaveExtractRWZ::MetricToSphere() {
 //
 // This assumes there is a special storage with the spatial drvts of
 // ADM metric and lapse and shift
-// These derivatives are computed elsewhere, when the z4c parameter
-// "store_metric_drvts" is turned on
+// These derivatives are computed via PrepareZ4cDerivatives (storage.aux)
 
 //TODO 2nd drvts are missing, but they can be taken from the interpolation.
 

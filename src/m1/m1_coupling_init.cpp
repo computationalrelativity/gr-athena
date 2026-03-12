@@ -164,13 +164,12 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
         pco_gr->GetGeometricFieldDerCC(dg_ddd_,   sl_g_dd,   a, k, j);
       }
 #else
-    FiniteDifference::Uniform * fd_cx = pco_gr->fd_cx;
-
+    // Read pre-computed physical derivatives from storage.aux
     for (int a=0; a<NDIM; ++a)
     #pragma omp simd
     for (int i=mbi.il; i<=mbi.iu; ++i)
     {
-      dalpha_d_(a,i) = fd_cx->Dx(a, sl_alpha(k,j,i));
+      dalpha_d_(a,i) = pz4c->aux.dalpha_d(a,k,j,i);
     }
 
     for (int a=0; a<NDIM; ++a)
@@ -178,7 +177,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
     #pragma omp simd
     for (int i=mbi.il; i<=mbi.iu; ++i)
     {
-      dbeta_du_(b,a,i) = fd_cx->Dx(b, sl_beta_u(a,k,j,i));
+      dbeta_du_(b,a,i) = pz4c->aux.dbeta_du(b,a,k,j,i);
     }
 
     for (int a=0; a<NDIM; ++a)
@@ -187,7 +186,7 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
     #pragma omp simd
     for (int i=mbi.il; i<=mbi.iu; ++i)
     {
-      dg_ddd_(c,a,b,i) = fd_cx->Dx(c, sl_g_dd(a,b,k,j,i));
+      dg_ddd_(c,a,b,i) = pz4c->aux.dg_ddd(c,a,b,k,j,i);
     }
 #endif // DBG_FD_CX_COORDDIV
 

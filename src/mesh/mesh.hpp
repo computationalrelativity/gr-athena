@@ -577,7 +577,6 @@ class Mesh {
   // Dedicated function to communicate matter-fields
   void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
 
-  void CalculateStoreMetricDerivatives();
 
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();

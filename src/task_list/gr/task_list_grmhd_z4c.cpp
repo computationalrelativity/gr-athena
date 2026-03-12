@@ -210,7 +210,8 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     }
 
     // Z4c sub-system logic ---------------------------------------------------
-    Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
+    Add(INIT_Z4C_DERIV, NONE,          &GRMHD_Z4c::InitializeZ4cDerivatives);
+    Add(CALC_Z4CRHS, INIT_Z4C_DERIV,   &GRMHD_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
 
     // Should be able to do this
@@ -235,16 +236,19 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
 
+    // Pre-compute conformal derivative 3D arrays from post-communication z4c.u
+    Add(PREP_Z4C_DERIV, ALG_CONSTR, &GRMHD_Z4c::PrepareZ4cDerivatives);
+
     if (MAGNETIC_FIELDS_ENABLED)
     {
       if (NSCALARS > 0)
       {
-        Add(Z4C_TO_ADM, (ALG_CONSTR | SETB_HYD | SETB_FLD | SETB_SCLR),
+        Add(Z4C_TO_ADM, (PREP_Z4C_DERIV | SETB_HYD | SETB_FLD | SETB_SCLR),
             &GRMHD_Z4c::Z4cToADM);
       }
       else
       {
-        Add(Z4C_TO_ADM, (ALG_CONSTR | SETB_HYD | SETB_FLD),
+        Add(Z4C_TO_ADM, (PREP_Z4C_DERIV | SETB_HYD | SETB_FLD),
             &GRMHD_Z4c::Z4cToADM);
       }
     }
@@ -252,18 +256,18 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     {
       if (NSCALARS > 0)
       {
-        Add(Z4C_TO_ADM, (ALG_CONSTR | SETB_HYD | SETB_SCLR),
+        Add(Z4C_TO_ADM, (PREP_Z4C_DERIV | SETB_HYD | SETB_SCLR),
             &GRMHD_Z4c::Z4cToADM);
       }
       else
       {
-        Add(Z4C_TO_ADM, (ALG_CONSTR | SETB_HYD), &GRMHD_Z4c::Z4cToADM);
+        Add(Z4C_TO_ADM, (PREP_Z4C_DERIV | SETB_HYD), &GRMHD_Z4c::Z4cToADM);
       }
     }
 
-    Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
+    Add(ADM_CONSTR, (UPDATE_SRC | Z4C_TO_ADM), &GRMHD_Z4c::ADM_Constraints);
 
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
+    Add(Z4C_WEYL,  (Z4C_TO_ADM | PREP_Z4C_DERIV), &GRMHD_Z4c::Z4c_Weyl);
 
 #if CCE_ENABLED
     Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
@@ -428,7 +432,8 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
     }
 
     // Z4c sub-system logic ---------------------------------------------------
-    Add(CALC_Z4CRHS, NONE,        &GRMHD_Z4c::CalculateZ4cRHS);
+    Add(INIT_Z4C_DERIV, NONE,          &GRMHD_Z4c::InitializeZ4cDerivatives);
+    Add(CALC_Z4CRHS, INIT_Z4C_DERIV,   &GRMHD_Z4c::CalculateZ4cRHS);
     Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c::IntegrateZ4c);
 
     // Should be able to do this
@@ -453,12 +458,15 @@ GRMHD_Z4c::GRMHD_Z4c(ParameterInput *pin,
 
     Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c::EnforceAlgConstr);
 
+    // Pre-compute conformal derivative 3D arrays from post-communication z4c.u
+    Add(PREP_Z4C_DERIV, ALG_CONSTR, &GRMHD_Z4c::PrepareZ4cDerivatives);
+
     // Force all matter requiring ADM at old step to complete first
-    Add(Z4C_TO_ADM, (ALG_CONSTR | MAT_SRC), &GRMHD_Z4c::Z4cToADM);
+    Add(Z4C_TO_ADM, (PREP_Z4C_DERIV | MAT_SRC), &GRMHD_Z4c::Z4cToADM);
 
-    Add(ADM_CONSTR, UPDATE_SRC, &GRMHD_Z4c::ADM_Constraints);
+    Add(ADM_CONSTR, (UPDATE_SRC | Z4C_TO_ADM), &GRMHD_Z4c::ADM_Constraints);
 
-    Add(Z4C_WEYL,  Z4C_TO_ADM, &GRMHD_Z4c::Z4c_Weyl);
+    Add(Z4C_WEYL,  (Z4C_TO_ADM | PREP_Z4C_DERIV), &GRMHD_Z4c::Z4c_Weyl);
 
 #if CCE_ENABLED
     Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c::CCEDump);
@@ -1387,6 +1395,30 @@ TaskStatus GRMHD_Z4c::UpdateSource(MeshBlock *pmb, int stage)
                     ps->r,
                     pf->bcc);
 
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
+
+// Pre-compute conformal derivative 3D arrays ---------------------------------
+TaskStatus GRMHD_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->PrepareZ4cDerivatives(pz4c->storage.u);
+    return TaskStatus::next;
+  }
+  return TaskStatus::fail;
+}
+
+// One-time initialization of derivative 3D arrays for fresh MeshBlocks -------
+TaskStatus GRMHD_Z4c::InitializeZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    Z4c *pz4c = pmb->pz4c;
+    pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
     return TaskStatus::next;
   }
   return TaskStatus::fail;

@@ -26,11 +26,14 @@ PostAMR_Z4c::PostAMR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 {
   nstages = 1;
   {
+    // Pre-compute conformal derivative 3D arrays for new MeshBlocks
+    Add(PREP_Z4C_DERIV, NONE, &PostAMR_Z4c::PrepareZ4cDerivatives);
+
     // Recompute constraints
-    Add(ADM_CONSTR, NONE, &PostAMR_Z4c::ADM_Constraints);
+    Add(ADM_CONSTR, PREP_Z4C_DERIV, &PostAMR_Z4c::ADM_Constraints);
 
     // Recompute Weyl
-    Add(Z4C_WEYL, NONE, &PostAMR_Z4c::Z4c_Weyl);
+    Add(Z4C_WEYL, PREP_Z4C_DERIV, &PostAMR_Z4c::Z4c_Weyl);
 
   } // end of using namespace block
 
@@ -40,6 +43,21 @@ PostAMR_Z4c::PostAMR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 void PostAMR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
   return;
+}
+
+// Pre-compute conformal derivative 3D arrays ---------------------------------
+TaskStatus PostAMR_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
+{
+  if (!pmb->IsNewFromAMR())
+  {
+    return TaskStatus::next;
+  }
+
+  Z4c *pz4c = pmb->pz4c;
+  // Use InitializeZ4cDerivatives (guarded by z4c_derivs_initialized flag)
+  // to avoid redundant recomputation when FinalizeZ4cADM already called it.
+  pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
+  return TaskStatus::next;
 }
 
 TaskStatus PostAMR_Z4c::ADM_Constraints(MeshBlock *pmb, int stage)

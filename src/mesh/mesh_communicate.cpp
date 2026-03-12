@@ -140,6 +140,9 @@ void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
       0, pz->mbi.nn2-1,
       0, pz->mbi.nn3-1,
       skip_physical);
+
+    // Initialize 3D derivative arrays + storage.aux for fresh MeshBlocks
+    pz->InitializeZ4cDerivatives(pz->storage.u);
   }
 #endif // Z4C_ENABLED
 }
@@ -183,6 +186,9 @@ void Mesh::FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
 
     // Need ADM variables for con2prim
     pz->Z4cToADM(pz->storage.u, pz->storage.adm);
+
+    // Initialize 3D derivative arrays + storage.aux for fresh MeshBlocks
+    pz->InitializeZ4cDerivatives(pz->storage.u);
   }
 #endif // Z4C_ENABLED
 }

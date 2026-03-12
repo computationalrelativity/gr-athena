@@ -37,10 +37,6 @@ public:
   void Find(int iter, Real time);
   //!
   void Write(int iter, Real time);
-  //!
-  bool CalculateMetricDerivatives(int iter, Real time);
-  //!
-  bool DeleteMetricDerivatives(int iter, Real time);
 
   Real GetHorizonRadius() const
   { return ah_prop[hmeanradius];}
@@ -91,7 +87,6 @@ private:
   int nh;
   bool wait_until_punc_are_close;
   bool bitant;
-  bool use_stored_metric_drvts;
   //! Number of horizons
   int nstart, nhorizon;
   //! Arrays for the grid and quadrature weights
@@ -149,7 +144,6 @@ private:
   //! Flag points
   AthenaArray<int> havepoint;
 
-  void MetricDerivatives(MeshBlock * pmb);
   void MetricInterp(MeshBlock * pmb);
   void SurfaceIntegrals();
   void FastFlowLoop();

@@ -881,11 +881,9 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
     pmesh->GlobalExtrema();
   }
 
-  // Derivatives of ADM metric and other auxiliary computations needed below
+  // Communicate ADM auxiliary derivatives (if enabled) for AHF/RWZ consumers
   if (trgs.IsSatisfied(tvar::Z4c_AHF) or trgs.IsSatisfied(tvar::Z4c_RWZ))
   {
-    pmesh->CalculateStoreMetricDerivatives();
-
     // May be required to prevent task-list overlaps
     // gra::parallelism::Barrier();
     pmesh->CommunicateAuxADM();
@@ -956,23 +954,8 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
     for (auto pah_f : pmesh->pah_finder)
     {
-      if (pah_f->CalculateMetricDerivatives(ncycle_end_stage,
-                                            time_end_stage))
-      {
-        break;
-      }
-    }
-    for (auto pah_f : pmesh->pah_finder)
-    {
       pah_f->Find(ncycle_end_stage, time_end_stage);
       pah_f->Write(ncycle_end_stage, time_end_stage);
-    }
-    for (auto pah_f : pmesh->pah_finder)
-    {
-      if (pah_f->DeleteMetricDerivatives(ncycle_end_stage, time_end_stage))
-      {
-        break;
-      }
     }
 
     pmesh->CalculateExcisionMask();

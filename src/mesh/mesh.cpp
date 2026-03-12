@@ -2362,38 +2362,6 @@ void Mesh::FinalizePostAMR()
   }
 }
 
-void Mesh::CalculateStoreMetricDerivatives()
-{
-#if Z4C_ENABLED
-  if (!(pblock->pz4c->opt.store_metric_drvts)) return;
-
-  // Compute and store ADM metric drvts at this iteration
-  int nthreads = GetNumMeshThreads();
-  (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
-
-  MeshBlock *pmbl = pblock;
-  for (int i = 0; i < nmb; ++i)
-  {
-    pmb_array[i] = pmbl;
-    pmbl = pmbl->next;
-  }
-
-  #pragma omp parallel num_threads(nthreads)
-  {
-    #pragma omp for
-    for (int nix = 0; nix < nmb; ++nix)
-    {
-      MeshBlock *pmb = pmb_array[nix];
-      Z4c *pz4c = pmb->pz4c;
-
-      pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
-                            pz4c->storage.aux);
-    }
-  }
-#endif // Z4C_ENABLED
-}
 
 bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                                  AthenaArray<Real> & x_max,

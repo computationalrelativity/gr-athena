@@ -261,11 +261,7 @@ public:
   };
   Aux_vars aux;
 
-  // metric derivatives used by AHF
-  // it is allocated there as needed
-  // this is alternative to the aux. storage,
-  // used when 'store_metric_drvts' if off
-  AT_N_VS2 aux_g_ddd;
+
 
   // aliases for auxiliary variables for metric derivatives
   struct Aux_extended_vars {
@@ -343,9 +339,7 @@ public:
     // Compute constraints up to a maximum radius
     Real r_max_con;
 
-    // Compute & store 3D ADM metric derivatives for post-step analyses
-    bool store_metric_drvts;
-    // control whether ^ is communicated
+    // control whether aux ADM derivatives are communicated
     bool communicate_aux_adm;
 
     // For debug
@@ -424,9 +418,11 @@ public:
   void ADMToZ4c(AA & u_adm, AA & u);
   // compute ADM variables from Z4c variables
   void Z4cToADM(AA & u, AA & u_adm);
-  // compute and store ADM metric derivatives in 3D auxiliary storage
-  void ADMDerivatives(AthenaArray<Real> &u, AthenaArray<Real> &u_adm,
-                      AthenaArray<Real> &u_aux);
+
+  // pre-compute 3D first derivatives of conformal Z4c fields
+  void PrepareZ4cDerivatives(AA & u);
+  // one-time initialization of 3D derivative arrays for fresh MeshBlocks
+  void InitializeZ4cDerivatives(AA & u);
 
   void PrepareAuxExtended(AA &u_aux_extended, AA & u, AA &u_adm);
 
@@ -564,6 +560,9 @@ public:
 private:
   AA dt1_,dt2_,dt3_;  // scratch arrays used in NewTimeStep
 
+  // Flag: have 3D derivative arrays been initialized?
+  bool z4c_derivs_initialized = false;
+
   // auxiliary tensors
   AT_N_sca r;           // radial coordinate
   AT_N_sca detg;        // det(g)
@@ -626,6 +625,15 @@ private:
   AT_N_S2V ddbeta_ddu; // shift 2nd drvts
 
   AT_N_S2S2 ddg_dddd;   // metric 2nd drvts
+
+  // 3D first-derivative storage for Dxy optimization
+  AT_N_vec  dalpha_d_3d;     // d(alpha)/dx_b over full grid
+  AT_N_vec  dchi_d_3d;       // d(chi)/dx_b over full grid
+  AT_N_T2   dbeta_du_3d;     // d(beta^c)/dx_b over full grid
+  AT_N_VS2  dg_ddd_3d;       // d(g_cd)/dx_b over full grid (conformal metric)
+
+  // 3D second-derivative storage for chi (avoids recomputing in RHS/Constraints/Weyl)
+  AT_N_sym  ddchi_dd_3d;     // d_a d_b(chi) over interior grid
 
   // auxiliary Lie derivatives along the shift vector
   AT_N_sca Lchi;        // Lie derivative of chi

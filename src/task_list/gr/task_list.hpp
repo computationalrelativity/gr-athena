@@ -36,6 +36,8 @@ public:
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -123,6 +125,8 @@ public:
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -277,6 +281,8 @@ public:
   TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage);
   TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -395,6 +401,7 @@ public:
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
 
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
 
