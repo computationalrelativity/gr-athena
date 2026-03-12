@@ -60,11 +60,11 @@ enum {BLOCK_BNDRY __attribute__((deprecated)) = -1,
       PERIODIC_BNDRY __attribute__((deprecated)),
       POLAR_BNDRY __attribute__((deprecated)),
       POLAR_BNDRY_WEDGE __attribute__((deprecated)),
-      SHEAR_PERIODIC_BNDRY __attribute__((deprecated))};
+      };
 #else
 enum {FACE_UNDEF = -1, INNER_X1, OUTER_X1, INNER_X2, OUTER_X2, INNER_X3, OUTER_X3};
 enum {BLOCK_BNDRY = -1, BNDRY_UNDEF, REFLECTING_BNDRY, OUTFLOW_BNDRY, USER_BNDRY,
-      PERIODIC_BNDRY, POLAR_BNDRY, POLAR_BNDRY_WEDGE, SHEAR_PERIODIC_BNDRY};
+      PERIODIC_BNDRY, POLAR_BNDRY, POLAR_BNDRY_WEDGE};
 #endif
 
 // identifiers for all 6 faces of a MeshBlock
@@ -75,7 +75,7 @@ enum BoundaryFace {undef=-1, inner_x1=0, outer_x1=1, inner_x2=2, outer_x2=3,
 
 // identifiers for boundary conditions
 enum class BoundaryFlag {block=-1, undef, reflect, outflow, extrapolate_outflow,
-                         user, periodic, polar, polar_wedge, shear_periodic,
+                         user, periodic, polar, polar_wedge,
                          gr_sommerfeld};
 
 // identifiers for types of neighbor blocks (connectivity with current MeshBlock)
@@ -133,12 +133,10 @@ struct NeighborBlock { // aggregate and POD type. Inheritance breaks standard-la
   int bufid, eid, targetid;
   BoundaryFace fid;
   bool polar; // flag indicating boundary is across a pole
-  bool shear; // flag indicating boundary is attaching shearing periodic boundaries. (used
-              // only in flux_correction_fc.cpp, for now)
 
   void SetNeighbor(int irank, int ilevel, int igid, int ilid, int iox1, int iox2,
                    int iox3, NeighborConnect itype, int ibid, int itargetid,
-                   bool ipolar, bool ishear, int ifi1=0, int ifi2=0);
+                   bool ipolar, int ifi1=0, int ifi2=0);
 };
 
 //----------------------------------------------------------------------------------------
@@ -153,8 +151,8 @@ struct BoundaryData { // NOTE: no longer POD due to std::atomic<BoundaryStatus> 
   static constexpr int kMaxNeighbor = n;
   // KGF: "nbmax" only used in bvals_var.cpp, Init/DestroyBoundaryData()
   int nbmax;  // actual maximum number of neighboring MeshBlocks
-  // currently, sflag[] is only used by Multgrid (send buffers are reused each stage in
-  // red-black comm. pattern; need to check if they are available) and shearing box
+  // currently, sflag[] is only used by Multigrid (send buffers are reused each stage in
+  // red-black comm. pattern; need to check if they are available)
   // NOTE: flag[] and sflag[] are std::atomic to prevent data races when a neighboring
   // MeshBlock on the same MPI rank writes to this block's recv flag via
   // CopyVariableBufferSameProcess() (or similar) concurrently with this block reading it.
@@ -164,15 +162,6 @@ struct BoundaryData { // NOTE: no longer POD due to std::atomic<BoundaryStatus> 
   MPI_Request req_send[kMaxNeighbor], req_recv[kMaxNeighbor];
 #endif
 };
-
-using ShearingBoundaryData = BoundaryData<4>;
-
-// Struct for describing blocks which touch the shearing-periodic boundaries
-// struct ShearingBoundaryBlock {
-//   int *igidlist, *ilidlist, *irnklist, *ilevlist;
-//   int *ogidlist, *olidlist, *ornklist, *olevlist;
-//   bool inner, outer;
-// };
 
 //----------------------------------------------------------------------------------------
 // Interfaces = abstract classes containing ONLY pure virtual functions
@@ -197,9 +186,6 @@ class BoundaryCommunication {
   virtual void StartReceiving(BoundaryCommSubset phase) = 0;
   // call MPI_Wait() on req_send[] and set flag[] to BoundaryStatus::waiting
   virtual void ClearBoundary(BoundaryCommSubset phase) = 0;
-
-  virtual void StartReceivingShear(BoundaryCommSubset phase) = 0;
-  virtual void ComputeShear(const Real time) = 0;
 };
 
 //----------------------------------------------------------------------------------------
@@ -235,7 +221,7 @@ class BoundaryBuffer {
   virtual void SetBoundaryFromCoarser(Real *buf, const NeighborBlock& nb) = 0;
   virtual void SetBoundaryFromFiner(Real *buf, const NeighborBlock& nb) = 0;
 
-  // optional extensions: spherical-polar-like coordinates, shearing box, etc.:
+  // optional extensions: spherical-polar-like coordinates, etc.:
   virtual void PolarBoundarySingleAzimuthalBlock() = 0;
 };
 
@@ -373,13 +359,6 @@ protected:
 
   void InitBoundaryData(BoundaryData<> &bd, BoundaryQuantity type);
   void DestroyBoundaryData(BoundaryData<> &bd);
-
-  ShearingBoundaryData shear_bd_var_[2], shear_bd_emf_[2];
-  // TODO(felker): combine 4x Copy*SameProcess() functions
-  void CopyShearBufferSameProcess(SimpleNeighborBlock& snb, int ssize, int bufid,
-                                  bool upper);
-  void CopyShearEMFSameProcess(SimpleNeighborBlock& snb, int ssize, int bufid,
-                               bool upper);
   // private:
 };
 

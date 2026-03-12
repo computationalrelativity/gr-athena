@@ -71,11 +71,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
   Real vflow = pin->GetReal("problem","vflow");
   Real drat = pin->GetOrAddReal("problem","drat",1.0);
   int iprob = pin->GetInteger("problem","iprob");
-  Real omega0, qshear;
-  if (SHEARING_BOX) {
-    omega0 = pin->GetOrAddReal("problem","Omega0",1.0e-3);
-    qshear = pin->GetOrAddReal("problem","qshear",1.5);
-  }
   Real ang_2, cos_a2(0.0), sin_a2(0.0), lambda(0.0);
 
   // For (iprob=4) -- rotated cylinder in 3D -- set up rotation angle and wavelength
@@ -223,11 +218,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           phydro->u(IM1,k,j,i) = phydro->u(IDN,k,j,i)*vflow*x1size/diag;
           phydro->u(IM2,k,j,i) = phydro->u(IDN,k,j,i)*vflow*x2size/diag;
           phydro->u(IM3,k,j,i) = phydro->u(IDN,k,j,i)*vflow*x3size/diag;
-        }
-        if (SHEARING_BOX) {
-          Real x1 = pcoord->x1v(i);
-          phydro->u(IM1,k,j,i) += iso_cs*phydro->u(IDN,k,j,i);
-          phydro->u(IM2,k,j,i) -= qshear*omega0*x1*phydro->u(IDN,k,j,i);
         }
       }
     }

@@ -37,8 +37,6 @@ BoundaryFlag GetBoundaryFlag(const std::string& input_string) {
     return BoundaryFlag::user;
   } else if (input_string == "periodic") {
     return BoundaryFlag::periodic;
-  } else if (input_string == "shear_periodic") {
-    return BoundaryFlag::shear_periodic;
   } else if (input_string == "polar") {
     return BoundaryFlag::polar;
   } else if (input_string == "polar_wedge") {
@@ -84,8 +82,6 @@ std::string GetBoundaryString(BoundaryFlag input_flag) {
       return "polar";
     case BoundaryFlag::polar_wedge:
       return "polar_wedge";
-    case BoundaryFlag::shear_periodic:
-      return "shear_periodic";
     default:
       std::stringstream msg;
       msg << "### FATAL ERROR in GetBoundaryString" << std::endl
@@ -123,7 +119,6 @@ void CheckBoundaryFlag(BoundaryFlag block_flag, CoordinateDirection dir) {
       break;
     case CoordinateDirection::X2DIR:
       switch(block_flag) {
-        case BoundaryFlag::shear_periodic:
         case BoundaryFlag::undef:
           ATHENA_ERROR(msg);
           break;
@@ -135,7 +130,6 @@ void CheckBoundaryFlag(BoundaryFlag block_flag, CoordinateDirection dir) {
       switch(block_flag) {
         case BoundaryFlag::polar:
         case BoundaryFlag::polar_wedge:
-        case BoundaryFlag::shear_periodic:
         case BoundaryFlag::undef:
           ATHENA_ERROR(msg);
           break;

@@ -12,23 +12,17 @@
 //   Simulations of Vertically Stratified Accretion Disks" by Stone, Hawley,
 //   Gammie & Balbus.
 //
-// Several different field configurations and perturbations are possible:
-//  ifield = 1 - Bz=B0 std::sin(x1) field with zero-net-flux [default]
-//  ifield = 2 - uniform Bz
-//  ifield = 3 - uniform Bz plus sinusoidal perturbation Bz(1+0.5*std::sin(kx*x1))
-//  ifield = 4 - B=(0,B0std::cos(kx*x1),B0std::sin(kx*x1))= zero-net flux w helicity
-//  ifield = 5 - uniform By, but only for |z|<2
-//  ifield = 6 - By with constant \beta versus z
-//  ifield = 7 - zero field everywhere
-//
-// - ipert = 1 - random perturbations to P and V [default, used by HGB]
-//
-// Code must be configured using -shear
+// NOTE: Shearing box support has been removed from this version of the code.
+//   This problem generator is retained for reference only and cannot be compiled.
 //
 // REFERENCE: Stone, J., Hawley, J., Gammie, C.F. & Balbus, S. A., ApJ 463, 656-673
 //                (1996)
 //            Hawley, J. F. & Balbus, S. A., ApJ 400, 595-609 (1992)
 //============================================================================
+
+#error "This problem generator requires shearing box, which has been removed."
+
+/*  --- entire original source commented out below ---
 
 // C headers
 
@@ -590,3 +584,5 @@ Real HistorydVxVy(MeshBlock *pmb, int iout) {
   return dvxvy;
 }
 } // namespace
+
+*/

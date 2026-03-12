@@ -12,19 +12,16 @@
 //    III - Long-term evolution in a shearing sheet" by Hawley & Balbus.  This
 //    is the third of the HB papers on the MRI, thus hb3.
 //
-//  Several different perturbations and field configurations are possible:
-//  - ipert = 1 - isentropic perturbations to P & d [default]
-//  - ipert = 2 - uniform Vx=amp, sinusoidal density
+// NOTE: Shearing box support has been removed from this version of the code.
+//   This problem generator is retained for reference only and cannot be compiled.
 //
-//  - ifield = 1 - Bz=B0 std::sin(x1) field with zero-net-flux [default]
-//  - ifield = 2 - uniform Bz
-//
-//  PRIVATE FUNCTION PROTOTYPES:
-//  - ran2() - random number generator from NR
-//
-//  REFERENCE: Hawley, J. F. & Balbus, S. A., ApJ 400, 595-609 (1992).*/
+//  REFERENCE: Hawley, J. F. & Balbus, S. A., ApJ 400, 595-609 (1992).
 //
 //======================================================================================
+
+#error "This problem generator requires shearing box, which has been removed."
+
+/*  --- entire original source commented out below ---
 
 // C headers
 
@@ -257,3 +254,5 @@ Real HistoryBxBy(MeshBlock *pmb, int iout) {
   return bxby;
 }
 } // namespace
+
+*/

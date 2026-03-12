@@ -5,13 +5,14 @@
 //======================================================================================
 //! \file ssheet.cpp
 //  \brief Shearing wave problem generator for 2D problems.
-//  Several different initial conditions:
-//  - ipert = 0  pure shearing background flow
-//  - ipert = 1  shearing wave perturbed in velocity
-//  - ipert = 2  epicycle motion (0.1 c_s initial kick in radial)
 //
-// Code must be configured using -shear
+// NOTE: Shearing box support has been removed from this version of the code.
+//   This problem generator is retained for reference only and cannot be compiled.
 //======================================================================================
+
+#error "This problem generator requires shearing box, which has been removed."
+
+/*  --- entire original source commented out below ---
 
 // C headers
 
@@ -173,3 +174,5 @@ void MeshBlock::UserWorkInLoop() {
   // nothing to do
   return;
 }
+
+*/

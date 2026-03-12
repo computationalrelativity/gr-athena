@@ -45,10 +45,6 @@ class HydroSourceTerms {
                  AthenaArray<Real> &c);
   void ConstantAcceleration(const Real dt, const AthenaArray<Real> *flx,
                             const AthenaArray<Real> &p, AthenaArray<Real> &c);
-  // shearing box src terms
-  void ShearingBoxSourceTerms(const Real dt, const AthenaArray<Real> *flx,
-                              const AthenaArray<Real> &p, AthenaArray<Real> &c);
-  Real UnstratifiedDisk(const Real x1, const Real x2, const Real x3);
 
   void EnrollSrcTermFunction(SrcTermFunc my_func);
   SrcTermFunc UserSourceTerm;
@@ -57,7 +53,5 @@ class HydroSourceTerms {
   Hydro *pmy_hydro_;  // ptr to Hydro containing this HydroSourceTerms
   Real gm_;           // GM for point mass MUST BE LOCATED AT ORIGIN
   Real g1_, g2_, g3_; // constant acc'n in each direction
-  Real Omega_0_, qshear_; // Orbital freq and shear rate
-  int  ShBoxCoord_;       // ShearCoordinate type: 1=xy (default), 2=xz
 };
 #endif // HYDRO_SRCTERMS_HYDRO_SRCTERMS_HPP_

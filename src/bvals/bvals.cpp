@@ -77,9 +77,7 @@ void AllStartReceiving_(BoundaryCommSubset phase,
 // dirs of a MeshBlock
 BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
                                ParameterInput *pin)
-    : BoundaryBase(pmb->pmy_mesh, pmb->loc, pmb->block_size, input_bcs), pmy_block_(pmb),
-      shear_send_neighbor_{}, shear_recv_neighbor_{},
-      shear_send_count_{}, shear_recv_count_{} {
+    : BoundaryBase(pmb->pmy_mesh, pmb->loc, pmb->block_size, input_bcs), pmy_block_(pmb) {
   // Check BC functions for each of the 6 boundaries in turn ---------------------
   for (int i=0; i<6; i++) {
     switch (block_bcs[i]) {
@@ -144,48 +142,11 @@ BoundaryValues::BoundaryValues(MeshBlock *pmb, BoundaryFlag *input_bcs,
   // Matches initial value of Mesh::next_phys_id_
   // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
   bvars_next_phys_id_ = 1;
-
-  // KGF: BVals constructor section only containing ALL shearing box-specific stuff
-  // set parameters for shearing box bc and allocate buffers
-  if (SHEARING_BOX) {
-    // TODO(felker): add checks on the requisite number of dimensions
-    // TODO(felker): move all of these to member initializer list of new shearing class
-    Omega_0_ = pin->GetOrAddReal("problem", "Omega0", 0.001);
-    qshear_  = pin->GetOrAddReal("problem", "qshear", 1.5);
-    ShBoxCoord_ = pin->GetOrAddInteger("problem", "shboxcoord", 1);
-    int level = pmb->loc.level - pmy_mesh_->root_level;
-    // nblx2 is only used for allocating SimpleNeighborBlock arrays; nblx1 for loc_shear
-    // TODO(felker): initialize loc_shear{0, pmy_mesh_->nrbx2*(1L << pmb->loc.level - ..)}
-    // in ctor member initializer list and update as refinement occurs. And nblx2
-    std::int64_t nblx1 = pmy_mesh_->nrbx1*(1L << level);
-    std::int64_t nblx2 = pmy_mesh_->nrbx2*(1L << level);
-    // is_shear{} in member init_list
-    is_shear[0] = false;
-    is_shear[1] = false;
-    loc_shear[0] = 0;
-    loc_shear[1] = nblx1 - 1;
-
-    if (ShBoxCoord_ == 1) {
-      int nc3 = pmb->ncells3;
-      ssize_ = NGHOST*nc3;
-      // TODO(KGF): much of this should be a part of InitBoundaryData()
-      for (int upper=0; upper<2; upper++) {
-        if (pmb->loc.lx1 == loc_shear[upper]) { // if true for shearing inner blocks
-          is_shear[upper] = true;
-          shbb_[upper] = new SimpleNeighborBlock[nblx2];
-        } // end "if is a shearing boundary"
-      }  // end loop over inner, outer shearing boundaries
-    } // end "if (ShBoxCoord_ == 1)"
-  } // end shearing box component of BoundaryValues ctor
 }
 
 // destructor
 
 BoundaryValues::~BoundaryValues() {
-  if (SHEARING_BOX) {
-    for (int upper=0; upper<2; upper++)
-      if (is_shear[upper]) delete[] shbb_[upper];
-  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -228,31 +189,6 @@ void BoundaryValues::SetupPersistentMPI() {
     (*bvars_it)->SetupPersistentMPI();
   }
 
-  // KGF: begin exclusive shearing-box section in BoundaryValues::SetupPersistentMPI()
-  // initialize the shearing block lists
-  if (SHEARING_BOX) {
-    MeshBlock *pmb = pmy_block_;
-    int nbtotal = pmy_mesh_->nbtotal;
-    int *ranklist = pmy_mesh_->ranklist;
-    int *nslist = pmy_mesh_->nslist;
-    LogicalLocation *loclist = pmy_mesh_->loclist;
-
-    for (int upper=0; upper<2; upper++) {
-      int count = 0;
-      if (is_shear[upper]) {
-        for (int i=0; i<nbtotal; i++) {
-          if (loclist[i].lx1 == loc_shear[upper] && loclist[i].lx3 == pmb->loc.lx3 &&
-              loclist[i].level == pmb->loc.level) {
-            shbb_[upper][count].gid = i;
-            shbb_[upper][count].lid = i - nslist[ranklist[i]];
-            shbb_[upper][count].rank = ranklist[i];
-            shbb_[upper][count].level = loclist[i].level;
-            count++;
-          }
-        }
-      }
-    }
-  } // end KGF: exclusive shearing box portion of SetupPersistentMPI()
   return;
 }
 
@@ -343,61 +279,6 @@ void BoundaryValues::StartReceiving(BoundaryCommSubset phase)
     }
   }
 
-  // KGF: begin shearing-box exclusive section of original StartReceivingForInit()
-  // find send_block_id and recv_block_id;
-  if (SHEARING_BOX) {
-    StartReceivingShear(phase);
-  }
-
-  return;
-}
-
-
-void BoundaryValues::StartReceivingShear(BoundaryCommSubset phase) {
-  // NOTE(BD): Shearing-box boundary support is intentionally non-functional in this fork.
-  // The original Athena++ shearing-box implementation (FindShearBlock, SendShearingBox*,
-  // ReceiveShearingBox*, RemapFlux*, etc.) was partially ported but never completed.
-  // All call sites are guarded by `if (SHEARING_BOX)`, which is always false in
-  // gr-athena++ builds. This ATHENA_ERROR serves as a safeguard: if SHEARING_BOX is
-  // ever enabled without restoring the full implementation, this will abort immediately
-  // rather than silently producing incorrect results.
-  std::stringstream msg;
-  msg << "### FATAL ERROR in StartReceivingShear" << std::endl
-      << "Shearing-box boundaries are not implemented in this fork." << std::endl
-      << "StartReceivingShear was called, but the required infrastructure" << std::endl
-      << "(FindShearBlock, shear buffer communication) has not been ported." << std::endl;
-  ATHENA_ERROR(msg);
-
-  /*
-  switch (phase) {
-    case BoundaryCommSubset::mesh_init:
-      //FindShearBlock(pmy_mesh_->time);
-      break;
-    case BoundaryCommSubset::all:
-      // KGF: must pass "time" parameter from time_integrator.cpp
-      //FindShearBlock(time);
-
-      // KGF: cannot simply combine StartReceivingShear() at end of StartReceiving()
-      // (which is done for ClearBoundary), because the "shared"/non-virtual fn
-      // BoundaryValues::FindShearBlock() must be called in between 2x fns
-
-      // TODO(felker): consider calling FindShearBlock() at the beginning of this fn,
-      // which will allow the 2x StartReceiving() to be combined
-      for (auto bvar : bvars_main_int) {
-        bvar->StartReceivingShear(phase);
-      }
-      break;
-    case BoundaryCommSubset::matter_primitives:
-      // shearing box is currently incompatible with both GR and AMR
-      std::stringstream msg;
-      msg << "### FATAL ERROR in BoundaryValues::StartReceiving" << std::endl
-          << "BoundaryCommSubset::matter_primitives was passed as the 'phase' argument while\n"
-          << "SHEARING_BOX=1 is enabled. Shearing box calculations are currently\n"
-          << "incompatible with both AMR and GR" << std::endl;
-      ATHENA_ERROR(msg);
-      break;
-  }
-  */
   return;
 }
 
@@ -836,217 +717,6 @@ void BoundaryValues::DispatchBoundaryFunctions(
   } // end loop over BoundaryVariable *
 }
 
-
-//--------------------------------------------------------------------------------------
-//! \fn void BoundaryValues::ComputeShear(const Real time)
-//  \brief Calculate the following quantities:
-//  send_gid recv_gid send_lid recv_lid send_rank recv_rank,
-//  send_size_hydro  recv_size_hydro: for MPI_Irecv
-//  eps_,joverlap_: for update the conservative
-
-// TODO(felker): consider breaking up this ~200 (originally 400)line function:
-
-void BoundaryValues::ComputeShear(const Real time) {
-  MeshBlock *pmb = pmy_block_;
-  Coordinates *pco = pmb->pcoord;
-  Mesh *pmesh = pmb->pmy_mesh;
-  int nx2 = pmb->block_size.nx2;
-  int js = pmb->js; int je = pmb->je;
-
-  int level = pmb->loc.level - pmesh->root_level;
-  // TODO(felker): share nblx2 with ctor?
-  std::int64_t nblx2 = pmesh->nrbx2*(1L << level);
-
-  // Update the amount of shear:
-  Real x1size = pmy_mesh_->mesh_size.x1max - pmy_mesh_->mesh_size.x1min;
-  Real x2size = pmy_mesh_->mesh_size.x2max - pmy_mesh_->mesh_size.x2min;
-  qomL_ = qshear_*Omega_0_*x1size;
-  Real yshear = qomL_*time;
-  Real deltay = std::fmod(yshear, x2size);
-  int joffset = static_cast<int>(deltay/pco->dx2v(js)); // assumes uniform grid in azimuth
-  int Ngrids  = static_cast<int>(joffset/nx2);
-  joverlap_   = joffset - Ngrids*nx2;
-  eps_ = (std::fmod(deltay, pco->dx2v(js)))/pco->dx2v(js);
-
-  // TODO(felker): generalize from inner case. If upper==1, swap all send/recv arrays:
-  // shear_send_neighbor_[][], shear_recv_neighbor_[][]
-  // shear_send_count_*_ / shear_recv_count_*_
-  for (int upper=0; upper<2; upper++) {
-    if (is_shear[upper]) {
-      int *counts1 = shear_send_count_[upper];
-      int *counts2 = shear_recv_count_[upper];
-      SimpleNeighborBlock *nb1 = shear_send_neighbor_[upper];
-      SimpleNeighborBlock *nb2 = shear_recv_neighbor_[upper];
-      // permute the 2x pairs of send/recv variables if we are at the outer shear boundary
-      if (upper) {
-        std::swap(counts1, counts2);
-        std::swap(nb1, nb2);
-      }
-
-      for (int n=0; n<4; n++) {
-        nb1[n].gid  = -1;
-        nb1[n].lid  = -1;
-        nb1[n].rank  = -1;
-
-        nb2[n].gid  = -1;
-        nb2[n].lid  = -1;
-        nb2[n].rank  = -1;
-
-        counts1[n] = 0;
-        counts2[n] = 0;
-      }
-
-      int jblock = 0;
-      for (int j=0; j<nblx2; j++) {
-        // find global index of current MeshBlock on the shearing boundary block list
-        if (shbb_[upper][j].gid == pmb->gid) jblock = j;
-      }
-      // send [js-NGHOST:je-joverlap] of the current MeshBlock to the shearing neighbor
-      // attach [je-joverlap+1:MIN(je-joverlap + NGHOST, je-js+1)] to its right end.
-      std::int64_t jtmp = jblock + Ngrids;
-      if (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-      // TODO(felker): replace this with C++ copy semantics (also copy shbb_.level!):
-      nb1[1].gid  = shbb_[upper][jtmp].gid;
-      nb1[1].rank = shbb_[upper][jtmp].rank;
-      nb1[1].lid  = shbb_[upper][jtmp].lid;
-
-      int nx_attach = std::min(je - js - joverlap_ + 1 + NGHOST, je -js + 1);
-      // KGF: ssize_=NGHOST*nc3 is unset if ShBoxCoord==2. Is this fine?
-      // all counts are scaled by (nu_+1) e.g. NHYDRO in cc/
-      counts1[1] = nx_attach;
-
-      // recv [js+joverlap:je] of the current MeshBlock to the shearing neighbor
-      // attach [je+1:MIN(je+NGHOST, je+joverlap)] to its right end.
-      jtmp = jblock - Ngrids;
-      if (jtmp < 0) jtmp += nblx2;
-      nb2[1].gid  = shbb_[upper][jtmp].gid;
-      nb2[1].rank = shbb_[upper][jtmp].rank;
-      nb2[1].lid  = shbb_[upper][jtmp].lid;
-
-      counts2[1] = nx_attach;
-
-      // KGF: what is going on in the above code (since the end of the "for" loop)?
-
-      // if there is overlap to next blocks
-      if (joverlap_ != 0) {
-        // COMMENT SYNTAX: inner then outer (x1) boundaries
-        // send to the right
-        // recv from the right
-        jtmp = jblock + (Ngrids + 1);
-        if (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        nb1[0].gid  = shbb_[upper][jtmp].gid;
-        nb1[0].rank = shbb_[upper][jtmp].rank;
-        nb1[0].lid  = shbb_[upper][jtmp].lid;
-
-        int nx_exchange = std::min(joverlap_+NGHOST, je -js + 1);
-        counts1[0] = nx_exchange;
-
-        // receive from its left
-        // send to its left
-        jtmp = jblock - (Ngrids + 1);
-        if (jtmp < 0) jtmp += nblx2;
-        nb2[0].gid  = shbb_[upper][jtmp].gid;
-        nb2[0].rank = shbb_[upper][jtmp].rank;
-        nb2[0].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[0] = nx_exchange;
-
-        // deal the left boundary cells with send[2]
-        if (joverlap_ > (nx2 - NGHOST)) {
-          // send to Right
-          // send to left
-          jtmp = jblock + (Ngrids + 2);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          nb1[2].gid  = shbb_[upper][jtmp].gid;
-          nb1[2].rank = shbb_[upper][jtmp].rank;
-          nb1[2].lid  = shbb_[upper][jtmp].lid;
-
-          int nx_exchange_left = joverlap_ - (nx2 - NGHOST);
-          counts1[2] = nx_exchange_left;
-
-          // recv from Left
-          // send to right
-          jtmp = jblock - (Ngrids + 2);
-          while (jtmp < 0) jtmp += nblx2;
-          nb2[2].gid  = shbb_[upper][jtmp].gid;
-          nb2[2].rank = shbb_[upper][jtmp].rank;
-          nb2[2].lid  = shbb_[upper][jtmp].lid;
-
-          counts2[2] = nx_exchange_left;
-        }
-        // deal with the right boundary cells with send[3]
-        if (joverlap_ < NGHOST) {
-          jtmp = jblock + (Ngrids - 1);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          while (jtmp < 0) jtmp += nblx2;
-          nb1[3].gid  = shbb_[upper][jtmp].gid;
-          nb1[3].rank = shbb_[upper][jtmp].rank;
-          nb1[3].lid  = shbb_[upper][jtmp].lid;
-
-          int nx_exchange_right = NGHOST - joverlap_;
-          counts1[3] = nx_exchange_right;
-
-          jtmp = jblock - (Ngrids - 1);
-          while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-          while (jtmp < 0) jtmp += nblx2;
-          nb2[3].gid  = shbb_[upper][jtmp].gid;
-          nb2[3].rank = shbb_[upper][jtmp].rank;
-          nb2[3].lid  = shbb_[upper][jtmp].lid;
-
-          counts2[3] = nx_exchange_right;
-        }
-      } else {  // joverlap_ == 0
-        // send [je-(NGHOST-1):je] to Right (outer x2)
-        // recv [je + 1:je+NGHOST] from Left
-        jtmp = jblock + (Ngrids + 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        nb1[2].gid  = shbb_[upper][jtmp].gid;
-        nb1[2].rank = shbb_[upper][jtmp].rank;
-        nb1[2].lid  = shbb_[upper][jtmp].lid;
-
-        int nx_exchange = NGHOST;
-        counts1[2] = nx_exchange;
-
-        // recv [js-NGHOST:js-1] from Left
-        // send [js:js+NGHOST-1] to Right
-        jtmp = jblock - (Ngrids + 1);
-        while (jtmp < 0) jtmp += nblx2;
-        nb2[2].gid  = shbb_[upper][jtmp].gid;
-        nb2[2].rank = shbb_[upper][jtmp].rank;
-        nb2[2].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[2] = nx_exchange;
-
-        // send [js:js+(NGHOST-1)] to Left (inner x2)
-        // recv [js-NGHOST:js-1] from Left
-        jtmp = jblock + (Ngrids - 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        while (jtmp < 0) jtmp += nblx2;
-        nb1[3].gid  = shbb_[upper][jtmp].gid;
-        nb1[3].rank = shbb_[upper][jtmp].rank;
-        nb1[3].lid  = shbb_[upper][jtmp].lid;
-
-        counts1[3] = nx_exchange;
-
-        // recv [je + 1:je+(NGHOST-1)] from Right (outer x2)
-        // send [je-(NGHOST-1):je] to Right
-        jtmp = jblock - (Ngrids - 1);
-        while (jtmp > (nblx2 - 1)) jtmp -= nblx2;
-        while (jtmp < 0) jtmp += nblx2;
-        nb2[3].gid  = shbb_[upper][jtmp].gid;
-        nb2[3].rank = shbb_[upper][jtmp].rank;
-        nb2[3].lid  = shbb_[upper][jtmp].lid;
-
-        counts2[3] = nx_exchange;
-      }
-    }
-  } // end loop over inner, outer shearing boundaries
-
-  for (auto bvar : bvars_main_int) {
-    bvar->ComputeShear(time);
-  }
-  return;
-}
 
 
 // Public function, to be called in MeshBlock ctor for keeping MPI tag bitfields

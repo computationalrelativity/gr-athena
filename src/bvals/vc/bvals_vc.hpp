@@ -52,7 +52,7 @@ class VertexCenteredBoundaryVariable : public BoundaryVariable {
 
   // maximum number of reserved unique "physics ID" component of MPI tag
   // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
-  // multilevel==false, no shear) must correspond to the # of "int *phys_id_"
+  // multilevel==false) must correspond to the # of "int *phys_id_"
   // private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
 
@@ -64,9 +64,6 @@ class VertexCenteredBoundaryVariable : public BoundaryVariable {
   void SetupPersistentMPI() override;
   void StartReceiving(BoundaryCommSubset phase) override;
   void ClearBoundary(BoundaryCommSubset phase) override;
-
-  void StartReceivingShear(BoundaryCommSubset phase) override {return;};
-  void ComputeShear(const Real time) override {return;};
 
   // BoundaryBuffer:
   void SendBoundaryBuffers() override;
@@ -248,7 +245,6 @@ public:
   void PolarBoundarySingleAzimuthalBlock() override;
 
   void ErrorIfPolarNotImplemented(const NeighborBlock& nb);
-  void ErrorIfShearingBoxNotImplemented();
 
   // helper functions for assigning indices (inlined on definition)
   void SetIndexRangesSBSL(int ox, int &ix_s, int &ix_e,

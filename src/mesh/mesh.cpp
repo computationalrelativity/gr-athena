@@ -212,15 +212,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
         << std::endl;
     ATHENA_ERROR(msg);
   }
-  if ( ((mesh_bcs[BoundaryFace::inner_x1] == BoundaryFlag::shear_periodic
-    &&   mesh_bcs[BoundaryFace::outer_x1] != BoundaryFlag::shear_periodic)
-    ||  (mesh_bcs[BoundaryFace::inner_x1] != BoundaryFlag::shear_periodic
-    &&   mesh_bcs[BoundaryFace::outer_x1] == BoundaryFlag::shear_periodic))) {
-    msg << "### FATAL ERROR in Mesh constructor" << std::endl
-        << "When shear_periodic boundaries are in use, "
-        << "both sides must be shear_periodic." << std::endl;
-    ATHENA_ERROR(msg);
-  }
 
   // read and set MeshBlock parameters
   block_size.x1rat = mesh_size.x1rat;

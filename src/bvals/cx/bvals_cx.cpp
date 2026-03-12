@@ -94,16 +94,6 @@ void CellCenteredXBoundaryVariable::ErrorIfPolarNotImplemented(
   return;
 }
 
-void CellCenteredXBoundaryVariable::ErrorIfShearingBoxNotImplemented() {
-  // BD: TODO implement shearing box
-  if (SHEARING_BOX){
-    std::stringstream msg;
-    msg << "### FATAL ERROR" << std::endl
-        << "Shearing box not implemented for vertex-centered." << std::endl;
-    ATHENA_ERROR(msg);
-  }
-}
-
 int CellCenteredXBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexes& ni,
                                                               int cng) {
   // 'cng' to preserve function signature but is a dummy slot
@@ -221,7 +211,6 @@ void CellCenteredXBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
   // BD: TODO implement
   ErrorIfPolarNotImplemented(nb);
-  ErrorIfShearingBoxNotImplemented();
 
   // BD: ok
   idxSetSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, 1);

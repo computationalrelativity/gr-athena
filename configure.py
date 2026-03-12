@@ -25,7 +25,6 @@
 #   -s                  enable special relativity
 #   -g                  enable general relativity
 #   -t                  enable interface frame transformations for GR
-#   -shear              enable shearing periodic boundary conditions
 #   -debug              enable debug flags (-g -O0); override other compiler options
 #   -coverage           enable compiler-dependent code coverage flags
 #   -float              enable single precision (default is double)
@@ -125,6 +124,7 @@ def get_git_revision_hash() -> str:
     .strip()
   )
 
+
 def get_git_revision_short_hash() -> str:
   path = os.path.dirname(os.path.realpath(__file__))
   return (
@@ -132,6 +132,7 @@ def get_git_revision_short_hash() -> str:
     .decode("ascii")
     .strip()
   )
+
 
 def get_git_status() -> str:
   # should return "" if no changes
@@ -145,6 +146,7 @@ def get_git_status() -> str:
     return "c"
   return "m"
 
+
 # Set template and output filenames
 makefile_input = "Makefile.in"
 makefile_output = "Makefile"
@@ -153,24 +155,28 @@ defsfile_output = "src/defs.hpp"
 
 # --- Step 1. Prepare parser, add each of the arguments ------------------
 athena_description = (
-    "Prepare custom Makefile and defs.hpp for compiling Athena++ solver"
+  "Prepare custom Makefile and defs.hpp for compiling Athena++ solver"
 )
 athena_epilog = (
-    "Full documentation of options available at "
-    "https://github.com/PrincetonUniversity/athena-public-version/wiki/Configuring"
+  "Full documentation of options available at "
+  "https://github.com/PrincetonUniversity/athena-public-version/wiki/Configuring"
 )
-parser = argparse.ArgumentParser(description=athena_description, epilog=athena_epilog)
+parser = argparse.ArgumentParser(
+  description=athena_description, epilog=athena_epilog
+)
 
 # --prob=[name] argument
 pgen_directory = "src/pgen/"
 # set pgen_choices to list of .cpp files in src/pgen/
 pgen_choices = sorted(glob.glob(pgen_directory + "*.cpp"))
 # remove 'src/pgen/' prefix and '.cpp' extension from each filename
-pgen_choices = [choice[len(pgen_directory):-4] for choice in pgen_choices]
-parser.add_argument("--prob",
-                    default="shock_tube",
-                    choices=pgen_choices,
-                    help="select problem generator")
+pgen_choices = [choice[len(pgen_directory) : -4] for choice in pgen_choices]
+parser.add_argument(
+  "--prob",
+  default="shock_tube",
+  choices=pgen_choices,
+  help="select problem generator",
+)
 
 # --coord=[name] argument
 parser.add_argument(
@@ -464,11 +470,6 @@ parser.add_argument(
   help="use sphere refinement (disables box-in-box)",
 )
 
-# -shear argument
-parser.add_argument(
-  "-shear", action="store_true", default=False, help="enable shearing box"
-)
-
 # -debug argument
 parser.add_argument(
   "-debug",
@@ -538,7 +539,10 @@ parser.add_argument(
 
 # -fft argument
 parser.add_argument(
-  "-fft", action="store_true", default=False, help="enable FFT",
+  "-fft",
+  action="store_true",
+  default=False,
+  help="enable FFT",
 )
 
 # --fftw_path argument
@@ -546,7 +550,10 @@ parser.add_argument("--fftw_path", default="", help="path to FFTW libraries")
 
 # -hdf5 argument
 parser.add_argument(
-  "-hdf5", action="store_true", default=False, help="enable HDF5 Output",
+  "-hdf5",
+  action="store_true",
+  default=False,
+  help="enable HDF5 Output",
 )
 
 # -h5double argument
@@ -578,12 +585,17 @@ parser.add_argument("--gsl_path", default="", help="path to gsl libraries")
 
 # -lorene argument
 parser.add_argument(
-  "-lorene", action="store_true", default=False, help="enable Lorene library",
+  "-lorene",
+  action="store_true",
+  default=False,
+  help="enable Lorene library",
 )
 
 # --lorene_path argument
 parser.add_argument(
-  "--lorene_path", default="", help="path to LORENE libraries",
+  "--lorene_path",
+  default="",
+  help="path to LORENE libraries",
 )
 
 # -lorene_hardcoded_units argument
@@ -596,12 +608,18 @@ parser.add_argument(
 
 # -mkl argument
 parser.add_argument(
-  "-mkl", action="store_true", default=False, help="use mkl libraries",
+  "-mkl",
+  action="store_true",
+  default=False,
+  help="use mkl libraries",
 )
 
 # -openblas argument
 parser.add_argument(
-  "-openblas", action="store_true", default=False, help="use openblas libraries",
+  "-openblas",
+  action="store_true",
+  default=False,
+  help="use openblas libraries",
 )
 
 # -elliptica argument
@@ -618,23 +636,21 @@ parser.add_argument(
 )
 
 ## rns_path_argument
-parser.add_argument('--rns_path',
-                    default='',
-                    help='path to rns library')
+parser.add_argument("--rns_path", default="", help="path to rns library")
 # -sgrid argument
-parser.add_argument('-sgrid',
-                    action='store_true',
-                    default=False,
-                    help='enable sgrid')
+parser.add_argument(
+  "-sgrid", action="store_true", default=False, help="enable sgrid"
+)
 
 # --sgrid_path argument
-parser.add_argument('--sgrid_path',
-                    default='',
-                    help='path to SGRID libraries')
+parser.add_argument("--sgrid_path", default="", help="path to SGRID libraries")
 
 # -ccache argument
 parser.add_argument(
-  "-ccache", action="store_true", default=False, help="enable caching compiler",
+  "-ccache",
+  action="store_true",
+  default=False,
+  help="enable caching compiler",
 )
 
 # -rpath
@@ -647,12 +663,18 @@ parser.add_argument(
 
 # -link_gold argument
 parser.add_argument(
-  "-link_gold", action="store_true", default=False, help="use gold linker",
+  "-link_gold",
+  action="store_true",
+  default=False,
+  help="use gold linker",
 )
 
 # -no_flto argument
 parser.add_argument(
-  "-no_flto", action="store_true", default=False, help="disable flto",
+  "-no_flto",
+  action="store_true",
+  default=False,
+  help="disable flto",
 )
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
@@ -759,58 +781,87 @@ args = vars(parser.parse_args())
 # --- Step 2. Test for incompatible arguments ----------------------------
 
 # Set default flux; HLLD for MHD, HLLC for hydro, HLLE for isothermal hydro or any GR
-if args['flux'] == 'default':
-    if args['g']:
-        args['flux'] = 'hlle'
-    elif args['b']:
-        args['flux'] = 'hlld'
-    elif args['eos'] == 'isothermal':
-        args['flux'] = 'hlle'
-    else:
-        args['flux'] = 'hllc'
+if args["flux"] == "default":
+  if args["g"]:
+    args["flux"] = "hlle"
+  elif args["b"]:
+    args["flux"] = "hlld"
+  elif args["eos"] == "isothermal":
+    args["flux"] = "hlle"
+  else:
+    args["flux"] = "hllc"
 
 # Check Riemann solver compatibility
-if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS')
-if args['flux'] == 'hllc' and args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with MHD')
-if args['flux'] == 'hlld' and not args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
+if args["flux"] == "hllc" and args["eos"] == "isothermal":
+  raise SystemExit(
+    "### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS"
+  )
+if args["flux"] == "hllc" and args["b"]:
+  raise SystemExit("### CONFIGURE ERROR: HLLC flux cannot be used with MHD")
+if args["flux"] == "hlld" and not args["b"]:
+  raise SystemExit("### CONFIGURE ERROR: HLLD flux can only be used with MHD")
 
 # Check relativity
-if args['s'] and args['g']:
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + 'GR implies SR; the -s option is restricted to pure SR')
-if args['t'] and not args['g']:
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle', 'hlletaudyn'):
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
-                     .format(args['flux']))
-if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
-    raise SystemExit('### CONFIGURE ERROR: GR cannot be used with {0} coordinates'
-                     .format(args['coord']))
-if not args['g'] and args['coord'] not in ('cartesian',
-                                           'cylindrical',
-                                           'spherical_polar',
-                                           'spherical_polar_uniform'):
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + args['coord'] + ' coordinates only apply to GR')
+if args["s"] and args["g"]:
+  raise SystemExit(
+    "### CONFIGURE ERROR: "
+    + "GR implies SR; the -s option is restricted to pure SR"
+  )
+if args["t"] and not args["g"]:
+  raise SystemExit(
+    "### CONFIGURE ERROR: Frame transformations only apply to GR"
+  )
+if (
+  args["g"]
+  and not args["t"]
+  and args["flux"] not in ("llf", "llftaudyn", "hlle", "hlletaudyn")
+):
+  raise SystemExit(
+    "### CONFIGURE ERROR: Frame transformations required for {0}".format(
+      args["flux"]
+    )
+  )
+if args["g"] and args["coord"] in (
+  "cartesian",
+  "cylindrical",
+  "spherical_polar",
+):
+  raise SystemExit(
+    "### CONFIGURE ERROR: GR cannot be used with {0} coordinates".format(
+      args["coord"]
+    )
+  )
+if not args["g"] and args["coord"] not in (
+  "cartesian",
+  "cylindrical",
+  "spherical_polar",
+  "spherical_polar_uniform",
+):
+  raise SystemExit(
+    "### CONFIGURE ERROR: " + args["coord"] + " coordinates only apply to GR"
+  )
 
-if args['eos'] == 'isothermal':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'Isothermal EOS is incompatible with relativity')
-if args['eos'] == 'eostaudyn_ps':
-    if not args['z']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'PrimitiveSolver EOS interface requires Z4c')
-if args['eos'][:8] == 'general/':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with relativity')
-    if args['flux'] not in ['hllc', 'hlld', 'hlle']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with flux ' + args['flux'])
+if args["eos"] == "isothermal":
+  if args["s"] or args["g"]:
+    raise SystemExit(
+      "### CONFIGURE ERROR: " + "Isothermal EOS is incompatible with relativity"
+    )
+if args["eos"] == "eostaudyn_ps":
+  if not args["z"]:
+    raise SystemExit(
+      "### CONFIGURE ERROR: " + "PrimitiveSolver EOS interface requires Z4c"
+    )
+if args["eos"][:8] == "general/":
+  if args["s"] or args["g"]:
+    raise SystemExit(
+      "### CONFIGURE ERROR: " + "General EOS is incompatible with relativity"
+    )
+  if args["flux"] not in ["hllc", "hlld", "hlle"]:
+    raise SystemExit(
+      "### CONFIGURE ERROR: "
+      + "General EOS is incompatible with flux "
+      + args["flux"]
+    )
 
 # Check Z4c
 if args["z"] and args["coord"] not in ("cartesian", "gr_dynamical"):
@@ -1219,12 +1270,6 @@ if args["tasklist_comm_dependency"]:
 else:
   definitions["USE_COMM_DEPENDENCY"] = "NO_USE_COMM_DEPENDENCY"
 
-# -shear argument
-if args["shear"]:
-  definitions["SHEARING_BOX"] = "1"
-else:
-  definitions["SHEARING_BOX"] = "0"
-
 # --cxx=[name] argument
 if args["cxx"] == "g++":
   # GCC is C++11 feature-complete since v4.8.1 (2013-05-31)
@@ -1365,9 +1410,7 @@ if args["cxx"] == "cray":
   definitions["COMPILER_CHOICE"] = "cray"
   definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
   makefile_options["PREPROCESSOR_FLAGS"] = ""
-  makefile_options["COMPILER_FLAGS"] = (
-    "-O3 -std=c++17 "
-  )
+  makefile_options["COMPILER_FLAGS"] = "-O3 -std=c++17 "
   makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = "-lm"
 
@@ -1473,7 +1516,11 @@ if args["coverage"]:
   # For now, append new compiler flags and don't override --cxx set, but set code to be
   # unoptimized (-O0 instead of -O3) to get useful statement annotations. Should we add
   # '-g -fopenmp-simd', by default? Don't combine lines when writing source code!
-  if args["cxx"] == "g++" or args["cxx"] == "g++-simd" or args["cxx"] == "g++-simd_O2":
+  if (
+    args["cxx"] == "g++"
+    or args["cxx"] == "g++-simd"
+    or args["cxx"] == "g++-simd_O2"
+  ):
     makefile_options["COMPILER_FLAGS"] += (
       " -O0 -fprofile-arcs -ftest-coverage"
       " -fno-inline -fno-exceptions -fno-elide-constructors"
@@ -1673,9 +1720,7 @@ else:
 if args["prob"] == "z4c_two_punctures":
   if not args["gsl"]:
     msg = "### CONFIGURE ERROR: To compile with two punctures -gsl is required."
-    raise SystemExit(
-      msg
-    )
+    raise SystemExit(msg)
 
   definitions["TWO_PUNCTURES_OPTION"] = "TWO_PUNCTURES"
 
@@ -1727,9 +1772,7 @@ if args["lorene"]:
       " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
     )
   elif args["openblas"]:
-    makefile_options["LIBRARY_FLAGS"] += (
-      " -lopenblas"
-    )
+    makefile_options["LIBRARY_FLAGS"] += " -lopenblas"
   else:
     makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
 
@@ -1737,8 +1780,8 @@ if args["lorene"]:
   if args["lorene_path"] != "":
     definitions["LORENE_OPTION"] = "LORENE"
 
-    makefile_options["PREPROCESSOR_FLAGS"] += (
-      " -I{}/Export/C++/Include".format(args["lorene_path"])
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/Export/C++/Include".format(
+      args["lorene_path"]
     )
     makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/C++/Include".format(
       args["lorene_path"]
@@ -1757,8 +1800,9 @@ else:
 if "Lorene" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-f -g -z.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1766,8 +1810,9 @@ if "Lorene" in args["prob"]:
 
   if not args["lorene"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-lorene.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -lorene.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1790,8 +1835,9 @@ if args["elliptica"]:
 if "Elliptica" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-f -g -z.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1802,86 +1848,95 @@ if "Elliptica" in args["prob"]:
       '### CONFIGURE ERROR: The pgen "{name}" requires flags '
       "-elliptica.".format(name=args["prob"])
     )
-    raise SystemExit(
-      msg
-    )
+    raise SystemExit(msg)
 
 # -rns argument
-if args['prob'] == "gr_rns":
-#    if not args['gsl']:
-#        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+if args["prob"] == "gr_rns":
+  #    if not args['gsl']:
+  #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
-    definitions['RNS_OPTION'] = 'RNS'
+  definitions["RNS_OPTION"] = "RNS"
 
-    if args['rns_path'] == '':
-        os.system('mkdir -p extern/initial_data')
-        args['rns_path'] = 'extern/initial_data/rns'
-        if os.path.exists('../rnsc'):
-            os.system('rm {}'.format(args['rns_path']))
-            os.system('ln -s ../../../rnsc {}'.format(args['rns_path']))
-        else:
-            raise SystemExit('### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc.')
-    if args['rns_path'] != '':
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
-            args['rns_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/obj'.format(
-            args['rns_path'])
-    if (args['cxx'] == 'g++'
-        or args['cxx'] == 'g++-simd'
-        or args['cxx'] == 'g++-simd_O2'
-        or args['cxx'] == 'icc' or args['cxx'] == 'cray'
-        or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
-        or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-        or args['cxx'] == 'bgxl'):
+  if args["rns_path"] == "":
+    os.system("mkdir -p extern/initial_data")
+    args["rns_path"] = "extern/initial_data/rns"
+    if os.path.exists("../rnsc"):
+      os.system("rm {}".format(args["rns_path"]))
+      os.system("ln -s ../../../rnsc {}".format(args["rns_path"]))
+    else:
+      raise SystemExit(
+        "### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc."
+      )
+  if args["rns_path"] != "":
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{0}/include".format(
+      args["rns_path"]
+    )
+    makefile_options["LINKER_FLAGS"] += " -L{0}/obj".format(args["rns_path"])
+  if (
+    args["cxx"] == "g++"
+    or args["cxx"] == "g++-simd"
+    or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "icc"
+    or args["cxx"] == "cray"
+    or args["cxx"] == "icc-debug"
+    or args["cxx"] == "icc-phi"
+    or args["cxx"] == "clang++"
+    or args["cxx"] == "clang++-simd"
+    or args["cxx"] == "bgxl"
+  ):
+    obj_dir = args["rns_path"] + "/obj/"
+    so_names = [
+      "RNS_equil_util.o",
+      "RNS_nrutil.o",
+      "RNS_rnsid_util.o",
+      "RNS_equil.o",
+      "RNS_extra.o",
+      "RNS.o",
+    ]
 
-        obj_dir = args['rns_path'] + '/obj/'
-        so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
-                    'RNS_equil.o', 'RNS_extra.o', 'RNS.o']
-
-
-        ## Check the external library has been compiled
-        for so in so_names:
-            if not os.path.isfile(obj_dir + so):
-                print(obj_dir + so)
-                raise SystemExit('### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing.')
-
-        for n in so_names:
-            makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
-else:
-    definitions['RNS_OPTION'] = 'NO_RNS'
-
-if args['sgrid']:
-    definitions['SGRID_OPTION'] = 'SGRID'
-
-    makefile_options['LIBRARY_FLAGS'] += ' -lsgrid -llapack -lblas'
-
-    # this can be specified as sgrid_path _or_ directly
-    if args['sgrid_path'] != '':
-        definitions['SGRID_OPTION'] = 'SGRID'
-
-        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
-        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['sgrid_path'])
-
-else:
-    definitions['SGRID_OPTION'] = 'NO_SGRID'
-
-if 'Sgrid' in args['prob']:
-    if not args['f'] or not args['g'] or not args['z']:
+    ## Check the external library has been compiled
+    for so in so_names:
+      if not os.path.isfile(obj_dir + so):
+        print(obj_dir + so)
         raise SystemExit(
-            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-            '-f -g -z.'.format(
-                name=args['prob']
-            )
+          "### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing."
         )
 
-    if not args['sgrid']:
-        raise SystemExit(
-            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-            '-sgrid.'.format(
-                name=args['prob']
-            )
-        )
+    for n in so_names:
+      makefile_options["LIBRARY_FLAGS"] += " " + obj_dir + n
+else:
+  definitions["RNS_OPTION"] = "NO_RNS"
+
+if args["sgrid"]:
+  definitions["SGRID_OPTION"] = "SGRID"
+
+  makefile_options["LIBRARY_FLAGS"] += " -lsgrid -llapack -lblas"
+
+  # this can be specified as sgrid_path _or_ directly
+  if args["sgrid_path"] != "":
+    definitions["SGRID_OPTION"] = "SGRID"
+
+    ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
+    ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
+    makefile_options["LINKER_FLAGS"] += " -L{0}/lib".format(args["sgrid_path"])
+
+else:
+  definitions["SGRID_OPTION"] = "NO_SGRID"
+
+if "Sgrid" in args["prob"]:
+  if not args["f"] or not args["g"] or not args["z"]:
+    raise SystemExit(
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
+    )
+
+  if not args["sgrid"]:
+    raise SystemExit(
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -sgrid.'.format(
+        name=args["prob"]
+      )
+    )
 
 
 # --cflag=[string] argument
@@ -2065,7 +2120,7 @@ makefile_options["EOS_FILES"] = ""
 # Absence of EOS
 if args["eos"] == "none":
   print(args["eos"])
-  aux = [ "        src/eos/none.cpp \\" ]
+  aux = ["        src/eos/none.cpp \\"]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
@@ -2073,7 +2128,7 @@ files = [
   args["eospolicy"],
   args["errorpolicy"],
   "ps_error",
-  f'cold_{args["eospolicy"]}',
+  f"cold_{args['eospolicy']}",
 ]
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
@@ -2113,47 +2168,72 @@ print("  Special relativity:           " + ("ON" if args["s"] else "OFF"))
 print("  General relativity:           " + ("ON" if args["g"] else "OFF"))
 print("  Z4c equations:                " + ("ON" if args["z"] else "OFF"))
 if args["z"]:
-    print("  z_cc:                         " + ("ON" if args["z_cc"] else "OFF"))
-    print("  z_cx:                         " + ("ON" if args["z_cx"] else "OFF"))
-    print("  z_vc:                         " + ("ON" if args["z_vc"] else "OFF"))
+  print("  z_cc:                         " + ("ON" if args["z_cc"] else "OFF"))
+  print("  z_cx:                         " + ("ON" if args["z_cx"] else "OFF"))
+  print("  z_vc:                         " + ("ON" if args["z_vc"] else "OFF"))
 
 if args["z"]:
-    print("  Z4c shift damping:            " + self_eta_damp_string)
-    print("  Z4c refinement strategy:      " + ("box-in-box" if args["ref_box_in_box"]
-                                                else "spheres"))
-    print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
-    print("  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF"))
+  print("  Z4c shift damping:            " + self_eta_damp_string)
+  print(
+    "  Z4c refinement strategy:      "
+    + ("box-in-box" if args["ref_box_in_box"] else "spheres")
+  )
+  print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
+  print(
+    "  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF")
+  )
 
 print("  M1 neutrino transport:        " + ("ON" if args["m1"] else "OFF"))
 
 print("  Wave equation:                " + ("ON" if args["w"] else "OFF"))
 if args["w"]:
-    print("  w_cc:                         " + ("ON" if args["w_cc"] else "OFF"))
-    print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
-    print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
+  print("  w_cc:                         " + ("ON" if args["w_cc"] else "OFF"))
+  print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
+  print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
 
 print("  Frame transformations:        " + ("ON" if args["t"] else "OFF"))
 print("  Super-Time-Stepping:          " + ("ON" if args["sts"] else "OFF"))
-print("  Shearing Box BCs:             " + ("ON" if args["shear"] else "OFF"))
 print("  Debug flags:                  " + ("ON" if args["debug"] else "OFF"))
-print("  Code coverage flags:          " + ("ON" if args["coverage"] else "OFF"))
-print("  Linker flags:                 " + makefile_options["LINKER_FLAGS"] + " "
-      + makefile_options["LIBRARY_FLAGS"])
-print("  Floating-point precision:     " + ("single" if args["float"] else "double"))
+print(
+  "  Code coverage flags:          " + ("ON" if args["coverage"] else "OFF")
+)
+print(
+  "  Linker flags:                 "
+  + makefile_options["LINKER_FLAGS"]
+  + " "
+  + makefile_options["LIBRARY_FLAGS"]
+)
+print(
+  "  Floating-point precision:     " + ("single" if args["float"] else "double")
+)
 print("  Number of ghost cells:        " + args["nghost"])
 print("  Number of coarse ghosts (VC): " + definitions["NUMBER_COARSE_GHOSTS"])
-print("  Number of coarse ghosts (CX): " + definitions["NUMBER_COARSE_GHOSTS_CX"])
-print("  Total # extrapolation points: " + definitions["NUMBER_EXTRAPOLATION_POINTS"])
+print(
+  "  Number of coarse ghosts (CX): " + definitions["NUMBER_COARSE_GHOSTS_CX"]
+)
+print(
+  "  Total # extrapolation points: "
+  + definitions["NUMBER_EXTRAPOLATION_POINTS"]
+)
 print("  MPI parallelism:              " + ("ON" if args["mpi"] else "OFF"))
 print("  OpenMP parallelism:           " + ("ON" if args["omp"] else "OFF"))
 print("  FFT:                          " + ("ON" if args["fft"] else "OFF"))
 print("  HDF5 output:                  " + ("ON" if args["hdf5"] else "OFF"))
 if args["hdf5"]:
-    print("  HDF5 precision:               " + ("double" if args["h5double"] else "single"))
+  print(
+    "  HDF5 precision:               "
+    + ("double" if args["h5double"] else "single")
+  )
 print("  GSL enabled:                  " + ("ON" if args["gsl"] else "OFF"))
 print("  Compiler:                     " + args["cxx"])
-print("  Compilation command:          " + makefile_options["COMPILER_COMMAND"] + " "
-      + makefile_options["PREPROCESSOR_FLAGS"] + " " + makefile_options["COMPILER_FLAGS"])
+print(
+  "  Compilation command:          "
+  + makefile_options["COMPILER_COMMAND"]
+  + " "
+  + makefile_options["PREPROCESSOR_FLAGS"]
+  + " "
+  + makefile_options["COMPILER_FLAGS"]
+)
 
 #
 # :D

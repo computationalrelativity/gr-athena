@@ -112,74 +112,6 @@ FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(
     }
   }
 
-  if (SHEARING_BOX) {
-#ifdef MPI_PARALLEL
-    shear_fc_phys_id_ = fc_flx_phys_id_ + 2;
-    shear_emf_phys_id_ = shear_fc_phys_id_+ 1;
-#endif
-
-    if (pbval_->ShBoxCoord_ == 1) {
-      int nc2 = pmb->ncells2;
-      int nc3 = pmb->ncells3;
-      for (int upper=0; upper<2; upper++) {
-        if (pbval_->is_shear[upper]) {
-          shear_fc_[upper].x1f.NewAthenaArray(nc3, nc2, NGHOST);
-          shear_fc_[upper].x2f.NewAthenaArray(nc3, nc2+1, NGHOST);
-          shear_fc_[upper].x3f.NewAthenaArray(nc3+1, nc2, NGHOST);
-          shear_flx_fc_[upper].x1f.NewAthenaArray(nc2);
-          shear_flx_fc_[upper].x2f.NewAthenaArray(nc2+1);
-          shear_flx_fc_[upper].x3f.NewAthenaArray(nc2);
-          shear_var_emf_[upper].x2e.NewAthenaArray(nc3+1, nc2);
-          shear_var_emf_[upper].x3e.NewAthenaArray(nc3, nc2+1);
-          shear_map_emf_[upper].x2e.NewAthenaArray(nc3+1, nc2);
-          shear_map_emf_[upper].x3e.NewAthenaArray(nc3, nc2+1);
-          shear_flx_emf_[upper].x2e.NewAthenaArray(nc2);
-          shear_flx_emf_[upper].x3e.NewAthenaArray(nc2+1);
-
-          // TODO(KGF): the rest of this should be a part of InitBoundaryData()
-
-          // attach corner cells from L/R side
-          // extra cell in azimuth/vertical
-          int bsize = (pmb->block_size.nx2 + NGHOST+1)*(pbval_->ssize_ + NGHOST)*NFIELD;
-          // face plus edge for EMF
-          int esize = 2*(pmb->block_size.nx2 + NGHOST)*pmb->block_size.nx3
-                      + pmb->block_size.nx2 + pmb->block_size.nx3 + NGHOST;
-          for (int n=0; n<2; n++) {
-            shear_bd_var_[upper].send[n] = new Real[bsize];
-            shear_bd_var_[upper].recv[n] = new Real[bsize];
-            shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-            shear_bd_emf_[upper].send[n] = new Real[esize];
-            shear_bd_emf_[upper].recv[n] = new Real[esize];
-            shear_bd_emf_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-            shear_bd_var_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_var_[upper].req_recv[n] = MPI_REQUEST_NULL;
-            shear_bd_emf_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_emf_[upper].req_recv[n] = MPI_REQUEST_NULL;
-#endif
-          }
-          // corner cells only
-          bsize = NGHOST*(pbval_->ssize_ + NGHOST)*NFIELD;
-          esize = 2*NGHOST*pmb->block_size.nx3 + NGHOST;
-
-          for (int n=2; n<4; n++) {
-            shear_bd_var_[upper].send[n] = new Real[bsize];
-            shear_bd_var_[upper].recv[n] = new Real[bsize];
-            shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-            shear_bd_emf_[upper].send[n] = new Real[esize];
-            shear_bd_emf_[upper].recv[n] = new Real[esize];
-            shear_bd_emf_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-            shear_bd_var_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_var_[upper].req_recv[n] = MPI_REQUEST_NULL;
-            shear_bd_emf_[upper].req_send[n] = MPI_REQUEST_NULL;
-            shear_bd_emf_[upper].req_recv[n] = MPI_REQUEST_NULL;
-#endif
-          }
-        } // end "if is a shearing boundary"
-      }  // end loop over inner, outer shearing boundaries
-    } // end "if (pbval_->ShBoxCoord_ == 1)"
-  } // end shearing box component of ctor
 }
 
 // destructor
@@ -187,20 +119,6 @@ FaceCenteredBoundaryVariable::FaceCenteredBoundaryVariable(
 FaceCenteredBoundaryVariable::~FaceCenteredBoundaryVariable() {
   DestroyBoundaryData(bd_var_);
   DestroyBoundaryData(bd_var_flcor_);
-
-  // TODO(KGF): this should be a part of DestroyBoundaryData()
-  if (SHEARING_BOX) {
-    for (int upper=0; upper<2; upper++) {
-      if (pbval_->is_shear[upper]) {
-        for (int n=0; n<4; n++) {
-          delete[] shear_bd_var_[upper].send[n];
-          delete[] shear_bd_var_[upper].recv[n];
-          delete[] shear_bd_emf_[upper].send[n];
-          delete[] shear_bd_emf_[upper].recv[n];
-        }
-      }
-    }
-  }
 
   if (pbval_->num_north_polar_blocks_ > 0) {
     for (int n = 0; n < pbval_->num_north_polar_blocks_; ++n) {
@@ -1671,26 +1589,6 @@ void FaceCenteredBoundaryVariable::ClearBoundary(BoundaryCommSubset phase) {
       }
     }
 #endif
-  }
-
-  // clear shearing box boundary communications
-  if (SHEARING_BOX) {
-    // TODO(KGF): clear sflag arrays
-    for (int upper=0; upper<2; upper++) {
-      if (pbval_->is_shear[upper]) {
-        for (int n=0; n<4; n++) {
-          if (pbval_->shear_send_neighbor_[upper][n].rank == -1) continue;
-          shear_bd_var_[upper].flag[n] = BoundaryStatus::waiting;
-          shear_bd_emf_[upper].flag[n] = BoundaryStatus::waiting;
-#ifdef MPI_PARALLEL
-          if (pbval_->shear_send_neighbor_[upper][n].rank != Globals::my_rank) {
-            MPI_Wait(&shear_bd_var_[upper].req_send[n], MPI_STATUS_IGNORE);
-            MPI_Wait(&shear_bd_emf_[upper].req_send[n], MPI_STATUS_IGNORE);
-          }
-#endif
-        }
-      }
-    }
   }
 
   // Clear polar boundary communications (only during main integration loop)

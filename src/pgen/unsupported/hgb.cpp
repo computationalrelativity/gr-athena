@@ -11,31 +11,16 @@
 //   conditions described in "Local Three-dimensional Magnetohydrodynamic
 //   Simulations of Accretion Disks" by Hawley, Gammie & Balbus, or HGB.
 //
-// Several different field configurations and perturbations are possible:
-//
-//- ifield = 0 - uses field set by choice of ipert flag
-//- ifield = 1 - Bz=B0std::sin(kx*x1) field with zero-net-flux [default] (kx input)
-//- ifield = 2 - uniform Bz
-//- ifield = 3 - B=(0,B0std::cos(kx*x1),B0std::sin(kx*x1))= zero-net flux w helicity
-//- ifield = 4 - B=(0,B0/std::sqrt(2),B0/std::sqrt(2))= net toroidal+vertical field
-//- ifield = 5 - uniform By
-//
-//- ipert = 1 - random perturbations to P and V [default, used by HGB]
-//- ipert = 2 - uniform Vx=amp (epicyclic wave test)
-//- ipert = 3 - J&G vortical shwave (hydro test)
-//- ipert = 4 - nonlinear density wave test of Fromang & Papaloizou
-//- ipert = 5 - 2nd MHD shwave test of JGG (2008) -- their figure 9
-//- ipert = 6 - 3rd MHD shwave test of JGG (2008) -- their figure 11
-//- ipert = 7 - nonlinear shearing wave test of Heinemann & Papaloizou (2008)
-//
-// To run simulations of stratified disks (including vertical gravity), use the
-// strat.c problem generator.
-//
-// Code must be configured using -shear
+// NOTE: Shearing box support has been removed from this version of the code.
+//   This problem generator is retained for reference only and cannot be compiled.
 //
 // REFERENCE: Hawley, J. F. & Balbus, S. A., ApJ 400, 595-609 (1992).
 //            Johnson, Guan, & Gammie, ApJSupp, (2008)
 //============================================================================
+
+#error "This problem generator requires shearing box, which has been removed."
+
+/*  --- entire original source commented out below ---
 
 // C headers
 
@@ -455,3 +440,5 @@ Real HistorydBy(MeshBlock *pmb, int iout) {
   return dby;
 }
 } // namespace
+
+*/

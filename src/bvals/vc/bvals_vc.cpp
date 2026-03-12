@@ -99,16 +99,6 @@ void VertexCenteredBoundaryVariable::ErrorIfPolarNotImplemented(
   return;
 }
 
-void VertexCenteredBoundaryVariable::ErrorIfShearingBoxNotImplemented() {
-  // BD: TODO implement shearing box
-  if (SHEARING_BOX){
-    std::stringstream msg;
-    msg << "### FATAL ERROR" << std::endl
-        << "Shearing box not implemented for vertex-centered." << std::endl;
-    ATHENA_ERROR(msg);
-  }
-}
-
 int VertexCenteredBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexes& ni,
                                                               int cng) {
   // 'cng' to preserve function signature but is a dummy slot
@@ -213,7 +203,6 @@ void VertexCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
   // BD: TODO implement
   ErrorIfPolarNotImplemented(nb);
-  ErrorIfShearingBoxNotImplemented();
 
   idxSetSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, 1);
 

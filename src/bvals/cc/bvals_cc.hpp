@@ -52,7 +52,7 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
 
   // maximum number of reserved unique "physics ID" component of MPI tag
   // bitfield (CellCenteredXBoundaryVariable only actually uses 1x if
-  // multilevel==false, no shear) must correspond to the # of "int *phys_id_"
+  // multilevel==false) must correspond to the # of "int *phys_id_"
   // private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
 
@@ -64,16 +64,10 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
   void SetupPersistentMPI() override;
   void StartReceiving(BoundaryCommSubset phase) override;
   void ClearBoundary(BoundaryCommSubset phase) override;
-  void StartReceivingShear(BoundaryCommSubset phase) override;
-  void ComputeShear(const Real time) override;
 
   // BoundaryBuffer:
   void SendFluxCorrection() override;
   bool ReceiveFluxCorrection() override;
-
-  // Shearing box
-  void SendShearingBoxBoundaryBuffers();
-  bool ReceiveShearingBoxBoundaryBuffers();
 
   // BoundaryPhysics:
   void ReflectInnerX1(Real time, Real dt,
@@ -149,10 +143,6 @@ class CellCenteredBoundaryVariable : public BoundaryVariable {
   int nl_, nu_;
   const bool *flip_across_pole_;
 
-  // shearing box:
-  // working arrays of remapped quantities
-  AthenaArray<Real>  shear_cc_[2];
-
   // --------------------------------------------------------------------------
   // buffer / index calculators
 private:
@@ -211,23 +201,6 @@ private:
 #ifdef MPI_PARALLEL
   int cc_phys_id_, cc_flx_phys_id_;
 #endif
-  // shearing box:
-  // flux from conservative remapping
-  AthenaArray<Real>  shear_flx_cc_[2];
-  // KGF: these should probably be combined into a struct or array with send/recv switch
-  int shear_send_count_cc_[2][4], shear_recv_count_cc_[2][4]; // buffer sizes
-
-#ifdef MPI_PARALLEL
-  int shear_cc_phys_id_;
-#endif
-
-  void LoadShearing(AthenaArray<Real> &src, Real *buf, int nb);
-  virtual void ShearQuantities(AthenaArray<Real> &shear_cc_, bool upper) {}
-  void SetShearingBoxBoundarySameLevel(Real *buf, const int nb);
-  // KGF: AthenaArray<Real>: shboxvar_inner/outer_hydro_, flx_inner/outer_hydro_
-  void RemapFlux(const int n, const int k, const int jinner, const int jouter,
-                 const int i, const Real eps, const AthenaArray<Real> &var,
-                 AthenaArray<Real> &flux);
 };
 
 #endif // BVALS_CC_BVALS_CC_HPP_
