@@ -511,12 +511,14 @@ void Z4c::ADMConstraints(
       }
     }
 
+    // Gamma^a = g^{bc} Gamma^a_{bc}; both g^{bc} and Gamma^a_{bc} are symmetric
+    // in (b,c), so use triangular sum with 2x off-diagonal factor.
     Gamma_u.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
+    for(int c = b; c < NDIM; ++c) {
       ILOOP1(i) {
-        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
+        Gamma_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i)*Gamma_udd(a,b,c,i);
       }
     }
 
@@ -649,14 +651,15 @@ void Z4c::ADMConstraints(
       }
     }
 
-    // Momentum constraint (norm squared)
+    // |M|^2 = g_{ab} M^a M^b; g_{ab} symmetric and M^a M^b symmetric in (a,b),
+    // so use triangular sum with 2x off-diagonal factor.
     ILOOP1(i) {
       con.M(k,j,i) = 0.;
     }
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        con.M(k,j,i) += adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
+        con.M(k,j,i) += ((a == b) ? 1.0 : 2.0) * adm.g_dd(a,b,k,j,i) * M_u(a,i) * M_u(b,i);
       }
     }
     // -----------------------------------------------------------------------------------
@@ -704,23 +707,28 @@ void Z4c::ADMConstraints(
       }
     }
 
+    // Gamma^a = g^{bc} Gamma^a_{bc}; both symmetric in (b,c), so use
+    // triangular sum with 2x off-diagonal factor.
     Gamma_u.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
+    for(int c = b; c < NDIM; ++c) {
       ILOOP1(i) {
-        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
+        Gamma_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i)*Gamma_udd(a,b,c,i);
       }
     }
     // Constraint violation Z (norm squared)
     ILOOP1(i) {
       con.Z(k,j,i) = 0.;
     }
+    // |Z|^2 = g_{ab} Z^a Z^b; g_{ab} symmetric and Z^a Z^b symmetric in (a,b),
+    // so use triangular sum with 2x off-diagonal factor.
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        con.Z(k,j,i) += 0.25*adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
-                                                *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
+        con.Z(k,j,i) += ((a == b) ? 0.25 : 0.5)
+          *adm.g_dd(a,b,k,j,i)*(z4c.Gam_u(a,k,j,i) - Gamma_u(a,i))
+                                *(z4c.Gam_u(b,k,j,i) - Gamma_u(b,i));
       }
     }
     // Radius cut + constraint violation monitor C^2

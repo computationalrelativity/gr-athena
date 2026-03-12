@@ -265,13 +265,15 @@ void Z4c::GetMatter(
         bsq(i) = SQR(alpha_reg(i))*SQR(b0_u(i)) / SQR(W(i));
       }
 
+      // b^a b^b g_{ab} - g_{ab} symmetric and b^a b^b symmetric in (a,b),
+      // so use triangular sum with 2x off-diagonal factor.
       for(int a=0;a<NDIM;++a)
       {
-        for(int b=0;b<NDIM;++b)
+        for(int b=a;b<NDIM;++b)
         {
           ILOOP1(i)
           {
-            bsq(i) += bb_u(a,i)*bb_u(b,i)*adm.g_dd(a,b,k,j,i) / SQR(W(i));
+            bsq(i) += ((a == b) ? 1.0 : 2.0)*bb_u(a,i)*bb_u(b,i)*adm.g_dd(a,b,k,j,i) / SQR(W(i));
           }
         }
       }

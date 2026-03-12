@@ -221,12 +221,14 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
       }
     }
     // Gamma's computed from the conformal metric (not evolved)
+    // Gamma^a = g^{bc} Gamma^a_{bc}; both g^{bc} and Gamma^a_{bc} are symmetric
+    // in (b,c), so use triangular sum with 2x off-diagonal factor.
     Gamma_u.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
     for(int b = 0; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
+    for(int c = b; c < NDIM; ++c) {
       ILOOP1(i) {
-        Gamma_u(a,i) += g_uu(b,c,i)*Gamma_udd(a,b,c,i);
+        Gamma_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i)*Gamma_udd(a,b,c,i);
       }
     }
 
@@ -243,10 +245,12 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
                               Gamma_u(c,i)*(Gamma_ddd(a,b,c,i) + Gamma_ddd(b,a,c,i)));
         }
       }
+      // g^{cd} ddg_{cdab} - both g^{cd} and ddg_{cdab} are symmetric in (c,d),
+      // so use triangular sum with 2x off-diagonal factor.
       for(int c = 0; c < NDIM; ++c)
-      for(int d = 0; d < NDIM; ++d) {
+      for(int d = c; d < NDIM; ++d) {
         ILOOP1(i) {
-          R_dd(a,b,i) -= 0.5*g_uu(c,d,i)*ddg_dddd(c,d,a,b,i);
+          R_dd(a,b,i) -= ((c == d) ? 0.5 : 1.0)*g_uu(c,d,i)*ddg_dddd(c,d,a,b,i);
         }
       }
       for(int c = 0; c < NDIM; ++c)
@@ -296,10 +300,12 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
       ILOOP1(i) {
         Rphi_dd(a,b,i) = 4.*dphi_d(a,i)*dphi_d(b,i) - 2.*Ddphi_dd(a,b,i);
       }
+      // g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d) - all factors symmetric in (c,d),
+      // so use triangular sum with 2x off-diagonal factor.
       for(int c = 0; c < NDIM; ++c)
-      for(int d = 0; d < NDIM; ++d) {
+      for(int d = c; d < NDIM; ++d) {
         ILOOP1(i) {
-          Rphi_dd(a,b,i) -= 2.*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
+          Rphi_dd(a,b,i) -= ((c == d) ? 2.0 : 4.0)*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
               2.*dphi_d(c,i)*dphi_d(d,i));
         }
       }
@@ -308,19 +314,24 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // -----------------------------------------------------------------------------------
     // Trace of the matter stress tensor
     //
+    // S = g^{ab} S_{ab}; both symmetric in (a,b), so use triangular sum
+    // with 2x off-diagonal factor.
     S.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        S(i) += oopsi4(i) * g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
+        S(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
       }
     }
 
     // -----------------------------------------------------------------------------------
     // 2nd covariant derivative of the lapse
     //
+    // Ddalpha_dd is SYM2 in (a,b): ddalpha_dd symmetric, dphi*dalpha + dalpha*dphi
+    // manifestly symmetric, Gamma^c_{ab} symmetric, g_dd(a,b) symmetric.
+    // Use triangular outer loop (b=a).
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
         Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i)
                           - 2.*(dphi_d(a,i)*dalpha_d(b,i) + dphi_d(b,i)*dalpha_d(a,i));
@@ -337,11 +348,13 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
       }
     }
 
+    // Ddalpha = g^{ab} Ddalpha_{ab}; both symmetric in (a,b), so use
+    // triangular sum with 2x off-diagonal factor.
     Ddalpha.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        Ddalpha(i) += oopsi4(i) * g_uu(a,b,i) * Ddalpha_dd(a,b,i);
+        Ddalpha(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * Ddalpha_dd(a,b,i);
       }
     }
 
@@ -357,11 +370,13 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
         AA_dd(a,b,i) += g_uu(c,d,i) * z4c.A_dd(a,c,k,j,i) * z4c.A_dd(d,b,k,j,i);
       }
     }
+    // trAA = g^{ab} AA_{ab}; both symmetric in (a,b), so use triangular
+    // sum with 2x off-diagonal factor.
     trAA.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        trAA(i) += g_uu(a,b,i) * AA_dd(a,b,i);
+        trAA(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * AA_dd(a,b,i);
       }
     }
     A_uu.ZeroClear();
@@ -381,10 +396,12 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
           DA_u(a,i) -= (1./3.) * g_uu(a,b,i) * (2.*dKhat_d(b,i) + dTheta_d(b,i));
         }
       }
+      // Gamma^a_{bc} A^{bc} - both symmetric in (b,c), so use triangular
+      // sum with 2x off-diagonal factor.
       for(int b = 0; b < NDIM; ++b)
-      for(int c = 0; c < NDIM; ++c) {
+      for(int c = b; c < NDIM; ++c) {
         ILOOP1(i) {
-          DA_u(a,i) += Gamma_udd(a,b,c,i) * A_uu(b,c,i);
+          DA_u(a,i) += ((b == c) ? 1.0 : 2.0) * Gamma_udd(a,b,c,i) * A_uu(b,c,i);
         }
       }
     }
@@ -392,11 +409,13 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // -----------------------------------------------------------------------------------
     // Ricci scalar
     //
+    // R = g^{ab}(R_{ab} + Rphi_{ab}); all symmetric in (a,b), so use
+    // triangular sum with 2x off-diagonal factor.
     R.ZeroClear();
     for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
+    for(int b = a; b < NDIM; ++b) {
       ILOOP1(i) {
-        R(i) += oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
+        R(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
       }
     }
 
@@ -437,9 +456,12 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
         ILOOP1(i) {
           LGam_u(a,i) += g_uu(a,b,i) * ddbeta_d(b,i) - Gamma_u(b,i) * dbeta_du(b,a,i);
         }
-        for(int c = 0; c < NDIM; ++c) {
+        // g^{bc} ddbeta^a_{bc} - g^{bc} symmetric and ddbeta^a_{bc} symmetric
+        // in (b,c) (partial derivatives commute), so use triangular sum
+        // with 2x off-diagonal factor.
+        for(int c = b; c < NDIM; ++c) {
           ILOOP1(i) {
-            LGam_u(a,i) += g_uu(b,c,i) * ddbeta_ddu(b,c,a,i);
+            LGam_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i) * ddbeta_ddu(b,c,a,i);
           }
         }
       }
@@ -555,12 +577,14 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // z4c.chi(k,j,i)
     // dchi_d(a,i)   [cov. pd of chi]
 
+    // |dchi|^2 = g^{ab} dchi_a dchi_b; g^{ab} symmetric and dchi_a dchi_b
+    // symmetric in (a,b), so use triangular sum with 2x off-diagonal factor.
     eta_damp.ZeroClear();
 
     for(int a = 0; a < NDIM; ++a) {
-      for(int b = 0; b < NDIM; ++b) {
+      for(int b = a; b < NDIM; ++b) {
         ILOOP1(i) {
-          eta_damp(i) += g_uu(a,b,i) * dchi_d(a,i) * dchi_d(b,i);
+          eta_damp(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * dchi_d(a,i) * dchi_d(b,i);
         }
       }
     }
