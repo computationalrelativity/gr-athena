@@ -1152,19 +1152,18 @@ void Mesh::GlobalExtrema()
     );
 #endif // FLUID_ENABLED
 
+    // Thread-local accumulators to avoid false sharing on res_V_mb
+    Real loc_min_alpha     = std::numeric_limits<Real>::infinity();
+    Real loc_max_neg_alpha = std::numeric_limits<Real>::infinity();
+    Real loc_min_D         = std::numeric_limits<Real>::infinity();
+    Real loc_max_neg_D     = std::numeric_limits<Real>::infinity();
+
 #if Z4C_ENABLED
     ILOOP2(k, j)
     for (int i=pz4c->mbi.il; i<=pz4c->mbi.iu; ++i)
     {
-      res_V_mb(vars_min::IX_min_adm_alpha, nix) = std::min(
-        res_V_mb(vars_min::IX_min_adm_alpha, nix),
-        adm_alpha(k,j,i)
-      );
-
-      res_V_mb(vars_max::IX_max_adm_alpha, nix) = std::min(
-        res_V_mb(vars_max::IX_max_adm_alpha, nix),
-        -adm_alpha(k,j,i)
-      );
+      loc_min_alpha     = std::min(loc_min_alpha,     adm_alpha(k,j,i));
+      loc_max_neg_alpha = std::min(loc_max_neg_alpha, -adm_alpha(k,j,i));
     }
 #endif // Z4C_ENABLED
 
@@ -1177,17 +1176,16 @@ void Mesh::GlobalExtrema()
       );
       const Real hydro_cons_D__ = hydro_cons_D(k,j,i) * oo_sqrt_detgamma;
 
-      res_V_mb(vars_min::IX_min_hydro_cons_D, nix) = std::min(
-        res_V_mb(vars_min::IX_min_hydro_cons_D, nix),
-        hydro_cons_D__
-      );
-
-      res_V_mb(vars_max::IX_max_hydro_cons_D, nix) = std::min(
-        res_V_mb(vars_max::IX_max_hydro_cons_D, nix),
-        -hydro_cons_D__
-      );
+      loc_min_D     = std::min(loc_min_D,     hydro_cons_D__);
+      loc_max_neg_D = std::min(loc_max_neg_D, -hydro_cons_D__);
     }
 #endif // FLUID_ENABLED && Z4C_ENABLED
+
+    // Write accumulated results back once per MeshBlock
+    res_V_mb(vars_min::IX_min_adm_alpha,    nix) = loc_min_alpha;
+    res_V_mb(vars_max::IX_max_adm_alpha,    nix) = loc_max_neg_alpha;
+    res_V_mb(vars_min::IX_min_hydro_cons_D, nix) = loc_min_D;
+    res_V_mb(vars_max::IX_max_hydro_cons_D, nix) = loc_max_neg_D;
 
   }
 
