@@ -615,6 +615,9 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   int nbs = nslist[Globals::my_rank];
   int nbe = nbs + nblist[Globals::my_rank] - 1;
   // create MeshBlock list for this process
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  tree.ComputeNeighborLevelFlags();
+#endif
   for (int i=nbs; i<=nbe; i++) {
     SetBlockSizeAndBoundaries(loclist[i], block_size, block_bcs);
     // create a block and add into the link list
@@ -1089,6 +1092,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
         << std::endl;
     ATHENA_ERROR(msg);
   }
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  tree.ComputeNeighborLevelFlags();
+#endif
   for (int i=nbs; i<=nbe; i++) {
     // Match fixed-width integer precision of IOWrapperSizeT datasize
     std::uint64_t buff_os = datasize * (i-nbs);
@@ -1122,6 +1128,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   char *mbdata = new char[datasize];
 
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  tree.ComputeNeighborLevelFlags();
+#endif
   for (int i=nbs; i<=nbe; i++) {
 
     if (i - nbs < nbmin) {

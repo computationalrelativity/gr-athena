@@ -119,6 +119,11 @@ int CellCenteredXBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
   // BD: opt- if nn all same level not required
   // if multilevel make use of pre-restricted internal data
   if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse payload when the receiver has all same-level neighbors
+    // and therefore does not need our coarse data for prolongation.
+    if (!nb.neighbor_all_same_level) {
+#endif
     // convert to coarse indices
     AthenaArray<Real> &coarse_var = *coarse_buf;
 
@@ -126,6 +131,9 @@ int CellCenteredXBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
     idxLoadSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, true);
     BufferUtility::PackData(coarse_var, buf, nl_, nu_,
                             si, ei, sj, ej, sk, ek, p);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
   }
 
   return p;
@@ -219,6 +227,12 @@ void CellCenteredXBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
   // BD: opt- if nn all same level not required
   if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse unpack when this block has all same-level neighbors:
+    // no prolongation is needed, so coarse ghost data is unused.
+    // The sender also skipped packing the coarse payload in this case.
+    if (!pmy_block_->NeighborBlocksSameLevel()) {
+#endif
     // note: unpacked shared nodes additively unpacked-
     // consistency conditions will need to be applied to the coarse variable
 
@@ -229,6 +243,9 @@ void CellCenteredXBoundaryVariable::SetBoundarySameLevel(Real *buf,
     idxSetSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, 2);
     BufferUtility::UnpackData(buf, coarse_var, nl_, nu_,
                               si, ei, sj, ej, sk, ek, p);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
   }
 }
 
@@ -295,9 +312,24 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost()
   MeshRefinement *pmr = pmb->pmr;
 
   // don't need to fill coarse buffer if nn all on the same level
+  // AND none of our same-level neighbors need coarse data from us
 #if defined(DBG_NO_REF_NN_SAME_LEVEL)
-  if (pmb->NeighborBlocksSameLevel())
-    return;
+  if (pmb->NeighborBlocksSameLevel()) {
+    // All our neighbors are same-level, so we have no coarser neighbor that
+    // needs our restricted data via LoadBoundaryBufferToCoarser.  But a
+    // same-level neighbor may still need our coarse payload for its own
+    // prolongation if *it* has a finer neighbor.  Skip only when every
+    // same-level neighbor also has all same-level neighbors.
+    bool any_neighbor_needs_coarse = false;
+    for (int n = 0; n < pmb->pbval->nneighbor; n++) {
+      if (!pmb->pbval->neighbor[n].neighbor_all_same_level) {
+        any_neighbor_needs_coarse = true;
+        break;
+      }
+    }
+    if (!any_neighbor_needs_coarse)
+      return;
+  }
 #endif // DBG_NO_REF_NN_SAME_LEVEL
 
   AthenaArray<Real> &var = *var_cx;
@@ -630,8 +662,17 @@ void CellCenteredXBoundaryVariable::SetupPersistentMPI() {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
       if (nb.snb.level == mylevel) { // same
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+        // Skip coarse portion when the destination block has all same-level
+        // neighbors and therefore does not need the coarse payload.
+        bool send_skip = nb.neighbor_all_same_level;
+        bool recv_skip = pmb->NeighborBlocksSameLevel();
+        ssize = MPI_BufferSizeSameLevel(nb.ni, true, send_skip);
+        rsize = MPI_BufferSizeSameLevel(nb.ni, false, recv_skip);
+#else
         ssize = MPI_BufferSizeSameLevel(nb.ni, true);
         rsize = MPI_BufferSizeSameLevel(nb.ni, false);
+#endif
       } else if (nb.snb.level < mylevel) { // coarser
         ssize = MPI_BufferSizeToCoarser(nb.ni);
         rsize = MPI_BufferSizeFromCoarser(nb.ni);

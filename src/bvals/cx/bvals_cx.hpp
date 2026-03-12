@@ -192,7 +192,7 @@ private:
 
 #ifdef MPI_PARALLEL
   int MPI_BufferSizeSameLevel(const NeighborIndexes& ni,
-    bool is_send);
+    bool is_send, bool skip_coarse=false);
 
   int MPI_BufferSizeToCoarser(const NeighborIndexes& ni);
   int MPI_BufferSizeFromCoarser(const NeighborIndexes& ni);

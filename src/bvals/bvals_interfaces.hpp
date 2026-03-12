@@ -133,6 +133,10 @@ struct NeighborBlock { // aggregate and POD type. Inheritance breaks standard-la
   int bufid, eid, targetid;
   BoundaryFace fid;
   bool polar; // flag indicating boundary is across a pole
+  // True when the neighbor block itself has all same-level neighbors (i.e. the
+  // neighbor does not border any coarser or finer blocks).  Set during
+  // SearchAndSetNeighbors from the pre-computed MeshBlockTree flag.
+  bool neighbor_all_same_level;
 
   void SetNeighbor(int irank, int ilevel, int igid, int ilid, int iox1, int iox2,
                    int iox3, NeighborConnect itype, int ibid, int itargetid,

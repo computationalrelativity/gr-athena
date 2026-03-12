@@ -49,12 +49,19 @@ class MeshBlockTree {
   void GetMeshBlockList(LogicalLocation *list, int *pglist, int& count);
   MeshBlockTree* FindNeighbor(LogicalLocation myloc, int ox1, int ox2, int ox3,
                               bool amrflag=false);
+  // Pre-compute, for each leaf node, whether all of its neighbors are at the
+  // same refinement level.  Called once after the tree is finalized (before
+  // SearchAndSetNeighbors) so the flag can be propagated to NeighborBlock.
+  void ComputeNeighborLevelFlags();
 
  private:
   // data
   MeshBlockTree** pleaf_;
   int gid_;
   LogicalLocation loc_;
+  // True when every neighbor of this leaf is at the same refinement level.
+  // Only meaningful for leaf nodes; set by ComputeNeighborLevelFlags().
+  bool all_neighbors_same_level_;
 
   static MeshBlockTree* proot_;
   static int nleaf_;

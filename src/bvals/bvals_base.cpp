@@ -56,6 +56,7 @@ void NeighborBlock::SetNeighbor(int irank, int ilevel, int igid, int ilid,
   ni.ox1 = iox1; ni.ox2 = iox2; ni.ox3 = iox3;
   ni.type = itype; ni.fi1 = ifi1; ni.fi2 = ifi2;
   bufid = ibid; targetid = itargetid; polar = ipolar;
+  neighbor_all_same_level = false;  // conservative default; set by SearchAndSetNeighbors
   if (ni.type == NeighborConnect::face) {
     if (ni.ox1 == -1)      fid = BoundaryFace::inner_x1;
     else if (ni.ox1 == 1)  fid = BoundaryFace::outer_x1;
@@ -343,6 +344,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
                                           fid-nslist[ranklist[fid]], n, 0, 0,
                                           NeighborConnect::face, bufid, tbid, false,
                                           f1, f2);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
           bufid++; nneighbor++;
         }
       }
@@ -359,6 +363,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
       neighbor[nneighbor].SetNeighbor(
           ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], n, 0, 0,
           NeighborConnect::face, bufid, tbid, false);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+      neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
       bufid += nf1*nf2; nneighbor++;
     }
   }
@@ -380,6 +387,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
           neighbor[nneighbor].SetNeighbor(
               ranklist[fid], nlevel, fid, fid-nslist[ranklist[fid]], 0, n, 0,
               NeighborConnect::face, bufid, tbid, false, f1, f2);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
           bufid++; nneighbor++;
         }
       }
@@ -401,6 +411,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
       neighbor[nneighbor].SetNeighbor(
           ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], 0, n, 0,
           NeighborConnect::face, bufid, tbid, polar);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+      neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
       bufid += nf1*nf2; nneighbor++;
     }
   }
@@ -422,6 +435,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
             neighbor[nneighbor].SetNeighbor(
                 ranklist[fid], nlevel, fid, fid-nslist[ranklist[fid]], 0, 0, n,
               NeighborConnect::face, bufid, tbid, false, f1, f2);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+            neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
             bufid++; nneighbor++;
           }
         }
@@ -438,6 +454,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
         neighbor[nneighbor].SetNeighbor(
             ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], 0, 0, n,
             NeighborConnect::face, bufid, tbid, false);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+        neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
         bufid += nf1*nf2; nneighbor++;
       }
     }
@@ -469,6 +488,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
                                           fid-nslist[ranklist[fid]], n, m, 0,
                                           NeighborConnect::edge, bufid, tbid, polar,
                                           f1, 0);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
           bufid++; nneighbor++;
         }
       } else { // neighbor at same or coarser level
@@ -485,6 +507,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
           neighbor[nneighbor].SetNeighbor(
               ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], n, m, 0,
               NeighborConnect::edge, bufid, tbid, polar);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
           nneighbor++;
         }
         bufid += nf2;
@@ -605,6 +630,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
                                           fid-nslist[ranklist[fid]], n, 0, m,
                                           NeighborConnect::edge, bufid, tbid,
                                           false, f1, 0);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
           bufid++; nneighbor++;
         }
       } else { // neighbor at same or coarser level
@@ -621,6 +649,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
           neighbor[nneighbor].SetNeighbor(
               ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], n, 0, m,
               NeighborConnect::edge, bufid, tbid, false);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
           nneighbor++;
         }
         bufid += nf1;
@@ -646,6 +677,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
                                           fid-nslist[ranklist[fid]], 0, n, m,
                                           NeighborConnect::edge, bufid, tbid,
                                           false, f1, 0);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = nf->all_neighbors_same_level_;
+#endif
           bufid++; nneighbor++;
         }
       } else { // neighbor at same or coarser level
@@ -667,6 +701,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
           neighbor[nneighbor].SetNeighbor(
               ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], 0, n, m,
               NeighborConnect::edge, bufid, tbid, polar);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
           nneighbor++;
         }
         bufid += nf1;
@@ -702,6 +739,9 @@ void BoundaryBase::SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist,
           neighbor[nneighbor].SetNeighbor(
               ranklist[nid], nlevel, nid, nid-nslist[ranklist[nid]], n, m, l,
               NeighborConnect::corner, bufid, tbid, polar);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+          neighbor[nneighbor].neighbor_all_same_level = neibt->all_neighbors_same_level_;
+#endif
           nneighbor++;
         }
         bufid++;

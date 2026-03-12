@@ -644,7 +644,8 @@ int CellCenteredXBoundaryVariable::NeighborVariableBufferSize(const NeighborInde
 
 int CellCenteredXBoundaryVariable::MPI_BufferSizeSameLevel(
   const NeighborIndexes& ni,
-  bool is_send=true) {
+  bool is_send,
+  bool skip_coarse) {
 
   int si, sj, sk, ei, ej, ek;
   int size = 0;
@@ -653,7 +654,7 @@ int CellCenteredXBoundaryVariable::MPI_BufferSizeSameLevel(
     idxLoadSameLevelRanges(ni, si, ei, sj, ej, sk, ek, false);
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
 
-    if (pmy_mesh_->multilevel) {
+    if (pmy_mesh_->multilevel && !skip_coarse) {
       idxLoadSameLevelRanges(ni, si, ei, sj, ej, sk, ek, true);
       AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
     }
@@ -661,7 +662,7 @@ int CellCenteredXBoundaryVariable::MPI_BufferSizeSameLevel(
     idxSetSameLevelRanges(ni, si, ei, sj, ej, sk, ek, 1);
     AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
 
-    if (pmy_mesh_->multilevel) {
+    if (pmy_mesh_->multilevel && !skip_coarse) {
       idxSetSameLevelRanges(ni, si, ei, sj, ej, sk, ek, 2);
       AccumulateBufferSize(nl_, nu_, si, ei, sj, ej, sk, ek, size);
     }

@@ -35,7 +35,8 @@ int MeshBlockTree::nleaf_;
 //! \fn MeshBlockTree::MeshBlockTree()
 //  \brief constructor for the logical root
 
-MeshBlockTree::MeshBlockTree(Mesh* pmesh) : pleaf_(nullptr), gid_(-1) {
+MeshBlockTree::MeshBlockTree(Mesh* pmesh) : pleaf_(nullptr), gid_(-1),
+                                            all_neighbors_same_level_(false) {
   pmesh_ = pmesh;
   proot_ = this;
   loc_.lx1 = 0;
@@ -49,7 +50,8 @@ MeshBlockTree::MeshBlockTree(Mesh* pmesh) : pleaf_(nullptr), gid_(-1) {
 //  \brief constructor for a leaf
 
 MeshBlockTree::MeshBlockTree(MeshBlockTree *parent, int ox1, int ox2, int ox3)
-                           : pleaf_(nullptr), gid_(parent->gid_) {
+                           : pleaf_(nullptr), gid_(parent->gid_),
+                             all_neighbors_same_level_(false) {
   loc_.lx1 = (parent->loc_.lx1<<1)+ox1;
   loc_.lx2 = (parent->loc_.lx2<<1)+ox2;
   loc_.lx3 = (parent->loc_.lx3<<1)+ox3;
@@ -338,6 +340,53 @@ void MeshBlockTree::GetMeshBlockList(LogicalLocation *list, int *pglist, int& co
     }
   }
   return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshBlockTree::ComputeNeighborLevelFlags()
+//  \brief For every leaf in the tree, determine whether all of its neighbors
+//         are at the same refinement level and store the result in
+//         all_neighbors_same_level_.  Must be called on the root after the
+//         tree is fully constructed (and GIDs assigned) but before
+//         SearchAndSetNeighbors.  Non-leaf nodes are skipped.
+
+void MeshBlockTree::ComputeNeighborLevelFlags() {
+  // Non-leaf: recurse into children
+  if (pleaf_ != nullptr) {
+    for (int n = 0; n < nleaf_; n++) {
+      if (pleaf_[n] != nullptr)
+        pleaf_[n]->ComputeNeighborLevelFlags();
+    }
+    return;
+  }
+
+  // Leaf node: query all neighbor directions
+  all_neighbors_same_level_ = true;
+  int s2 = 0, e2 = 0, s3 = 0, e3 = 0;
+  if (pmesh_->f2) { s2 = -1; e2 = 1; }
+  if (pmesh_->f3) { s3 = -1; e3 = 1; }
+
+  for (int oz = s3; oz <= e3; oz++) {
+    for (int oy = s2; oy <= e2; oy++) {
+      for (int ox = -1; ox <= 1; ox++) {
+        if (ox == 0 && oy == 0 && oz == 0) continue;
+        MeshBlockTree *nb = proot_->FindNeighbor(loc_, ox, oy, oz);
+        if (nb == nullptr) continue;  // physical boundary - no neighbor
+        int nb_level;
+        if (nb->pleaf_ != nullptr) {
+          // Neighbor at finer level (FindNeighbor returns the parent)
+          nb_level = nb->loc_.level + 1;
+        } else {
+          // Neighbor at same or coarser level
+          nb_level = nb->loc_.level;
+        }
+        if (nb_level != loc_.level) {
+          all_neighbors_same_level_ = false;
+          return;
+        }
+      }
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------

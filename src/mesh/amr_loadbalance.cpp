@@ -750,6 +750,9 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
   costlist = newcost;
 
   // re-initialize the MeshBlocks
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  tree.ComputeNeighborLevelFlags();
+#endif
   pmb = pblock;
   while (pmb != nullptr) {
     pmb->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
