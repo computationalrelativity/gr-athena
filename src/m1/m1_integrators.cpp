@@ -458,18 +458,26 @@ void ApplyExcision(
 
         if (nG_new < nG_flr)
         {
-          gam_w_vol = std::min(
-            gam_w_vol,
-            (C.sc_nG(k,j,i) - nG_flr) / C.sc_nG(k,j,i)
-          );
+          if (C.sc_nG(k,j,i) > 0.0) {
+            gam_w_vol = std::min(
+              gam_w_vol,
+              (C.sc_nG(k,j,i) - nG_flr) / C.sc_nG(k,j,i)
+            );
+          } else {
+            gam_w_vol = 0.0;
+          }
         }
 
         if (E_new < E_flr)
         {
-          gam_w_vol = std::min(
-            gam_w_vol,
-            (C.sc_E(k,j,i) - E_flr) / C.sc_E(k,j,i)
-          );
+          if (C.sc_E(k,j,i) > 0.0) {
+            gam_w_vol = std::min(
+              gam_w_vol,
+              (C.sc_E(k,j,i) - E_flr) / C.sc_E(k,j,i)
+            );
+          } else {
+            gam_w_vol = 0.0;
+          }
         }
 
         C.sc_nG(k,j,i) -= gam_w_vol * C.sc_nG(k,j,i);

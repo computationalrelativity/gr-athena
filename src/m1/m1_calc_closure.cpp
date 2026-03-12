@@ -221,6 +221,7 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
       if (ss == status_sol::fail_tolerance_not_met &&
           !pm1.opt_closure.fail_on_npg)
       {
+        EddingtonFactors::Compute(pm1, sc_xi(k,j,i), sc_chi(k,j,i));
         return;
       }
 
@@ -444,6 +445,7 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
     if (pm1.opt_closure.fallback_thin)
     {
       ThinLimit(C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+      return;
     }
   }
 

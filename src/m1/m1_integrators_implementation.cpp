@@ -552,7 +552,7 @@ void StepImplicitHybrids(
         pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
       }
 
-      revert_thick = pm1.opt_solver.thick_tol;
+      revert_thick = pm1.opt_solver.thick_npg;
     }
     else if ((gsl_status != GSL_SUCCESS))
     {

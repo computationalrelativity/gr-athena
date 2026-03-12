@@ -854,7 +854,7 @@ public:
   inline bool IsEquilibrium(const int k, const int j, const int i)
   {
     // if in eql all species are in eql, just take the val from ix 0
-    t_sln_r cur_r = ev_strat.masks.solution_regime(0, 0, k, j, i);
+    t_sln_r cur_r = GetMaskSolutionRegime(0, 0, k, j, i);
     return (
       (cur_r == t_sln_r::equilibrium) ||
       (cur_r == t_sln_r::equilibrium_wr)
@@ -864,7 +864,7 @@ public:
   inline bool IsEquilibrium(const int ix_s, const int k, const int j, const int i)
   {
     // if in eql all species are in eql, just take the val from ix 0
-    t_sln_r cur_r = ev_strat.masks.solution_regime(0, ix_s, k, j, i);
+    t_sln_r cur_r = GetMaskSolutionRegime(0, ix_s, k, j, i);
     return (
       (cur_r == t_sln_r::equilibrium) ||
       (cur_r == t_sln_r::equilibrium_wr)
