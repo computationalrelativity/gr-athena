@@ -657,7 +657,6 @@ struct Collection
 {
   gra::triggers::Triggers & trgs;
   TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c       = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c   * grmhd_z4c    = nullptr;
 
   TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD   * grmhd_z4c_MHD;
   TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com   * grmhd_z4c_MHD_com;
@@ -685,9 +684,6 @@ inline void PopulateCollection(Collection &ptlc,
 
       if (FLUID_ENABLED)
       {
-        // GR(M)HD [monolithic]
-        ptlc.grmhd_z4c = new GRMHD_Z4c(pin, pm, ptlc.trgs);
-
         // GR(M)HD [split]
         ptlc.grmhd_z4c_MHD = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
         ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
@@ -734,9 +730,6 @@ inline void TearDown(Collection &ptlc)
   {
     if (FLUID_ENABLED)
     {
-      // GR(M)HD
-      delete ptlc.grmhd_z4c;
-
       // GR(M)HD [split]
       delete ptlc.grmhd_z4c_MHD;
       delete ptlc.grmhd_z4c_MHD_com;
@@ -789,35 +782,21 @@ inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
 inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                       Mesh *pmesh)
 {
-#ifdef DBG_SCATTER_MATTER_GRMHD
-  std::vector<MeshBlock*> pmb_array;
-  pmesh->GetMeshBlocksMyRank(pmb_array);
-#endif
-
-  for (int stage=1; stage<=ptlc.grmhd_z4c->nstages; ++stage)
+  for (int stage=1; stage<=ptlc.grmhd_z4c_MHD->nstages; ++stage)
   {
-    if (pmesh->use_split_grmhd_z4c)
-    {
-      ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
-      ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
+    ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
+    ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
 
-      // Iterate bnd comm. as required
-      pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+    // Iterate bnd comm. as required
+    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
 
-      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage);
-      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage);
-    }
-    else
-    {
-      ptlc.grmhd_z4c->DoTaskListOneStage(pmesh, stage);
-      // Iterate bnd comm. as required
-      pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
-    }
+    ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage);
+    ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage);
 
     // Rescale as required
 #if FLUID_ENABLED
     if (pmesh->presc->opt.apply_on_substeps ||
-        (stage == ptlc.grmhd_z4c->nstages))
+        (stage == ptlc.grmhd_z4c_MHD->nstages))
     {
       const Real time_end_stage   = pmesh->time+pmesh->dt;
       const Real ncycle_end_stage = pmesh->ncycle+1;
@@ -827,10 +806,6 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                                 time_end_stage,
                                 stage);
     }
-#endif
-
-#ifdef DBG_SCATTER_MATTER_GRMHD
-    pmesh->ScatterMatter(pmb_array);
 #endif
   }
 
@@ -999,15 +974,6 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
     // Last stage performs Con2Prim, scatter this, call GetMatter
     if (Z4C_ENABLED && FLUID_ENABLED && (stage == ptlc.m1n0->nstages))
     {
-      // monolithic send
-      // pmesh->ScatterMatter(pmb_array);
-
-      if (!pmesh->use_split_grmhd_z4c)
-      {
-        std::printf("GR(M)HD+M1 requires use_split_grmhd_z4c\n");
-        assert(false);
-      }
-
       // recycle the matter task-based send -----------------------------------
 
       // If we set stage 0 then no auxiliary quantities (e.g Weyl/ADM cons.)

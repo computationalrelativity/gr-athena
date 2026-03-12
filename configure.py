@@ -2017,8 +2017,6 @@ if args["z"]:
   src_aux.append("src/task_list/gr/task_list_post_amr_z4c.cpp")
 
   if args["f"]:
-    src_aux.append("src/task_list/gr/task_list_grmhd_z4c.cpp")
-
     src_aux.append("src/task_list/gr/task_list_grmhd_z4c_split_phase_mhd.cpp")
     src_aux.append(
       "src/task_list/gr/task_list_grmhd_z4c_split_phase_mhd_com.cpp"
