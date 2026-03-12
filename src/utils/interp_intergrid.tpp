@@ -196,7 +196,12 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
                 const dtype s_lrl = src(n, vk_l, vj_r, vi_l);
                 const dtype s_lll = src(n, vk_l, vj_l, vi_l);
 
-                tar(n,cc_i) += lc_kji * FloatingPoint::sum_associative(
+                tar(n,cc_i) += lc_kji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                  FloatingPoint::sum_corners(
+#else
+                  FloatingPoint::sum_associative(
+#endif
                     s_rrr, s_lll, s_rrl, s_llr,
                     s_lrl, s_rlr, s_lrr, s_rll
                 );
@@ -244,7 +249,12 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC(
               const dtype s_lu = src(n, 0, vj_l, vi_r);
               const dtype s_ll = src(n, 0, vj_l, vi_l);
 
-              tar(n,cc_i) += lc_ji * FloatingPoint::sum_associative(
+              tar(n,cc_i) += lc_ji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                FloatingPoint::sum_corners(
+#else
+                FloatingPoint::sum_associative(
+#endif
                 s_uu, s_ll, s_lu, s_ul
               );
             }
@@ -350,7 +360,12 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
                 const dtype s_lrl = src(n, ck_l, cj_r, ci_l);
                 const dtype s_lll = src(n, ck_l, cj_l, ci_l);
 
-                tar(n,vc_i) += lc_kji * FloatingPoint::sum_associative(
+                tar(n,vc_i) += lc_kji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                  FloatingPoint::sum_corners(
+#else
+                  FloatingPoint::sum_associative(
+#endif
                     s_rrr, s_lll, s_rrl, s_llr,
                     s_lrl, s_rlr, s_lrr, s_rll
                 );
@@ -398,7 +413,12 @@ void InterpIntergrid<dtype, H_SZ>::CC2VC(
               const dtype s_lu = src(n, 0, cj_l, ci_r);
               const dtype s_ll = src(n, 0, cj_l, ci_l);
 
-              tar(n,vc_i) += lc_ji * FloatingPoint::sum_associative(
+              tar(n,vc_i) += lc_ji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                FloatingPoint::sum_corners(
+#else
+                FloatingPoint::sum_associative(
+#endif
                 s_uu, s_ll, s_lu, s_ul
               );
             }
@@ -595,7 +615,12 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
                   const dtype s_lu = src(n, tr_k, vj_l, vi_r);
                   const dtype s_ll = src(n, tr_k, vj_l, vi_l);
 
-                  tar(n,cc_i) += lc_ji * FloatingPoint::sum_associative(
+                  tar(n,cc_i) += lc_ji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                    FloatingPoint::sum_corners(
+#else
+                    FloatingPoint::sum_associative(
+#endif
                     s_uu, s_ll, s_lu, s_ul
                   );
                 }
@@ -642,7 +667,12 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
                   const dtype s_lu = src(n, vk_l, tr_j, vi_r);
                   const dtype s_ll = src(n, vk_l, tr_j, vi_l);
 
-                  tar(n,cc_i) += lc_ki * FloatingPoint::sum_associative(
+                  tar(n,cc_i) += lc_ki *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                    FloatingPoint::sum_corners(
+#else
+                    FloatingPoint::sum_associative(
+#endif
                     s_uu, s_ll, s_lu, s_ul
                   );
                 }
@@ -689,7 +719,12 @@ void InterpIntergrid<dtype, H_SZ>::VC2FC(
                   const dtype s_lu = src(n, vk_l, vj_r, vc_i);
                   const dtype s_ll = src(n, vk_l, vj_l, vc_i);
 
-                  tar(n,vc_i) += lc_kj * FloatingPoint::sum_associative(
+                  tar(n,vc_i) += lc_kj *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                    FloatingPoint::sum_corners(
+#else
+                    FloatingPoint::sum_associative(
+#endif
                     s_uu, s_ll, s_lu, s_ul
                   );
                 }
@@ -1095,11 +1130,18 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
                     const dtype s_lrl = src(n, vk_l, vj_r, vi_l);
                     const dtype s_lll = src(n, vk_l, vj_l, vi_l);
 
-                    tar(n,cc_i) += lc_kji * FloatingPoint::sum_associative(
-                      s_rrr, -s_lrr,
-                      s_rrl, -s_lrl,
-                      s_rll, -s_lll,
-                      s_rlr, -s_llr
+                    tar(n,cc_i) += lc_kji * (
+#ifdef DBG_SYMMETRIZE_CHEAP
+                      ((s_rrr - s_lrr) + (s_rrl - s_lrl))
+                      + ((s_rll - s_lll) + (s_rlr - s_llr))
+#else
+                      FloatingPoint::sum_associative(
+                        s_rrr, -s_lrr,
+                        s_rrl, -s_lrl,
+                        s_rll, -s_lll,
+                        s_rlr, -s_llr
+                      )
+#endif
                     );
                   }
                 }
@@ -1161,11 +1203,18 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
                     const dtype s_lrl = src(n, vk_l, vj_r, vi_l);
                     const dtype s_lll = src(n, vk_l, vj_l, vi_l);
 
-                    tar(n,cc_i) += lc_kji * FloatingPoint::sum_associative(
-                      s_lrl, -s_lll,
-                      s_lrr, -s_llr,
-                      s_rrr, -s_rlr,
-                      s_rrl, -s_rll
+                    tar(n,cc_i) += lc_kji * (
+#ifdef DBG_SYMMETRIZE_CHEAP
+                      ((s_lrl - s_lll) + (s_lrr - s_llr))
+                      + ((s_rrr - s_rlr) + (s_rrl - s_rll))
+#else
+                      FloatingPoint::sum_associative(
+                        s_lrl, -s_lll,
+                        s_lrr, -s_llr,
+                        s_rrr, -s_rlr,
+                        s_rrl, -s_rll
+                      )
+#endif
                     );
                   }
                 }
@@ -1227,11 +1276,18 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
                     const dtype s_lrl = src(n, vk_l, vj_r, vi_l);
                     const dtype s_lll = src(n, vk_l, vj_l, vi_l);
 
-                    tar(n,cc_i) += lc_kji * FloatingPoint::sum_associative(
-                      s_llr, -s_lll,
-                      s_lrr, -s_lrl,
-                      s_rrr, -s_rrl,
-                      s_rlr, -s_rll
+                    tar(n,cc_i) += lc_kji * (
+#ifdef DBG_SYMMETRIZE_CHEAP
+                      ((s_llr - s_lll) + (s_lrr - s_lrl))
+                      + ((s_rrr - s_rrl) + (s_rlr - s_rll))
+#else
+                      FloatingPoint::sum_associative(
+                        s_llr, -s_lll,
+                        s_lrr, -s_lrl,
+                        s_rrr, -s_rrl,
+                        s_rlr, -s_rll
+                      )
+#endif
                     );
                   }
                 }
@@ -1287,9 +1343,15 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
                   const dtype s_lu = src(n, 0, vj_l, vi_r);
                   const dtype s_ll = src(n, 0, vj_l, vi_l);
 
-                  tar(n,cc_i) += lc_ji * FloatingPoint::sum_associative(
-                    s_uu, -s_lu,
-                    s_ul, -s_ll
+                  tar(n,cc_i) += lc_ji * (
+#ifdef DBG_SYMMETRIZE_CHEAP
+                    (s_uu - s_lu) + (s_ul - s_ll)
+#else
+                    FloatingPoint::sum_associative(
+                      s_uu, -s_lu,
+                      s_ul, -s_ll
+                    )
+#endif
                   );
                 }
               }
@@ -1336,9 +1398,15 @@ void InterpIntergrid<dtype, H_SZ>::VC2CC_D1(
                   const dtype s_lu = src(n, 0, vj_l, vi_r);
                   const dtype s_ll = src(n, 0, vj_l, vi_l);
 
-                  tar(n,cc_i) += lc_ji * FloatingPoint::sum_associative(
-                    s_lu, -s_ll,
-                    s_uu, -s_ul
+                  tar(n,cc_i) += lc_ji * (
+#ifdef DBG_SYMMETRIZE_CHEAP
+                    (s_lu - s_ll) + (s_uu - s_ul)
+#else
+                    FloatingPoint::sum_associative(
+                      s_lu, -s_ll,
+                      s_uu, -s_ul
+                    )
+#endif
                   );
                 }
               }

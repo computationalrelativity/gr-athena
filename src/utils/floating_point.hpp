@@ -37,6 +37,23 @@ namespace FloatingPoint {
     );
   }
 
+  // Balanced opposite-corner pairing: preserves inversion symmetry
+  // (x,y,z) <-> (-x,-y,-z) at zero extra cost over naive summation.
+  // Argument ordering matches sum_associative: opposite corners adjacent.
+  template<typename T>
+  static inline T sum_corners(T v11, T v12, T v21, T v22)
+  {
+    return ((v11 + v12) + (v21 + v22));
+  }
+
+  template<typename T>
+  static inline T sum_corners(
+    T v111, T v112, T v121, T v211, T v122, T v221, T v212, T v222
+  )
+  {
+    return (((v111 + v112) + (v121 + v211)) + ((v122 + v221) + (v212 + v222)));
+  }
+
   template<typename T>
   inline T KB_compensated(
     AthenaArray<T> & array,

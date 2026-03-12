@@ -814,7 +814,12 @@ void MeshRefinement::RestrictCellCenteredXValues(
                 Real const f_lrl = fine(n, cx_fk_l, cx_fj_r, cx_fi_l);
                 Real const f_lll = fine(n, cx_fk_l, cx_fj_l, cx_fi_l);
 
-                coarse(n,cx_ck,cx_cj,cx_ci) += lckji * FloatingPoint::sum_associative(
+                coarse(n,cx_ck,cx_cj,cx_ci) += lckji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                  FloatingPoint::sum_corners(
+#else
+                  FloatingPoint::sum_associative(
+#endif
                   f_rrr, f_lll, f_rrl, f_llr,
                   f_lrl, f_rlr, f_lrr, f_rll
                 );
@@ -867,7 +872,12 @@ void MeshRefinement::RestrictCellCenteredXValues(
             Real const f_lu = fine(n, 0, cx_fj_l, cx_fi_r);
             Real const f_ll = fine(n, 0, cx_fj_l, cx_fi_l);
 
-            coarse(n,cx_ck,cx_cj,cx_ci) += lcji * FloatingPoint::sum_associative(
+            coarse(n,cx_ck,cx_cj,cx_ci) += lcji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+              FloatingPoint::sum_corners(
+#else
+              FloatingPoint::sum_associative(
+#endif
               f_uu, f_ll, f_lu, f_ul
             );
           }
@@ -1051,7 +1061,12 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
                 Real const f_lrl = fine(n, cx_fk_l, cx_fj_r, cx_fi_l);
                 Real const f_lll = fine(n, cx_fk_l, cx_fj_l, cx_fi_l);
 
-                coarse(n,cx_ck,cx_cj,cx_ci) += lckji * FloatingPoint::sum_associative(
+                coarse(n,cx_ck,cx_cj,cx_ci) += lckji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+                  FloatingPoint::sum_corners(
+#else
+                  FloatingPoint::sum_associative(
+#endif
                   f_rrr, f_lll, f_rrl, f_llr,
                   f_lrl, f_rlr, f_lrr, f_rll
                 );
@@ -1104,7 +1119,12 @@ void MeshRefinement::RestrictCellCenteredXValuesLO(
             Real const f_lu = fine(n, 0, cx_fj_l, cx_fi_r);
             Real const f_ll = fine(n, 0, cx_fj_l, cx_fi_l);
 
-            coarse(n,cx_ck,cx_cj,cx_ci) += lcji * FloatingPoint::sum_associative(
+            coarse(n,cx_ck,cx_cj,cx_ci) += lcji *
+#ifdef DBG_SYMMETRIZE_CHEAP
+              FloatingPoint::sum_corners(
+#else
+              FloatingPoint::sum_associative(
+#endif
               f_uu, f_ll, f_lu, f_ul
             );
           }
@@ -2230,18 +2250,27 @@ void MeshRefinement::ProlongateVertexCenteredValues(
                   Real const fc_lul = coarse(n, ck_l, cj_u, ci_l);
 
 #ifdef DBG_SYMMETRIZE_P_OP
+#ifdef DBG_SYMMETRIZE_CHEAP
+                  fine(n, fk_prl, fj_prl, fi_prl) += lckji * (
+                    FloatingPoint::sum_corners(
+                      fc_uuu, fc_lll, fc_uul, fc_llu,
+                      fc_lul, fc_ulu, fc_luu, fc_ull
+                    )
+                  );
+#else
                   fine(n, fk_prl, fj_prl, fi_prl) += lckji * (
                     FloatingPoint::sum_associative(
                       fc_uuu, fc_lll, fc_uul, fc_llu,
                       fc_lul, fc_ulu, fc_luu, fc_ull
                     )
                   );
+#endif // DBG_SYMMETRIZE_CHEAP
 #else
                   fine(n, fk_prl, fj_prl, fi_prl) += lckji *
-                    ((fc_uuu + fc_lll) +
-                    (fc_uul + fc_llu) +
-                    (fc_lul + fc_ulu) +
-                    (fc_luu + fc_ull));
+                    (((fc_uuu + fc_lll) +
+                    (fc_uul + fc_llu)) +
+                    ((fc_lul + fc_ulu) +
+                    (fc_luu + fc_ull)));
 #endif // DBG_SYMMETRIZE_P_OP
                 }
               }
@@ -2286,11 +2315,19 @@ void MeshRefinement::ProlongateVertexCenteredValues(
                 Real const fc_cll = coarse(n, k, cj_l, ci_l);
 
 #ifdef DBG_SYMMETRIZE_P_OP
+#ifdef DBG_SYMMETRIZE_CHEAP
+                fine(n, fk_inj, fj_prl, fi_prl) += lcji * (
+                  FloatingPoint::sum_corners(
+                    fc_cuu, fc_cll, fc_clu, fc_cul
+                  )
+                );
+#else
                 fine(n, fk_inj, fj_prl, fi_prl) += lcji * (
                   FloatingPoint::sum_associative(
                     fc_cuu, fc_cll, fc_clu, fc_cul
                   )
                 );
+#endif // DBG_SYMMETRIZE_CHEAP
 #else
                 fine(n, fk_inj, fj_prl, fi_prl) += lcji * ((fc_cuu + fc_cll) + (fc_clu + fc_cul));
 #endif // DBG_SYMMETRIZE_P_OP
@@ -2336,11 +2373,19 @@ void MeshRefinement::ProlongateVertexCenteredValues(
                 Real const fc_lcl = coarse(n, ck_l, j, ci_l);
 
 #ifdef DBG_SYMMETRIZE_P_OP
+#ifdef DBG_SYMMETRIZE_CHEAP
+                fine(n, fk_prl, fj_inj, fi_prl) += lcki * (
+                  FloatingPoint::sum_corners(
+                    fc_lcu, fc_ucl, fc_ucu, fc_lcl
+                  )
+                );
+#else
                 fine(n, fk_prl, fj_inj, fi_prl) += lcki * (
                   FloatingPoint::sum_associative(
                     fc_lcu, fc_ucl, fc_ucu, fc_lcl
                   )
                 );
+#endif // DBG_SYMMETRIZE_CHEAP
 
 #else
                 fine(n, fk_prl, fj_inj, fi_prl) += lcki * ((fc_lcu + fc_ucl) + (fc_ucu + fc_lcl));
@@ -2386,11 +2431,19 @@ void MeshRefinement::ProlongateVertexCenteredValues(
                 Real const fc_llc = coarse(n, ck_l, cj_l, i);
 
 #ifdef DBG_SYMMETRIZE_P_OP
+#ifdef DBG_SYMMETRIZE_CHEAP
+                fine(n, fk_prl, fj_prl, fi_inj) += lckj * (
+                  FloatingPoint::sum_corners(
+                    fc_uuc, fc_llc, fc_luc, fc_ulc
+                  )
+                );
+#else
                 fine(n, fk_prl, fj_prl, fi_inj) += lckj * (
                   FloatingPoint::sum_associative(
                     fc_uuc, fc_llc, fc_luc, fc_ulc
                   )
                 );
+#endif // DBG_SYMMETRIZE_CHEAP
 #else
                 fine(n, fk_prl, fj_prl, fi_inj) += lckj * ((fc_uuc + fc_llc) + (fc_luc + fc_ulc));
 #endif // DBG_SYMMETRIZE_P_OP
@@ -2599,9 +2652,15 @@ void MeshRefinement::ProlongateVertexCenteredValues(
               Real const fc_ll = coarse(n, 0, cj_l, ci_l);
 
 #ifdef DBG_SYMMETRIZE_P_OP
+#ifdef DBG_SYMMETRIZE_CHEAP
+              fine(n, 0, fj_prl, fi_prl) += lcji * FloatingPoint::sum_corners(
+                fc_uu, fc_ll, fc_lu, fc_ul
+              );
+#else
               fine(n, 0, fj_prl, fi_prl) += lcji * FloatingPoint::sum_associative(
                 fc_uu, fc_ll, fc_lu, fc_ul
               );
+#endif // DBG_SYMMETRIZE_CHEAP
 #else
               fine(n, 0, fj_prl, fi_prl) += lcji * ((fc_uu + fc_ll) + (fc_lu + fc_ul));
 #endif // DBG_SYMMETRIZE_P_OP

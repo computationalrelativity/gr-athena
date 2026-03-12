@@ -11,15 +11,11 @@ namespace FiniteDifference {
 
 // ctor / dtor ----------------------------------------------------------------
 inline Uniform::Uniform(const int nn1, const Real dx1)
-{
-  Uniform(nn1, 0, dx1, 0);
-}
+    : Uniform(nn1, 0, 0, dx1, 0, 0) {}
 
 inline Uniform::Uniform(
   const int nn1, const int nn2,  const Real dx1, const Real dx2)
-{
-  Uniform(nn1, nn2, 0, dx1, dx2, 0);
-}
+    : Uniform(nn1, nn2, 0, dx1, dx2, 0) {}
 
 inline Uniform::Uniform(
   const int nn1, const int nn2, const int nn3,

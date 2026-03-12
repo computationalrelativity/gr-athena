@@ -16,6 +16,8 @@
 // symmetrization of VC prol.
 #define DBG_SYMMETRIZE_P_OP
 #define DBG_SYMMETRIZE_FD
+// cheaper symmetrization via balanced opposite-corner pairing (replaces sum_associative)
+#define DBG_SYMMETRIZE_CHEAP
 
 // remove double VC restrict (& hence mitigate MB size restr.)
 #define NO_DBG_VC_DOUBLE_RESTRICT
