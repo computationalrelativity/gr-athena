@@ -633,6 +633,10 @@ private:
   int *brdisp, *bddisp;
   // the last 4x should be std::size_t, but are limited to int by MPI
 
+  // O(1) gid -> MeshBlock* lookup table; indexed by (gid - gid_base_)
+  std::vector<MeshBlock*> block_by_gid_;
+  int gid_base_ = 0;  // = nslist[Globals::my_rank], i.e. first local gid
+
   LogicalLocation *loclist;
   MeshBlockTree tree;
   // number of MeshBlocks in the x1, x2, x3 directions of the root grid:
@@ -673,6 +677,8 @@ private:
   void OutputMeshStructure(int dim);
   void CalculateLoadBalance(double *clist, int *rlist, int *slist, int *nlist, int nb);
   void ResetLoadBalanceVariables();
+
+  void RebuildBlockByGid();
 
   void ReserveMeshBlockPhysIDs();
 

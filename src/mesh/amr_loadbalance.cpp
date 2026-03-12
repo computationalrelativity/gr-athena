@@ -688,6 +688,7 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
 
   // Replace the MeshBlock list
   pblock = newlist;
+  RebuildBlockByGid();
 
   // Step 8. Receive the data and load into MeshBlocks
   // This is a test: try MPI_Waitall later.

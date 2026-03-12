@@ -643,6 +643,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   }
   pblock = pfirst;
 
+  RebuildBlockByGid();
   ResetLoadBalanceVariables();
 
   if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
@@ -1187,6 +1188,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 #endif // DBG_RST_WRITE_PER_MB
 
   pblock = pfirst;
+  RebuildBlockByGid();
   delete [] mbdata;
   // check consistency
   if (datasize != pblock->GetBlockSizeInBytes()) {
@@ -2073,17 +2075,32 @@ void Mesh::InitializePostMainUpdatedMesh(ParameterInput *pin)
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn void Mesh::RebuildBlockByGid()
+//  \brief Rebuild the O(1) gid -> MeshBlock* lookup table from the linked list.
+//  Must be called after constructing or redistributing MeshBlocks.
+
+void Mesh::RebuildBlockByGid() {
+  gid_base_ = nslist[Globals::my_rank];
+  const int nmb = nblist[Globals::my_rank];
+  block_by_gid_.assign(nmb, nullptr);
+  MeshBlock *pmbl = pblock;
+  while (pmbl != nullptr) {
+    int idx = pmbl->gid - gid_base_;
+    if (idx >= 0 && idx < nmb)
+      block_by_gid_[idx] = pmbl;
+    pmbl = pmbl->next;
+  }
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn MeshBlock* Mesh::FindMeshBlock(int tgid)
 //  \brief return the MeshBlock whose gid is tgid
 
 MeshBlock* Mesh::FindMeshBlock(int tgid) {
-  MeshBlock *pbl = pblock;
-  while (pbl != nullptr) {
-    if (pbl->gid == tgid)
-      break;
-    pbl = pbl->next;
-  }
-  return pbl;
+  int idx = tgid - gid_base_;
+  if (idx >= 0 && idx < static_cast<int>(block_by_gid_.size()))
+    return block_by_gid_[idx];
+  return nullptr;
 }
 
 //----------------------------------------------------------------------------------------
