@@ -575,14 +575,6 @@ void BoundaryValues::DispatchBoundaryFunctions(
                                        jl, ju,
                                        kl, ku, ngh);
   }
-  // KGF: this is only to silence the compiler -Wswitch warnings about not handling the
-  // "undef" case when considering all possible BoundaryFace enumerator values. If "undef"
-  // is actually passed to this function, it will likely die before that ATHENA_ERROR()
-  // call, as it tries to access block_bcs[-1]
-  std::stringstream msg;
-  msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
-      << "face = BoundaryFace::undef passed to this function" << std::endl;
-
   // For any function in the BoundaryPhysics interface class, iterate over
   // BoundaryVariable pointers "enrolled"
   for (auto bvars_it = bvars.begin(); bvars_it != bvars.end();
@@ -592,8 +584,12 @@ void BoundaryValues::DispatchBoundaryFunctions(
       break;
     case BoundaryFlag::reflect:
       switch (face) {
-      case BoundaryFace::undef:
+      case BoundaryFace::undef: {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+            << "face = BoundaryFace::undef passed to this function" << std::endl;
         ATHENA_ERROR(msg);
+      }
       case BoundaryFace::inner_x1:
         (*bvars_it)->ReflectInnerX1(time, dt, il, jl, ju, kl, ku, ngh);
         break;
@@ -616,8 +612,12 @@ void BoundaryValues::DispatchBoundaryFunctions(
       break;
     case BoundaryFlag::outflow:
       switch (face) {
-      case BoundaryFace::undef:
+      case BoundaryFace::undef: {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+            << "face = BoundaryFace::undef passed to this function" << std::endl;
         ATHENA_ERROR(msg);
+      }
       case BoundaryFace::inner_x1:
         (*bvars_it)->OutflowInnerX1(time, dt, il, jl, ju, kl, ku, ngh);
         break;
@@ -640,8 +640,12 @@ void BoundaryValues::DispatchBoundaryFunctions(
       break;
     case BoundaryFlag::extrapolate_outflow:
       switch (face) {
-      case BoundaryFace::undef:
+      case BoundaryFace::undef: {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+            << "face = BoundaryFace::undef passed to this function" << std::endl;
         ATHENA_ERROR(msg);
+      }
       case BoundaryFace::inner_x1:
         (*bvars_it)->ExtrapolateOutflowInnerX1(time, dt, il, jl, ju, kl, ku, ngh);
         break;
@@ -664,8 +668,12 @@ void BoundaryValues::DispatchBoundaryFunctions(
       break;
     case BoundaryFlag::gr_sommerfeld:
       switch (face) {
-      case BoundaryFace::undef:
+      case BoundaryFace::undef: {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+            << "face = BoundaryFace::undef passed to this function" << std::endl;
         ATHENA_ERROR(msg);
+      }
       case BoundaryFace::inner_x1:
         (*bvars_it)->GRSommerfeldInnerX1(time, dt, il, jl, ju, kl, ku, ngh);
         break;
@@ -688,8 +696,12 @@ void BoundaryValues::DispatchBoundaryFunctions(
       break;
     case BoundaryFlag::polar_wedge:
       switch (face) {
-      case BoundaryFace::undef:
+      case BoundaryFace::undef: {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in DispatchBoundaryFunctions" << std::endl
+            << "face = BoundaryFace::undef passed to this function" << std::endl;
         ATHENA_ERROR(msg);
+      }
       case BoundaryFace::inner_x2:
         (*bvars_it)->PolarWedgeInnerX2(time, dt, il, iu, jl, kl, ku, ngh);
         break;

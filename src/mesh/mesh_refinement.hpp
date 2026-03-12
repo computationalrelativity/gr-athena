@@ -196,14 +196,16 @@ class MeshRefinement {
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_cx_;
 
-  // for aux. adm lists
-  std::vector<std::tuple<AthenaArray<Real> *,
-                         AthenaArray<Real> *>> pvars_aux_adm_cc_;
-  std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_adm_fc_;
-  std::vector<std::tuple<AthenaArray<Real> *,
-                         AthenaArray<Real> *>> pvars_aux_adm_vc_;
-  std::vector<std::tuple<AthenaArray<Real> *,
-                         AthenaArray<Real> *>> pvars_aux_adm_cx_;
+  // for aux. adm lists -- enrollment functions and SwapRefinementAuxADM() are
+  // commented out (see mesh_refinement.cpp L3004-3045); vectors are never
+  // populated.  Kept as comments for parity with the .cpp block.
+  // std::vector<std::tuple<AthenaArray<Real> *,
+  //                        AthenaArray<Real> *>> pvars_aux_adm_cc_;
+  // std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_adm_fc_;
+  // std::vector<std::tuple<AthenaArray<Real> *,
+  //                        AthenaArray<Real> *>> pvars_aux_adm_vc_;
+  // std::vector<std::tuple<AthenaArray<Real> *,
+  //                        AthenaArray<Real> *>> pvars_aux_adm_cx_;
 
   // for M1
   std::vector<std::tuple<AthenaArray<Real> *,
