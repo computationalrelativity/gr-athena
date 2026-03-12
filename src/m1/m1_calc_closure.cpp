@@ -270,6 +270,7 @@ Real Z_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i)
 {
   C.sc_xi(k,j,i) = xi__;
@@ -285,31 +286,13 @@ Real Z_xi(
   Assemble::Frames::ToFiducialExpansionCoefficients(
     pm1,
     J_0, H_n, H_v, H_F,
-    C.sc_chi, C.sc_E, C.sp_F_d,
+    C.sc_chi, cache,
     k, j, i
-  );
-
-  // Projections
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    C.sp_F_d,
-    C.sp_v_u,
-    k, j, i
-  );
-
-  const Real dotFF = Assemble::sp_norm2__(
-    C.sp_F_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real dotvv = Assemble::sp_norm2__(
-    pm1.fidu.sp_v_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
   );
 
   const Real st_H_norm_2__ = (
-    dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
+    cache.nF2 * SQR(H_F) - SQR(H_n) +
+    2 * cache.dotFv * H_F * H_v + SQR(H_v) * cache.dotvv
   );
 
   // Functional
@@ -326,6 +309,7 @@ void ZdZ_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i)
 {
   C.sc_xi(k,j,i) = xi__;
@@ -347,38 +331,20 @@ void ZdZ_xi(
     pm1,
     J_0, H_n, H_v, H_F,
     dJ_dchi_0, dH_dchi_n, dH_dchi_v, dH_dchi_F,
-    C.sc_chi, C.sc_E, C.sp_F_d,
+    C.sc_chi, cache,
     k, j, i
-  );
-
-  // Projections
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    C.sp_F_d,
-    C.sp_v_u,
-    k, j, i
-  );
-
-  const Real dotFF = Assemble::sp_norm2__(
-    C.sp_F_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real dotvv = Assemble::sp_norm2__(
-    pm1.fidu.sp_v_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
   );
 
   const Real st_H_norm_2__ = (
-    dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
+    cache.nF2 * SQR(H_F) - SQR(H_n) +
+    2 * cache.dotFv * H_F * H_v + SQR(H_v) * cache.dotvv
   );
 
   const Real dst_H_norm_2_dxi__ = 2.0 * d_chi_dxi__ * (
-    dotFF * H_F * dH_dchi_F -
+    cache.nF2 * H_F * dH_dchi_F -
     H_n * dH_dchi_n +
-    dotFv * (dH_dchi_F * H_v + H_F * dH_dchi_v)  +
-    H_v * dH_dchi_v * dotvv
+    cache.dotFv * (dH_dchi_F * H_v + H_F * dH_dchi_v)  +
+    H_v * dH_dchi_v * cache.dotvv
   );
 
   // // Functional
@@ -397,10 +363,11 @@ Real dZ_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i)
 {
   Real Z__, dZ__;
-  ZdZ_xi(Z__, dZ__, xi__, pm1, C, k, j, i);
+  ZdZ_xi(Z__, dZ__, xi__, pm1, C, cache, k, j, i);
   return dZ__;
 }
 
@@ -430,6 +397,8 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
 {
   using namespace EddingtonFactors;
 
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   // Admissible ranges for xi entering Eddington factor chi(xi)
   utils::Bracket br_xi;
   br_xi.a = XI_MIN;
@@ -437,8 +406,8 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
 
   utils::Bracket br_Z;
 
-  br_Z.a = Z_xi(br_xi.a, pm1, C, k, j, i);
-  br_Z.b = Z_xi(br_xi.b, pm1, C, k, j, i);
+  br_Z.a = Z_xi(br_xi.a, pm1, C, cache, k, j, i);
+  br_Z.b = Z_xi(br_xi.b, pm1, C, cache, k, j, i);
 
   if (!(br_Z.sign_change()))
   {
@@ -489,6 +458,7 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
 struct gsl_params {
   M1 & pm1;
   ClosureMetaVector & C;
+  const DPCache * cache;
 
   const int i;
   const int j;
@@ -503,7 +473,7 @@ Real gsl_Z_xi(Real xi, void * par_)
   const int j = par->j;
   const int k = par->k;
 
-  return Z_xi(xi, par->pm1, par->C, k, j, i);
+  return Z_xi(xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
 Real gsl_dZ_xi(Real xi, void * par_)
@@ -514,7 +484,7 @@ Real gsl_dZ_xi(Real xi, void * par_)
   const int j = par->j;
   const int k = par->k;
 
-  return dZ_xi(xi, par->pm1, par->C, k, j, i);
+  return dZ_xi(xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
 void gsl_ZdZ_xi(Real xi, void * par_, Real * Z, Real * dZ)
@@ -525,7 +495,7 @@ void gsl_ZdZ_xi(Real xi, void * par_, Real * Z, Real * dZ)
   const int j = par->j;
   const int k = par->k;
 
-  ZdZ_xi(*Z, *dZ, xi, par->pm1, par->C, k, j, i);
+  ZdZ_xi(*Z, *dZ, xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
 status gsl_Brent(M1 & pm1,
@@ -533,7 +503,8 @@ status gsl_Brent(M1 & pm1,
                  const int k, const int j, const int i)
 {
   // select function & solver -------------------------------------------------
-  struct gsl_params par = {pm1, C, i, j, k};
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+  struct gsl_params par = {pm1, C, &cache, i, j, k};
 
   gsl_function Z_;
   Z_.function = &gsl_Z_xi;
@@ -647,7 +618,8 @@ status gsl_Newton(M1 & pm1,
                   const int k, const int j, const int i)
 {
   // select function & solver -------------------------------------------------
-  struct gsl_params par = {pm1, C, i, j, k};
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+  struct gsl_params par = {pm1, C, &cache, i, j, k};
 
   gsl_function_fdf Z_;
   Z_.f   = &gsl_Z_xi;
@@ -753,6 +725,8 @@ status custom_NB(
 {
   using namespace EddingtonFactors;
 
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
   const Real dXI = pm1.opt_closure.bnd_xi_delta;
@@ -764,18 +738,18 @@ status custom_NB(
   int iter = 0;
   bool newton_success = false;
 
-  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  // Compute Z and dZ together instead of two separate calls
+  Real Z, dZ;
+  ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
   if (std::abs(Z) <= fcn_tol)  // can we break-fast?
   {
     return status::success;
   }
 
-  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
-
   while (iter < max_iter)
   {
     if (iter > 0) // init. already takes care of this
-      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+      ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
 
     if (std::abs(Z) <= fcn_tol)
     {
@@ -819,14 +793,14 @@ status custom_NB(
   Real fc = Z;
 
   // Check short-circuit
-  Real fa = Z_xi(a, pm1, C, k, j, i);
+  Real fa = Z_xi(a, pm1, C, cache, k, j, i);
   if (std::abs(fa) <= fcn_tol)
   {
     xi = a;
     return status::success;
   }
 
-  Real fb = Z_xi(b, pm1, C, k, j, i);
+  Real fb = Z_xi(b, pm1, C, cache, k, j, i);
   if (std::abs(fb) <= fcn_tol)
   {
     xi = b;
@@ -864,7 +838,7 @@ status custom_NB(
   while (fallback_iter < max_iter)
   {
     Real xi_m = 0.5 * (xi_a + xi_b);
-    Real f_m = Z_xi(xi_m, pm1, C, k, j, i);
+    Real f_m = Z_xi(xi_m, pm1, C, cache, k, j, i);
 
     if (std::abs(f_m) < fcn_tol || (xi_b - xi_a) < abs_tol)
     {
@@ -902,6 +876,8 @@ status custom_NAB(
 {
   using namespace EddingtonFactors;
 
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
   const Real dXI = pm1.opt_closure.bnd_xi_delta;
@@ -913,18 +889,18 @@ status custom_NAB(
   int iter = 0;
   bool newton_success = false;
 
-  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  // Compute Z and dZ together in a single call
+  Real Z, dZ;
+  ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
   if (std::abs(Z) <= fcn_tol)  // can we break-fast?
   {
     return status::success;
   }
 
-  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
-
   while (iter < max_iter)
   {
     if (iter > 0) // init. already takes care of this
-      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+      ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
 
     if (std::abs(Z) <= fcn_tol)
     {
@@ -968,14 +944,14 @@ status custom_NAB(
   Real fc = Z;
 
   // Check short-circuit
-  Real fa = Z_xi(a, pm1, C, k, j, i);
+  Real fa = Z_xi(a, pm1, C, cache, k, j, i);
   if (std::abs(fa) <= fcn_tol)
   {
     xi = a;
     return status::success;
   }
 
-  Real fb = Z_xi(b, pm1, C, k, j, i);
+  Real fb = Z_xi(b, pm1, C, cache, k, j, i);
   if (std::abs(fb) <= fcn_tol)
   {
     xi = b;
@@ -1013,7 +989,7 @@ status custom_NAB(
   while (fallback_iter < max_iter)
   {
     Real xi_r = xi_b - f_b * (xi_b - xi_a) / (f_b - f_a);
-    Real f_r = Z_xi(xi_r, pm1, C, k, j, i);
+    Real f_r = Z_xi(xi_r, pm1, C, cache, k, j, i);
 
     if (std::abs(f_r) < fcn_tol || std::abs(xi_b - xi_a) < abs_tol)
     {
@@ -1053,6 +1029,8 @@ status custom_ONAB(
 {
   using namespace EddingtonFactors;
 
+  const auto cache = Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   Real &xi = C.sc_xi(k, j, i);
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
@@ -1064,13 +1042,13 @@ status custom_ONAB(
   while (iter < max_iter)
   {
     Real f_x, df_x;
-    ZdZ_xi(f_x, df_x, xi, pm1, C, k, j, i);  // f(xi), f'(xi)
+    ZdZ_xi(f_x, df_x, xi, pm1, C, cache, k, j, i);  // f(xi), f'(xi)
 
     if (std::abs(df_x) < 1e-14)
       break;
 
     Real y = xi - f_x / df_x;
-    Real f_y = Z_xi(y, pm1, C, k, j, i);
+    Real f_y = Z_xi(y, pm1, C, cache, k, j, i);
 
     Real den_diff = f_x - 2.0 * f_y;
 

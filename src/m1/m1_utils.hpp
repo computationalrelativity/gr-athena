@@ -445,6 +445,40 @@ inline Real d_tk(const AT_C_sca & sc_chi,
   return 1.0 - d_th(sc_chi, k, j, i);
 }
 
+// Cache for dot products that are invariant across closure root-finding
+// iterations. These depend only on the grid-point state (E, F, v, metric)
+// and not on the iterated variable xi.
+struct DotProductCache {
+  Real dotFv;      // F_d . v^u
+  Real nF2;        // |F|^2 = g^{ab} F_a F_b
+  Real dotvv;      // v_d . v^u  (= g_{ab} v^a v^b)
+  Real W;          // Lorentz factor
+  Real W2;         // W^2
+  Real E;          // radiation energy density
+  Real oo_nF2;     // 1/nF2  (or 0 if nF2 < fl_nF2)
+  Real oo_nF;      // 1/|F|  (or 0 if nF2 < fl_nF2)
+  Real dotFhatv;   // oo_nF * dotFv
+};
+
+inline DotProductCache make_cache(
+  M1 & pm1,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j, const int i)
+{
+  DotProductCache c;
+  c.W      = pm1.fidu.sc_W(k,j,i);
+  c.W2     = SQR(c.W);
+  c.E      = sc_E(k,j,i);
+  c.dotFv  = sc_dot_dense_sp__(sp_F_d, pm1.fidu.sp_v_u, k, j, i);
+  c.nF2    = sp_norm2__(sp_F_d, pm1.geom.sp_g_uu, k, j, i);
+  c.dotvv  = sc_dot_dense_sp__(pm1.fidu.sp_v_d, pm1.fidu.sp_v_u, k, j, i);
+  c.oo_nF2 = (c.nF2 > pm1.opt.fl_nF2) ? OO(c.nF2) : 0.0;
+  c.oo_nF  = (c.nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(c.nF2)) : 0.0;
+  c.dotFhatv = c.oo_nF * c.dotFv;
+  return c;
+}
+
 // We write:
 // sc_J   = J_0
 // st_H^a = H_n n^a + H_v v^a + H_F F^a
@@ -607,6 +641,62 @@ inline void ToFiducialExpansionCoefficients(
   }
   */
 
+}
+
+// Cached overload: uses pre-computed dot products from DotProductCache
+// instead of recomputing them. The body is identical to the non-cached
+// variant from d_T/d_t onward.
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  const AT_C_sca & sc_chi,
+  const DotProductCache & cache,
+  const int k,
+  const int j,
+  const int i)
+{
+  const Real W      = cache.W;
+  const Real W2     = cache.W2;
+  const Real E      = cache.E;
+  const Real dotFv  = cache.dotFv;
+  const Real dotvv  = cache.dotvv;
+  const Real oo_nF2 = cache.oo_nF2;
+
+  const Real d_T = Frames::d_tk(sc_chi, k, j, i);
+  const Real d_t = Frames::d_th(sc_chi, k, j, i);
+
+  // Prepare expansion coefficients -------------------------------------------
+  const Real J_c = W2 * (E - 2.0 * dotFv);
+  const Real J_t = W2 * E * SQR(dotFv) * oo_nF2;
+  const Real J_T = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  const Real Hv_c = -W * J_c;
+  const Real Hv_t = -W * J_t;
+  const Real Hv_T = -W * (
+    J_T + 1 / (2.0 * W2 + 1.0) * (
+      (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+    )
+  );
+
+  const Real HF_c = W;
+  const Real HF_t = -W * E * dotFv * oo_nF2;
+  const Real HF_T = -W * dotvv;
+  // --------------------------------------------------------------------------
+
+  // now propagate back
+  J_0 = J_c + d_t * J_t + d_T * J_T;
+  J_0 = std::max(J_0, pm1.opt.fl_J);
+
+  H_v = Hv_c + d_t * Hv_t + d_T * Hv_T;
+  H_F = HF_c + d_t * HF_t + d_T * HF_T;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
 }
 
 inline void ToFiducial(
@@ -1557,6 +1647,84 @@ inline void ToFiducialExpansionCoefficients(
   dH_dchi_F = -d_F_H_dchi;
   dH_dchi_n = dH_dchi_F * dotFv + dH_dchi_v * dotvv;
 }
+
+// Cached overload: uses pre-computed dot products from DotProductCache
+// instead of recomputing them. The body is identical to the non-cached
+// D1 variant from d_th/d_tk onward.
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  Real & dJ_dchi_0,
+  Real & dH_dchi_n,
+  Real & dH_dchi_v,
+  Real & dH_dchi_F,
+  const AT_C_sca & sc_chi,
+  const Frames::DotProductCache & cache,
+  const int k,
+  const int j,
+  const int i)
+{
+  const Real W       = cache.W;
+  const Real W2      = cache.W2;
+  const Real E       = cache.E;
+  const Real dotFv   = cache.dotFv;
+  const Real dotvv   = cache.dotvv;
+  const Real oo_nF   = cache.oo_nF;
+  const Real dotFhatv = cache.dotFhatv;
+
+  const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = Assemble::Frames::d_tk(sc_chi, k, j, i);
+
+  const Real dd_th_dchi = Assemble::Frames::D1::d_th(sc_chi, k, j, i);
+  const Real dd_tk_dchi = Assemble::Frames::D1::d_tk(sc_chi, k, j, i);
+
+  // ------------------------------------------------------------------------
+  const Real B_0 = W2 * (E - 2.0 * dotFv);
+  const Real B_th = W2 * E * SQR(dotFhatv);
+  const Real B_tk = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  // coefficients appearing in vector-expansion of H
+  const Real v_0  = W * B_0;
+  const Real v_th = W * B_th;
+  const Real v_tk = W * B_tk + W / (2.0 * W2 + 1.0) * (
+    (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+  );
+
+  const Real F_0 = -W;
+  const Real F_th = oo_nF * W * E * dotFhatv;
+  const Real F_tk = W * dotvv;
+
+  const Real v_H = (v_0 + d_th * v_th + d_tk * v_tk);
+  const Real F_H = (F_0 + d_th * F_th + d_tk * F_tk);
+
+  const Real d_v_H_dchi = (dd_th_dchi * v_th + dd_tk_dchi * v_tk);
+  const Real d_F_H_dchi = (dd_th_dchi * F_th + dd_tk_dchi * F_tk);
+
+  // --------------------------------------------------------------------------
+  // Populate according to comment
+  J_0 = std::max(
+    B_0 + d_th * B_th + d_tk * B_tk,
+    pm1.opt.fl_J
+  );
+
+  H_v = -v_H;
+  H_F = -F_H;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
+
+  // Derivative terms
+  dJ_dchi_0 = dd_th_dchi * B_th + dd_tk_dchi * B_tk;
+  dH_dchi_v = -d_v_H_dchi;
+  dH_dchi_F = -d_F_H_dchi;
+  dH_dchi_n = dH_dchi_F * dotFv + dH_dchi_v * dotvv;
+}
+
 // ============================================================================
 } // namespace M1::Assemble::Frames::D1
 // ============================================================================
