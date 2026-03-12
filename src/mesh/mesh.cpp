@@ -724,7 +724,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   RegionSize block_size;
   BoundaryFlag block_bcs[6];
   MeshBlock *pfirst{};
-  IOWrapperSizeT *offset{};
   IOWrapperSizeT datasize, listsize, headeroffset;
 
   // mesh test
@@ -783,7 +782,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   // initialize
   loclist = new LogicalLocation[nbtotal];
-  offset = new IOWrapperSizeT[nbtotal];
   costlist = new double[nbtotal];
   ranklist = new int[nbtotal];
   nslist = new int[Globals::nranks];
@@ -991,9 +989,9 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
     for (auto ptracker : pz4c_tracker) {
       std::memcpy(ptracker->pos, &userdata[udoffset], NDIM*sizeof(Real));
-      udoffset += 3*sizeof(Real);
+      udoffset += NDIM*sizeof(Real);
       std::memcpy(ptracker->betap, &userdata[udoffset], NDIM*sizeof(Real));
-      udoffset += 3*sizeof(Real);
+      udoffset += NDIM*sizeof(Real);
     }
 
     if (!ptracker_extrema->use_new_style)
@@ -1018,7 +1016,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   }
 
   // read the ID list
-  listsize = sizeof(LogicalLocation)+sizeof(Real);
+  listsize = sizeof(LogicalLocation)+sizeof(double);
   //allocate the idlist buffer
   char *idlist = new char[listsize*nbtotal];
   if (Globals::my_rank == 0) { // only the master process reads the ID list
@@ -1073,7 +1071,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
       std::cout << "### Warning in Mesh constructor" << std::endl
                 << "Too few mesh blocks: nbtotal ("<< nbtotal <<") < nranks ("
                 << Globals::nranks << ")" << std::endl;
-      delete [] offset;
       return;
     }
   }
@@ -1095,7 +1092,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   // Output MeshBlock list and quit (mesh test only); do not create meshes
   if (mesh_test > 0) {
     if (Globals::my_rank == 0) OutputMeshStructure(ndim);
-    delete [] offset;
     return;
   }
 
@@ -1202,9 +1198,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   ResetLoadBalanceVariables();
 
-  // clean up
-  delete [] offset;
-
   if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
   {
 #ifdef FFT
@@ -1231,11 +1224,13 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 // destructor
 
 Mesh::~Mesh() {
-  while (pblock->prev != nullptr) // should not be true
-    delete pblock->prev;
-  while (pblock->next != nullptr)
-    delete pblock->next;
-  delete pblock;
+  if (pblock != nullptr) {
+    while (pblock->prev != nullptr) // should not be true
+      delete pblock->prev;
+    while (pblock->next != nullptr)
+      delete pblock->next;
+    delete pblock;
+  }
   delete [] nslist;
   delete [] nblist;
   delete [] ranklist;
@@ -1401,9 +1396,9 @@ void Mesh::OutputMeshStructure(int ndim) {
         std::int64_t &lx2 = loclist[j].lx2;
         std::int64_t &lx3 = loclist[j].lx3;
         int &ll = loclist[j].level;
-        mincost = std::min(mincost,costlist[i]);
-        maxcost = std::max(maxcost,costlist[i]);
-        totalcost += costlist[i];
+        mincost = std::min(mincost,costlist[j]);
+        maxcost = std::max(maxcost,costlist[j]);
+        totalcost += costlist[j];
         std::fprintf(fp,"#MeshBlock %d on rank=%d with cost=%g\n", j, ranklist[j],
                      costlist[j]);
         std::fprintf(
@@ -2373,15 +2368,29 @@ void Mesh::CalculateStoreMetricDerivatives()
   if (!(pblock->pz4c->opt.store_metric_drvts)) return;
 
   // Compute and store ADM metric drvts at this iteration
-  MeshBlock * pmb = pblock;
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
+  std::vector<MeshBlock*> pmb_array(nmb);
 
-  while (pmb != nullptr)
+  MeshBlock *pmbl = pblock;
+  for (int i = 0; i < nmb; ++i)
   {
-    Z4c *pz4c = pmb->pz4c;
+    pmb_array[i] = pmbl;
+    pmbl = pmbl->next;
+  }
 
-    pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
-                          pz4c->storage.aux);
-    pmb = pmb->next;
+  #pragma omp parallel num_threads(nthreads)
+  {
+    #pragma omp for
+    for (int nix = 0; nix < nmb; ++nix)
+    {
+      MeshBlock *pmb = pmb_array[nix];
+      Z4c *pz4c = pmb->pz4c;
+
+      pz4c->ADMDerivatives(pz4c->storage.u, pz4c->storage.adm,
+                            pz4c->storage.aux);
+    }
   }
 #endif // Z4C_ENABLED
 }
@@ -2415,6 +2424,9 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
 
   dx.Fill(std::numeric_limits<Real>::infinity());
 
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+
   switch (ndim)
   {
     case 3:
@@ -2422,32 +2434,48 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
       x_min(2) = mesh_size.x3min;
       x_max(2) = mesh_size.x3max;
 
+      Real dx2_min = std::numeric_limits<Real>::infinity();
+      Real dx2_max = std::numeric_limits<Real>::infinity();
+
+      #pragma omp parallel for num_threads(nthreads) \
+        reduction(min:dx2_min,dx2_max)
       for (int i = 0; i < nmb; ++i)
       {
         MeshBlock *pmb = pmb_array[i];
 
         for (int ix=0; ix<pmb->ncells3-1; ++ix)
         {
-          dx(2)      = std::min(dx(2),       pmb->pcoord->dx3v(ix));
-          dx(ndim+2) = std::min(dx(ndim+2), -pmb->pcoord->dx3v(ix));
+          dx2_min = std::min(dx2_min,  pmb->pcoord->dx3v(ix));
+          dx2_max = std::min(dx2_max, -pmb->pcoord->dx3v(ix));
         }
       }
+
+      dx(2)      = dx2_min;
+      dx(ndim+2) = dx2_max;
     }
     case 2:
     {
       x_min(1) = mesh_size.x2min;
       x_max(1) = mesh_size.x2max;
 
+      Real dx1_min = std::numeric_limits<Real>::infinity();
+      Real dx1_max = std::numeric_limits<Real>::infinity();
+
+      #pragma omp parallel for num_threads(nthreads) \
+        reduction(min:dx1_min,dx1_max)
       for (int i = 0; i < nmb; ++i)
       {
         MeshBlock *pmb = pmb_array[i];
 
         for (int ix=0; ix<pmb->ncells2-1; ++ix)
         {
-          dx(1)      = std::min(dx(1),       pmb->pcoord->dx2v(ix));
-          dx(ndim+1) = std::min(dx(ndim+1), -pmb->pcoord->dx2v(ix));
+          dx1_min = std::min(dx1_min,  pmb->pcoord->dx2v(ix));
+          dx1_max = std::min(dx1_max, -pmb->pcoord->dx2v(ix));
         }
       }
+
+      dx(1)      = dx1_min;
+      dx(ndim+1) = dx1_max;
 
     }
     case 1:
@@ -2455,16 +2483,24 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
       x_min(0) = mesh_size.x1min;
       x_max(0) = mesh_size.x1max;
 
+      Real dx0_min = std::numeric_limits<Real>::infinity();
+      Real dx0_max = std::numeric_limits<Real>::infinity();
+
+      #pragma omp parallel for num_threads(nthreads) \
+        reduction(min:dx0_min,dx0_max)
       for (int i = 0; i < nmb; ++i)
       {
         MeshBlock *pmb = pmb_array[i];
 
         for (int ix=0; ix<pmb->ncells1-1; ++ix)
         {
-          dx(0)      = std::min(dx(0),       pmb->pcoord->dx1v(ix));
-          dx(ndim+0) = std::min(dx(ndim+0), -pmb->pcoord->dx1v(ix));
+          dx0_min = std::min(dx0_min,  pmb->pcoord->dx1v(ix));
+          dx0_max = std::min(dx0_max, -pmb->pcoord->dx1v(ix));
         }
       }
+
+      dx(0)      = dx0_min;
+      dx(ndim+0) = dx0_max;
 
       break;
     }
@@ -2474,12 +2510,14 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real> & x_min,
     }
   }
 
-  max_level = 0;
+  int ml = 0;
+  #pragma omp parallel for num_threads(nthreads) reduction(max:ml)
   for (int nix = 0; nix < nmb; ++nix)
   {
     MeshBlock *pmb = pmb_array[nix];
-    max_level = std::max(max_level, pmb->loc.level - root_level);
+    ml = std::max(ml, pmb->loc.level - root_level);
   }
+  max_level = ml;
 
 
 #ifdef MPI_PARALLEL

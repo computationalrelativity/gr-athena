@@ -463,7 +463,7 @@ class Mesh {
   EosTable *peos_table;
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
-  MeshBlock *pblock;
+  MeshBlock *pblock = nullptr;
 
 #ifdef FFT
   TurbulenceDriver *ptrbd;
@@ -486,7 +486,7 @@ class Mesh {
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
 
-  gra::hydro::rescaling::Rescaling * presc;
+  gra::hydro::rescaling::Rescaling * presc = nullptr;
 
   // functions ----------------------------------------------------------------
 
