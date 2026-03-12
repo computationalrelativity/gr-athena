@@ -711,7 +711,7 @@ void BoundaryValues::DispatchBoundaryFunctions(
                  << "No BoundaryPhysics function associated with provided\n"
                  << "block_bcs[" << face << "] = BoundaryFlag::"
                  << GetBoundaryString(block_bcs[face]) << std::endl;
-        ATHENA_ERROR(msg);
+        ATHENA_ERROR(msg_flag);
         break;
     } // end switch (block_bcs[face])
   } // end loop over BoundaryVariable *
