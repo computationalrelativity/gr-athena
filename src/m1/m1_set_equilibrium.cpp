@@ -270,8 +270,8 @@ void SetEquilibrium_n_nG(
       const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
       const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
 
-      const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
-      const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
+      // const AT_C_sca & sc_alpha  = pm1.geom.sc_alpha;
+      // const AT_N_vec & sp_beta_u = pm1.geom.sp_beta_u;
 
       Real J_0, H_n, H_v, H_F;
 
@@ -292,10 +292,10 @@ void SetEquilibrium_n_nG(
 
 
       // Evolve fluid frame quantities
-      const Real sqrt_deg_g__ = pm1.geom.sc_sqrt_det_g(k,j,i);
+      const Real sqrt_det_g__ = pm1.geom.sc_sqrt_det_g(k,j,i);
       const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
 
-      J_0 = (J_0 * W + dt * sqrt_deg_g__ * C.sc_eta(k,j,i)) /
+      J_0 = (J_0 * W + dt * sqrt_det_g__ * C.sc_eta(k,j,i)) /
             (W + dt * C.sc_kap_a(k,j,i));
 
       Real H_n__ = W * H_n / (W + dt * kap_as);

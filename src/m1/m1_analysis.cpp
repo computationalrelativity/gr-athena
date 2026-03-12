@@ -42,7 +42,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
   pm1->SetVarAliasesLab(pm1->storage.u, U);
 
   // geometric quantities
-  const AT_C_sca & sc_alpha = pm1->geom.sc_alpha;
+  // const AT_C_sca & sc_alpha = pm1->geom.sc_alpha;
 
   // required fiducial quantities
   AT_C_sca & sc_W = pm1->fidu.sc_W;
@@ -99,7 +99,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
       {
         dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
       }
-      const Real W = pm1->fidu.sc_W(k,j,i);
+      const Real W = sc_W(k,j,i);
       sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
 
       // Alternatively could use fiducial frame form:

@@ -1,7 +1,6 @@
 // See m1.hpp for description / references.
 
 // c++
-#include <codecvt>
 #include <gsl/gsl_roots.h>
 #include <iomanip>
 #include <iostream>

@@ -437,8 +437,8 @@ void ApplyExcision(
 
       if (ef < 1)
       {
-        const Real sc_alpha = pm1->geom.sc_alpha(k,j,i);
-        const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+        // const Real sc_alpha = pm1->geom.sc_alpha(k,j,i);
+        // const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
         // const Real w_vol = dt * sc_alpha;
 
         const Real gam = (1 - ef) * pm1->opt_excision.m1_damping_factor;

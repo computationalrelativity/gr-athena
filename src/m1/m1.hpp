@@ -246,8 +246,6 @@ public:
 
     // retain equilibrium during opacity calculations?
     bool retain_equilibrium;
-    // use eql term in coupling?
-    bool retain_equilibrium_src = false;
 
     // debugging:
     bool value_inject;

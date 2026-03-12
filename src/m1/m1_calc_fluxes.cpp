@@ -308,12 +308,12 @@ void M1::CalcCharacteristicSpeed(const int dir,
                                  AT_C_sca & lambda)
 {
   AT_C_sca & alpha  = geom.sc_alpha;
-  AT_N_vec & beta_d = geom.sp_beta_d;
+  // AT_N_vec & beta_d = geom.sp_beta_d;
   AT_N_vec & beta_u = geom.sp_beta_u;
   AT_N_sym & g_uu   = geom.sp_g_uu;
 
   AT_C_sca & W   = fidu.sc_W;
-  AT_N_vec & v_d = fidu.sp_v_d;
+  // AT_N_vec & v_d = fidu.sp_v_d;
   AT_N_vec & v_u = fidu.sp_v_u;
 
   auto AMAX = [&](const Real A, const Real B)

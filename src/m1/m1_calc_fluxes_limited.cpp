@@ -291,7 +291,11 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       const Real oo_d_qc = OO(d_qc);
 
-      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+      Real Phi = 0.0;
+      if ((d_qlc > 0) && (d_qcr > 0))
+      {
+        Phi = MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc);
+      }
 
       const Real kap_avg = 0.5 * (kap_asm1 + kap_as0);
       const Real kap_fac = (kap_avg > 0) ? kap_avg * dx : 1.0;
@@ -313,7 +317,11 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       const Real oo_d_qc = OO(d_qc);
 
-      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+      Real Phi = 0.0;
+      if ((d_qlc > 0) && (d_qcr > 0))
+      {
+        Phi = MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc);
+      }
 
       const Real kap_avg = 0.5 * (kap_asm1 + kap_as0);
       const Real kap_fac = (kap_avg * dx > 1) ? kap_avg * dx : 1.0;
@@ -339,7 +347,11 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       const Real oo_d_qc = OO(d_qc);
 
-      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+      Real Phi = 0.0;
+      if ((d_qlc > 0) && (d_qcr > 0))
+      {
+        Phi = MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc);
+      }
 
       const Real xi_avg = std::min(1.0, 0.5 * (xi_m1 + xi_0));
 
@@ -396,7 +408,11 @@ Real FluxLimiter(const M1::opt_flux_variety & flx_var,
 
       const Real oo_d_qc = OO(d_qc);
 
-      const Real Phi = std::max(0.0, MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc));
+      Real Phi = 0.0;
+      if ((d_qlc > 0) && (d_qcr > 0))
+      {
+        Phi = MinMod2(d_ql * oo_d_qc, d_qr * oo_d_qc);
+      }
 
       const Real xi_avg = std::min(1.0, 0.5 * (xi_m1 + xi_0));
 

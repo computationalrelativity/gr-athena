@@ -88,7 +88,7 @@ public:
     return data_[ix_map(ix_g,ix_s)];
   }
 
-  inline int ix_map(int const ix_g, int const ix_s)
+  inline int ix_map(int const ix_g, int const ix_s) const
   {
     return ix_s + N_SPCS * ix_g;
   }
@@ -135,7 +135,7 @@ public:
     return data_[ix_map(ix_g,ix_s,ix_f)];
   }
 
-  inline int ix_map(int const ix_g, int const ix_s, int const ix_f)
+  inline int ix_map(int const ix_g, int const ix_s, int const ix_f) const
   {
     return ix_f + M1_NDIM * (ix_s + N_SPCS * ix_g);
   }

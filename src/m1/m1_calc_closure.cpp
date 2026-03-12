@@ -870,7 +870,6 @@ status custom_NB(
     {
       xi = xi_m;
       return status::success;
-      break;
     }
 
     if (f_a * f_m < 0.0)
