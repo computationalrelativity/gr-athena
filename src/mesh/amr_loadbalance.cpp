@@ -12,6 +12,7 @@
 #include <algorithm>  // std::sort()
 #include <cassert>
 #include <cstdint>
+#include <cstring>    // std::memcpy
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -194,8 +195,18 @@ void Mesh::UpdateMeshBlockTree(int &nnew, int &ndel) {
     pmb = pmb->next;
   }
 #ifdef MPI_PARALLEL
-  MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, nref,   1, MPI_INT, MPI_COMM_WORLD);
-  MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, nderef, 1, MPI_INT, MPI_COMM_WORLD);
+  // Merge two MPI_Allgather calls into one by packing nref+nderef per rank
+  {
+    std::vector<int> rd_buf(2 * Globals::nranks);
+    rd_buf[2 * Globals::my_rank]     = nref[Globals::my_rank];
+    rd_buf[2 * Globals::my_rank + 1] = nderef[Globals::my_rank];
+    MPI_Allgather(MPI_IN_PLACE, 2, MPI_INT, rd_buf.data(), 2, MPI_INT,
+                  MPI_COMM_WORLD);
+    for (int n = 0; n < Globals::nranks; n++) {
+      nref[n]   = rd_buf[2 * n];
+      nderef[n] = rd_buf[2 * n + 1];
+    }
+  }
 #endif
 
   // count the number of the blocks to be (de)refined and displacement
@@ -811,11 +822,12 @@ void Mesh::PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf) {
   }
 
 
-  // WARNING(felker): casting from "Real *" to "int *" in order to append single integer
-  // to send buffer is slightly unsafe (especially if sizeof(int) > sizeof(Real))
+  // Pack deref_count_ into the Real send buffer via memcpy to avoid aliasing UB
   if (adaptive) {
-    int *dcp = reinterpret_cast<int *>(&(sendbuf[p]));
-    *dcp = pb->pmr->deref_count_;
+    static_assert(sizeof(int) <= sizeof(Real),
+                  "int must fit in a single Real element of the send buffer");
+    int deref_tmp = pb->pmr->deref_count_;
+    std::memcpy(&sendbuf[p], &deref_tmp, sizeof(int));
   }
   return;
 }
@@ -1493,11 +1505,13 @@ void Mesh::FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf) {
   }
 
 
-  // WARNING(felker): casting from "Real *" to "int *" in order to read single
-  // appended integer from received buffer is slightly unsafe
+  // Unpack deref_count_ from the Real recv buffer via memcpy to avoid aliasing UB
   if (adaptive) {
-    int *dcp = reinterpret_cast<int *>(&(recvbuf[p]));
-    pb->pmr->deref_count_ = *dcp;
+    static_assert(sizeof(int) <= sizeof(Real),
+                  "int must fit in a single Real element of the recv buffer");
+    int deref_tmp;
+    std::memcpy(&deref_tmp, &recvbuf[p], sizeof(int));
+    pb->pmr->deref_count_ = deref_tmp;
   }
   return;
 }

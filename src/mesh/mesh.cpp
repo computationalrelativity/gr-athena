@@ -2300,7 +2300,7 @@ void Mesh::OutputCycleDiagnostics() {
 
       int nthreads = GetNumMeshThreads();
       std::printf(" MB/thr~=%.1f",
-        nbtotal / static_cast<Real>(Globals::nranks * GetNumMeshThreads())
+        nbtotal / static_cast<Real>(Globals::nranks * nthreads)
       );
 
       if (step_since_lb == 0)
@@ -2534,21 +2534,11 @@ void Mesh::CalculateExcisionMask()
 #if FLUID_ENABLED && Z4C_ENABLED
   if (pblock->phydro->opt_excision.use_taper || pblock->phydro->opt_excision.excise_hydro_damping)
   {
-    int inb = nbtotal;
     int nthreads = GetNumMeshThreads();
     (void)nthreads;
-    int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-    std::vector<MeshBlock*> pmb_array(nmb);
-
-    if (static_cast<unsigned int>(nmb) != pmb_array.size())
-      pmb_array.resize(nmb);
-
-    MeshBlock *pmbl = pblock;
-    for (int i=0; i<nmb; ++i)
-    {
-      pmb_array[i] = pmbl;
-      pmbl = pmbl->next;
-    }
+    std::vector<MeshBlock*> pmb_array;
+    GetMeshBlocksMyRank(pmb_array);
+    const int nmb = pmb_array.size();
 
     #pragma omp parallel num_threads(nthreads)
     {
@@ -2589,21 +2579,11 @@ void Mesh::CalculateHydroFieldDerived()
 {
 #if FLUID_ENABLED && Z4C_ENABLED
 
-  int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
-
-  if (static_cast<unsigned int>(nmb) != pmb_array.size())
-    pmb_array.resize(nmb);
-
-  MeshBlock *pmbl = pblock;
-  for (int i=0; i<nmb; ++i)
-  {
-    pmb_array[i] = pmbl;
-    pmbl = pmbl->next;
-  }
+  std::vector<MeshBlock*> pmb_array;
+  GetMeshBlocksMyRank(pmb_array);
+  const int nmb = pmb_array.size();
 
   #pragma omp parallel num_threads(nthreads)
   {
@@ -2663,21 +2643,11 @@ void Mesh::CalculateZ4cInitDiagnostics()
 {
 #if Z4C_ENABLED
 
-  int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
-
-  if (static_cast<unsigned int>(nmb) != pmb_array.size())
-    pmb_array.resize(nmb);
-
-  MeshBlock *pmbl = pblock;
-  for (int i=0; i<nmb; ++i)
-  {
-    pmb_array[i] = pmbl;
-    pmbl = pmbl->next;
-  }
+  std::vector<MeshBlock*> pmb_array;
+  GetMeshBlocksMyRank(pmb_array);
+  const int nmb = pmb_array.size();
 
   #pragma omp parallel num_threads(nthreads)
   {

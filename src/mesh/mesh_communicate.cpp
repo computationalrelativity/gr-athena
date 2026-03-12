@@ -243,20 +243,24 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array)
       }
 
       if (pmb->peos->recompute_enthalpy)
-      CC_GLOOP3(k,j,i)
       {
-        Real Y[MAX_SPECIES] = {0.0};
-        for (int l=0; l<NSCALARS; l++)
+        // Hoist loop-invariant EOS query out of the omp simd inner loop
+        const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+
+        CC_GLOOP3(k,j,i)
         {
-          Y[l] = ps->r(l,k,j,i);
+          Real Y[MAX_SPECIES] = {0.0};
+          for (int l=0; l<NSCALARS; l++)
+          {
+            Y[l] = ps->r(l,k,j,i);
+          }
+
+          const Real n = ph->w(IDN,k,j,i) / mb;
+
+          ph->derived_ms(IX_ETH,k,j,i) = pmb->peos->GetEOS().GetEnthalpy(
+            n, ph->derived_ms(IX_T,k,j,i), Y
+          );
         }
-
-        Real mb = pmb->peos->GetEOS().GetBaryonMass();
-        const Real n = ph->w(IDN,k,j,i) / mb;
-
-        ph->derived_ms(IX_ETH,k,j,i) = pmb->peos->GetEOS().GetEnthalpy(
-          n, ph->derived_ms(IX_T,k,j,i), Y
-        );
       }
     }
 
@@ -802,18 +806,9 @@ void Mesh::CommunicateAuxZ4c()
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
-
-
-  // initialize a vector of MeshBlock pointers
-  nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  if (static_cast<unsigned int>(nmb) != pmb_array.size()) pmb_array.resize(nmb);
-  MeshBlock *pmbl = pblock;
-  for (int i=0; i<nmb; ++i) {
-    pmb_array[i] = pmbl;
-    pmbl = pmbl->next;
-  }
+  std::vector<MeshBlock*> pmb_array;
+  GetMeshBlocksMyRank(pmb_array);
+  const int nmb = pmb_array.size();
 
   #pragma omp parallel num_threads(nthreads)
   {
@@ -885,18 +880,9 @@ void Mesh::CommunicateAuxADM()
   int inb = nbtotal;
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  std::vector<MeshBlock*> pmb_array(nmb);
-
-
-  // initialize a vector of MeshBlock pointers
-  nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-  if (static_cast<unsigned int>(nmb) != pmb_array.size()) pmb_array.resize(nmb);
-  MeshBlock *pmbl = pblock;
-  for (int i=0; i<nmb; ++i) {
-    pmb_array[i] = pmbl;
-    pmbl = pmbl->next;
-  }
+  std::vector<MeshBlock*> pmb_array;
+  GetMeshBlocksMyRank(pmb_array);
+  const int nmb = pmb_array.size();
 
   #pragma omp parallel num_threads(nthreads)
   {
@@ -967,17 +953,9 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
     int inb = nbtotal;
     int nthreads = GetNumMeshThreads();
     (void)nthreads;
-    int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-    std::vector<MeshBlock*> pmb_array(nmb);
-
-    // initialize a vector of MeshBlock pointers
-    nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-    if (static_cast<unsigned int>(nmb) != pmb_array.size()) pmb_array.resize(nmb);
-    MeshBlock *pmbl = pblock;
-    for (int i=0; i<nmb; ++i) {
-      pmb_array[i] = pmbl;
-      pmbl = pmbl->next;
-    }
+    std::vector<MeshBlock*> pmb_array;
+    GetMeshBlocksMyRank(pmb_array);
+    const int nmb = pmb_array.size();
 
     for (int iter=0; iter<iterations; ++iter)
     {
