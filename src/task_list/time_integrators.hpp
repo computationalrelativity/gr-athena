@@ -79,7 +79,7 @@ public:
   // Scaled coefficient for RHS time-advance within stage
   Real dt_scaled(const int stage, MeshBlock * pmb)
   {
-    return pmb->pmy_mesh->dt*bt_c[stage-1]*pmb->pmy_mesh->dt;
+    return bt_c[stage-1]*pmb->pmy_mesh->dt;
   }
 
   // Time at beginning of stage for u()
