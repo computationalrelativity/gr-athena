@@ -451,12 +451,28 @@ void GRDynamical::AddCoordTermsDivergence(
         b2_(i) = SQR(alpha_(i))*SQR(b0_(i))/SQR(W_(i));
       }
 
+      // Original:
+      //   for (int a=0; a<NDIM; ++a)
+      //   for (int b=0; b<NDIM; ++b)
+      //     b2_ += B^a B^b gamma_{ab} / W^2
+      //
+      // Both B^a B^b and gamma_{ab} are symmetric in (a,b), so the full
+      // contraction decomposes into diagonal (a=b) and off-diagonal (a<b)
+      // terms, with a factor of 2 on the off-diagonals. Reduces from 9 to
+      // 6 inner-loop passes.
       for (int a=0; a<NDIM; ++a)
-      for (int b=0; b<NDIM; ++b)
-      CC_PCO_ILOOP1(i)
       {
-        b2_(i) +=
-            q_scB_u_(a, i) * q_scB_u_(b, i) * gamma_dd_(a, b, i) / SQR(W_(i));
+        CC_PCO_ILOOP1(i)
+        {
+          b2_(i) +=
+              SQR(q_scB_u_(a, i)) * gamma_dd_(a, a, i) / SQR(W_(i));
+        }
+        for (int b=a+1; b<NDIM; ++b)
+        CC_PCO_ILOOP1(i)
+        {
+          b2_(i) +=
+              2.0 * q_scB_u_(a, i) * q_scB_u_(b, i) * gamma_dd_(a, b, i) / SQR(W_(i));
+        }
       }
 
       // T_dd (space-time) components -----------------------------------------
@@ -518,14 +534,38 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
+      // Original:
+      //   for (int a=0; a<NDIM; ++a)
+      //   for (int b=0; b<NDIM; ++b)
+      //     Stau_ += K_{ab} * (T^{00} beta^a beta^b
+      //              + 2 T^{0i,a} beta^b + T^{ab})
+      //
+      // K_{ab} is symmetric. T^{ab} and beta^a beta^b are symmetric.
+      // The mixed term 2*T^{0a}*beta^b is NOT symmetric in (a,b) by
+      // itself, but its antisymmetric part vanishes under contraction
+      // with the symmetric K_{ab}:
+      //   K_{ab} T^{0a} beta^b = K_{ba} T^{0a} beta^b
+      //                        = K_{ab} T^{0b} beta^a  (relabel a<->b)
+      // so sum_{a,b} K_{ab} * 2*T^{0a}*beta^b
+      //  = sum_{a,b} K_{ab} * (T^{0a}*beta^b + T^{0b}*beta^a).
+      // This allows triangular iteration (9 -> 6 inner-loop passes).
       for (int a=0; a<NDIM; ++a)
-      for (int b=0; b<NDIM; ++b)
       {
         CC_PCO_ILOOP1(i)
         {
-          Stau_(i) += K_dd_(a, b, i) *
-                     (T00(i) * beta_u_(a, i) * beta_u_(b, i) +
-                      T0i_u(a, i) * (2.0 * beta_u_(b, i)) + Tij_uu(a, b, i));
+          Stau_(i) += K_dd_(a, a, i) *
+                     (T00(i) * beta_u_(a, i) * beta_u_(a, i) +
+                      2.0 * T0i_u(a, i) * beta_u_(a, i) + Tij_uu(a, a, i));
+        }
+        for (int b=a+1; b<NDIM; ++b)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            Stau_(i) += 2.0 * K_dd_(a, b, i) *
+                       (T00(i) * beta_u_(a, i) * beta_u_(b, i) +
+                        T0i_u(a, i) * beta_u_(b, i) +
+                        T0i_u(b, i) * beta_u_(a, i) + Tij_uu(a, b, i));
+          }
         }
       }
 
@@ -547,15 +587,46 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
+      // Original:
+      //   for (int a=0; a<NDIM; ++a)
+      //   for (int b=0; b<NDIM; ++b)
+      //   for (int c=0; c<NDIM; ++c)
+      //     SS_d_(a) += d_a gamma_{bc} *
+      //       (0.5*T^{00}*beta^b*beta^c + T^{0b}*beta^c + 0.5*T^{bc})
+      //
+      // d_a gamma_{bc} (SYM2) and T^{bc} are symmetric in (b,c).
+      // beta^b*beta^c is symmetric in (b,c).
+      // T^{0b}*beta^c is NOT symmetric in (b,c), but its antisymmetric
+      // part vanishes under contraction with the (b,c)-symmetric
+      // d_a gamma_{bc}:
+      //   sum_{b,c} S_{bc} * T^{0b} beta^c
+      //     = sum_{b,c} S_{cb} * T^{0b} beta^c   (S symmetric)
+      //     = sum_{b,c} S_{bc} * T^{0c} beta^b   (relabel b<->c)
+      // so the contraction equals
+      //   sum_{b,c} S_{bc} * 0.5*(T^{0b}*beta^c + T^{0c}*beta^b).
+      // This allows triangular iteration over (b,c) with b<=c,
+      // reducing from 27 to 18 inner-loop passes.
       for (int a=0; a<NDIM; ++a)
-      for (int b=0; b<NDIM; ++b)
-      for (int c=0; c<NDIM; ++c)
       {
-        CC_PCO_ILOOP1(i)
+        for (int b=0; b<NDIM; ++b)
         {
-          SS_d_(a, i) += dgamma_ddd_(a, b, c, i) *
-                        (0.5 * T00(i) * (beta_u_(b, i) * beta_u_(c, i)) +
-                         T0i_u(b, i) * beta_u_(c, i) + 0.5 * Tij_uu(b, c, i));
+          CC_PCO_ILOOP1(i)
+          {
+            SS_d_(a, i) += dgamma_ddd_(a, b, b, i) *
+                          (0.5 * T00(i) * (beta_u_(b, i) * beta_u_(b, i)) +
+                           T0i_u(b, i) * beta_u_(b, i) + 0.5 * Tij_uu(b, b, i));
+          }
+          for (int c=b+1; c<NDIM; ++c)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              SS_d_(a, i) += 2.0 * dgamma_ddd_(a, b, c, i) *
+                            (0.5 * T00(i) * beta_u_(b, i) * beta_u_(c, i) +
+                             0.5 * (T0i_u(b, i) * beta_u_(c, i) +
+                                    T0i_u(c, i) * beta_u_(b, i)) +
+                             0.5 * Tij_uu(b, c, i));
+            }
+          }
         }
       }
     }
@@ -572,11 +643,27 @@ void GRDynamical::AddCoordTermsDivergence(
 
         }
 
-        for (int b = 0; b < NDIM; ++b)
+        // Original:
+        //   for (int b = 0; b < NDIM; ++b)
+        //     Stau_ += (rho*h * utilde^a * utilde^b
+        //              + p * gamma^{ab}) * K_{ab}
+        //
+        // All three factors utilde^a*utilde^b, gamma^{ab}, and K_{ab}
+        // are symmetric in (a,b). Triangular iteration (9 -> 6 passes).
+        // diagonal a=b
+        CC_PCO_ILOOP1(i)
+        {
+          Stau_(i) += (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(a, i) +
+                      w_p(k, j, i) * gamma_uu_(a, a, i)) *
+                     K_dd_(a, a, i);
+        }
+        // off-diagonal b>a (factor of 2 from symmetry)
+        for (int b = a+1; b < NDIM; ++b)
         {
           CC_PCO_ILOOP1(i)
           {
-            Stau_(i) += (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(b, i) +
+            Stau_(i) += 2.0 *
+                       (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(b, i) +
                         w_p(k, j, i) * gamma_uu_(a, b, i)) *
                        K_dd_(a, b, i);
           }
@@ -600,11 +687,28 @@ void GRDynamical::AddCoordTermsDivergence(
                            dbeta_du_(a, b, i) * oo_alpha_(i);
           }
 
-          for (int c=0; c<NDIM; ++c)
+          // Original:
+          //   for (int c=0; c<NDIM; ++c)
+          //     SS_d_(a) += 0.5 * (rho*h * utilde^b * utilde^c
+          //                + p * gamma^{bc}) * d_a gamma_{bc}
+          //
+          // All of utilde^b*utilde^c, gamma^{bc}, and d_a gamma_{bc}
+          // are symmetric in (b,c). Triangular iteration (9 -> 6 passes
+          // in the c-loop for each b).
+          // diagonal c=b
+          CC_PCO_ILOOP1(i)
+          {
+            SS_d_(a, i) += (0.5 *
+                            (w_hrho_(i) * w_util_u_(b, i) * w_util_u_(b, i) +
+                             w_p(k, j, i) * gamma_uu_(b, b, i)) *
+                            dgamma_ddd_(a, b, b, i));
+          }
+          // off-diagonal c>b (factor of 2 from symmetry)
+          for (int c=b+1; c<NDIM; ++c)
           {
             CC_PCO_ILOOP1(i)
             {
-              SS_d_(a, i) += (0.5 *
+              SS_d_(a, i) += (
                               (w_hrho_(i) * w_util_u_(b, i) * w_util_u_(c, i) +
                                w_p(k, j, i) * gamma_uu_(b, c, i)) *
                               dgamma_ddd_(a, b, c, i));
