@@ -1115,11 +1115,9 @@ void Mesh::GlobalExtrema()
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
 
-  int nmb = -1;
   std::vector<MeshBlock*> pmb_array;
-
   GetMeshBlocksMyRank(pmb_array);
-  nmb = pmb_array.size();
+  const int nmb = pmb_array.size();
 
   // minima-per-MeshBlock and then reduce
   AA res_V_mb;
@@ -1131,16 +1129,17 @@ void Mesh::GlobalExtrema()
   for (int nix = 0; nix < nmb; ++nix)
   {
     MeshBlock *pmb = pmb_array[nix];
-    Hydro * ph = pmb->phydro;
-
-    Z4c * pz4c = pmb->pz4c;
 
 #if Z4C_ENABLED
+    Z4c * pz4c = pmb->pz4c;
+
     AA adm_alpha;
     adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha, 1);
 #endif // Z4C_ENABLED
 
 #if FLUID_ENABLED && Z4C_ENABLED
+    Hydro * ph = pmb->phydro;
+
     AA ms_adm_sqrt_det_gamma;
     ms_adm_sqrt_det_gamma.InitWithShallowSlice(
       pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma, 1
