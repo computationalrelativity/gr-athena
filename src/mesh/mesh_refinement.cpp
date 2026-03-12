@@ -714,52 +714,20 @@ void MeshRefinement::RestrictTwiceToBufferVertexCenteredValues(
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void MeshRefinement::RestrictCellCenteredXValues(const AthenaArray<Real> &fine,
-//                           AthenaArray<Real> &coarse, int sn, int en,
-//                           int csi, int cei, int csj, int cej, int csk, int cek)
+//! \fn void MeshRefinement::RestrictCellCenteredX<H_SZ>(...)
 //  \brief restrict cell centered (extended) values
+//  H_SZ is the interpolation stencil half-size (resultant degree = 2*H_SZ - 1).
+//  H_SZ = NGHOST for high-order, H_SZ = 1 for low-order (linear).
 
-void MeshRefinement::RestrictCellCenteredXValues(
+template<int H_SZ>
+void MeshRefinement::RestrictCellCenteredX(
   const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
   int sn, int en,
   int csi, int cei, int csj, int cej, int csk, int cek)
 {
   using InterpUniform::InterpolateLagrangeUniform;
 
-  // RestrictCellCenteredValues(fine, coarse, sn, en,
-  //                            csi, cei, csj, cej, csk, cek);
-  // return;
-
-  // // BD: debug all rat. -------------------------------------------------------
-  // AthenaArray<Real> & var_t = coarse;
-  // AthenaArray<Real> & var_s = const_cast<AthenaArray<Real>&>(fine);
-  // for(int n=sn; n<=en; ++n)
-  // {
-  //   const Real* const fcn_s = &(var_s(n,0,0,0));
-  //   Real* fcn_t = &(var_t(n,0,0,0));
-
-  //   // ind_interior_r_op->eval(fcn_t, fcn_s);
-  //   ind_physical_r_op->eval_nn(fcn_t, fcn_s,
-  //     csi, cei,
-  //     csj, cej,
-  //     csk, cek);
-  // }
-  // return;
-  // // --------------------------------------------------------------------------
-
-  // here H_SZ * 2 - 1 is resultant degree
-  const int H_SZ = NGHOST;  // works for all physical nodes
-  // const int H_SZ = 1;  // works for all physical nodes
-
-  // BD: debug with LO
-  // const int H_SZ = 1;  // works for all physical nodes
-
   MeshBlock *pmb = pmy_block_;
-  // Coordinates *pco = pmb->pcoord;
-
-  // // map to fine idx
-  // int si = 2 * (csi - pmb->cx_cis) + pmb->cx_is;
-  // int ei = 2 * (cei - pmb->cx_cis) + pmb->cx_is + 1;
 
   if (pmb->block_size.nx3>1)
   { // 3D
@@ -782,21 +750,18 @@ void MeshRefinement::RestrictCellCenteredXValues(
           // use templated ----------------------------------------------------
           coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-          // #pragma unroll
           for (int dk=0; dk<H_SZ; ++dk)
           {
             int const cx_fk_l = cx_fk - dk;
             int const cx_fk_r = cx_fk + dk + 1;
             Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
 
-            // #pragma unroll
             for (int dj=0; dj<H_SZ; ++dj)
             {
               int const cx_fj_l = cx_fj - dj;
               int const cx_fj_r = cx_fj + dj + 1;
               Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
-              // #pragma unroll
               for (int di=0; di<H_SZ; ++di)
               {
                 int const cx_fi_l = cx_fi - di;
@@ -852,14 +817,12 @@ void MeshRefinement::RestrictCellCenteredXValues(
         // use templated ------------------------------------------------------
         coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-        #pragma unroll
         for (int dj=0; dj<H_SZ; ++dj)
         {
           int const cx_fj_l = cx_fj - dj;
           int const cx_fj_r = cx_fj + dj + 1;
           Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
 
-          #pragma unroll
           for (int di=0; di<H_SZ; ++di)
           {
             int const cx_fi_l = cx_fi - di;
@@ -899,56 +862,9 @@ void MeshRefinement::RestrictCellCenteredXValues(
       // left child idx on fine grid
       const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
 
-      // if ((cx_ci < pmb->cis + 1) | (cx_ci > pmb->cie - 1))
-      // {
-      // // linear interp. -------------------------------------------------------
-      // coarse(n,cx_ck,cx_cj,cx_ci) = 0.5 * (
-      //   fine(n,cx_fk,cx_fj,cx_fi  ) +
-      //   fine(n,cx_fk,cx_fj,cx_fi+1)
-      // );
-      // // ----------------------------------------------------------------------
-      // }
-      // else
-      // {
-      // coarse(n,cx_ck,cx_cj,cx_ci) = (
-      //   -1.0 * fine(n,cx_fk,cx_fj,cx_fi-1) +
-      //   9.0  * fine(n,cx_fk,cx_fj,cx_fi  ) +
-      //   9.0  * fine(n,cx_fk,cx_fj,cx_fi+1) +
-      //   -1.0 * fine(n,cx_fk,cx_fj,cx_fi+2)
-      // ) / 16.0;
-      // }
-
-      // linear interp. -------------------------------------------------------
-      // coarse(n,cx_ck,cx_cj,cx_ci) = 0.5 * (
-      //   fine(n,cx_fk,cx_fj,cx_fi  ) +
-      //   fine(n,cx_fk,cx_fj,cx_fi+1)
-      // );
-
-      // deg 3 interp. --------------------------------------------------------
-      // coarse(n,cx_ck,cx_cj,cx_ci) = (
-      //   -1.0 * fine(n,cx_fk,cx_fj,cx_fi-1) +
-      //   9.0  * fine(n,cx_fk,cx_fj,cx_fi  ) +
-      //   9.0  * fine(n,cx_fk,cx_fj,cx_fi+1) +
-      //   -1.0 * fine(n,cx_fk,cx_fj,cx_fi+2)
-      // ) / 16.0;
-      // ----------------------------------------------------------------------
-
-      // deg 5 interp. --------------------------------------------------------
-      // coarse(n,cx_ck,cx_cj,cx_ci) = (
-      //   3.0   * fine(n,cx_fk,cx_fj,cx_fi-2) +
-      //   -25.0 * fine(n,cx_fk,cx_fj,cx_fi-1) +
-      //   150.0 * fine(n,cx_fk,cx_fj,cx_fi  ) +
-      //   150.0 * fine(n,cx_fk,cx_fj,cx_fi+1) +
-      //   -25.0 * fine(n,cx_fk,cx_fj,cx_fi+2) +
-      //   3.0   * fine(n,cx_fk,cx_fj,cx_fi+3)
-      // ) / 256.0;
-      // ----------------------------------------------------------------------
-
-
       // use templated --------------------------------------------------------
       coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
 
-      #pragma unroll
       for (int di=0; di<H_SZ; ++di)
       {
         Real const lc = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
@@ -961,213 +877,18 @@ void MeshRefinement::RestrictCellCenteredXValues(
         );
       }
 
-
-      // ----------------------------------------------------------------------
-
     }
   }
 }
 
-void MeshRefinement::RestrictCellCenteredXValuesLO(
+template void MeshRefinement::RestrictCellCenteredX<NGHOST>(
   const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
   int sn, int en,
-  int csi, int cei, int csj, int cej, int csk, int cek)
-{
-  using InterpUniform::InterpolateLagrangeUniform;
-
-  // RestrictCellCenteredValues(fine, coarse, sn, en,
-  //                            csi, cei, csj, cej, csk, cek);
-  // return;
-  // // BD: debug all rat. -------------------------------------------------------
-  // AthenaArray<Real> & var_t = coarse;
-  // AthenaArray<Real> & var_s = const_cast<AthenaArray<Real>&>(fine);
-  // for(int n=sn; n<=en; ++n)
-  // {
-  //   const Real* const fcn_s = &(var_s(n,0,0,0));
-  //   Real* fcn_t = &(var_t(n,0,0,0));
-
-  //   // ind_interior_r_op->eval(fcn_t, fcn_s);
-  //   ind_physical_r_op->eval_nn(fcn_t, fcn_s,
-  //     csi, cei,
-  //     csj, cej,
-  //     csk, cek);
-  // }
-  // return;
-  // // --------------------------------------------------------------------------
-
-  // here H_SZ * 2 - 1 is resultant degree
-  const int H_SZ = 1;  // works for all physical nodes
-
-  // BD: debug with LO
-  // const int H_SZ = 1;  // works for all physical nodes
-
-  MeshBlock *pmb = pmy_block_;
-  // Coordinates *pco = pmb->pcoord;
-
-  // // map to fine idx
-  // int si = 2 * (csi - pmb->cx_cis) + pmb->cx_is;
-  // int ei = 2 * (cei - pmb->cx_cis) + pmb->cx_is + 1;
-
-  if (pmb->block_size.nx3>1)
-  { // 3D
-    for (int n=sn; n<=en; ++n)
-    for (int cx_ck=csk; cx_ck<=cek; cx_ck++)
-    {
-      // left child idx on fine grid
-      const int cx_fk = 2 * (cx_ck - pmb->cx_cks) + pmb->cx_ks;
-
-      for (int cx_cj=csj; cx_cj<=cej; cx_cj++)
-      {
-        // left child idx on fine grid
-        const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
-
-        for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
-        {
-          // left child idx on fine grid
-          const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
-
-          // use templated ----------------------------------------------------
-          coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
-
-          // #pragma unroll
-          for (int dk=0; dk<H_SZ; ++dk)
-          {
-            int const cx_fk_l = cx_fk - dk;
-            int const cx_fk_r = cx_fk + dk + 1;
-            Real const lck = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dk-1];
-
-            // #pragma unroll
-            for (int dj=0; dj<H_SZ; ++dj)
-            {
-              int const cx_fj_l = cx_fj - dj;
-              int const cx_fj_r = cx_fj + dj + 1;
-              Real const lckj = lck * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
-
-              // #pragma omp unroll
-              for (int di=0; di<H_SZ; ++di)
-              {
-                int const cx_fi_l = cx_fi - di;
-                int const cx_fi_r = cx_fi + di + 1;
-
-                Real const lckji = lckj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
-
-                Real const f_rrr = fine(n, cx_fk_r, cx_fj_r, cx_fi_r);
-                Real const f_lrr = fine(n, cx_fk_l, cx_fj_r, cx_fi_r);
-                Real const f_rlr = fine(n, cx_fk_r, cx_fj_l, cx_fi_r);
-                Real const f_rrl = fine(n, cx_fk_r, cx_fj_r, cx_fi_l);
-
-                Real const f_llr = fine(n, cx_fk_l, cx_fj_l, cx_fi_r);
-                Real const f_rll = fine(n, cx_fk_r, cx_fj_l, cx_fi_l);
-                Real const f_lrl = fine(n, cx_fk_l, cx_fj_r, cx_fi_l);
-                Real const f_lll = fine(n, cx_fk_l, cx_fj_l, cx_fi_l);
-
-                coarse(n,cx_ck,cx_cj,cx_ci) += lckji *
-#ifdef DBG_SYMMETRIZE_CHEAP
-                  FloatingPoint::sum_corners(
-#else
-                  FloatingPoint::sum_associative(
-#endif
-                  f_rrr, f_lll, f_rrl, f_llr,
-                  f_lrl, f_rlr, f_lrr, f_rll
-                );
-              }
-            }
-          }
-
-
-        }
-
-      }
-    }
-
-
-  }
-  else if (pmb->block_size.nx2>1)
-  { // 2D
-    const int cx_fk = pmb->ks, cx_ck = pmb->cks;
-    for (int n=sn; n<=en; ++n)
-    for (int cx_cj=csj; cx_cj<=cej; cx_cj++)
-    {
-      // left child idx on fine grid
-      const int cx_fj = 2 * (cx_cj - pmb->cx_cjs) + pmb->cx_js;
-
-      for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
-      {
-        // left child idx on fine grid
-        const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
-
-        // use templated ------------------------------------------------------
-        coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
-
-        // #pragma unroll
-        for (int dj=0; dj<H_SZ; ++dj)
-        {
-          int const cx_fj_l = cx_fj - dj;
-          int const cx_fj_r = cx_fj + dj + 1;
-          Real const lcj = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-dj-1];
-
-          // #pragma unroll
-          for (int di=0; di<H_SZ; ++di)
-          {
-            int const cx_fi_l = cx_fi - di;
-            int const cx_fi_r = cx_fi + di + 1;
-
-            Real const lcji = lcj * InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
-
-            Real const f_uu = fine(n, 0, cx_fj_r, cx_fi_r);
-            Real const f_ul = fine(n, 0, cx_fj_r, cx_fi_l);
-            Real const f_lu = fine(n, 0, cx_fj_l, cx_fi_r);
-            Real const f_ll = fine(n, 0, cx_fj_l, cx_fi_l);
-
-            coarse(n,cx_ck,cx_cj,cx_ci) += lcji *
-#ifdef DBG_SYMMETRIZE_CHEAP
-              FloatingPoint::sum_corners(
-#else
-              FloatingPoint::sum_associative(
-#endif
-              f_uu, f_ll, f_lu, f_ul
-            );
-          }
-        }
-
-
-      }
-
-    }
-  }
-  else
-  { // 1D
-    const int cx_fj = pmb->js, cx_cj = pmb->cjs;
-    const int cx_fk = pmb->ks, cx_ck = pmb->cks;
-
-    for (int n=sn; n<=en; ++n)
-    for (int cx_ci=csi; cx_ci<=cei; cx_ci++)
-    {
-      // left child idx on fine grid
-      const int cx_fi = 2 * (cx_ci - pmb->cx_cis) + pmb->cx_is;
-
-      // use templated --------------------------------------------------------
-      coarse(n,cx_ck,cx_cj,cx_ci) = 0.0;
-
-      // #pragma unroll
-      for (int di=0; di<H_SZ; ++di)
-      {
-        Real const lc = InterpolateLagrangeUniform<H_SZ>::coeff[H_SZ-di-1];
-        int const cx_fi_l = cx_fi - di;
-        int const cx_fi_r = cx_fi + di + 1;
-
-        coarse(n,cx_ck,cx_cj,cx_ci) += lc * (
-          fine(n,cx_fk,cx_fj,cx_fi_l) +
-          fine(n,cx_fk,cx_fj,cx_fi_r)
-        );
-      }
-
-
-      // ----------------------------------------------------------------------
-
-    }
-  }
-}
+  int csi, int cei, int csj, int cej, int csk, int cek);
+template void MeshRefinement::RestrictCellCenteredX<1>(
+  const AthenaArray<Real> &fine, AthenaArray<Real> &coarse,
+  int sn, int en,
+  int csi, int cei, int csj, int cej, int csk, int cek);
 
 
 //----------------------------------------------------------------------------------------
@@ -1187,7 +908,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
   sk = pmb->cx_cks; ek = pmb->cx_cke;
 
   // BD: debug with LO
-  // RestrictCellCenteredXValues(
+  // RestrictCellCenteredX<NGHOST>(
   //   fine, coarse, sn, en,
   //   si, ei,
   //   sj, ej,
@@ -1201,13 +922,13 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
 #ifdef Z4C_CX_NUM_RBC_INIT_LO
   if (Z4C_CX_NUM_RBC > 0)
   {
-    RestrictCellCenteredXValuesLO(fine, coarse, sn, en,
-                                  si, ei, sj, ej, sk, ek);
+    RestrictCellCenteredX<1>(fine, coarse, sn, en,
+                            si, ei, sj, ej, sk, ek);
     return;
   }
 #endif
 
-  // RestrictCellCenteredXValuesLO(fine, coarse, sn, en,
+  // RestrictCellCenteredX<1>(fine, coarse, sn, en,
   //                               si, ei, sj, ej, sk, ek);
   // return;
 

@@ -230,12 +230,12 @@ class InterpIntergrid
     const int dc;
     const int dv;
 
-    int * N;           // number of _physical cells_  (vertices will be + 1)
-    int * ncells;      // these include ghosts
-    int * nverts;      // these include ghosts
-    int * strides_cc;
-    int * strides_vc;
-    dtype * rds;
+    int N[3];           // number of _physical cells_  (vertices will be + 1)
+    int ncells[3];      // these include ghosts
+    int nverts[3];      // these include ghosts
+    int strides_cc[3];
+    int strides_vc[3];
+    dtype rds[3];
 
   public:
     // expose maximal target iteration indices ...

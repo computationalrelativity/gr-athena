@@ -58,7 +58,7 @@ static inline T weight(const T * const gr_s,
 
   for(int i=il; i<=iu; ++i)
   {
-    T wei_i = std::pow(-1, i);
+    T wei_i = (i % 2 == 0) ? T(1) : T(-1);
 
     for(int s=i; s<=i+d; ++s)
     {

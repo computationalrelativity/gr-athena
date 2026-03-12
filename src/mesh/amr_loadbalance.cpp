@@ -1024,11 +1024,11 @@ void Mesh::PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf) {
     AthenaArray<Real> *var_cx = std::get<0>(cx_pair);
     AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
-    pmr->RestrictCellCenteredXValues(*var_cx, *coarse_cx,
-                                     0, nu,
-                                     pb->cx_cis, pb->cx_cie,
-                                     pb->cx_cjs, pb->cx_cje,
-                                     pb->cx_cks, pb->cx_cke);
+    pmr->RestrictCellCenteredX<NGHOST>(*var_cx, *coarse_cx,
+                                       0, nu,
+                                       pb->cx_cis, pb->cx_cie,
+                                       pb->cx_cjs, pb->cx_cje,
+                                       pb->cx_cks, pb->cx_cke);
     BufferUtility::PackData(*coarse_cx, sendbuf, 0, nu,
                             pb->cx_cis, pb->cx_cie,
                             pb->cx_cjs, pb->cx_cje,
@@ -1145,11 +1145,11 @@ void Mesh::FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
     AthenaArray<Real> *coarse_cx = std::get<1>(cx_pair);
     int nu = var_cx->GetDim4() - 1;
     coarse_cx->Fill(NAN);
-    pmr->RestrictCellCenteredXValues(*var_cx, *coarse_cx,
-                                    0, nu,
-                                    pob->cx_cis, pob->cx_cie,
-                                    pob->cx_cjs, pob->cx_cje,
-                                    pob->cx_cks, pob->cx_cke);
+    pmr->RestrictCellCenteredX<NGHOST>(*var_cx, *coarse_cx,
+                                       0, nu,
+                                       pob->cx_cis, pob->cx_cie,
+                                       pob->cx_cjs, pob->cx_cje,
+                                       pob->cx_cks, pob->cx_cke);
     // copy from old/original/other MeshBlock (pob) to newly created block (pmb)
     AthenaArray<Real> &src = *coarse_cx;
     AthenaArray<Real> &dst = *std::get<0>(*pmb_cx_it); // pmb->phydro->u;

@@ -166,7 +166,7 @@ int CellCenteredXBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
   // Take coarse rep on l and populate fundamental on l-1
   idxLoadToCoarserRanges(nb.ni, si, ei, sj, ej, sk, ek, true);
 
-  // pmr->RestrictCellCenteredXValues(var, coarse_var,
+  // pmr->RestrictCellCenteredX<NGHOST>(var, coarse_var,
   //                                  nl_, nu_,
   //                                  si, ei, sj, ej, sk, ek);
 
@@ -335,7 +335,7 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost()
   //                             NGHOST);
   // }
 
-  // pmr->RestrictCellCenteredXValues(var, coarse_var,
+  // pmr->RestrictCellCenteredX<NGHOST>(var, coarse_var,
   //                                  nl_, nu_,
   //                                  si, ei, sj, ej, sk, ek);
 
@@ -522,7 +522,7 @@ void CellCenteredXBoundaryVariable::RestrictNonGhost()
   */
 
 
-  // pmr->RestrictCellCenteredXValues(var, coarse_var,
+  // pmr->RestrictCellCenteredX<NGHOST>(var, coarse_var,
   //                                  nl_, nu_,
   //                                  si+1, ei-1, sj+1, ej-1, sk, ek);
 
@@ -580,7 +580,7 @@ void CellCenteredXBoundaryVariable::SendBoundaryBuffersFullRestriction() {
     AthenaArray<Real> &coarse_var = *coarse_buf;
 
     const int nu = var_cx->GetDim4() - 1;
-    pmr->RestrictCellCenteredXValues(
+    pmr->RestrictCellCenteredX<NGHOST>(
       var,
       coarse_var,
       0, nu,

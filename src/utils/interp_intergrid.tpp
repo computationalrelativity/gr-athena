@@ -28,15 +28,6 @@ InterpIntergrid<dtype, H_SZ>::InterpIntergrid(
   dv    (std::min(NG_VC,NG_CC)-H_SZ)
 {
 
-  this->N = new int[dim];
-  this->ncells = new int[dim];
-  this->nverts = new int[dim];
-
-  this->strides_cc = new int[dim];
-  this->strides_vc = new int[dim];
-
-  this->rds = new dtype[dim];
-
   for(int i=0; i<dim; ++i)
   {
     this->rds[i] = rds[i];
@@ -99,12 +90,6 @@ InterpIntergrid<dtype, H_SZ>::InterpIntergrid(
 template <typename dtype, int H_SZ>
 InterpIntergrid<dtype, H_SZ>::~InterpIntergrid()
 {
-  delete[] rds;
-  delete[] N;
-  delete[] ncells;
-  delete[] nverts;
-  delete[] strides_cc;
-  delete[] strides_vc;
 }
 
 // interfaces of specializations ----------------------------------------------
