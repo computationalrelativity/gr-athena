@@ -464,11 +464,11 @@ void ApplyExcision(
           );
         }
 
-        if (E_flr < E_flr)
+        if (E_new < E_flr)
         {
           gam_w_vol = std::min(
             gam_w_vol,
-            (C.sc_E(k,j,i) - nG_flr) / C.sc_E(k,j,i)
+            (C.sc_E(k,j,i) - E_flr) / C.sc_E(k,j,i)
           );
         }
 

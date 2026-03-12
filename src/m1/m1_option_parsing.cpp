@@ -191,8 +191,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   }
 
-  opt_solver.eps_a_tol     = GoA_Real("eps_tol",     1e-10);
-  opt_solver.eps_r_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_a_tol     = GoA_Real("eps_a_tol",   1e-10);
+  opt_solver.eps_r_tol     = GoA_Real("eps_r_tol",   1e-10);
   opt_solver.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_solver.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
