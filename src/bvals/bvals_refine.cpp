@@ -139,8 +139,9 @@ void BoundaryValues::ProlongateBoundariesZ4c(const Real time, const Real dt)
 
   std::vector<BoundaryVariable *> ubvar_ { &pz4c->ubvar };
 
-  // BD: TODO - should restrict here also to have updated fields...
-  // pz4c->ubvar.RestrictInterior(time, dt);
+  // RestrictInterior is not needed here: CX pre-restricts the entire coarse_buf
+  // interior in SendBoundaryBuffers (via RestrictNonGhost). Any interior cells
+  // subsequently overwritten by SetBoundaryFromCoarser are order-compatible.
 
   ApplyPhysicalBoundariesOnCoarseLevel(
     time, dt,
