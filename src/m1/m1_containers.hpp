@@ -29,26 +29,6 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_bil;
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 2> AT_D_bil;
 
-/*
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  0> TP_N_sca;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  1> TP_N_vec;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::SYM2,
-  N,
-  2> TP_N_sym;
-*/
-
 
 // Class ======================================================================
 

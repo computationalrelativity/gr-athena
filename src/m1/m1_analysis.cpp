@@ -112,7 +112,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
 
 void CalcRadFlux(MeshBlock *pmb)
 {
-  // ...
+  // placeholder
 }
 
 void CalcNeutrinoDiagnostics(MeshBlock *pmb)
@@ -173,16 +173,16 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
     }
 
     // normalize energies by total
-    for (int ix_g=0; ix_g < pm1->N_GRPS; ++ix_g)
-    for (int ix_s=0; ix_s < pm1->N_SPCS; ++ix_s)
-    {
-      AT_C_sca & sc_z = pm1->rdiag.sc_z(ix_g, ix_s);
+    // for (int ix_g=0; ix_g < pm1->N_GRPS; ++ix_g)
+    // for (int ix_s=0; ix_s < pm1->N_SPCS; ++ix_s)
+    // {
+    //   AT_C_sca & sc_z = pm1->rdiag.sc_z(ix_g, ix_s);
 
-      M1_ILOOP3(k, j, i)
-      {
-        sc_z(k,j,i) = sc_z(k,j,i); // / sc_z_sum(k,j,i);
-      }
-    }
+    //   M1_ILOOP3(k, j, i)
+    //   {
+    //     sc_z(k,j,i) = sc_z(k,j,i); // / sc_z_sum(k,j,i);
+    //   }
+    // }
 
   }
 #endif // FLUID_ENABLED
