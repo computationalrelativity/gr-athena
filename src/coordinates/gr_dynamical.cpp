@@ -418,10 +418,12 @@ void GRDynamical::AddCoordTermsDivergence(
         }
       }
 
+      // b^i = B^i/W + b^0 (alpha v^i - beta^i)
+      // where v^i = utilde^i / W.
       for (int a = 0; a < NDIM; ++a)
       CC_PCO_ILOOP1(i) {
         bi_u_(a, i) = (
-          q_scB_u_(a, i) +
+          q_scB_u_(a, i) / W_(i) +
           alpha_(i) * b0_(i) * (w_util_u_(a, i) / W_(i) -
                                 beta_u_(a, i) * oo_alpha_(i))
         );
