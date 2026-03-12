@@ -279,14 +279,16 @@ int BoundaryBase::FindBufferID(int ox1, int ox2, int ox3, int fi1, int fi2) {
 // lead to unsafe conversions (and overflows from built-in types and MPI_TAG_UB).  Note,
 // the MPI standard requires signed int tag, with MPI_TAG_UB>= 2^15-1 = 32,767 (inclusive)
 
-// TODO(felker) Consider adding safety check: if (tag > MPI_TAG_UB) ATHENA_ERROR();
-// TODO(felker) Consider adding safety check: signed int inputs & outputs are positive
-// TODO(felker) Store # of bits for each bitfield component in preprocessor macros
-//              TAG_BITS_PHYS=5, MAX_NUM_PHYS=31
-
 int BoundaryBase::CreateBvalsMPITag(int lid, int bufid, int phys) {
   int tag = (lid<<11) | (bufid<<5) | phys;
-  assert (tag <= Globals::mpi_tag_ub);
+  if (tag > Globals::mpi_tag_ub) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in BoundaryBase::CreateBvalsMPITag" << std::endl
+        << "MPI tag " << tag << " exceeds MPI_TAG_UB=" << Globals::mpi_tag_ub << std::endl
+        << "Too many MeshBlocks per rank (lid=" << lid
+        << ", bufid=" << bufid << ", phys=" << phys << ")." << std::endl;
+    ATHENA_ERROR(msg);
+  }
   return tag;
 }
 

@@ -1783,13 +1783,17 @@ void Mesh::FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf) {
 //! \fn int CreateAMRMPITag(int lid, int ox1, int ox2, int ox3)
 //  \brief calculate an MPI tag for AMR block transfer
 // tag = local id of destination (remaining bits) + ox1(1 bit) + ox2(1 bit) + ox3(1 bit)
-//       + physics(5 bits)
 
 // See comments on BoundaryBase::CreateBvalsMPITag()
 
 int Mesh::CreateAMRMPITag(int lid, int ox1, int ox2, int ox3) {
-  // former "AthenaTagMPI" AthenaTagMPI::amr=8 redefined to 0
-  int tag = (lid<<8) | (ox1<<7)| (ox2<<6) | (ox3<<5) | 0;
-  assert (tag <= Globals::mpi_tag_ub);
+  int tag = (lid<<3) | (ox1<<2) | (ox2<<1) | ox3;
+  if (tag > Globals::mpi_tag_ub) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Mesh::CreateAMRMPITag" << std::endl
+        << "MPI tag " << tag << " exceeds MPI_TAG_UB=" << Globals::mpi_tag_ub << std::endl
+        << "Too many MeshBlocks per rank (lid=" << lid << ")." << std::endl;
+    ATHENA_ERROR(msg);
+  }
   return tag;
 }
