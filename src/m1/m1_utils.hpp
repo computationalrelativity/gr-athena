@@ -78,20 +78,6 @@ inline Real sc_dot_dense_sp__(
   return dot;
 }
 
-inline Real sc_ddot_dense_sp__(
-  const AT_N_vec & sp_V_u,
-  const AT_N_sym & sp_S_dd,
-  const int k, const int j, const int i)
-{
-  Real dot (0);
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    dot += sp_V_u(a,k,j,i) * sp_V_u(b,k,j,i) * sp_S_dd(a,b,k,j,i);
-  }
-  return dot;
-}
-
 // geometric ------------------------------------------------------------------
 inline void sp_beta_d(
   AT_N_vec & sp_tar,
