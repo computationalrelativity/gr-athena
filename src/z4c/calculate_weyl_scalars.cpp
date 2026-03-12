@@ -303,8 +303,10 @@ void Z4c::Z4cWeyl(AthenaArray<Real> & u_adm, AthenaArray<Real> & u_mat, AthenaAr
                 ddg_dddd(a,c,b,d,i) + ddg_dddd(b,c,a,d,i));
         }
       }
+      // R = g^{ab} R_{ab}; triangular loop needs 2x on off-diagonal (a != b) terms
+      // since g^{ab} R_{ab} = sum_a g^{aa} R_{aa} + 2 * sum_{a<b} g^{ab} R_{ab}
       ILOOP1(i) {
-        R(i) += g_uu(a,b,i) * R_dd(a,b,i);
+        R(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * R_dd(a,b,i);
       }
     }
 

@@ -524,33 +524,7 @@ void Z4c::ADMConstraints(
     // Ricci tensor and Ricci scalar
     //
 
-    /*
     R.ZeroClear();
-    R_dd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      for(int c = 0; c < NDIM; ++c)
-      for(int d = 0; d < NDIM; ++d) {
-        // Part with the Christoffel symbols
-        for(int e = 0; e < NDIM; ++e) {
-          ILOOP1(i) {
-            R_dd(a,b,i) += g_uu(c,d,i) * Gamma_udd(e,a,c,i) * Gamma_ddd(e,b,d,i);
-            R_dd(a,b,i) -= g_uu(c,d,i) * Gamma_udd(e,a,b,i) * Gamma_ddd(e,c,d,i);
-          }
-        }
-        // Wave operator part of the Ricci
-        ILOOP1(i) {
-          R_dd(a,b,i) += 0.5*g_uu(c,d,i)*(
-              - ddg_dddd(c,d,a,b,i) - ddg_dddd(a,b,c,d,i) +
-                ddg_dddd(a,c,b,d,i) + ddg_dddd(b,c,a,d,i));
-        }
-      }
-      ILOOP1(i) {
-        R(i) += g_uu(a,b,i) * R_dd(a,b,i);
-      }
-    }
-    */
-
     R_dd.ZeroClear();
     for (int a=0; a<NDIM; ++a)
     for (int b=a; b<NDIM; ++b)
@@ -577,14 +551,13 @@ void Z4c::ADMConstraints(
           -ddg_dddd(d,c,a,b,i)
         );
       }
-    }
 
-    R.ZeroClear();
-    for (int a=0; a<NDIM; ++a)
-    for (int b=0; b<NDIM; ++b)
-    ILOOP1(i)
-    {
-      R(i) += g_uu(a,b,i) * R_dd(a,b,i);
+      // R = g^{ab} R_{ab}; triangular loop needs 2x on off-diagonal (a != b) terms
+      // since g^{ab} R_{ab} = sum_a g^{aa} R_{aa} + 2 * sum_{a<b} g^{ab} R_{ab}
+      ILOOP1(i)
+      {
+        R(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * R_dd(a,b,i);
+      }
     }
 
     // -----------------------------------------------------------------------------------
