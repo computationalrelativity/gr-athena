@@ -1790,6 +1790,21 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADMPhysical(pmb_array, enforce_alg);
 
+        // Recompute cell-centered B from (prolongated) face-centered B
+        // before C2P. Newly created blocks from AMR have stale bcc.
+        if (MAGNETIC_FIELDS_ENABLED) {
+          const int nmb_loc = pmb_array.size();
+          #pragma omp for
+          for (int i = 0; i < nmb_loc; ++i) {
+            Field *pf = pmb_array[i]->pfield;
+            MeshBlock *pmb_i = pmb_array[i];
+            pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb_i->pcoord,
+                                           pmb_i->is, pmb_i->ie,
+                                           pmb_i->js, pmb_i->je,
+                                           pmb_i->ks, pmb_i->ke);
+          }
+        }
+
         // reset_floor with PrimitiveSolver adjusts the conserved
         // Put this here to further polish values after global regridding
         static const bool interior_only = true;
