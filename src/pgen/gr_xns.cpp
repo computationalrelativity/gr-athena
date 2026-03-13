@@ -58,7 +58,7 @@ namespace XNS {
     "btot",
     "chi",
     "epol",
-    "jpol", "jtor",
+    "jpol", "jtor", "aphi"
   };
   
   // Indexes of XNS 2D fields
@@ -69,7 +69,7 @@ namespace XNS {
        IXNS_btot,
        IXNS_chi,
        IXNS_epol,
-       IXNS_jpol, IXNS_jtor,
+       IXNS_jpol, IXNS_jtor, IXNS_aphi,
        NXNSVars,
   };
 
@@ -81,6 +81,7 @@ namespace XNS {
        PRESS,
        VELOCITY,
        BFIELD,
+       AFIELD,
        NUNITS,
   };
 
@@ -94,6 +95,7 @@ namespace XNS {
     Real b_units; // B-field
     Real r_units; // length
     Real rho_units; // mass density
+    Real a_units;
 
     static const int matter_interp_order = 2;
     static const int metric_interp_order = 2*NGHOST-1;
@@ -114,6 +116,7 @@ namespace XNS {
     inline static Real _b_units; 
     inline static Real _r_units; 
     inline static Real _rho_units; 
+    inline static Real _a_units; 
     
     LagrangeInterpND<matter_interp_order, 2> * pinterp2_matter = nullptr;
     LagrangeInterpND<metric_interp_order, 2> * pinterp2_metric = nullptr;
@@ -163,6 +166,7 @@ namespace XNS {
 	  readIntAttr("NR", NR);
 	  readIntAttr("NTH", NTH);
 	  readRealAttr("bfield_unit", b_units);
+    readRealAttr("afield_unit", a_units);
 	  readRealAttr("length_unit", r_units);
 	  readRealAttr("massdens_unit", rho_units);
 	  
@@ -229,6 +233,7 @@ namespace XNS {
 	  _b_units = b_units;
 	  _r_units = r_units;
 	  _rho_units = rho_units;
+    _a_units = a_units;
 
 	} // if (initialized==false)
       } // omp critical (ReadData)
@@ -242,6 +247,7 @@ namespace XNS {
       b_units = _b_units;
       r_units = _r_units;
       rho_units = _rho_units;
+      a_units = _a_units;
 
     }
     
@@ -464,6 +470,33 @@ namespace XNS {
       vz = 0.0;
       return psi4 * (SQR(vx) + SQR(vy));
     } 
+
+    Real CartesianVector_A(Real A_phi,
+                         Real psi4,
+                         Real xp, Real yp, Real zp,
+                         Real &A_x, Real &A_y, Real &A_z) {
+      // Given the non-zero component \Tilde{A}_\phi = A_\phi/(r*sin\theta) (which is A_phi in the code for simplicity) and conf. fact.
+      // returns Cartesian components of the 3-covector and modulus
+
+      Real rcylp = 0.0;
+      Real sinphi = 0.0;
+      Real cosphi = 0.0;
+      Real rcylp2 = SQR(xp) + SQR(yp);
+      if (rcylp2>0.0) {
+        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        sinphi = yp/rcylp;
+        cosphi = xp/rcylp;
+      } else {
+        rcylp = 0.0;
+        sinphi = 0.0;
+        cosphi = 0.0;
+      }
+      
+      A_x = - A_phi * sinphi; 
+      A_y =   A_phi * cosphi;
+      A_z = 0.0;
+      return (SQR(A_x) + SQR(A_y)) / psi4;
+    }     
     
   }; // class XNSData
 
@@ -699,6 +732,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 #if USETM
   Real rho_min = pin->GetReal("hydro", "dfloor");
+  Real rho_atm = pin->GetReal("hydro", "rho_atm");
 #endif
 
   for (int k=0; k<ncells3; ++k)
@@ -782,7 +816,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
     rho *= ceos->mb/XNS.mb; // adjust for baryon mass
 #endif
-    if (rho > rho_min) {
+    if (rho < rho_atm) {
+      rho = rho_min;
+      Real pres_eos = ceos->GetPressure(rho);
+      Real pres_diff = max(abs(pres / pres_eos - 1), pres_diff);
+      pres = pres_eos;
+    }
+    else {
       Real pres_eos = ceos->GetPressure(rho);
       Real pres_diff = max(abs(pres / pres_eos - 1), pres_diff);
       pres = pres_eos;
@@ -864,6 +904,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pfield->b.x2f.ZeroClear();
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
+
+  AthenaArray<Real> Acc(NFIELD,ncells3,ncells2,ncells1);
   
   // Construct cell centred B field 
   /* for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
@@ -885,6 +927,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real Br = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
     Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
     Real Bphi = XNS.Interp(IXNS_b3, matter_interp_order, BFIELD);
+    Real A_phi = XNS.Interp(IXNS_aphi, matter_interp_order, AFIELD);
 
     XNS.FreeInterp(matter_interp_order);
     
@@ -901,14 +944,27 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real bccy = 0.0;
     Real bccz = 0.0;
 
+
     Real B2 = XNS.CartesianVector(Br, Btheta, Bphi,
                                   psi4, 
                                   xp,yp,zp,
                                   bccx, bccy, bccz);
 
-    pfield->bcc(0,k,j,i) = bccx;
-    pfield->bcc(1,k,j,i) = bccy;
-    pfield->bcc(2,k,j,i) = bccz;
+    Real A_x = 0.0; 
+    Real A_y = 0.0; 
+    Real A_z = 0.0;
+    Real A2 = XNS.CartesianVector_A(A_phi, psi4,
+                                  xp,yp,zp,
+                                  A_x, A_y, A_z);
+
+    //pfield->bcc(0,k,j,i) = bccx;
+    //pfield->bcc(1,k,j,i) = bccy;
+    //pfield->bcc(2,k,j,i) = bccz;
+
+
+    Acc(0,k,j,i) = A_x;
+    Acc(1,k,j,i) = A_y;
+    Acc(2,k,j,i) = A_z;
 
     // Densitize B field
     //Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
@@ -916,6 +972,21 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     //pfield->bcc(1,k,j,i) *= sqrtdetgam;
     //pfield->bcc(2,k,j,i) *= sqrtdetgam;
     
+  }
+
+  for(int k=ks-1; k<=ke+1; k++)
+  for(int j=js-1; j<=je+1; j++)
+  for(int i=is-1; i<=ie+1; i++)
+  {
+    Real dx1 = pcoord->dx1v(i);
+    Real dx2 = pcoord->dx2v(j);
+    Real dx3 = pcoord->dx3v(k);
+
+    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+
   }
 
   // Initialise face centred field by averaging cc field
