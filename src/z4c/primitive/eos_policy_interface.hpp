@@ -37,6 +37,27 @@ class EOSPolicyInterface {
     UnitSystem* code_units;
     /// EOS unit system
     UnitSystem* eos_units;
+
+  public:
+    // Get the minimum density for the EOS
+    inline Real MinimumDensity() const {
+      return min_n;
+    }
+
+    // Get the maximum density for the EOS
+    inline Real MaximumDensity() const {
+      return max_n;
+    }
+
+    // Get the minimum temperature for the EOS
+    inline Real MinimumTemperature() const {
+      return min_T;
+    }
+
+    // Get the maximum temperature for the EOS
+    inline Real MaximumTemperature() const {
+      return max_T;
+    }
 };
 
 } // namespace

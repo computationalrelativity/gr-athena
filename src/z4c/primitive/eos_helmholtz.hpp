@@ -1,15 +1,12 @@
-#ifndef EOS_COMPOSE_H
-#define EOS_COMPOSE_H
+#ifndef EOS_HELMHOLTZ_H
+#define EOS_HELMHOLTZ_H
 
-//! \file eos_compose.hpp
-//  \brief Defines EOSTable, which stores information from a tabulated
-//         equation of state in CompOSE format.
-//
-//  Tables should be generated using
-//  <a href="https://bitbucket.org/dradice/pycompose">PyCompOSE</a>
+//! \file eos_helmholtz.hpp
+//  \brief Defines EOSTable, which stores information for the helmholtz eos
+//        .tabulated electron quantities
 
 ///  \warning This code assumes the table to be uniformly spaced in
-///           log nb, log t, and yq
+///           log ne and log t
 
 #include <cstddef>
 #include <string>
@@ -17,35 +14,29 @@
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
 
+
 namespace Primitive {
 
-class EOSCompOSE : public EOSPolicyInterface {
+class EOSHelmholtz : public EOSPolicyInterface {
   friend class EOSTransition;
   public:
     enum TableVariables {
-      ECLOGP  = 0,  //! log (pressure / 1 MeV fm^-3)
-      ECENT   = 1,  //! entropy per baryon [kb]
-      ECMUB   = 2,  //! baryon chemical potential [MeV]
-      ECMUQ   = 3,  //! charge chemical potential [MeV]
-      ECMUL   = 4,  //! lepton chemical potential [MeV]
-      ECLOGE  = 5,  //! log (total energy density / 1 MeV fm^-3)
-      ECCS    = 6,  //! sound speed [c]
-      ECYN    = 7,  //! Y[n]
-      ECYP    = 8,  //! Y[p]
-      ECYA    = 9,  //! Y[He4]
-      ECYH    = 10, //! (Y[N] read) what would be Y[h] (name schematic, we assemble)
-      ECAN    = 11, //! A[N]
-      ECZN    = 12, //! Z[N]
-      ECABAR  = 13, //! average baryon number per nucleon
-      ECNVARS = 14
+      ECP      = 0,  //! pressure / 1 MeV fm^-3
+      ECENT    = 1,  //! entropy per baryon [kb]
+      ECEPS    = 2,  //! specific internal energy
+      ECELE    = 3,  //! electron degeneracy parameter
+      ECDEPSDT = 4,
+      ECDPDN   = 5,
+      ECDPDT   = 6,
+      ECNVARS  = 7
     };
 
   protected:
     /// Constructor
-    EOSCompOSE();
+    EOSHelmholtz();
 
     /// Destructor
-    ~EOSCompOSE();
+    ~EOSHelmholtz();
 
     /// Temperature from energy density
     Real TemperatureFromE(Real n, Real e, Real *Y);
@@ -54,39 +45,40 @@ class EOSCompOSE : public EOSPolicyInterface {
     Real TemperatureFromP(Real n, Real p, Real *Y);
     //
     /// Temperature from specific internal energy
-    Real TemperatureFromEps(Real n, Real e, Real *Y);
+    Real TemperatureFromEps(Real n, Real eps, Real *Y);
 
     /// Calculate the temperature from the entropy
     Real TemperatureFromEntropy(Real n, Real s, Real *Y);
 
-    /// Calculate the energy density using.
+    /// Calculate the energy density.
     Real Energy(Real n, Real T, Real *Y);
 
-    /// Calculate the pressure using.
+    /// Calculate the pressure.
     Real Pressure(Real n, Real T, Real *Y);
 
-    /// Calculate the entropy per baryon using.
+    /// Calculate the average baryon number per nucleus.
+    Real Abar(Real n, Real T, Real *Y);
+
+    /// Calculate the entropy per baryon.
     Real Entropy(Real n, Real T, Real *Y);
 
-    /// Calculate the enthalpy per baryon using.
+    /// Calculate the enthalpy per baryon.
     Real Enthalpy(Real n, Real T, Real *Y);
 
     /// Calculate the sound speed.
     Real SoundSpeed(Real n, Real T, Real *Y);
 
-    /// Species fractions
-    Real FrYn(Real n, Real T, Real *Y);
-    Real FrYp(Real n, Real T, Real *Y);
-    Real FrYa(Real n, Real T, Real *Y);
-    Real FrYh(Real n, Real T, Real *Y);
-
-    Real AN(Real n, Real T, Real *Y);
-    Real ZN(Real n, Real T, Real *Y);
-
-    Real Abar(Real n, Real T, Real *Y);
-
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
+
+    /// Calculate the neutron chemical potential
+    Real NeutronChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the proton chemical potential
+    Real ProtonChemicalPotential(Real n, Real T, Real *Y);
+
+    /// Calculate the baryon electron chemical potential
+    Real ElectronChemicalPotential(Real n, Real T, Real *Y);
 
     /// Calculate the baryon chemical potential
     Real BaryonChemicalPotential(Real n, Real T, Real *Y);
@@ -107,10 +99,10 @@ class EOSCompOSE : public EOSPolicyInterface {
     Real MaximumPressure(Real n, Real *Y);
 
     /// Get the minimum energy at a given density and composition
-    Real MinimumEnergy(Real n, Real *Y);
+    Real MinimumInternalEnergy(Real n, Real *Y);
 
     /// Get the maximum energy at a given density and composition
-    Real MaximumEnergy(Real n, Real *Y);
+    Real MaximumInternalEnergy(Real n, Real *Y);
 
     /// Get the minimum entropy per baryon at a given density and composition
     Real MinimumEntropy(Real n, Real *Y);
@@ -123,17 +115,11 @@ class EOSCompOSE : public EOSPolicyInterface {
     void ReadTableFromFile(std::string fname);
 
     /// Set the baryon mass.
-    /// Updating the table is not necessary because it stores the total energy and the baryon number density
-    void SetBaryonMass(Real new_mb) {
-      mb = new_mb;
-    }
+    void SetBaryonMass(Real new_mb);
 
     /// Get the raw number density
     Real const * GetRawLogNumberDensity() const {
-      return m_log_nb;
-    }
-    Real const * GetRawYq() const {
-      return m_yq;
+      return m_log_ne;
     }
     /// Get the raw number density
     Real const * GetRawLogTemperature() const {
@@ -145,8 +131,8 @@ class EOSCompOSE : public EOSPolicyInterface {
     }
 
     // Indexing used to access the data
-    inline ptrdiff_t index(int iv, int in, int iy, int it) const {
-      return it + m_nt*(iy + m_ny*(in + m_nn*iv));
+    inline ptrdiff_t index(int iv, int in, int it) const {
+      return it + m_nt*(in + m_nn*iv);
     }
 
     /// Check if the EOS has been initialized properly.
@@ -158,75 +144,60 @@ class EOSCompOSE : public EOSPolicyInterface {
     /// the number of species is invalid.
     void SetNSpecies(int n);
 
-    /// Set the maxium density.
-    /// Values higher than the max of the table will lead to extrapolation
-    void SetMaximumDensity(Real n_max) {
-      max_n = n_max;
-    }
-
-    /// Set the maxium termperature.
-    /// Values higher than the max of the table will lead to extrapolation
-    void SetMaximumTemperature(Real T_max) {
-      max_T = T_max;
-    }
-
-    // N.B. non-converted
-    Real GetTableProtonMass()
-    {
-      return s_mp;
-    }
-
-    Real GetTableNeutronMass()
-    {
-      return s_mn;
-    }
-
   private:
+    inline Real inverse_abar(Real *Y) const {
+      return Y[SCXN] + Y[SCXP] + Y[SCXA]/4 + Y[SCXH]/Y[SCAH];
+    }
+
     /// Low level function, not intended for outside use
-    Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
+    Real temperature_from_var(int vi, Real var, Real n, Real *Y) const;
     /// Low level evaluation function, not intended for outside use
-    Real eval_at_nty(int vi, Real n, Real T, Real Yq) const;
+    Real eval_at_nty(int vi, Real n, Real T, Real *Y) const;
     /// Low level evaluation function, not intended for outside use
-    Real eval_at_lnty(int vi, Real ln, Real lT, Real Yq) const;
+    Real eval_at_lnty(int vi, Real ln, Real lT) const;
+    /// Low level function to add the analytic terms
+    Real add_rad_ion(int vi, Real var, Real n, Real T, Real *Y) const;
 
     /// Evaluate interpolation weight for density
     void weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const;
-    /// Evaluate interpolation weight for composition
-    void weight_idx_yq(Real *w0, Real *w1, int *iy, Real yq) const;
     /// Evaluate interpolation weight for temperature
     void weight_idx_lt(Real *w0, Real *w1, int *it, Real log_t) const;
 
   private:
     // Inverse of table spacing
-    Real m_id_log_nb, m_id_log_t, m_id_yq;
+    Real m_id_log_ne, m_id_log_t;
     // Table size
-    int m_nn, m_nt, m_ny;
+    int m_nn, m_nt;
     // Minimum enthalpy per baryon
     Real m_min_h;
 
     // Table storage, care should be made to store these data on the GPU later
     // Static pointers used to share access to single instance of table in memory (per MPI process)
-    static Real * m_log_nb;
+    static Real * m_log_ne;
     static Real * m_log_t;
-    static Real * m_yq;
     static Real * m_table;
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     static bool m_initialized;
 
     // Auxiliary static variables to share data only available when table is open to those threads that do not open it
-    // variables from EOSCompOSE
-    static Real sm_id_log_nb, sm_id_log_t, sm_id_yq;
-    static int sm_nn, sm_nt, sm_ny;
+    // variables from EOSHelmholtz
+    static Real sm_id_log_ne, sm_id_log_t;
+    static int sm_nn, sm_nt;
     static Real sm_min_h;
 
     // variables from EOSPolicy
     static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
     // these correspond to defined but unused vars in EOSPolicy
     // static Real s_max_P, s_min_P, s_max_e, s_min_e;
-
-    // storage for neutron and proton mass resp.
-    static Real s_mn, s_mp;
+    const Real hbarc = 197.3269804; // MeV fm
+    // const Real asol = 8.563456312967042e-08; // pi**2/(15*hbarc^3) (MeV fm)^-3
+    const Real asol = M_PI*M_PI/(15.0*hbarc*hbarc*hbarc); // (MeV fm)^-3
+    // const Real sac_const = 244654.27090035815; // h^2/(2*pi) in (MeV fm)^2
+    const Real sac_const = hbarc*hbarc*2.0*M_PI; // (MeV fm)^2
+    const Real mn = 939.5654133; // MeV
+    const Real mp = 938.2720813; // MeV
+    const Real ma = 3727.379378; // MeV
 };
 
 } // namespace Primitive

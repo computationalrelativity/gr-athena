@@ -59,6 +59,8 @@ class IdealGas : public EOSPolicyInterface {
     Real FrYp(Real n, Real T, Real *Y);
     [[ noreturn ]]
     Real FrYh(Real n, Real T, Real *Y);
+    [[ noreturn ]]
+    Real FrYa(Real n, Real T, Real *Y);
 
     [[ noreturn ]]
     Real AN(Real n, Real T, Real *Y);
@@ -100,7 +102,7 @@ class IdealGas : public EOSPolicyInterface {
     }
 
   public:
-    /// Set the adiabatic index for the ideal gas. 
+    /// Set the adiabatic index for the ideal gas.
     /// The range \f$1 < \gamma < 1\f$ is imposed. The lower
     /// constraint ensures that enthalpy is finite, and the upper
     /// bound keeps the sound speed causal.

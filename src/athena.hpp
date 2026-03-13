@@ -139,6 +139,18 @@ enum MagneticIndex {IB1=0, IB2=1, IB3=2, NMAG=3};
 #if USETM
 enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=(NHYDRO),
                 IBZ=((NHYDRO)+1), NPRIM=((NHYDRO)+(USETM)+(MAX_SPECIES))};
+#if EOS_POLICY_CODE == 4
+enum ScalarVariables {
+  SCYE    = 0,  //! electron fraction
+  SCXN    = 1,  //! mass fraction of free neutrons
+  SCXP    = 2,  //! mass fraction of free protons
+  SCXA    = 3,  //! mass fraction of alpha particles
+  SCXH    = 4,  //! mass fraction of heavy nuclei
+  SCAH    = 5,  //! average atomic mass of heavy nuclei
+  SCEB    = 6,  //! binding energy per baryon relative to baryon mass factor
+  SCNVAR  = 7   //! number of scalar variables
+};
+#endif
 #else
 enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
 #endif

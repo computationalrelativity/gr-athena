@@ -91,7 +91,7 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real *Y) {
   Real e_min = MinimumEnergy(n, Y);
   Real e_max = MaximumEnergy(n, Y);
 //  return temperature_from_var(ECLOGE, log(e), n, Y[0]);
-  return (e <= e_min) ? min_T : (e >= e_max) ? max_T : 
+  return (e <= e_min) ? min_T : (e >= e_max) ? max_T :
 	   temperature_from_var(ECLOGE, log(e), n, Y[0]);
 }
 
@@ -154,6 +154,11 @@ Real EOSCompOSE::FrYp(Real n, Real T, Real *Y) {
   return eval_at_nty(ECYP, n, T, Y[0]);
 }
 
+Real EOSCompOSE::FrYa(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECYA, n, T, Y[0]);
+}
+
 Real EOSCompOSE::FrYh(Real n, Real T, Real *Y) {
   assert (m_initialized);
   return eval_at_nty(ECYH, n, T, Y[0]);
@@ -167,6 +172,11 @@ Real EOSCompOSE::AN(Real n, Real T, Real *Y) {
 Real EOSCompOSE::ZN(Real n, Real T, Real *Y) {
   assert (m_initialized);
   return eval_at_nty(ECZN, n, T, Y[0]);
+}
+
+Real EOSCompOSE::Abar(Real n, Real T, Real *Y) {
+  assert (m_initialized);
+  return eval_at_nty(ECABAR, n, T, Y[0]);
 }
 
 Real EOSCompOSE::SpecificInternalEnergy(Real n, Real T, Real *Y) {

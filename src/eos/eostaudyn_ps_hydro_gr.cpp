@@ -120,7 +120,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
-#elif defined(USE_COMPOSE_TRANSITION_EOS)
+#elif defined(USE_TRANSITION_EOS)
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   std::string compose_table = pin->GetString("hydro", "table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
@@ -144,8 +144,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.InitializeTables(compose_table, helmholtz_table, heating_table, baryon_mass);
 
   Real mb = eos.GetBaryonMass();
-  Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
-  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
   Real ld_n, hd_n, ld_t, hd_t;
   eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
   eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
@@ -205,18 +203,17 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
 }
 
-
 // Initialize cold eos object based on parameters
 void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
                  ParameterInput *pin) {
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_TRANSITION_EOS)
   std::string table = pin->GetString("hydro", "table");
 
   eos->ReadColdSliceFromFile(table);
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
 
-#if defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_TRANSITION_EOS)
   Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 929.4); // slightly below Fe56 mass/baryon in MeV
   eos->UpdateBaryonMass(baryon_mass);
 #endif
@@ -539,9 +536,9 @@ void EquationOfState::ConservedToPrimitive(
         );
       }
 
-#if defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_TRANSITION_EOS)
       NuclearBinding(prim, prim_scalar, pco, gsc, pmy_block_->phydro->derived_ms, k, j, i);
-#endif // USE_COMPOSE_TRANSITION_EOS
+#endif // USE_TRANSITION_EOS
     }
 
     // derived quantities -----------------------------------------------------

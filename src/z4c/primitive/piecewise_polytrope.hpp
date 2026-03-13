@@ -72,6 +72,8 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     [[ noreturn ]]
     Real FrYp(Real n, Real T, Real *Y);
     [[ noreturn ]]
+    Real FrYa(Real n, Real T, Real *Y);
+    [[ noreturn ]]
     Real FrYh(Real n, Real T, Real *Y);
 
     [[ noreturn ]]

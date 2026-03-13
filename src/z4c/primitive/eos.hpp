@@ -85,6 +85,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     using EOSPolicy::MaximumSpecificInternalEnergy;
 
     using EOSPolicy::FrYn;
+    using EOSPolicy::FrYa;
     using EOSPolicy::FrYp;
     using EOSPolicy::FrYh;
 
@@ -348,6 +349,11 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     inline Real GetYp(Real n, Real T, Real *Y)
     {
       return FrYp(n, T*code_units->TemperatureConversion(*eos_units), Y);
+    }
+
+    inline Real GetYa(Real n, Real T, Real *Y)
+    {
+      return FrYa(n, T*code_units->TemperatureConversion(*eos_units), Y);
     }
 
     inline Real GetYh(Real n, Real T, Real *Y)

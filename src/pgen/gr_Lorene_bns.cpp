@@ -281,7 +281,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_TRANSITION_EOS)
   // Dump Lorene eos file
   if (Globals::my_rank == 0) {
     std::string run_dir;
@@ -422,7 +422,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   }
 
   // forr tabulated EOS need to convert baryon mass
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || defined(USE_TRANSITION_EOS)
   Real rho_1 = bns->nbar[0] / m_u_si * 1e-45 * ceos->GetBaryonMass();
   Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 #else
@@ -440,7 +440,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 
   // sanity check if the internal energy matches the eos
   Real eps_1 = bns->ener_spec[0];
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_TRANSITION_EOS)
   eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
 #endif
 
@@ -740,7 +740,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
     {
-#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS) || defined(USE_TRANSITION_EOS)
       // Lorene is using the atomic mass unit as reference mass so the density has to be converted
       Real nb = bns->nbar[I] / m_u_si * 1e-45; // kg/m^3 -> fm^-3
       Real w_rho = nb * ceos->GetBaryonMass(); // fm^-3 -> code units

@@ -352,7 +352,7 @@ class EquationOfState {
     const Real sigma_s_frac = 0.5    // fraction of num_neighbors for spatial weight
   );
 
-#if defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_TRANSITION_EOS)
   void NuclearBinding(
       AA &prim,
       AA &prim_scalar,

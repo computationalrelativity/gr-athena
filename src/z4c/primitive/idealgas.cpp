@@ -68,6 +68,10 @@ Real IdealGas::FrYp(Real n, Real s, Real *Y) {
   throw std::logic_error("IdealGas::FrYp not currently implemented.");
 }
 
+Real IdealGas::FrYa(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::FrYh not currently implemented.");
+}
+
 Real IdealGas::FrYh(Real n, Real s, Real *Y) {
   throw std::logic_error("IdealGas::FrYh not currently implemented.");
 }

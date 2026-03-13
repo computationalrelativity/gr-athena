@@ -131,6 +131,10 @@ Real PiecewisePolytrope::FrYp(Real n, Real s, Real *Y) {
   throw std::logic_error("PiecewisePolytrope::FrYp not currently implemented.");
 }
 
+Real PiecewisePolytrope::FrYa(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::FrYa not currently implemented.");
+}
+
 Real PiecewisePolytrope::FrYh(Real n, Real s, Real *Y) {
   throw std::logic_error("PiecewisePolytrope::FrYh not currently implemented.");
 }

@@ -34,9 +34,9 @@
   #ifndef HDF5OUTPUT
     #error "HDF5 must be enabled to use transition eos"
   #endif
-  #define USE_COMPOSE_TRANSITION_EOS
-  #include "../z4c/primitive/eos_compose_transition.hpp"
-  #include "../z4c/primitive/cold_eos_compose_transition.hpp"
+  #define USE_TRANSITION_EOS
+  #include "../z4c/primitive/eos_transition.hpp"
+  #include "../z4c/primitive/cold_eos_transition.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif

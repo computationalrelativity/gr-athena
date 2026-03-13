@@ -208,7 +208,7 @@ parser.add_argument(
 parser.add_argument(
   "--eospolicy",
   default="idealgas",
-  choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table', 'eos_compose_transition'],
+  choices=['idealgas', 'piecewise_polytrope', 'eos_compose', 'hybrid_table', 'eos_transition'],
   help="select EOS policy for PrimitiveSolver framework",
 )
 
@@ -879,11 +879,11 @@ elif args["eos"] == "eostaudyn_ps":
     definitions["EOS_POLICY"] = "HybridTable"
     definitions["EOS_POLICY_CODE"] = "3"
     definitions["COLDEOS_POLICY"] = "ColdHybridTable"
-  elif args['eospolicy'] == 'eos_compose_transition':
-    definitions['EOS_POLICY'] = 'EOSCompOSETransition'
+  elif args['eospolicy'] == 'eos_transition':
+    definitions['EOS_POLICY'] = 'EOSTransition'
     definitions['EOS_POLICY_CODE'] = '4'
     #definitions['EOS_TGUESS'] = '1'
-    definitions["COLDEOS_POLICY"] = "ColdEOSCompOSETransition"
+    definitions["COLDEOS_POLICY"] = "ColdEOSTransition"
   else:
     definitions["EOS_POLICY"] = ""
 
@@ -1763,10 +1763,6 @@ else:
   definitions["LORENE_OPTION"] = "NO_LORENE"
   definitions["LORENE_HARDCODED_UNITS"] = "NO_LORENE_HARDCODED_UNITS"
 
-if args['eospolicy'] == 'eos_compose_transition':
-    makefile_options['LIBRARY_FLAGS'] += ' -lgfortran -lboost_math_c99 -lhelmholtz -L./lib'
-    makefile_options['LIBRARY_FLAGS'] += ' -lgfortran -lboost_math_c99 -lhelmholtz -L./lib'
-
 if "Lorene" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:
     msg = (
@@ -2090,6 +2086,10 @@ files = [
   "ps_error",
   cold_policy,
 ]
+if args["eospolicy"] == "eos_transition":
+    files.append("eos_compose")
+    files.append("eos_helmholtz")
+
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"

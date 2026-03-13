@@ -575,7 +575,7 @@ void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
 }
 
 
-#if defined(USE_COMPOSE_TRANSITION_EOS)
+#if defined(USE_TRANSITION_EOS)
 void EquationOfState::NuclearBinding(
   AA &prim, AA &prim_scalar,
   Coordinates *pco,
@@ -621,34 +621,25 @@ void EquationOfState::NuclearBinding(
 
   //const Real cur_tau = (v_r > 0) ? r/v_abs : 0.0;
   const Real cur_tau = (v_abs > 0) ? r/v_abs : 0.0;
-  const Real cur_Ye = prim_scalar(GetEOS().SCYE, k, j, i);
-  const Real cur_Abar = GetEOS().GetAbar(n, T, Y);;
   const Real cur_ent = GetEOS().GetEntropyPerBaryon(n, T, Y);;
-  const Real cur_eb = GetEOS().GetBindingEnergy(n, T, Y);
+  const Real cur_eb = GetEOS().GetNSEBindingEnergy(n, T, Y);
 
   // Update scalar of past Ye entr tau and freeze out time
   const Real w = GetEOS().TransitionFactor(n, T);
   hyd_der_ms(IX_TRANS, k, j, i) = w;
   // TODO do something proper for Abar
-  prim_scalar(GetEOS().SCABAR ,k,j,i) = (1.0 - w) * Y[GetEOS().SCABAR ] + w * cur_Abar;
-  prim_scalar(GetEOS().SCPYE ,k,j,i) = (1.0 - w) * Y[GetEOS().SCPYE ] + w * cur_Ye;
-  prim_scalar(GetEOS().SCPENT,k,j,i) = (1.0 - w) * Y[GetEOS().SCPENT] + w * cur_ent;
-  prim_scalar(GetEOS().SCPTAU,k,j,i) = (1.0 - w) * Y[GetEOS().SCPTAU] + w * cur_tau;
-  prim_scalar(GetEOS().SCPTFO,k,j,i) = (1.0 - w) * Y[GetEOS().SCPTFO] + w * time;
-  prim_scalar(GetEOS().SCEB,  k,j,i) = (1.0 - w) * Y[GetEOS().SCEB  ] + w * cur_eb;
+  prim_scalar(SCXN,k,j,i) = GetEOS().GetYn(n, T, Y);
+  prim_scalar(SCXP,k,j,i) = GetEOS().GetYp(n, T, Y);
+  prim_scalar(SCXA,k,j,i) = GetEOS().GetYa(n, T, Y)*4.0;
+  prim_scalar(SCAH,k,j,i) = GetEOS().GetAN(n, T, Y);
+  prim_scalar(SCXH,k,j,i) = GetEOS().GetYh(n, T, Y)*prim_scalar(SCAH,k,j,i);
+  prim_scalar(SCEB,k,j,i) = (1.0 - w) * Y[SCEB] + w * cur_eb;
 
   const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
 
-  hyd_der_ms(IX_HEAT, k, j, i) =
-      activation_fac *
-      GetEOS().HeatingRate(prim_scalar(GetEOS().SCPTAU, k, j, i),
-                           prim_scalar(GetEOS().SCPYE, k, j, i),
-                           prim_scalar(GetEOS().SCPENT, k, j, i),
-                           time - prim_scalar(GetEOS().SCPTFO, k, j, i));
-
-  // TODO add source term for ABAR
+  hyd_der_ms(IX_HEAT, k, j, i) = activation_fac; // TODO implement RHINE
 }
-#endif // USE_COMPOSE_TRANSITION_EOS
+#endif // USE_TRANSITION_EOS
 
 void EquationOfState::DerivedQuantities(
   AA &hyd_der_ms,
