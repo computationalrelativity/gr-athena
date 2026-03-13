@@ -116,7 +116,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   }
 
   if (FLUID_ENABLED) {
-    // Reconstruction: constructor may implicitly depend on Coordinates, and PPM variable
+    // Reconstruction: constructor may implicitly depend on Coordinates, and variable
     // floors depend on EOS, but EOS isn't needed in Reconstruction constructor-> this is ok
     precon = new Reconstruction(this, pin);
   }
