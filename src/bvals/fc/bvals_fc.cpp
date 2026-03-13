@@ -190,6 +190,18 @@ int FaceCenteredBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexe
       if (ni.ox3 != 0) size3 = size3/NGHOST*(NGHOST + 1);
     }
     size = size1 + size2 + size3;
+    // Same-level coarse payload (pre-restricted coarse data for receiver's
+    // coarse_buf ghost zones, one pack per face component)
+    int sc1 = ((ni.ox1 == 0) ? ((nx1 + 1)/2 + 1) : cng)
+              *((ni.ox2 == 0) ? ((nx2 + 1)/2) : cng2)
+              *((ni.ox3 == 0) ? ((nx3 + 1)/2) : cng3);
+    int sc2 = ((ni.ox1 == 0) ? ((nx1 + 1)/2) : cng)
+              *((ni.ox2 == 0) ? ((nx2 + 1)/2 + f2) : cng2)
+              *((ni.ox3 == 0) ? ((nx3 + 1)/2) : cng3);
+    int sc3 = ((ni.ox1 == 0) ? ((nx1 + 1)/2) : cng)
+              *((ni.ox2 == 0) ? ((nx2 + 1)/2) : cng2)
+              *((ni.ox3 == 0) ? ((nx3 + 1)/2 + f3) : cng3);
+    size += sc1 + sc2 + sc3;
     int f2c1 = ((ni.ox1 == 0) ? ((nx1 + 1)/2 + 1) : NGHOST)
                *((ni.ox2 == 0) ? ((nx2 + 1)/2) : NGHOST)
                *((ni.ox3 == 0) ? ((nx3 + 1)/2) : NGHOST);
@@ -318,6 +330,54 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
   }
   BufferUtility::PackData((*var_fc).x3f, buf, si, ei, sj, ej, sk, ek, p);
 
+  // If multilevel, also pack pre-restricted coarse data so that the receiver
+  // can fill its coarse_buf ghost zones directly.
+  if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse payload when the receiver has all same-level neighbors
+    // and therefore does not need our coarse data for prolongation.
+    if (!nb.neighbor_all_same_level) {
+#endif
+    int cng = pmb->cnghost;
+    int cng2 = cng * pmy_mesh_->f2;
+    int cng3 = cng * pmy_mesh_->f3;
+
+    // coarse bx1: staggered in x1
+    if (nb.ni.ox1 == 0)     si = pmb->cis,            ei = pmb->cie + 1;
+    else if (nb.ni.ox1 > 0) si = pmb->cie - cng + 1,  ei = pmb->cie;
+    else                     si = pmb->cis + 1,        ei = pmb->cis + cng;
+    if (nb.ni.ox2 == 0)     sj = pmb->cjs,            ej = pmb->cje;
+    else if (nb.ni.ox2 > 0) sj = pmb->cje - cng2 + 1, ej = pmb->cje;
+    else                     sj = pmb->cjs,            ej = pmb->cjs + cng2 - 1;
+    if (nb.ni.ox3 == 0)     sk = pmb->cks,            ek = pmb->cke;
+    else if (nb.ni.ox3 > 0) sk = pmb->cke - cng3 + 1, ek = pmb->cke;
+    else                     sk = pmb->cks,            ek = pmb->cks + cng3 - 1;
+    BufferUtility::PackData(coarse_buf->x1f, buf, si, ei, sj, ej, sk, ek, p);
+
+    // coarse bx2: staggered in x2
+    if (nb.ni.ox1 == 0)     si = pmb->cis,            ei = pmb->cie;
+    else if (nb.ni.ox1 > 0) si = pmb->cie - cng + 1,  ei = pmb->cie;
+    else                     si = pmb->cis,            ei = pmb->cis + cng - 1;
+    if (pmb->block_size.nx2 == 1) sj = pmb->cjs, ej = pmb->cje;
+    else if (nb.ni.ox2 == 0) sj = pmb->cjs,           ej = pmb->cje + 1;
+    else if (nb.ni.ox2 > 0) sj = pmb->cje - cng2 + 1, ej = pmb->cje;
+    else                     sj = pmb->cjs + 1,        ej = pmb->cjs + cng2;
+    BufferUtility::PackData(coarse_buf->x2f, buf, si, ei, sj, ej, sk, ek, p);
+
+    // coarse bx3: staggered in x3
+    if (nb.ni.ox2 == 0)     sj = pmb->cjs,            ej = pmb->cje;
+    else if (nb.ni.ox2 > 0) sj = pmb->cje - cng2 + 1, ej = pmb->cje;
+    else                     sj = pmb->cjs,            ej = pmb->cjs + cng2 - 1;
+    if (pmb->block_size.nx3 == 1) sk = pmb->cks, ek = pmb->cke;
+    else if (nb.ni.ox3 == 0) sk = pmb->cks,           ek = pmb->cke + 1;
+    else if (nb.ni.ox3 > 0) sk = pmb->cke - cng3 + 1, ek = pmb->cke;
+    else                     sk = pmb->cks + 1,        ek = pmb->cks + cng3;
+    BufferUtility::PackData(coarse_buf->x3f, buf, si, ei, sj, ej, sk, ek, p);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
+  }
+
   return p;
 }
 
@@ -329,10 +389,12 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
 int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
                                                               const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
   int si, sj, sk, ei, ej, ek;
   int cng = NGHOST;
   int p = 0;
+
+  // coarse_buf is already populated by RestrictNonGhost() in SendBoundaryBuffers.
+  // Just compute indices and pack from the pre-restricted data.
 
   // bx1
   if (nb.ni.ox1 == 0)     si = pmb->cis,       ei = pmb->cie + 1;
@@ -349,7 +411,6 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
     if (nb.ni.ox1 > 0) ei++;
     else if (nb.ni.ox1 < 0) si--;
   }
-  pmr->RestrictFieldX1((*var_fc).x1f, coarse_buf->x1f, si, ei, sj, ej, sk, ek);
   BufferUtility::PackData(coarse_buf->x1f, buf, si, ei, sj, ej, sk, ek, p);
 
   // bx2
@@ -364,11 +425,6 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
     if (nb.ni.ox2 > 0) ej++;
     else if (nb.ni.ox2 < 0) sj--;
   }
-  pmr->RestrictFieldX2((*var_fc).x2f, coarse_buf->x2f, si, ei, sj, ej, sk, ek);
-  if (pmb->block_size.nx2 == 1) { // 1D
-    for (int i=si; i<=ei; i++)
-      coarse_buf->x2f(sk,sj+1,i)=coarse_buf->x2f(sk,sj,i);
-  }
   BufferUtility::PackData(coarse_buf->x2f, buf, si, ei, sj, ej, sk, ek, p);
 
   // bx3
@@ -382,13 +438,6 @@ int FaceCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
   if (nb.ni.type != NeighborConnect::face) {
     if (nb.ni.ox3 > 0) ek++;
     else if (nb.ni.ox3 < 0) sk--;
-  }
-  pmr->RestrictFieldX3((*var_fc).x3f, coarse_buf->x3f, si, ei, sj, ej, sk, ek);
-  if (pmb->block_size.nx3 == 1) { // 1D or 2D
-    for (int j=sj; j<=ej; j++) {
-      for (int i=si; i<=ei; i++)
-        coarse_buf->x3f(sk+1,j,i)=coarse_buf->x3f(sk,j,i);
-    }
   }
   BufferUtility::PackData(coarse_buf->x3f, buf, si, ei, sj, ej, sk, ek, p);
 
@@ -605,6 +654,72 @@ void FaceCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
       for (int i=si; i<=ei; ++i)
         (*var_fc).x3f(sk+1,j,i) = (*var_fc).x3f(sk,j,i);
     }
+  }
+
+  // If multilevel, unpack the coarse payload into coarse_buf ghost zones.
+  // The sender packed its pre-restricted coarse interior for each face component.
+  if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse unpack when this block has all same-level neighbors:
+    // no prolongation is needed, so coarse ghost data is unused.
+    // The sender also skipped packing the coarse payload in this case.
+    if (!pmy_block_->NeighborBlocksSameLevel()) {
+#endif
+    int cng = pmb->cnghost;
+    int cng2 = cng * pmy_mesh_->f2;
+    int cng3 = cng * pmy_mesh_->f3;
+    int csi, cei, csj, cej, csk, cek;
+
+    // coarse bx1: staggered in x1 - boundary face excluded from ghost payload
+    if (nb.ni.ox1 == 0)     csi = pmb->cis,            cei = pmb->cie + 1;
+    else if (nb.ni.ox1 > 0) csi = pmb->cie + 2,        cei = pmb->cie + 1 + cng;
+    else                     csi = pmb->cis - cng,      cei = pmb->cis - 1;
+    if (nb.ni.ox2 == 0)     csj = pmb->cjs,            cej = pmb->cje;
+    else if (nb.ni.ox2 > 0) csj = pmb->cje + 1,        cej = pmb->cje + cng2;
+    else                     csj = pmb->cjs - cng2,     cej = pmb->cjs - 1;
+    if (nb.ni.ox3 == 0)     csk = pmb->cks,            cek = pmb->cke;
+    else if (nb.ni.ox3 > 0) csk = pmb->cke + 1,        cek = pmb->cke + cng3;
+    else                     csk = pmb->cks - cng3,     cek = pmb->cks - 1;
+    BufferUtility::UnpackData(buf, coarse_buf->x1f,
+                              csi, cei, csj, cej, csk, cek, p);
+
+    // coarse bx2: staggered in x2 - boundary face excluded from ghost payload
+    if (nb.ni.ox1 == 0)     csi = pmb->cis,            cei = pmb->cie;
+    else if (nb.ni.ox1 > 0) csi = pmb->cie + 1,        cei = pmb->cie + cng;
+    else                     csi = pmb->cis - cng,      cei = pmb->cis - 1;
+    if (pmb->block_size.nx2 == 1) csj = pmb->cjs, cej = pmb->cje;
+    else if (nb.ni.ox2 == 0) csj = pmb->cjs,           cej = pmb->cje + 1;
+    else if (nb.ni.ox2 > 0) csj = pmb->cje + 2,        cej = pmb->cje + 1 + cng2;
+    else                     csj = pmb->cjs - cng2,     cej = pmb->cjs - 1;
+    // reuse csk, cek from x1f (unchanged for x2f)
+    BufferUtility::UnpackData(buf, coarse_buf->x2f,
+                              csi, cei, csj, cej, csk, cek, p);
+    if (pmb->block_size.nx2 == 1) { // 1D
+#pragma omp simd
+      for (int i=csi; i<=cei; ++i)
+        coarse_buf->x2f(csk,csj+1,i) = coarse_buf->x2f(csk,csj,i);
+    }
+
+    // coarse bx3: staggered in x3 - boundary face excluded from ghost payload
+    if (nb.ni.ox2 == 0)     csj = pmb->cjs,            cej = pmb->cje;
+    else if (nb.ni.ox2 > 0) csj = pmb->cje + 1,        cej = pmb->cje + cng2;
+    else                     csj = pmb->cjs - cng2,     cej = pmb->cjs - 1;
+    if (pmb->block_size.nx3 == 1) csk = pmb->cks, cek = pmb->cke;
+    else if (nb.ni.ox3 == 0) csk = pmb->cks,           cek = pmb->cke + 1;
+    else if (nb.ni.ox3 > 0) csk = pmb->cke + 2,        cek = pmb->cke + 1 + cng3;
+    else                     csk = pmb->cks - cng3,     cek = pmb->cks - 1;
+    BufferUtility::UnpackData(buf, coarse_buf->x3f,
+                              csi, cei, csj, cej, csk, cek, p);
+    if (pmb->block_size.nx3 == 1) { // 1D or 2D
+      for (int j=csj; j<=cej; ++j) {
+#pragma omp simd
+        for (int i=csi; i<=cei; ++i)
+          coarse_buf->x3f(csk+1,j,i) = coarse_buf->x3f(csk,j,i);
+      }
+    }
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
   }
 
   return;
@@ -1114,6 +1229,86 @@ void FaceCenteredBoundaryVariable::CountFineEdges() {
   }
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn void FaceCenteredBoundaryVariable::SendBoundaryBuffers()
+//  \brief Pre-restrict the coarse interior, then send boundary buffers.
+//         Overrides BoundaryVariable::SendBoundaryBuffers to insert the
+//         upfront restriction pass before the per-neighbor loop.
+
+void FaceCenteredBoundaryVariable::SendBoundaryBuffers() {
+  if (pmy_mesh_->multilevel) {
+    RestrictNonGhost();
+  }
+  BoundaryVariable::SendBoundaryBuffers();
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void FaceCenteredBoundaryVariable::RestrictNonGhost()
+//  \brief Pre-restrict the entire physical coarse interior in one pass.
+//         Called from SendBoundaryBuffers before the per-neighbor loop.
+//         Analogous to CellCenteredBoundaryVariable::RestrictNonGhost.
+
+void FaceCenteredBoundaryVariable::RestrictNonGhost() {
+  MeshBlock *pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  // Skip restriction when no neighbor (including ourselves) needs coarse data
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (pmb->NeighborBlocksSameLevel()) {
+    // All our neighbors are same-level, so we have no coarser neighbor that
+    // needs our restricted data via LoadBoundaryBufferToCoarser.  But a
+    // same-level neighbor may still need our coarse payload for its own
+    // prolongation if *it* has a finer neighbor.  Skip only when every
+    // same-level neighbor also has all same-level neighbors.
+    bool any_neighbor_needs_coarse = false;
+    for (int n = 0; n < pmb->pbval->nneighbor; n++) {
+      if (!pmb->pbval->neighbor[n].neighbor_all_same_level) {
+        any_neighbor_needs_coarse = true;
+        break;
+      }
+    }
+    if (!any_neighbor_needs_coarse)
+      return;
+  }
+#endif // DBG_NO_REF_NN_SAME_LEVEL
+
+  int f2 = pmy_mesh_->f2;
+  int f3 = pmy_mesh_->f3;
+
+  // Restrict all three face-field components over the full coarse interior.
+  // Each face direction has staggering: one extra index in its own direction.
+
+  // x1-faces: staggered in x1, so i-range is [cis, cie+1]
+  pmr->RestrictFieldX1((*var_fc).x1f, coarse_buf->x1f,
+                        pmb->cis, pmb->cie + 1,
+                        pmb->cjs, pmb->cje,
+                        pmb->cks, pmb->cke);
+
+  // x2-faces: staggered in x2, so j-range is [cjs, cje+f2]
+  pmr->RestrictFieldX2((*var_fc).x2f, coarse_buf->x2f,
+                        pmb->cis, pmb->cie,
+                        pmb->cjs, pmb->cje + f2,
+                        pmb->cks, pmb->cke);
+  if (pmb->block_size.nx2 == 1) { // 1D
+    for (int i = pmb->cis; i <= pmb->cie; i++)
+      coarse_buf->x2f(pmb->cks, pmb->cjs + 1, i) =
+          coarse_buf->x2f(pmb->cks, pmb->cjs, i);
+  }
+
+  // x3-faces: staggered in x3, so k-range is [cks, cke+f3]
+  pmr->RestrictFieldX3((*var_fc).x3f, coarse_buf->x3f,
+                        pmb->cis, pmb->cie,
+                        pmb->cjs, pmb->cje,
+                        pmb->cks, pmb->cke + f3);
+  if (pmb->block_size.nx3 == 1) { // 1D or 2D
+    for (int j = pmb->cjs; j <= pmb->cje; j++) {
+      for (int i = pmb->cis; i <= pmb->cie; i++)
+        coarse_buf->x3f(pmb->cks + 1, j, i) =
+            coarse_buf->x3f(pmb->cks, j, i);
+    }
+  }
+}
+
 void FaceCenteredBoundaryVariable::ProlongateBoundaries(
   const Real time, const Real dt)
 {
@@ -1155,133 +1350,11 @@ void FaceCenteredBoundaryVariable::ProlongateBoundaries(
 void FaceCenteredBoundaryVariable::RestrictInterior(
   const Real time, const Real dt)
 {
-  MeshBlock * pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
-  BoundaryValues *pbval = pmb->pbval;
-
-  const int mylevel = pbval_->loc.level;
-  const int nneighbor = pbval_->nneighbor;
-
-  for (int n=0; n<nneighbor; ++n)
-  {
-    NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.level >= mylevel) continue;
-
-    // fill the required ghost-ghost zone
-    int nis, nie, njs, nje, nks, nke;
-    nis = std::max(nb.ni.ox1-1, -1);
-    nie = std::min(nb.ni.ox1+1, 1);
-    if (pmb->block_size.nx2 == 1) {
-      njs = 0;
-      nje = 0;
-    } else {
-      njs = std::max(nb.ni.ox2-1, -1);
-      nje = std::min(nb.ni.ox2+1, 1);
-    }
-
-    if (pmb->block_size.nx3 == 1) {
-      nks = 0;
-      nke = 0;
-    } else {
-      nks = std::max(nb.ni.ox3-1, -1);
-      nke = std::min(nb.ni.ox3+1, 1);
-    }
-
-    // Apply variable restrictions when ghost-ghost zone is on same lvl
-    for (int nk=nks; nk<=nke; nk++)
-    for (int nj=njs; nj<=nje; nj++)
-    for (int ni=nis; ni<=nie; ni++)
-    {
-      int ntype = std::abs(ni) + std::abs(nj) + std::abs(nk);
-      // skip myself or coarse levels; only the same level must be restricted
-      if (ntype == 0 || pbval->nblevel[nk+1][nj+1][ni+1] != mylevel) continue;
-
-      // this neighbor block is on the same level and needs to be restricted
-      // for prolongation
-
-      // indices
-      int ris, rie, rjs, rje, rks, rke;
-      if (ni == 0) {
-        ris = pmb->cis;
-        rie = pmb->cie;
-        if (nb.ni.ox1 == 1) {
-          ris = pmb->cie;
-        } else if (nb.ni.ox1 == -1) {
-          rie = pmb->cis;
-        }
-      } else if (ni == 1) {
-        ris = pmb->cie + 1, rie = pmb->cie + 1;
-      } else { //(ni ==  - 1)
-        ris = pmb->cis - 1, rie = pmb->cis - 1;
-      }
-      if (nj == 0) {
-        rjs = pmb->cjs, rje = pmb->cje;
-        if (nb.ni.ox2 == 1) rjs = pmb->cje;
-        else if (nb.ni.ox2 == -1) rje = pmb->cjs;
-      } else if (nj == 1) {
-        rjs = pmb->cje + 1, rje = pmb->cje + 1;
-      } else { //(nj == -1)
-        rjs = pmb->cjs - 1, rje = pmb->cjs - 1;
-      }
-      if (nk == 0) {
-        rks = pmb->cks, rke = pmb->cke;
-        if (nb.ni.ox3 == 1) rks = pmb->cke;
-        else if (nb.ni.ox3 == -1) rke = pmb->cks;
-      } else if (nk == 1) {
-        rks = pmb->cke + 1, rke = pmb->cke + 1;
-      } else { //(nk == -1)
-        rks = pmb->cks - 1, rke = pmb->cks - 1;
-      }
-
-
-      int rs = ris, re = rie + 1;
-
-      if (rs == pmb->cis   && pbval->nblevel[nk+1][nj+1][ni  ] < mylevel)
-        rs++;
-      if (re == pmb->cie+1 && pbval->nblevel[nk+1][nj+1][ni+2] < mylevel)
-        re--;
-
-      pmr->RestrictFieldX1((*var_fc).x1f, (*coarse_buf).x1f,
-                           rs, re, rjs, rje, rks, rke);
-
-      if (pmb->block_size.nx2 > 1) {
-        rs = rjs, re = rje + 1;
-
-        if (rs == pmb->cjs   && pbval->nblevel[nk+1][nj  ][ni+1] < mylevel)
-          rs++;
-        if (re == pmb->cje+1 && pbval->nblevel[nk+1][nj+2][ni+1] < mylevel)
-          re--;
-
-        pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_buf).x2f,
-                             ris, rie, rs, re, rks, rke);
-      } else { // 1D
-        pmr->RestrictFieldX2((*var_fc).x2f, (*coarse_buf).x2f,
-                             ris, rie, rjs, rje, rks, rke);
-        for (int i=ris; i<=rie; i++)
-          (*coarse_buf).x2f(rks,rjs+1,i) = (*coarse_buf).x2f(rks,rjs,i);
-      }
-      if (pmb->block_size.nx3 > 1) {
-        rs = rks, re =  rke + 1;
-
-        if (rs == pmb->cks   && pbval->nblevel[nk  ][nj+1][ni+1] < mylevel)
-          rs++;
-        if (re == pmb->cke+1 && pbval->nblevel[nk+2][nj+1][ni+1] < mylevel)
-          re--;
-
-        pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_buf).x3f,
-                             ris, rie, rjs, rje, rs, re);
-      } else { // 1D or 2D
-        pmr->RestrictFieldX3((*var_fc).x3f, (*coarse_buf).x3f,
-                             ris, rie, rjs, rje, rks, rke);
-        for (int j=rjs; j<=rje; j++) {
-          for (int i=ris; i<=rie; i++)
-            (*coarse_buf).x3f(rks+1,j,i) = (*coarse_buf).x3f(rks,j,i);
-        }
-      }
-
-    }
-
-  }
+  // No-op: ghost-ghost zone restriction is now handled by RestrictNonGhost()
+  // (called from the overridden SendBoundaryBuffers) which restricts the
+  // entire coarse interior in one pass.  Same-level neighbor coarse data is
+  // supplied via the coarse payload in LoadBoundaryBufferSameLevel /
+  // SetBoundarySameLevel.
 }
 
 void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
@@ -1305,7 +1378,7 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
   for (int n=0; n<pbval_->nneighbor; n++) {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
-      int size, csize(0), fsize(0);
+      int size, csize(0), fsize(0), same_coarse(0);
       int size1 = ((nb.ni.ox1 == 0) ? (nx1 + 1) : NGHOST)
                   *((nb.ni.ox2 == 0) ? (nx2) : NGHOST)
                   *((nb.ni.ox3 == 0) ? (nx3) : NGHOST);
@@ -1323,6 +1396,18 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
           if (nb.ni.ox3 != 0) size3 = size3/NGHOST*(NGHOST + 1);
         }
         size = size1 + size2 + size3;
+        // Same-level coarse payload (pre-restricted coarse data for receiver's
+        // coarse_buf ghost zones, one pack per face component)
+        int sc1 = ((nb.ni.ox1 == 0) ? ((nx1 + 1)/2 + 1) : cng)
+                  *((nb.ni.ox2 == 0) ? ((nx2 + 1)/2) : cng2)
+                  *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2) : cng3);
+        int sc2 = ((nb.ni.ox1 == 0) ? ((nx1 + 1)/2) : cng)
+                  *((nb.ni.ox2 == 0) ? ((nx2 + 1)/2 + f2) : cng2)
+                  *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2) : cng3);
+        int sc3 = ((nb.ni.ox1 == 0) ? ((nx1 + 1)/2) : cng)
+                  *((nb.ni.ox2 == 0) ? ((nx2 + 1)/2) : cng2)
+                  *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2 + f3) : cng3);
+        same_coarse = sc1 + sc2 + sc3;
         int f2c1 = ((nb.ni.ox1 == 0) ? ((nx1 + 1)/2 + 1) : NGHOST)
                    *((nb.ni.ox2 == 0) ? ((nx2 + 1)/2) : NGHOST)
                    *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2) : NGHOST);
@@ -1349,12 +1434,18 @@ void FaceCenteredBoundaryVariable::SetupPersistentMPI() {
                    *((nb.ni.ox3 == 0) ? ((nx3 + 1)/2 + cng3 + f3) : cng + 1);
         csize = c2f1 + c2f2 + c2f3;
       } // end of multilevel
-      if (nb.snb.level == mylevel) // same refinement level
-        ssize = size, rsize = size;
-      else if (nb.snb.level < mylevel) // coarser
+      if (nb.snb.level == mylevel) { // same refinement level
+        ssize = size;
+        rsize = size;
+        if (pmy_mesh_->multilevel) {
+          ssize += same_coarse;
+          rsize += same_coarse;
+        }
+      } else if (nb.snb.level < mylevel) { // coarser
         ssize = fsize, rsize = csize;
-      else // finer
+      } else { // finer
         ssize = csize, rsize = fsize;
+      }
 
       // face-centered field: bd_var_
       tag = pbval_->CreateBvalsMPITag(nb.snb.lid, nb.targetid, fc_phys_id_);

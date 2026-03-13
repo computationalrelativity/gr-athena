@@ -51,6 +51,10 @@ class FaceCenteredBoundaryVariable : public BoundaryVariable {
   void ProlongateBoundaries(const Real time, const Real dt) final;
   void RestrictInterior(const Real time, const Real dt) final;
 
+  // Pre-restrict the entire physical coarse interior in one pass.
+  // Called from SendBoundaryBuffers before the per-neighbor loop.
+  void RestrictNonGhost();
+
   // maximum number of reserved unique "physics ID" component of MPI tag bitfield
   // must correspond to the # of "int *phys_id_" private members, below. Convert to array?
   static constexpr int max_phys_id = 3;
@@ -60,6 +64,7 @@ class FaceCenteredBoundaryVariable : public BoundaryVariable {
   int ComputeFluxCorrectionBufferSize(const NeighborIndexes& ni, int cng) override;
 
   // BoundaryCommunication:
+  void SendBoundaryBuffers() override;
   void SetupPersistentMPI() override;
   void StartReceiving(BoundaryCommSubset phase) override;
   void ClearBoundary(BoundaryCommSubset phase) override;

@@ -92,6 +92,12 @@ int CellCenteredBoundaryVariable::ComputeVariableBufferSize(const NeighborIndexe
     *((ni.ox2 == 0) ? pmb->block_size.nx2 : NGHOST)
     *((ni.ox3 == 0) ? pmb->block_size.nx3 : NGHOST);
   if (pmy_mesh_->multilevel) {
+    // Same-level coarse payload (pre-restricted coarse data for receiver's
+    // coarse_buf ghost zones)
+    int same_coarse = ((ni.ox1 == 0) ? ((pmb->block_size.nx1+1)/2) : cng1)
+      *((ni.ox2 == 0) ? ((pmb->block_size.nx2+1)/2) : cng2)
+      *((ni.ox3 == 0) ? ((pmb->block_size.nx3+1)/2) : cng3);
+    size += same_coarse;
     int f2c = ((ni.ox1 == 0) ? ((pmb->block_size.nx1+1)/2) : NGHOST)
       *((ni.ox2 == 0) ? ((pmb->block_size.nx2+1)/2) : NGHOST)
       *((ni.ox3 == 0) ? ((pmb->block_size.nx3+1)/2) : NGHOST);
@@ -125,7 +131,7 @@ int CellCenteredBoundaryVariable::ComputeFluxCorrectionBufferSize(
 //  \brief Set cell-centered boundary buffers for sending to a block on the same level
 
 int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
-                                                              const NeighborBlock& nb) {
+                                                               const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
 
@@ -140,6 +146,31 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
 
   BufferUtility::PackData(var, buf, nl_, nu_, si, ei, sj, ej, sk, ek, p);
 
+  // If multilevel, also pack pre-restricted coarse data so that the receiver
+  // can fill its coarse_buf ghost zones directly (future-proofing for
+  // higher-order CC restriction).
+  if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse payload when the receiver has all same-level neighbors
+    // and therefore does not need our coarse data for prolongation.
+    if (!nb.neighbor_all_same_level) {
+#endif
+    AthenaArray<Real> &coarse_var = *coarse_buf;
+    int cng = pmb->cnghost;
+    int csi, cei, csj, cej, csk, cek;
+    csi = (nb.ni.ox1 > 0) ? (pmb->cie - cng + 1) : pmb->cis;
+    cei = (nb.ni.ox1 < 0) ? (pmb->cis + cng - 1) : pmb->cie;
+    csj = (nb.ni.ox2 > 0) ? (pmb->cje - cng + 1) : pmb->cjs;
+    cej = (nb.ni.ox2 < 0) ? (pmb->cjs + cng - 1) : pmb->cje;
+    csk = (nb.ni.ox3 > 0) ? (pmb->cke - cng + 1) : pmb->cks;
+    cek = (nb.ni.ox3 < 0) ? (pmb->cks + cng - 1) : pmb->cke;
+    BufferUtility::PackData(coarse_var, buf, nl_, nu_,
+                            csi, cei, csj, cej, csk, cek, p);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
+  }
+
   return p;
 }
 
@@ -149,12 +180,10 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
 //  \brief Set cell-centered boundary buffers for sending to a block on the coarser level
 
 int CellCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
-                                                              const NeighborBlock& nb) {
+                                                               const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
   int si, sj, sk, ei, ej, ek;
   int cn = NGHOST - 1;
-  AthenaArray<Real> &var = *var_cc;
   AthenaArray<Real> &coarse_var = *coarse_buf;
 
   si = (nb.ni.ox1 > 0) ? (pmb->cie - cn) : pmb->cis;
@@ -166,7 +195,7 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
 
   int p = 0;
 
-  pmr->RestrictCellCenteredValues(var, coarse_var, nl_, nu_, si, ei, sj, ej, sk, ek);
+  // coarse_buf interior is pre-populated by RestrictNonGhost() in SendBoundaryBuffers
   BufferUtility::PackData(coarse_var, buf, nl_, nu_, si, ei, sj, ej, sk, ek, p);
 
   return p;
@@ -230,7 +259,7 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
 //  \brief Set cell-centered boundary received from a block on the same level
 
 void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
-                                                        const NeighborBlock& nb) {
+                                                         const NeighborBlock& nb) {
   MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
   AthenaArray<Real> &var = *var_cc;
@@ -263,6 +292,36 @@ void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
   } else {
     BufferUtility::UnpackData(buf, var, nl_, nu_, si, ei, sj, ej, sk, ek, p);
   }
+
+  // If multilevel, unpack the coarse payload into coarse_buf ghost zones.
+  // The sender packed its pre-restricted coarse interior cells that map to
+  // our coarse ghost zone in each direction.
+  if (pmy_mesh_->multilevel) {
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Skip coarse unpack when this block has all same-level neighbors:
+    // no prolongation is needed, so coarse ghost data is unused.
+    // The sender also skipped packing the coarse payload in this case.
+    if (!pmy_block_->NeighborBlocksSameLevel()) {
+#endif
+    AthenaArray<Real> &coarse_var = *coarse_buf;
+    int cng = pmb->cnghost;
+    int csi, cei, csj, cej, csk, cek;
+    if (nb.ni.ox1 == 0)     csi = pmb->cis,             cei = pmb->cie;
+    else if (nb.ni.ox1 > 0) csi = pmb->cie + 1,         cei = pmb->cie + cng;
+    else                     csi = pmb->cis - cng,       cei = pmb->cis - 1;
+    if (nb.ni.ox2 == 0)     csj = pmb->cjs,             cej = pmb->cje;
+    else if (nb.ni.ox2 > 0) csj = pmb->cje + 1,         cej = pmb->cje + cng;
+    else                     csj = pmb->cjs - cng,       cej = pmb->cjs - 1;
+    if (nb.ni.ox3 == 0)     csk = pmb->cks,             cek = pmb->cke;
+    else if (nb.ni.ox3 > 0) csk = pmb->cke + 1,         cek = pmb->cke + cng;
+    else                     csk = pmb->cks - cng,       cek = pmb->cks - 1;
+    BufferUtility::UnpackData(buf, coarse_var, nl_, nu_,
+                              csi, cei, csj, cej, csk, cek, p);
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    }
+#endif
+  }
+
   return;
 }
 
@@ -478,95 +537,63 @@ void CellCenteredBoundaryVariable::ProlongateBoundaries(
   }
 }
 
+//----------------------------------------------------------------------------------------
+//! \fn void CellCenteredBoundaryVariable::SendBoundaryBuffers()
+//  \brief Pre-restrict the coarse interior, then send boundary buffers.
+//         Overrides BoundaryVariable::SendBoundaryBuffers to insert the
+//         upfront restriction pass before the per-neighbor loop.
+
+void CellCenteredBoundaryVariable::SendBoundaryBuffers() {
+  if (pmy_mesh_->multilevel) {
+    RestrictNonGhost();
+  }
+  BoundaryVariable::SendBoundaryBuffers();
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void CellCenteredBoundaryVariable::RestrictNonGhost()
+//  \brief Pre-restrict the entire physical coarse interior in one pass.
+//         Called from SendBoundaryBuffers before the per-neighbor loop.
+//         Analogous to CellCenteredXBoundaryVariable::RestrictNonGhost.
+
+void CellCenteredBoundaryVariable::RestrictNonGhost() {
+  MeshBlock *pmb = pmy_block_;
+  MeshRefinement *pmr = pmb->pmr;
+
+  // Skip restriction when no neighbor (including ourselves) needs coarse data
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  if (pmb->NeighborBlocksSameLevel()) {
+    // All our neighbors are same-level, so we have no coarser neighbor that
+    // needs our restricted data via LoadBoundaryBufferToCoarser.  But a
+    // same-level neighbor may still need our coarse payload for its own
+    // prolongation if *it* has a finer neighbor.  Skip only when every
+    // same-level neighbor also has all same-level neighbors.
+    bool any_neighbor_needs_coarse = false;
+    for (int n = 0; n < pmb->pbval->nneighbor; n++) {
+      if (!pmb->pbval->neighbor[n].neighbor_all_same_level) {
+        any_neighbor_needs_coarse = true;
+        break;
+      }
+    }
+    if (!any_neighbor_needs_coarse)
+      return;
+  }
+#endif // DBG_NO_REF_NN_SAME_LEVEL
+
+  const int nu = var_cc->GetDim4() - 1;
+  pmr->RestrictCellCenteredValues(*var_cc, *coarse_buf, 0, nu,
+                                  pmb->cis, pmb->cie,
+                                  pmb->cjs, pmb->cje,
+                                  pmb->cks, pmb->cke);
+}
+
 void CellCenteredBoundaryVariable::RestrictInterior(
   const Real time, const Real dt)
 {
-  MeshBlock * pmb = pmy_block_;
-  MeshRefinement *pmr = pmb->pmr;
-  BoundaryValues *pbval = pmb->pbval;
-
-  const int mylevel = pbval_->loc.level;
-  const int nneighbor = pbval_->nneighbor;
-
-  // dimensionality of variable common
-  const int nu = var_cc->GetDim4() - 1;
-
-  for (int n=0; n<nneighbor; ++n)
-  {
-    NeighborBlock& nb = pbval_->neighbor[n];
-    if (nb.snb.level >= mylevel) continue;
-
-    // fill the required ghost-ghost zone
-    int nis, nie, njs, nje, nks, nke;
-    nis = std::max(nb.ni.ox1-1, -1);
-    nie = std::min(nb.ni.ox1+1, 1);
-    if (pmb->block_size.nx2 == 1) {
-      njs = 0;
-      nje = 0;
-    } else {
-      njs = std::max(nb.ni.ox2-1, -1);
-      nje = std::min(nb.ni.ox2+1, 1);
-    }
-
-    if (pmb->block_size.nx3 == 1) {
-      nks = 0;
-      nke = 0;
-    } else {
-      nks = std::max(nb.ni.ox3-1, -1);
-      nke = std::min(nb.ni.ox3+1, 1);
-    }
-
-    // Apply variable restrictions when ghost-ghost zone is on same lvl
-    for (int nk=nks; nk<=nke; nk++)
-    for (int nj=njs; nj<=nje; nj++)
-    for (int ni=nis; ni<=nie; ni++)
-    {
-      int ntype = std::abs(ni) + std::abs(nj) + std::abs(nk);
-      // skip myself or coarse levels; only the same level must be restricted
-      if (ntype == 0 || pbval->nblevel[nk+1][nj+1][ni+1] != mylevel) continue;
-
-      // this neighbor block is on the same level and needs to be restricted
-      // for prolongation
-
-      // indices
-      int ris, rie, rjs, rje, rks, rke;
-      if (ni == 0) {
-        ris = pmb->cis;
-        rie = pmb->cie;
-        if (nb.ni.ox1 == 1) {
-          ris = pmb->cie;
-        } else if (nb.ni.ox1 == -1) {
-          rie = pmb->cis;
-        }
-      } else if (ni == 1) {
-        ris = pmb->cie + 1, rie = pmb->cie + 1;
-      } else { //(ni ==  - 1)
-        ris = pmb->cis - 1, rie = pmb->cis - 1;
-      }
-      if (nj == 0) {
-        rjs = pmb->cjs, rje = pmb->cje;
-        if (nb.ni.ox2 == 1) rjs = pmb->cje;
-        else if (nb.ni.ox2 == -1) rje = pmb->cjs;
-      } else if (nj == 1) {
-        rjs = pmb->cje + 1, rje = pmb->cje + 1;
-      } else { //(nj == -1)
-        rjs = pmb->cjs - 1, rje = pmb->cjs - 1;
-      }
-      if (nk == 0) {
-        rks = pmb->cks, rke = pmb->cke;
-        if (nb.ni.ox3 == 1) rks = pmb->cke;
-        else if (nb.ni.ox3 == -1) rke = pmb->cks;
-      } else if (nk == 1) {
-        rks = pmb->cke + 1, rke = pmb->cke + 1;
-      } else { //(nk == -1)
-        rks = pmb->cks - 1, rke = pmb->cks - 1;
-      }
-
-      pmr->RestrictCellCenteredValues(*var_cc, *coarse_buf, 0, nu,
-                                      ris, rie, rjs, rje, rks, rke);
-    }
-
-  }
+  // No-op: CC pre-restricts the entire coarse_buf interior in
+  // SendBoundaryBuffers (via RestrictNonGhost).  Same-level coarse ghost
+  // zones are filled by the coarse payload in SetBoundarySameLevel.
+  // Coarser-neighbor ghost zones are filled by SetBoundaryFromCoarser.
 }
 
 void CellCenteredBoundaryVariable::SetupPersistentMPI() {
@@ -589,6 +616,16 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
         ssize = rsize = ((nb.ni.ox1 == 0) ? pmb->block_size.nx1 : NGHOST)
               *((nb.ni.ox2 == 0) ? pmb->block_size.nx2 : NGHOST)
               *((nb.ni.ox3 == 0) ? pmb->block_size.nx3 : NGHOST);
+        // Add coarse payload for multilevel (same-level neighbors carry
+        // pre-restricted coarse data for the receiver's coarse_buf ghost zones)
+        if (pmy_mesh_->multilevel) {
+          int coarse_size =
+                ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2) : cng1)
+              * ((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2) : cng2)
+              * ((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2) : cng3);
+          ssize += coarse_size;
+          rsize += coarse_size;
+        }
       } else if (nb.snb.level < mylevel) { // coarser
         ssize = ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2) : NGHOST)
               *((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2) : NGHOST)

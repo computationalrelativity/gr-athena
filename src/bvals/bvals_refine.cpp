@@ -45,12 +45,13 @@ void BoundaryValues::ProlongateBoundariesHydroCons(const Real time,
     return;
 #endif // DBG_NO_REF_NN_SAME_LEVEL
 
-  // Populate (through restriction) complementary coarse rep. on physical layer
-  // This is needed for prolongation
-  for (auto bvar : pbval->GetBvarsMatter())
-  {
-    bvar->RestrictInterior(time, dt);
-  }
+  // RestrictInterior is not needed here: CC pre-restricts the entire coarse_buf
+  // interior in SendBoundaryBuffers (via RestrictNonGhost).  Same-level coarse
+  // ghost zones are filled by the coarse payload in SetBoundarySameLevel.
+  // for (auto bvar : pbval->GetBvarsMatter())
+  // {
+  //   bvar->RestrictInterior(time, dt);
+  // }
 
   ApplyPhysicalBoundariesOnCoarseLevel(
     time, dt,
@@ -255,12 +256,13 @@ void BoundaryValues::ProlongateBoundariesM1(const Real time, const Real dt)
     return;
 #endif // DBG_NO_REF_NN_SAME_LEVEL
 
-  // Populate (through restriction) complementary coarse rep. on physical layer
-  // This is needed for prolongation
-  for (auto bvar : pbval->GetBvarsM1())
-  {
-    bvar->RestrictInterior(time, dt);
-  }
+  // RestrictInterior is not needed here: CC pre-restricts the entire coarse_buf
+  // interior in SendBoundaryBuffers (via RestrictNonGhost).  Same-level coarse
+  // ghost zones are filled by the coarse payload in SetBoundarySameLevel.
+  // for (auto bvar : pbval->GetBvarsM1())
+  // {
+  //   bvar->RestrictInterior(time, dt);
+  // }
 
   ApplyPhysicalBoundariesOnCoarseLevel(
     time, dt,
