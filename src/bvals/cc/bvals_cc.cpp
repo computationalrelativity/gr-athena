@@ -132,15 +132,9 @@ int CellCenteredBoundaryVariable::ComputeFluxCorrectionBufferSize(
 
 int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
                                                                const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
 
-  si = (nb.ni.ox1 > 0) ? (pmb->ie - NGHOST + 1) : pmb->is;
-  ei = (nb.ni.ox1 < 0) ? (pmb->is + NGHOST - 1) : pmb->ie;
-  sj = (nb.ni.ox2 > 0) ? (pmb->je - NGHOST + 1) : pmb->js;
-  ej = (nb.ni.ox2 < 0) ? (pmb->js + NGHOST - 1) : pmb->je;
-  sk = (nb.ni.ox3 > 0) ? (pmb->ke - NGHOST + 1) : pmb->ks;
-  ek = (nb.ni.ox3 < 0) ? (pmb->ks + NGHOST - 1) : pmb->ke;
+  idxLoadSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, false);
   int p = 0;
   AthenaArray<Real> &var = *var_cc;
 
@@ -156,14 +150,8 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
     if (!nb.neighbor_all_same_level) {
 #endif
     AthenaArray<Real> &coarse_var = *coarse_buf;
-    int cng = pmb->cnghost;
     int csi, cei, csj, cej, csk, cek;
-    csi = (nb.ni.ox1 > 0) ? (pmb->cie - cng + 1) : pmb->cis;
-    cei = (nb.ni.ox1 < 0) ? (pmb->cis + cng - 1) : pmb->cie;
-    csj = (nb.ni.ox2 > 0) ? (pmb->cje - cng + 1) : pmb->cjs;
-    cej = (nb.ni.ox2 < 0) ? (pmb->cjs + cng - 1) : pmb->cje;
-    csk = (nb.ni.ox3 > 0) ? (pmb->cke - cng + 1) : pmb->cks;
-    cek = (nb.ni.ox3 < 0) ? (pmb->cks + cng - 1) : pmb->cke;
+    idxLoadSameLevelRanges(nb.ni, csi, cei, csj, cej, csk, cek, true);
     BufferUtility::PackData(coarse_var, buf, nl_, nu_,
                             csi, cei, csj, cej, csk, cek, p);
 #if defined(DBG_NO_REF_NN_SAME_LEVEL)
@@ -181,17 +169,10 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferSameLevel(Real *buf,
 
 int CellCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
                                                                const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
-  int cn = NGHOST - 1;
   AthenaArray<Real> &coarse_var = *coarse_buf;
 
-  si = (nb.ni.ox1 > 0) ? (pmb->cie - cn) : pmb->cis;
-  ei = (nb.ni.ox1 < 0) ? (pmb->cis + cn) : pmb->cie;
-  sj = (nb.ni.ox2 > 0) ? (pmb->cje - cn) : pmb->cjs;
-  ej = (nb.ni.ox2 < 0) ? (pmb->cjs + cn) : pmb->cje;
-  sk = (nb.ni.ox3 > 0) ? (pmb->cke - cn) : pmb->cks;
-  ek = (nb.ni.ox3 < 0) ? (pmb->cks + cn) : pmb->cke;
+  idxLoadToCoarserRanges(nb.ni, si, ei, sj, ej, sk, ek);
 
   int p = 0;
 
@@ -207,43 +188,11 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToCoarser(Real *buf,
 //  \brief Set cell-centered boundary buffers for sending to a block on the finer level
 
 int CellCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
-                                                            const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
+                                                             const NeighborBlock& nb) {
   int si, sj, sk, ei, ej, ek;
-  int cn = pmb->cnghost - 1;
   AthenaArray<Real> &var = *var_cc;
 
-  si = (nb.ni.ox1 > 0) ? (pmb->ie - cn) : pmb->is;
-  ei = (nb.ni.ox1 < 0) ? (pmb->is + cn) : pmb->ie;
-  sj = (nb.ni.ox2 > 0) ? (pmb->je - cn) : pmb->js;
-  ej = (nb.ni.ox2 < 0) ? (pmb->js + cn) : pmb->je;
-  sk = (nb.ni.ox3 > 0) ? (pmb->ke - cn) : pmb->ks;
-  ek = (nb.ni.ox3 < 0) ? (pmb->ks + cn) : pmb->ke;
-
-  // send the data first and later prolongate on the target block
-  // need to add edges for faces, add corners for edges
-  if (nb.ni.ox1 == 0) {
-    if (nb.ni.fi1 == 1)   si += pmb->block_size.nx1/2 - pmb->cnghost;
-    else            ei -= pmb->block_size.nx1/2 - pmb->cnghost;
-  }
-  if (nb.ni.ox2 == 0 && pmb->block_size.nx2 > 1) {
-    if (nb.ni.ox1 != 0) {
-      if (nb.ni.fi1 == 1) sj += pmb->block_size.nx2/2 - pmb->cnghost;
-      else          ej -= pmb->block_size.nx2/2 - pmb->cnghost;
-    } else {
-      if (nb.ni.fi2 == 1) sj += pmb->block_size.nx2/2 - pmb->cnghost;
-      else          ej -= pmb->block_size.nx2/2 - pmb->cnghost;
-    }
-  }
-  if (nb.ni.ox3 == 0 && pmb->block_size.nx3 > 1) {
-    if (nb.ni.ox1 != 0 && nb.ni.ox2 != 0) {
-      if (nb.ni.fi1 == 1) sk += pmb->block_size.nx3/2 - pmb->cnghost;
-      else          ek -= pmb->block_size.nx3/2 - pmb->cnghost;
-    } else {
-      if (nb.ni.fi2 == 1) sk += pmb->block_size.nx3/2 - pmb->cnghost;
-      else          ek -= pmb->block_size.nx3/2 - pmb->cnghost;
-    }
-  }
+  idxLoadToFinerRanges(nb.ni, si, ei, sj, ej, sk, ek);
 
   int p = 0;
 
@@ -260,19 +209,10 @@ int CellCenteredBoundaryVariable::LoadBoundaryBufferToFiner(Real *buf,
 
 void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
                                                          const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
   AthenaArray<Real> &var = *var_cc;
 
-  if (nb.ni.ox1 == 0)     si = pmb->is,        ei = pmb->ie;
-  else if (nb.ni.ox1 > 0) si = pmb->ie + 1,      ei = pmb->ie + NGHOST;
-  else              si = pmb->is - NGHOST, ei = pmb->is - 1;
-  if (nb.ni.ox2 == 0)     sj = pmb->js,        ej = pmb->je;
-  else if (nb.ni.ox2 > 0) sj = pmb->je + 1,      ej = pmb->je + NGHOST;
-  else              sj = pmb->js - NGHOST, ej = pmb->js - 1;
-  if (nb.ni.ox3 == 0)     sk = pmb->ks,        ek = pmb->ke;
-  else if (nb.ni.ox3 > 0) sk = pmb->ke + 1,      ek = pmb->ke + NGHOST;
-  else              sk = pmb->ks - NGHOST, ek = pmb->ks - 1;
+  idxSetSameLevelRanges(nb.ni, si, ei, sj, ej, sk, ek, 1);
 
   int p = 0;
 
@@ -304,17 +244,8 @@ void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
     if (!pmy_block_->NeighborBlocksSameLevel()) {
 #endif
     AthenaArray<Real> &coarse_var = *coarse_buf;
-    int cng = pmb->cnghost;
     int csi, cei, csj, cej, csk, cek;
-    if (nb.ni.ox1 == 0)     csi = pmb->cis,             cei = pmb->cie;
-    else if (nb.ni.ox1 > 0) csi = pmb->cie + 1,         cei = pmb->cie + cng;
-    else                     csi = pmb->cis - cng,       cei = pmb->cis - 1;
-    if (nb.ni.ox2 == 0)     csj = pmb->cjs,             cej = pmb->cje;
-    else if (nb.ni.ox2 > 0) csj = pmb->cje + 1,         cej = pmb->cje + cng;
-    else                     csj = pmb->cjs - cng,       cej = pmb->cjs - 1;
-    if (nb.ni.ox3 == 0)     csk = pmb->cks,             cek = pmb->cke;
-    else if (nb.ni.ox3 > 0) csk = pmb->cke + 1,         cek = pmb->cke + cng;
-    else                     csk = pmb->cks - cng,       cek = pmb->cks - 1;
+    idxSetSameLevelRanges(nb.ni, csi, cei, csj, cej, csk, cek, 2);
     BufferUtility::UnpackData(buf, coarse_var, nl_, nu_,
                               csi, cei, csj, cej, csk, cek, p);
 #if defined(DBG_NO_REF_NN_SAME_LEVEL)
@@ -332,42 +263,10 @@ void CellCenteredBoundaryVariable::SetBoundarySameLevel(Real *buf,
 
 void CellCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
                                                           const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
   int si, sj, sk, ei, ej, ek;
-  int cng = pmb->cnghost;
   AthenaArray<Real> &coarse_var = *coarse_buf;
 
-  if (nb.ni.ox1 == 0) {
-    si = pmb->cis, ei = pmb->cie;
-    if ((pmb->loc.lx1 & 1LL) == 0LL) ei += cng;
-    else                             si -= cng;
-  } else if (nb.ni.ox1 > 0)  {
-    si = pmb->cie + 1,   ei = pmb->cie + cng;
-  } else {
-    si = pmb->cis - cng, ei = pmb->cis - 1;
-  }
-  if (nb.ni.ox2 == 0) {
-    sj = pmb->cjs, ej = pmb->cje;
-    if (pmb->block_size.nx2 > 1) {
-      if ((pmb->loc.lx2 & 1LL) == 0LL) ej += cng;
-      else                             sj -= cng;
-    }
-  } else if (nb.ni.ox2 > 0) {
-    sj = pmb->cje + 1,   ej = pmb->cje + cng;
-  } else {
-    sj = pmb->cjs - cng, ej = pmb->cjs - 1;
-  }
-  if (nb.ni.ox3 == 0) {
-    sk = pmb->cks, ek = pmb->cke;
-    if (pmb->block_size.nx3 > 1) {
-      if ((pmb->loc.lx3 & 1LL) == 0LL) ek += cng;
-      else                             sk -= cng;
-    }
-  } else if (nb.ni.ox3 > 0)  {
-    sk = pmb->cke + 1,   ek = pmb->cke + cng;
-  } else {
-    sk = pmb->cks - cng, ek = pmb->cks - 1;
-  }
+  idxSetFromCoarserRanges(nb.ni, si, ei, sj, ej, sk, ek);
 
   int p = 0;
   if (nb.polar) {
@@ -397,52 +296,11 @@ void CellCenteredBoundaryVariable::SetBoundaryFromCoarser(Real *buf,
 
 void CellCenteredBoundaryVariable::SetBoundaryFromFiner(Real *buf,
                                                         const NeighborBlock& nb) {
-  MeshBlock *pmb = pmy_block_;
   AthenaArray<Real> &var = *var_cc;
   // receive already restricted data
   int si, sj, sk, ei, ej, ek;
 
-  if (nb.ni.ox1 == 0) {
-    si = pmb->is, ei = pmb->ie;
-    if (nb.ni.fi1 == 1)   si += pmb->block_size.nx1/2;
-    else            ei -= pmb->block_size.nx1/2;
-  } else if (nb.ni.ox1 > 0) {
-    si = pmb->ie + 1,      ei = pmb->ie + NGHOST;
-  } else {
-    si = pmb->is - NGHOST, ei = pmb->is - 1;
-  }
-  if (nb.ni.ox2 == 0) {
-    sj = pmb->js, ej = pmb->je;
-    if (pmb->block_size.nx2 > 1) {
-      if (nb.ni.ox1 != 0) {
-        if (nb.ni.fi1 == 1) sj += pmb->block_size.nx2/2;
-        else          ej -= pmb->block_size.nx2/2;
-      } else {
-        if (nb.ni.fi2 == 1) sj += pmb->block_size.nx2/2;
-        else          ej -= pmb->block_size.nx2/2;
-      }
-    }
-  } else if (nb.ni.ox2 > 0) {
-    sj = pmb->je + 1,      ej = pmb->je + NGHOST;
-  } else {
-    sj = pmb->js - NGHOST, ej = pmb->js - 1;
-  }
-  if (nb.ni.ox3 == 0) {
-    sk = pmb->ks, ek = pmb->ke;
-    if (pmb->block_size.nx3 > 1) {
-      if (nb.ni.ox1 != 0 && nb.ni.ox2 != 0) {
-        if (nb.ni.fi1 == 1) sk += pmb->block_size.nx3/2;
-        else          ek -= pmb->block_size.nx3/2;
-      } else {
-        if (nb.ni.fi2 == 1) sk += pmb->block_size.nx3/2;
-        else          ek -= pmb->block_size.nx3/2;
-      }
-    }
-  } else if (nb.ni.ox3 > 0) {
-    sk = pmb->ke + 1,      ek = pmb->ke + NGHOST;
-  } else {
-    sk = pmb->ks - NGHOST, ek = pmb->ks - 1;
-  }
+  idxSetFromFinerRanges(nb.ni, si, ei, sj, ej, sk, ek);
 
   int p = 0;
   if (nb.polar) {
@@ -601,11 +459,6 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
   MeshBlock* pmb = pmy_block_;
   int &mylevel = pmb->loc.level;
 
-  int f2 = pmy_mesh_->f2, f3 = pmy_mesh_->f3;
-  int cng, cng1, cng2, cng3;
-  cng  = cng1 = pmb->cnghost;
-  cng2 = cng*f2;
-  cng3 = cng*f3;
   int ssize, rsize;
   int tag;
   // Initialize non-polar neighbor communications to other ranks
@@ -613,35 +466,22 @@ void CellCenteredBoundaryVariable::SetupPersistentMPI() {
     NeighborBlock& nb = pbval_->neighbor[n];
     if (nb.snb.rank != Globals::my_rank) {
       if (nb.snb.level == mylevel) { // same
-        ssize = rsize = ((nb.ni.ox1 == 0) ? pmb->block_size.nx1 : NGHOST)
-              *((nb.ni.ox2 == 0) ? pmb->block_size.nx2 : NGHOST)
-              *((nb.ni.ox3 == 0) ? pmb->block_size.nx3 : NGHOST);
-        // Add coarse payload for multilevel (same-level neighbors carry
-        // pre-restricted coarse data for the receiver's coarse_buf ghost zones)
-        if (pmy_mesh_->multilevel) {
-          int coarse_size =
-                ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2) : cng1)
-              * ((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2) : cng2)
-              * ((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2) : cng3);
-          ssize += coarse_size;
-          rsize += coarse_size;
-        }
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+        // Skip coarse portion when the destination block has all same-level
+        // neighbors and therefore does not need the coarse payload.
+        ssize = MPI_BufferSizeSameLevel(nb.ni, nb.neighbor_all_same_level);
+        rsize = MPI_BufferSizeSameLevel(nb.ni, pmb->NeighborBlocksSameLevel());
+#else
+        ssize = MPI_BufferSizeSameLevel(nb.ni);
+        rsize = ssize;
+#endif
       } else if (nb.snb.level < mylevel) { // coarser
-        ssize = ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2) : NGHOST)
-              *((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2) : NGHOST)
-              *((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2) : NGHOST);
-        rsize = ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2 + cng1) : cng1)
-              *((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2 + cng2) : cng2)
-              *((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2 + cng3) : cng3);
+        ssize = MPI_BufferSizeToCoarser(nb.ni);
+        rsize = MPI_BufferSizeFromCoarser(nb.ni);
       } else { // finer
-        ssize = ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2 + cng1) : cng1)
-              *((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2 + cng2) : cng2)
-              *((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2 + cng3) : cng3);
-        rsize = ((nb.ni.ox1 == 0) ? ((pmb->block_size.nx1 + 1)/2) : NGHOST)
-              *((nb.ni.ox2 == 0) ? ((pmb->block_size.nx2 + 1)/2) : NGHOST)
-              *((nb.ni.ox3 == 0) ? ((pmb->block_size.nx3 + 1)/2) : NGHOST);
+        ssize = MPI_BufferSizeToFiner(nb.ni);
+        rsize = MPI_BufferSizeFromFiner(nb.ni);
       }
-      ssize *= (nu_ + 1); rsize *= (nu_ + 1);
       // specify the offsets in the view point of the target block: flip ox? signs
 
       // Initialize persistent communication requests attached to specific BoundaryData

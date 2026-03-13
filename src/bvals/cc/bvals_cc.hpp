@@ -191,6 +191,38 @@ public:
   // --------------------------------------------------------------------------
 
 private:
+  // --------------------------------------------------------------------------
+  // idx_utilities helpers (defined in idx_utilities_cc.cpp)
+  void idxLoadSameLevelRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek,
+    bool is_coarse);
+
+  void idxLoadToCoarserRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek);
+
+  void idxLoadToFinerRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek);
+
+  void idxSetSameLevelRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek,
+    int type);
+
+  void idxSetFromCoarserRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek);
+
+  void idxSetFromFinerRanges(const NeighborIndexes& ni,
+    int &si, int &ei, int &sj, int &ej, int &sk, int &ek);
+
+#ifdef MPI_PARALLEL
+  int MPI_BufferSizeSameLevel(const NeighborIndexes& ni,
+    bool skip_coarse=false);
+  int MPI_BufferSizeToCoarser(const NeighborIndexes& ni);
+  int MPI_BufferSizeFromCoarser(const NeighborIndexes& ni);
+  int MPI_BufferSizeToFiner(const NeighborIndexes& ni);
+  int MPI_BufferSizeFromFiner(const NeighborIndexes& ni);
+#endif
+  // --------------------------------------------------------------------------
+
   // BoundaryBuffer:
   int LoadBoundaryBufferSameLevel(Real *buf, const NeighborBlock& nb) override;
   void SetBoundarySameLevel(Real *buf, const NeighborBlock& nb) override;
