@@ -145,24 +145,21 @@ class EOSTransition : public EOSPolicyInterface {
     int comp_it_trans_start, comp_it_trans_end;
 
   protected:
-    boost::uintmax_t max_iter;  // Maximum iterations for root finding
-    Real T_tol;  // Tolerance for temperature root finding
-    static Real trans_T_start, trans_T_end, trans_ln_start, trans_ln_end; // Transition parameters
-
     EOSCompOSE * compose_eos;
     EOSHelmholtz * helmholtz_eos;
 
-    // these are redefinitions to static from the eos_policy_interface
-    static Real mb, max_n, min_n, max_T, min_T, max_Y[MAX_SPECIES], min_Y[MAX_SPECIES];
+
+    Real trans_T_start, trans_T_end, trans_ln_start, trans_ln_end; // Transition parameters
+    // Transitions width
+    Real m_trans_T_width, m_trans_ln_width;
+
+    Real mb, max_n, min_n, max_T, min_T, max_Y[MAX_SPECIES], min_Y[MAX_SPECIES];
 
     // Minimum enthalpy per baryon
-    static Real m_min_h;
-
-    // Transitions width
-    static Real m_trans_T_width, m_trans_ln_width;
+    Real m_min_h;
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
-    static bool m_initialized;
+    bool m_initialized;
 };
 } // namespace Primitive
 

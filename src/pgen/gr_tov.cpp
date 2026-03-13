@@ -1290,7 +1290,11 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
             &w_rho_(i),
             &dummy,
             &dummy);
+        } else {
+          w_rho_(i) = 0.0;
+        }
 
+        if (w_rho_(i) >= rho_zero) {
           // Pressure from EOS
 #if USETM
           w_p_(i) = ceos->GetPressure(w_rho_(i));
@@ -1298,12 +1302,12 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
           prim_scalar(0,i) = ceos->GetY(w_rho_(i), 0); // Ye
 #endif
 #if EOS_POLICY_CODE == 4
-          prim_scalar(1,i) = ceos->GetY(w_rho_(i), 1); // Abar
-          prim_scalar(2,i) = 0.0; // binding energy
-          prim_scalar(3,i) = ceos->GetEntropy(w_rho_(i)); // freezeout  entropy
-          prim_scalar(4,i) = 0.0; // freezeout tau
-          prim_scalar(5,i) = ceos->GetY(w_rho_(i), 0); // freezeout Ye
-          prim_scalar(6,i) = 1.0; // time of freezeout
+          prim_scalar(SCXN,i) = ceos->GetY(w_rho_(i), SCXN); // free neutron fraction
+          prim_scalar(SCXP,i) = ceos->GetY(w_rho_(i), SCXP); // free proton fraction
+          prim_scalar(SCXA,i) = ceos->GetY(w_rho_(i), SCXA); // alpha fraction
+          prim_scalar(SCXH,i) = ceos->GetY(w_rho_(i), SCXH); // heavy nuclei fraction
+          prim_scalar(SCAH,i) = ceos->GetY(w_rho_(i), SCAH); // average heavy nuclei mass number
+          prim_scalar(SCEB,i) = 0.0; // binding energy ber baryon mass relative to Fe56 should be set by eos durign runtime
 #endif
 #else
           w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);

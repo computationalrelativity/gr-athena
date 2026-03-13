@@ -375,6 +375,7 @@ void EOSTransition::SetBaryonMass(Real new_mb) {
   helmholtz_eos->SetBaryonMass(new_mb);
   compose_eos->SetBaryonMass(new_mb);
   max_Y[SCEB] = 939.5654133/new_mb - 1.0;
+  mb = new_mb;
 }
 
 void EOSTransition::update_bounds() {
@@ -425,9 +426,6 @@ void EOSTransition::InitializeTables(std::string fname, std::string helm_fname, 
 
       compose_eos->ReadTableFromFile(fname);
       helmholtz_eos->ReadTableFromFile(helm_fname);
-
-      // Set the baryon mass in the Helmholtz EOS to the current mb
-      Real mb_cgs = mb*eos_units->MassConversion(CGS);
 
       // Initialize the transitions if they have not been initialized
       // -------------------------------------------------------------------------
