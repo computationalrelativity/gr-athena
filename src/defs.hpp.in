@@ -53,9 +53,6 @@
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 
-// If activated, use only cons R/P on MeshBlock BC; and phys BC
-#define @DBG_USE_CONS_BC@
-
 // BD: TODO - check carefully... again...
 // Reconstruction X1 convention may require 0 or 1 offset for l/r
 #define DGB_RECON_X1_OFFSET 0

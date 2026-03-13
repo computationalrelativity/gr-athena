@@ -1034,25 +1034,8 @@ void Mesh::ScatterMatter(std::vector<MeshBlock*> & pmb_array)
 
     CommunicateConservedMatter(pmb_array);
 
-    // Treat R/P with prim_rp in the case of fluid + gr + z4c -----------------
-    //
-    // This requires:
-    // - ConservedToPrimitive on interior (physical) grid points
-    // - communication of primitives
-#if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
-    if (multilevel)
-    {
-      const bool interior_only = true;
-      PreparePrimitives(pmb_array, interior_only);
-      CommunicatePrimitives(pmb_array);
-    }
-#endif
-    // ------------------------------------------------------------------------
-
     // Deal with matter prol. & BC --------------------------------------------
-#if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
-    FinalizeHydroPrimRP(pmb_array);
-#elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
+#if FLUID_ENABLED
     FinalizeHydroConsRP(pmb_array);
 
     const bool interior_only = false;

@@ -140,11 +140,7 @@ class BoundaryValues : public BoundaryBase, //public BoundaryPhysics,
 
   inline void ProlongateBoundariesHydro(const Real time, const Real dt)
   {
-#if defined(DBG_USE_CONS_BC)
     ProlongateBoundariesHydroCons(time, dt);
-#else
-    ProlongateBoundariesHydroPrim(time, dt);
-#endif
   }
 
   void ProlongateBoundariesHydroCons(const Real time, const Real dt);

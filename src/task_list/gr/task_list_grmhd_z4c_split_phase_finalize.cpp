@@ -78,10 +78,7 @@ void GRMHD_Z4c_Phase_Finalize::StartupTaskList(MeshBlock *pmb, int stage)
 TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
   MeshBlock *pmb, int stage)
 {
-  // Construct primitives from conserved.
-  // In the case of `cons_bc` the whole MeshBlock is populated
-  // otherwise only points on the interior of the computational domain are
-  // populated
+  // Construct primitives from conserved on the whole MeshBlock.
   if (stage <= nstages)
   {
     Hydro *ph = pmb->phydro;
@@ -90,25 +87,9 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
     BoundaryValues *pb = pmb->pbval;
     EquationOfState *peos = pmb->peos;
 
-    int il = pmb->is, iu = pmb->ie;
-    int jl = pmb->js, ju = pmb->je;
-    int kl = pmb->ks, ku = pmb->ke;
-
-#ifdef DBG_USE_CONS_BC
-    il = 0;
-    iu = pmb->ncells1-1;
-    jl = 0;
-    ju = pmb->ncells2-1;
-    kl = 0;
-    ku = pmb->ncells3-1;
-#else
-    if (pb->nblevel[1][1][0] != -1) il -= NGHOST;
-    if (pb->nblevel[1][1][2] != -1) iu += NGHOST;
-    if (pb->nblevel[1][0][1] != -1) jl -= NGHOST;
-    if (pb->nblevel[1][2][1] != -1) ju += NGHOST;
-    if (pb->nblevel[0][1][1] != -1) kl -= NGHOST;
-    if (pb->nblevel[2][1][1] != -1) ku += NGHOST;
-#endif // DBG_USE_CONS_BC
+    int il = 0, iu = pmb->ncells1-1;
+    int jl = 0, ju = pmb->ncells2-1;
+    int kl = 0, ku = pmb->ncells3-1;
 
     static const int coarseflag = 0;
     static const bool skip_physical = true;

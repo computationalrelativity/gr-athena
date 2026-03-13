@@ -1865,34 +1865,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 #endif
       // ----------------------------------------------------------------------
 
-      // Treat R/P with prim_rp in the case of fluid + gr + z4c ---------------
-      //
-      // This requires:
-      // - ConservedToPrimitive on interior (physical) grid points
-      // - communication of primitives
-#if FLUID_ENABLED && GENERAL_RELATIVITY && !defined(DBG_USE_CONS_BC)
-      if (multilevel)
-      if ((init_style == initialize_style::pgen)   ||
-          (init_style == initialize_style::regrid) ||
-          (init_style == initialize_style::restart))
-      {
-        const bool interior_only = true;
-        PreparePrimitives(pmb_array, interior_only);
-        CommunicatePrimitives(pmb_array);
-      }
-#endif
-      // ----------------------------------------------------------------------
-
       // Deal with matter prol. & BC ------------------------------------------
-#if FLUID_ENABLED && !defined(DBG_USE_CONS_BC)
-      if (multilevel)
-      if ((init_style == initialize_style::pgen)   ||
-          (init_style == initialize_style::regrid) ||
-          (init_style == initialize_style::restart))
-      {
-        FinalizeHydroPrimRP(pmb_array);
-      }
-#elif FLUID_ENABLED && defined(DBG_USE_CONS_BC)
+#if FLUID_ENABLED
       if (multilevel)
       if ((init_style == initialize_style::pgen)   ||
           (init_style == initialize_style::regrid) ||

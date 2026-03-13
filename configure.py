@@ -59,7 +59,7 @@
 #   -no_flto            avoid some linker problems encountered with old gcc versions
 #
 # S/AMR:
-#   -cons_bc            use _only_ conserved vars at distinct levels
+#   -cons_bc            [DEPRECATED] cons BC is the only supported mode; flag is redundant
 #
 # Lorene:
 #   -lorene_hardcoded_units
@@ -111,6 +111,7 @@ import glob
 import os
 import re
 import subprocess
+import sys
 
 
 def get_git_revision_hash() -> str:
@@ -285,8 +286,8 @@ parser.add_argument(
 parser.add_argument(
   "-cons_bc",
   action="store_true",
-  default=False,
-  help="utilize cons vars for all BC",
+  default=True,
+  help="[DEPRECATED] cons BC is the only supported mode; flag is redundant",
 )
 
 parser.add_argument(
@@ -1235,11 +1236,13 @@ if args["hybridinterp"]:
 else:
   definitions["HYBRID_INTERP"] = "NO_HYBRID_INTERP"
 
-# -cons_bc argument
-if args["cons_bc"]:
-  definitions["DBG_USE_CONS_BC"] = "DBG_USE_CONS_BC"
-else:
-  definitions["DBG_USE_CONS_BC"] = "NO_DBG_USE_CONS_BC"
+# -cons_bc argument (deprecated: cons_bc is always enabled)
+if "-cons_bc" in sys.argv:
+  print(
+    "WARNING: -cons_bc is deprecated. Conservative BC is the only "
+    "supported mode. This flag is redundant and will be removed in "
+    "a future release."
+  )
 
 # -recon_cmb_hydpa argument
 if args["recon_cmb_hydpa"]:
