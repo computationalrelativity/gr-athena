@@ -102,7 +102,7 @@ namespace {
   };
   TOVData * tov = NULL;
 
-#if USETM
+#if FLUID_ENABLED
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
 #else
   Real gamma_adi;
@@ -246,7 +246,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin) {
   l_pert_odd = pin->GetOrAddInteger("problem", "l_pert_odd", 2);
   m_pert_odd = pin->GetOrAddInteger("problem", "m_pert_odd", 0);
 
-#if USETM
+#if FLUID_ENABLED
   // Initialize cold EOS
   ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
   InitColdEOS(ceos, pin);
@@ -401,7 +401,7 @@ void Mesh::DeleteTemporaryUserMeshData()
     tov = NULL;
   }
 
-#if USETM
+#if FLUID_ENABLED
   // Free cold EOS data
   delete ceos;
 #endif
@@ -455,7 +455,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-#if USETM
+#if FLUID_ENABLED
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
@@ -516,7 +516,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = 0; j < ncells2; ++j)
     for (int i = 0; i < ncells1; ++i)
     {
-#if USETM
+#if FLUID_ENABLED
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
@@ -588,7 +588,7 @@ int TOV_rhs(Real r, Real *u, Real *k)
   Real I   = u[TOV_IINT]; // Integral for the isotropic radius
 
   //  Set pressure and energy using equation of state
-#if USETM
+#if FLUID_ENABLED
   if (rho < 0.0) rho = ceos->GetDensityFloor();
   Real p = ceos->GetPressure(rho);
   Real e= ceos->GetEnergy(rho);
@@ -641,7 +641,7 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
   Real u[TOV_NVAR];
 
   // Set central values of pressure internal energy using EOS
-#if USETM
+#if FLUID_ENABLED
   const Real logrhoc = log(rhoc);
   const Real pc = ceos->GetPressure(rhoc);
   const Real logpc = log(pc);
@@ -873,7 +873,7 @@ int TOV_solve(Real rhoc, Real rmin, Real dr, int *npts)
 
   // Pressure
   for (int n = 0; n < tov->interp_npts; n++) {
-#if USETM
+#if FLUID_ENABLED
     tov->data[itov_pre][n] = ceos->GetPressure(tov->data[itov_rho][n]);
 #else
     tov->data[itov_pre][n] = k_adi * pow(tov->data[itov_rho][n], gamma_adi);
@@ -1148,7 +1148,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
   AT_N_vec sl_S_d( pz4c->storage.mat, Z4c::I_MAT_Sx);
   AT_N_sym sl_S_dd(pz4c->storage.mat, Z4c::I_MAT_Sxx);
 
-#if USETM
+#if FLUID_ENABLED
   Real T_initial = pin->GetReal("hydro","tfloor");
   Real Y_atm[MAX_SPECIES] = {0.0};
 #if EOS_POLICY_CODE == 2
@@ -1290,7 +1290,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
             &dummy);
 
           // Pressure from EOS
-#if USETM
+#if FLUID_ENABLED
           w_p_(i) = ceos->GetPressure(w_rho_(i));
 #if NSCALARS > 0
           for (int l=0; l<NSCALARS; ++l)
@@ -1315,7 +1315,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
             Real dp  = (w_p_(i) + w_rho_(i) * (1 + eps)) * H0l * Ylm;
             w_p_(i)  += dp;
 
-#if USETM
+#if FLUID_ENABLED
             w_rho_(i) = ceos->GetDensityFromPressure(w_p_(i));
 #if NSCALARS > 0
             for (int l=0; l<NSCALARS; ++l)
@@ -1816,7 +1816,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   // Initialize magnetic field
   // No metric weighting here
   Real rhomax = tov->data[itov_rho][0];
-#if USETM
+#if FLUID_ENABLED
   Real pgasmax = ceos->GetPressure(rhomax);
 #else
   Real pgasmax = k_adi * pow(rhomax, gamma_adi);

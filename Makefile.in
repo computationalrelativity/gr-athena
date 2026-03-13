@@ -6,7 +6,6 @@
 PROBLEM_FILE = @PROBLEM_FILE@
 COORDINATES_FILE = @COORDINATES_FILE@
 EOS_FILE = @EOS_FILE@
-GENERAL_EOS_FILE = @GENERAL_EOS_FILE@
 RSOLVER_FILE = @RSOLVER_FILE@
 RSOLVER_DIR = @RSOLVER_DIR@
 MPIFFT_FILE = @MPIFFT_FILE@
@@ -36,7 +35,6 @@ SRC_FILES := \
 		$(wildcard src/coordinates/*.cpp) \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
-		src/eos/eos_utils.cpp \
 		@FFT_SRC@ \
 		$(wildcard src/inputs/*.cpp) \
 		$(wildcard src/mesh/*.cpp) \

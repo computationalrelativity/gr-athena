@@ -384,28 +384,29 @@ void M1::DerivedHydro(vars_Hydro & hydro,
     }
   }
 
+  /*
 #if !FLUID_ENABLED
   M1_GLOOP2(k,j)
   {
     M1_GLOOP1(i)
     {
-#if USETM
-      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
-      const Real nb = hydro.sc_w_rho(k,j,i) / mb;
-      const Real w_p = hydro.sc_w_p(k,j,i);
-      Real Y[MAX_SPECIES] = {0.0};
-      Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
-
-      hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(
-        nb, w_p, Y
-      );
-#endif // USETM
-
+      // NOTE: Temperature inversion from fixed hydro background without fluid
+      // is not currently implemented. The previous code path (`peos->GetEOS()`)
+      // was broken because peos is never instantiated when FLUID_ENABLED=0.
+      // If you need this, enable fluid (-f) or implement a standalone EOS path.
+      assert(false && "M1 DerivedHydro: temperature inversion without fluid is not implemented");
+      // Original (broken) code for reference:
+      // const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      // const Real nb = hydro.sc_w_rho(k,j,i) / mb;
+      // const Real w_p = hydro.sc_w_p(k,j,i);
+      // Real Y[MAX_SPECIES] = {0.0};
+      // Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
+      // hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(nb, w_p, Y);
     }
   }
 
 #endif // !FLUID_ENABLED
-
+*/
 }
 
 // ============================================================================

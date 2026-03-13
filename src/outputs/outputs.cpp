@@ -935,27 +935,25 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
   }
 
   // total energy
-  if (NON_BAROTROPIC_EOS) {
-    if (output_params.variable.compare("E") == 0 ||
-        output_params.variable.compare("cons") == 0) {
-      pod = AllocNode();
-      pod->type = "SCALARS";
-      pod->name = "Etot";
-      pod->data.InitWithShallowSlice(phyd->u, 4, IEN, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
+  if (output_params.variable.compare("E") == 0 ||
+      output_params.variable.compare("cons") == 0) {
+    pod = AllocNode();
+    pod->type = "SCALARS";
+    pod->name = "Etot";
+    pod->data.InitWithShallowSlice(phyd->u, 4, IEN, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
+  }
 
-    // pressure
-    if (output_params.variable.compare("p") == 0 ||
-        output_params.variable.compare("prim") == 0) {
-      pod = AllocNode();
-      pod->type = "SCALARS";
-      pod->name = "press";
-      pod->data.InitWithShallowSlice(phyd->w, 4, IPR, 1);
-      AppendOutputDataNode(pod);
-      num_vars_++;
-    }
+  // pressure
+  if (output_params.variable.compare("p") == 0 ||
+      output_params.variable.compare("prim") == 0) {
+    pod = AllocNode();
+    pod->type = "SCALARS";
+    pod->name = "press";
+    pod->data.InitWithShallowSlice(phyd->w, 4, IPR, 1);
+    AppendOutputDataNode(pod);
+    num_vars_++;
   }
 
   // momentum vector

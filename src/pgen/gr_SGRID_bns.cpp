@@ -44,7 +44,7 @@
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
-#if USETM
+#if FLUID_ENABLED
 using namespace Primitive;
 #endif
 //----------------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ enum{idvar_alpha,
 namespace {
   int RefinementCondition(MeshBlock *pmb);
 
-#if USETM
+#if FLUID_ENABLED
   // Global variables
   ColdEOS<COLDEOS_POLICY> * ceos = NULL;
 #else
@@ -292,7 +292,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   sep = pin->GetReal("problem", "DNSdata_b");
   const Real sgrid_x_CM = pin->GetReal("problem", "x_CM");
 
-#if USETM
+#if FLUID_ENABLED
   // initialize the cold EOS
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
@@ -326,7 +326,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 //  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 //#endif
 
-#if USETM
+#if FLUID_ENABLED
   pgasmax_1 = ceos->GetPressure(rho_1);
   pgasmax_2 = ceos->GetPressure(rho_2);
 #else
@@ -339,7 +339,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 //  eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
 //#endif
 
-#if USETM
+#if FLUID_ENABLED
   Real eps_ceos = ceos->GetSpecificInternalEnergy(rho_1);
 #else
   Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
@@ -635,7 +635,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     r.Fill(0.0);
 #endif
 
-#if !USETM
+#if !FLUID_ENABLED
     // Reprimand --------------------------------------------------------------
     // Reprimand fill
     for (int k=kl; k<=ku; ++k)
@@ -659,7 +659,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 #endif
 
-    // USETM fill
+    // FLUID_ENABLED fill
     for (int k=kl; k<=ku; ++k)
     for (int j=jl; j<=ju; ++j)
     for (int i=il; i<=iu; ++i)
@@ -692,7 +692,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
     // ------------------------------------------------------------------------
-#endif // !USETM
+#endif // !FLUID_ENABLED
   }
   // --------------------------------------------------------------------------
 
@@ -706,7 +706,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-#if USETM
+#if FLUID_ENABLED
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
@@ -778,7 +778,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=0; j<=ncells2-1; ++j)
     for (int i=0; i<=ncells1-1; ++i)
     {
-#if USETM
+#if FLUID_ENABLED
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
@@ -825,7 +825,7 @@ void Mesh::DeleteTemporaryUserMeshData()
  if (!resume_flag && SGRID_grid_exists()) {
     SGRID_free_everything();
   }
-#if USETM
+#if FLUID_ENABLED
   // Free cold EOS data
   delete ceos;
 #endif

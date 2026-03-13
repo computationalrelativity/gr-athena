@@ -286,7 +286,7 @@ void AssembleEigenvalues(MeshBlock * pmb,
   }
 
 
-#if USETM
+#if FLUID_ENABLED
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
   Real Y[MAX_SPECIES] = {0.0};
 

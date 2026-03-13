@@ -36,7 +36,7 @@ void Z4c::GetMatter(
   Mesh * pm       = pmy_mesh;
   MeshBlock * pmb = pmy_block;
   Hydro * ph      = pmb->phydro;
-#if USETM
+#if FLUID_ENABLED
   PassiveScalars * pscalars = pmb->pscalars;
 #endif
 
@@ -57,7 +57,7 @@ void Z4c::GetMatter(
   const Real eps_alpha__ = opt.eps_floor;
 
   // set up some parameters ---------------------------------------------------
-#if USETM
+#if FLUID_ENABLED
   Real mb = peos->GetEOS().GetBaryonMass();
 #else
   Real gamma_adi = peos->GetGamma();
@@ -66,14 +66,14 @@ void Z4c::GetMatter(
 
   // quantities we have (sliced below)
   AthenaArray<Real> & sl_w = w;
-#if USETM
+#if FLUID_ENABLED
   AthenaArray<Real> & sl_scalars = r;
 #endif
 
   AT_N_sca sl_w_rho(   sl_w, IDN);
   AT_N_sca sl_w_p(     sl_w, IPR);
   AT_N_vec sl_w_util_u(sl_w, IVX);
-#if USETM && NSCALARS>0
+#if FLUID_ENABLED && NSCALARS>0
   // valence 1 object with non-vector idx
   AT_S_vec sl_scalars_r(r, 0);
 #endif
@@ -109,7 +109,7 @@ void Z4c::GetMatter(
       pco_gr->GetMatterField(w_rho,      sl_w_rho,    k, j);
       pco_gr->GetMatterField(w_p,        sl_w_p,      k, j);
       pco_gr->GetMatterField(w_utilde_u, sl_w_util_u, k, j);
-#if USETM && NSCALARS>0
+#if FLUID_ENABLED && NSCALARS>0
       pco_gr->GetMatterField(w_r,        sl_scalars_r,k, j);
 #endif
 #if MAGNETIC_FIELDS_ENABLED
@@ -119,7 +119,7 @@ void Z4c::GetMatter(
       ILOOP1(i)
       {
         // NB specific to EOS
-#if USETM
+#if FLUID_ENABLED
         Real n = w_rho(i) / mb;
         // FIXME: Generalize to work with EOSes accepting particle fractions.
         Real Y[MAX_SPECIES] = {0.0};

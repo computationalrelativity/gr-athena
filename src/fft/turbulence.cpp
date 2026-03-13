@@ -409,10 +409,11 @@ void TurbulenceDriver::Perturb(Real dt) {
             M2 = pmb->phydro->u(IM2,k,j,i);
             M3 = pmb->phydro->u(IM3,k,j,i);
 
-            if (NON_BAROTROPIC_EOS) {
-              pmb->phydro->u(IEN,k,j,i) += s*(M1*v1 + M2*v2+M3*v3)
-                                           + 0.5*s*s*den*(SQR(v1) + SQR(v2) + SQR(v3));
-            }
+            // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+            //if (NON_BAROTROPIC_EOS) {
+            //  pmb->phydro->u(IEN,k,j,i) += s*(M1*v1 + M2*v2+M3*v3)
+            //                               + 0.5*s*s*den*(SQR(v1) + SQR(v2) + SQR(v3));
+            //}
             pmb->phydro->u(IM1,k,j,i) += s*den*v1;
             pmb->phydro->u(IM2,k,j,i) += s*den*v2;
             pmb->phydro->u(IM3,k,j,i) += s*den*v3;

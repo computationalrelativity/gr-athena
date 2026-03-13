@@ -32,7 +32,7 @@ using namespace std;
 
 namespace {
   static ini_data *rns_data;
-#if USETM
+#if FLUID_ENABLED
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
   Real mb_rnsc = 931.191715903434; // RNSC uses this mass factor
 #endif
@@ -71,7 +71,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
     RNS_params_set_inputfile((char *) inputfile.c_str());
     rns_data = RNS_make_initial_data();
-#if USETM
+#if FLUID_ENABLED
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
     InitColdEOS(ceos, pin);
 #endif
@@ -410,7 +410,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   Real pres_diff = 0.0;
 
-#if USETM
+#if FLUID_ENABLED
   Real rho_min = pin->GetReal("hydro", "dfloor");
 #endif
 
@@ -422,7 +422,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     int flat_ix = i + n[0]*(j + n[1]*k);
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
-#if USETM
+#if FLUID_ENABLED
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
     rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
 #endif
@@ -533,7 +533,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-#if USETM
+#if FLUID_ENABLED
       peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
 #else
       peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
@@ -610,7 +610,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
      &prnsmax  // pres
      );
   //
-#if USETM
+#if FLUID_ENABLED
   Real pgasmax = ceos->GetPressure(rhomax);
 #else
   Real pgasmax = k_adi * pow(rhomax, gamma_adi);

@@ -690,7 +690,7 @@ void KerrSchild::AddCoordTermsDivergence(
     const Real dt, 
     const AthenaArray<Real> *flux, 
     const AthenaArray<Real> &prim,
-#if USETM
+#if FLUID_ENABLED
     const AthenaArray<Real> &prim_scalar,
 #endif
     const AthenaArray<Real> &bb_cc, 

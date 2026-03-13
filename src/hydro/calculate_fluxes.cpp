@@ -224,7 +224,7 @@ void ReconstructFields(
   // - Apply primitive floors
   // - Limit W, h, cs2 if they are also reconstructed
 
-#if !USETM
+#if !FLUID_ENABLED
   // only support operation with PrimitiveSolver
   assert(false);
 #endif
@@ -1307,14 +1307,16 @@ void Hydro::AddDiffusionFluxes() {
   if (hdif.hydro_diffusion_defined) {
     if (hdif.nu_iso > 0.0 || hdif.nu_aniso > 0.0)
       hdif.AddDiffusionFlux(hdif.visflx,flux);
-    if (NON_BAROTROPIC_EOS) {
-      if (hdif.kappa_iso > 0.0 || hdif.kappa_aniso > 0.0)
-        hdif.AddDiffusionEnergyFlux(hdif.cndflx,flux);
-    }
+    // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+    //if (NON_BAROTROPIC_EOS) {
+    //  if (hdif.kappa_iso > 0.0 || hdif.kappa_aniso > 0.0)
+    //    hdif.AddDiffusionEnergyFlux(hdif.cndflx,flux);
+    //}
   }
-  if (MAGNETIC_FIELDS_ENABLED && NON_BAROTROPIC_EOS) {
-    if (pf->fdif.field_diffusion_defined)
-      pf->fdif.AddPoyntingFlux(pf->fdif.pflux);
-  }
+  // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+  //if (MAGNETIC_FIELDS_ENABLED && NON_BAROTROPIC_EOS) {
+  //  if (pf->fdif.field_diffusion_defined)
+  //    pf->fdif.AddPoyntingFlux(pf->fdif.pflux);
+  //}
   return;
 }

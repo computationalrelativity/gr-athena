@@ -463,11 +463,12 @@ void BoundaryValues::ApplyPhysicalBoundaries(
 
 void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries()
 {
+#if FLUID_ENABLED
   MeshBlock *pmb = pmy_block_;
   Coordinates *pco = pmb->pcoord;
   EquationOfState *peos = pmb->peos;
 
-  Hydro *ph = (FLUID_ENABLED) ? pmb->phydro : nullptr;
+  Hydro *ph = pmb->phydro;
   Field *pf = (MAGNETIC_FIELDS_ENABLED) ? pmb->pfield : nullptr;
   PassiveScalars *ps = (NSCALARS > 0) ? pmb->pscalars : nullptr;
 
@@ -556,7 +557,7 @@ void BoundaryValues::PrimitiveToConservedOnPhysicalBoundaries()
                                  var_ke + 1, var_ke + ng);
     }
   }
-
+#endif // FLUID_ENABLED
 }
 
 void BoundaryValues::DispatchBoundaryFunctions(

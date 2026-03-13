@@ -146,7 +146,7 @@ class Coordinates {
   virtual void AddCoordTermsDivergence(const Real dt,
                                        const AthenaArray<Real> *flux,
                                        const AthenaArray<Real> &prim,
-#if USETM
+#if FLUID_ENABLED
                                        const AthenaArray<Real> &prim_scalar,
 #endif
                                        const AthenaArray<Real> &bcc,
@@ -525,7 +525,7 @@ class Cylindrical : public Coordinates {
   void AddCoordTermsDivergence(const Real dt, 
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim, 
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
@@ -588,7 +588,7 @@ class SphericalPolar : public Coordinates {
   void AddCoordTermsDivergence(const Real dt, 
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim, 
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
@@ -701,7 +701,7 @@ class Schwarzschild : public Coordinates {
   void AddCoordTermsDivergence(const Real dt, 
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim, 
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
@@ -801,7 +801,7 @@ class KerrSchild : public Coordinates {
   void AddCoordTermsDivergence(const Real dt, 
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim, 
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
@@ -901,7 +901,7 @@ class GRUser : public Coordinates {
   void AddCoordTermsDivergence(const Real dt, 
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim, 
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,
@@ -965,7 +965,7 @@ class GRDynamical : public Coordinates {
   void AddCoordTermsDivergence(const Real dt,
                                const AthenaArray<Real> *flux,
                                const AthenaArray<Real> &prim,
-#if USETM
+#if FLUID_ENABLED
                                const AthenaArray<Real> &prim_scalar,
 #endif
                                const AthenaArray<Real> &bcc,

@@ -154,7 +154,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   wr_.NewAthenaArray(NWAVE, nc1);
   wlb_.NewAthenaArray(NWAVE, nc1);
 
-#if USETM
+#if FLUID_ENABLED
   // storage for reconstruction of passive scalars
   rl_.NewAthenaArray(NSCALARS, nc1);
   rr_.NewAthenaArray(NSCALARS, nc1);
@@ -215,9 +215,9 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   flux_l_.NewAthenaTensor(nn1);
   flux_r_.NewAthenaTensor(nn1);
 
-#if MAGNETIC_FIELDS_ENABLED
   oo_sqrt_detgamma_.NewAthenaTensor(nn1);
 
+#if MAGNETIC_FIELDS_ENABLED
   oo_W_l_.NewAthenaTensor(nn1);
   oo_W_r_.NewAthenaTensor(nn1);
 

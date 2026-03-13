@@ -25,7 +25,6 @@
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../task_list/task_list.hpp"
-#include "../utils/interp_table.hpp"
 #include "mesh_refinement.hpp"
 #include "meshblock_tree.hpp"
 #include "../scalars/scalars.hpp"
@@ -459,7 +458,6 @@ class Mesh {
   int step_since_lb;
   int gflag;
   int turb_flag; // turbulence flag
-  EosTable *peos_table;
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock = nullptr;

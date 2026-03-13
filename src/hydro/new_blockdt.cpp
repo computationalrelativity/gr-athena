@@ -65,14 +65,15 @@ void Hydro::NewBlockTimeStep() {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dt2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
-      if (!RELATIVISTIC_DYNAMICS) {
+      if (!GENERAL_RELATIVITY) {
 #pragma ivdep
         for (int i=is; i<=ie; ++i) {
           wi[IDN] = w(IDN,k,j,i);
           wi[IVX] = w(IVX,k,j,i);
           wi[IVY] = w(IVY,k,j,i);
           wi[IVZ] = w(IVZ,k,j,i);
-          if (NON_BAROTROPIC_EOS) wi[IPR] = w(IPR,k,j,i);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS) wi[IPR] = w(IPR,k,j,i);
           if (fluid_status == FluidFormulation::evolve) {
             if (MAGNETIC_FIELDS_ENABLED) {
               AthenaArray<Real> &bcc = pmb->pfield->bcc, &b_x1f = pmb->pfield->b.x1f,

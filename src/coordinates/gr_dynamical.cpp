@@ -237,7 +237,7 @@ void GRDynamical::AddCoordTermsDivergence(
   const Real dt,
   const AthenaArray<Real> *flux,
   const AthenaArray<Real> &prim,
-#if USETM
+#if FLUID_ENABLED
   const AthenaArray<Real> &prim_scalar,
 #endif
   const AthenaArray<Real> &bb_cc,
@@ -368,7 +368,7 @@ void GRDynamical::AddCoordTermsDivergence(
     // Calculate enthalpy (rho*h) NB EOS specific!
     CC_PCO_ILOOP1(i)
     {
-#if USETM
+#if FLUID_ENABLED
       const Real oo_mb = OO(peos->GetEOS().GetBaryonMass());
       Real n = oo_mb * w_rho(k,j,i);
       Real Y[MAX_SPECIES] = {0.0};
@@ -756,7 +756,7 @@ void GRDynamical::AddCoordTermsDivergence(
             dt // * alpha_(i) * sqrt_detgamma_(i)
           );
 
-#if USETM
+#if FLUID_ENABLED
           // scale update to land at or above floor:
           const Real den_new = cons(IDN,k,j,i) - gam_w_vol * ph->u(IDN,k,j,i);
           const Real tau_new = cons(IEN,k,j,i) - gam_w_vol * ph->u(IEN,k,j,i);
@@ -783,7 +783,7 @@ void GRDynamical::AddCoordTermsDivergence(
             );
           }
 
-#endif // USETM
+#endif // FLUID_ENABLED
 
           cons(IDN,k,j,i) -= gam_w_vol * ph->u(IDN,k,j,i);
           cons(IM1,k,j,i) -= gam_w_vol * ph->u(IM1,k,j,i);

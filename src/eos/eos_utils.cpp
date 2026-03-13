@@ -482,6 +482,32 @@ void EquationOfState::GeometryToSlicedCC(
     oo_det_gamma_.NewAthenaTensor(nn1);
   }
 
+  // Minkowski fallback: if Z4c is not active, use flat Cartesian metric
+  // (alpha=1, beta^i=0, gamma_ij=delta_ij)
+  if (pz4c == nullptr)
+  {
+    #pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      alpha_(i) = 1.0;
+      for (int a = 0; a < NDIM; ++a)
+      {
+        beta_u_(a, i) = 0.0;
+        for (int b = a; b < NDIM; ++b)
+        {
+          gamma_dd_(a, b, i) = (a == b) ? 1.0 : 0.0;
+          gamma_uu_(a, b, i) = (a == b) ? 1.0 : 0.0;
+        }
+      }
+      sqrt_det_gamma_(i) = 1.0;
+      det_gamma_(i) = 1.0;
+      oo_det_gamma_(i) = 1.0;
+    }
+
+    gsc.is_scratch_allocated = true;
+    return;
+  }
+
   if (coarse_flag)
   {
     if (!gsc.is_scratch_allocated)
@@ -561,19 +587,6 @@ void EquationOfState::GeometryToSlicedCC(
   gsc.is_scratch_allocated = true;
 }
 
-void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
-{
-  for (int a=0; a<N; ++a)
-  for (int b=a; b<N; ++b)
-  {
-    gsc.gamma_dd_(a,b,i) = (a==b);
-  }
-
-  gsc.sqrt_det_gamma_(i) = 1;
-  gsc.det_gamma_(i) = 1;
-  gsc.oo_det_gamma_(i) = 1;
-}
-
 void EquationOfState::DerivedQuantities(
   AA &hyd_der_ms,
   AA &hyd_der_int,
@@ -592,7 +605,7 @@ void EquationOfState::DerivedQuantities(
   Hydro * ph     = pmb->phydro;
   Field * pf     = pmb->pfield;
 
-#if USETM
+#if FLUID_ENABLED
   const Real oo_mb = OO(GetEOS().GetBaryonMass());
   Real Y[MAX_SPECIES] = {0.0};
 
@@ -719,7 +732,7 @@ void EquationOfState::DerivedQuantities(
 #endif // MAGNETIC_FIELDS_ENABLED
   }
 
-#endif // USETM
+#endif // FLUID_ENABLED
 
 }
 

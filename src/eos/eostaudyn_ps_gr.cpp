@@ -3,9 +3,10 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file eostaudyn_ps_hydro_gr.cpp
+//! \file eostaudyn_ps_gr.cpp
 //  \brief Implements functions for going between primitive and conserved variables in
-//  general-relativistic hydrodynamics, as well as for computing wavespeeds.
+//  general-relativistic (magneto)hydrodynamics, as well as for computing wavespeeds.
+//  Unified hydro/MHD file - magnetic field handling gated by MAGNETIC_FIELDS_ENABLED.
 
 // includes -------------------------------------------------------------------
 
@@ -48,6 +49,9 @@ typedef Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLIC
 static void PrimitiveToConservedSingle(
   AA &prim,
   AA &prim_scalar,
+#if MAGNETIC_FIELDS_ENABLED
+  AA &bb_cc,
+#endif
   AA &cons,
   AA &cons_scalar,
   AA &derived_ms,
@@ -69,6 +73,9 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
   scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
+#if MAGNETIC_FIELDS_ENABLED
+  Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
+#endif
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
 
   // BD: TODO - dead parameter
@@ -100,14 +107,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   ps.SetMaxVelocityLorentz(
     pin->GetOrAddReal("hydro", "max_W", 1000.0)
   );
-
-  // BD: TODO - clean up
-  int ncells1 = pmb->block_size.nx1 + 2*NGHOST;
-  g_.NewAthenaArray(NMETRIC, ncells1);
-  g_inv_.NewAthenaArray(NMETRIC, ncells1);
-  int ncells2 = (pmb->block_size.nx2 > 1) ? pmb->block_size.nx2 + 2*NGHOST : 1;
-  int ncells3 = (pmb->block_size.nx3 > 1) ? pmb->block_size.nx3 + 2*NGHOST : 1;
-  fixed_.NewAthenaArray(ncells3, ncells2, ncells1);
 
   // Set up the EOS
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
@@ -154,6 +153,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
     eos.SetSpeciesAtmosphere(atmosphere, i);
   }
 
+#if MAGNETIC_FIELDS_ENABLED
+  eos.SetMaximumMagnetization(bsq_max);
+#endif
+
   // Enable or disable momentum limiting in the C2P solver.
   eos.SetLimitMomenta(pin->GetOrAddBoolean("hydro", "limit_momenta", false));
 
@@ -184,7 +187,7 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
   // read in species names
   std::string species_names[NSCALARS];
   for (int i = 0; i < NSCALARS; i++) {
-    species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i), "e");
+    species_names[i] = pin->GetOrAddString("hydro", "species" + std::to_string(i+1), "e");
   }
 
   eos->ReadColdSliceFromFile(table, species_names);
@@ -256,11 +259,11 @@ void EquationOfState::ConservedToPrimitive(
 
   geom_sliced_cc gsc;
 
-  AT_N_sca & alpha_    = gsc.alpha_;
-  AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
-  AT_N_sym & gamma_uu_    = gsc.gamma_uu_;
+  AT_N_sca & alpha_           = gsc.alpha_;
+  AT_N_sym & gamma_dd_        = gsc.gamma_dd_;
+  AT_N_sym & gamma_uu_        = gsc.gamma_uu_;
   AT_N_sca & sqrt_det_gamma_  = gsc.sqrt_det_gamma_;
-  AT_N_sca & det_gamma_   = gsc.det_gamma_;
+  AT_N_sca & det_gamma_       = gsc.det_gamma_;
 
   AA c2p_status;
   c2p_status.InitWithShallowSlice(ph->derived_ms, IX_C2P, 1);
@@ -328,6 +331,9 @@ void EquationOfState::ConservedToPrimitive(
         // SetEuclideanCC(gsc, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
+#if MAGNETIC_FIELDS_ENABLED
+                                   bb_cc,
+#endif
                                    cons,
                                    cons_scalar,
                                    pmy_block_->phydro->derived_ms,
@@ -346,9 +352,11 @@ void EquationOfState::ConservedToPrimitive(
                              gamma_dd_(1,1,i),
                              gamma_dd_(1,2,i),
                              gamma_dd_(2,2,i)};
+
       const Real detgamma = det_gamma_(i);
       const Real sqrt_detgamma = sqrt_det_gamma_(i);
       const Real oo_sqrt_detgamma = OO(sqrt_detgamma);
+
       Real g3u[NSPMETRIC] = {gamma_uu_(0,0,i),
                              gamma_uu_(0,1,i),
                              gamma_uu_(0,2,i),
@@ -373,13 +381,19 @@ void EquationOfState::ConservedToPrimitive(
 
       // Find the primitive variables.
       Real prim_pt[NPRIM] = {0.0};
+
+#if MAGNETIC_FIELDS_ENABLED
+      // Extract the magnetic field.
+      Real b3u[NMAG] = {bb_cc(IB1, k, j, i) * oo_sqrt_detgamma,
+                        bb_cc(IB2, k, j, i) * oo_sqrt_detgamma,
+                        bb_cc(IB3, k, j, i) * oo_sqrt_detgamma};
+#else
       Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
+#endif
 
       if (is_admissible)
       {
-        Primitive::SolverResult result = ps.ConToPrim(
-          prim_pt, cons_pt, b3u, g3d, g3u
-        );
+        Primitive::SolverResult result = ps.ConToPrim(prim_pt, cons_pt, b3u, g3d, g3u);
 
         // retain result of c2p
         if (c2p_status(k,j,i) == 0)
@@ -395,16 +409,15 @@ void EquationOfState::ConservedToPrimitive(
           std::cerr << "There was an error during the primitive solve!\n";
           std::cerr << "  Iteration: " << pmy_block_->pmy_mesh->ncycle << "\n";
           std::cerr << "  Error: " << Primitive::ErrorString[(int)result.error] << "\n";
-          //printf("i=%d, j=%d, k=%d\n",i,j,k);
           std::cerr << "  i=" << i << ", j=" << j << ", k=" << k << "\n";
           const Real x1 = pmy_block_->pcoord->x1v(i);
           const Real x2 = pmy_block_->pcoord->x2v(j);
           const Real x3 = pmy_block_->pcoord->x3v(k);
           std::cerr << "  (x1,x2,x3) " << x1 << "," << x2 << "," << x3 << "\n";
           std::cerr << "  g3d = [" << g3d[S11] << ", " << g3d[S12] << ", " << g3d[S13] << ", "
-                    << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "\n";
+                    << g3d[S22] << ", " << g3d[S23] << ", " << g3d[S33] << "]\n";
           std::cerr << "  g3u = [" << g3u[S11] << ", " << g3u[S12] << ", " << g3u[S13] << ", "
-                    << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "\n";
+                    << g3u[S22] << ", " << g3u[S23] << ", " << g3u[S33] << "]\n";
           std::cerr << "  detgamma  = " << detgamma << "\n";
           std::cerr << "  sqrt_detgamma = " << sqrt_detgamma << "\n";
           std::cerr << "  D = " << cons_old_pt[IDN] << "\n";
@@ -412,6 +425,10 @@ void EquationOfState::ConservedToPrimitive(
           std::cerr << "  S_2 = " << cons_old_pt[IM2] << "\n";
           std::cerr << "  S_3 = " << cons_old_pt[IM3] << "\n";
           std::cerr << "  tau = " << cons_old_pt[IEN] << "\n";
+#if MAGNETIC_FIELDS_ENABLED
+          std::cerr << "  b_u = [" << bb_cc(IB1, k, j, i) << ", " << bb_cc(IB2, k, j, i) << ", "
+                                    << bb_cc(IB3, k, j, i) << "]\n";
+#endif
         }
 
         // Update the primitive variables.
@@ -433,10 +450,10 @@ void EquationOfState::ConservedToPrimitive(
         cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
         cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
 
-        for(int n=0; n<NSCALARS; n++){
+        for(int n=0; n<NSCALARS; n++)
+        {
           cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
         }
-
       }
       else
       {
@@ -505,7 +522,7 @@ void EquationOfState::ConservedToPrimitive(
 // Function for converting all primitives to conserved variables
 // Inputs:
 //   prim: primitives
-//   bb_cc: cell-centered magnetic field (unused)
+//   bb_cc: cell-centered magnetic field
 //   pco: pointer to Coordinates
 //   il,iu,jl,ju,kl,ku: index bounds of region to be updated
 // Outputs:
@@ -527,12 +544,6 @@ void EquationOfState::PrimitiveToConserved(
 {
   geom_sliced_cc gsc;
 
-  AT_N_sca & alpha_    = gsc.alpha_;
-  AT_N_sym & gamma_dd_ = gsc.gamma_dd_;
-  AT_N_sym & gamma_uu_ = gsc.gamma_uu_;
-  AT_N_sca & sqrt_det_gamma_   = gsc.sqrt_det_gamma_;
-  AT_N_sca & det_gamma_        = gsc.det_gamma_;
-
   // sanitize loop limits (coarse / fine auto-switched)
   const bool coarse_flag = false;
   int IL = il; int IU = iu;
@@ -549,6 +560,9 @@ void EquationOfState::PrimitiveToConserved(
     {
       PrimitiveToConservedSingle(prim,
                                  prim_scalar,
+#if MAGNETIC_FIELDS_ENABLED
+                                 bb_cc,
+#endif
                                  cons,
                                  cons_scalar,
                                  pmy_block_->phydro->derived_ms,
@@ -559,6 +573,7 @@ void EquationOfState::PrimitiveToConserved(
   }
 }
 
+#if !MAGNETIC_FIELDS_ENABLED
 //----------------------------------------------------------------------------------------
 // Function for calculating relativistic sound speeds
 // Inputs:
@@ -695,6 +710,135 @@ void EquationOfState::SoundSpeedsGR(
   return;
 }
 
+#else // MAGNETIC_FIELDS_ENABLED
+
+// BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
+void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
+                                               Real vi, Real v2, Real alpha,
+                                               Real betai, Real gammaii,
+                                               Real *plambda_plus,
+                                               Real *plambda_minus,
+                                               Real prim_scalar[NSCALARS])
+{
+  // Constants and stuff
+  Real Wlor = std::sqrt(1.0 - v2);
+  Wlor = 1.0 / Wlor;
+  Real u0 = Wlor / alpha;
+  Real g00 = -1.0 / (alpha * alpha);
+  Real g01 = betai / (alpha * alpha);
+  Real u1 = (vi - betai / alpha) * Wlor;
+  Real g11 = gammaii - betai * betai / (alpha * alpha);
+  // Calculate comoving fast magnetosonic speed
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int l = 0; l < NSCALARS; l++)
+    Y[l] = prim_scalar[l];
+
+  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
+  Real cs_sq = cs * cs;
+
+  if ((cs_sq > max_cs2) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq exceeds max_cs2");
+  }
+
+  cs_sq = std::min(cs_sq, max_cs2);
+  cs = std::sqrt(cs_sq);
+
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
+  Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
+
+  // Set fast magnetosonic speeds in appropriate coordinates
+  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
+  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
+  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
+  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
+  Real d_sqrt = std::sqrt(d);
+  Real root_1 = (-b + d_sqrt) / (2.0 * a);
+  Real root_2 = (-b - d_sqrt) / (2.0 * a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (std::isnan(root_1) || std::isnan(root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
+  if (root_1 > root_2) {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+void EquationOfState::FastMagnetosonicSpeedsGR(Real cs_2, Real n, Real T, Real bsq,
+                                               Real vi, Real v2, Real alpha,
+                                               Real betai, Real gammaii,
+                                               Real *plambda_plus,
+                                               Real *plambda_minus,
+                                               Real prim_scalar[NSCALARS])
+{
+  // Constants and stuff
+  Real Wlor = std::sqrt(1.0 - v2);
+  Wlor = 1.0 / Wlor;
+  Real u0 = Wlor / alpha;
+  Real g00 = -1.0 / (alpha * alpha);
+  Real g01 = betai / (alpha * alpha);
+  Real u1 = (vi - betai / alpha) * Wlor;
+  Real g11 = gammaii - betai * betai / (alpha * alpha);
+  // Calculate comoving fast magnetosonic speed
+  // FIXME: Need to update to work with particle fractions.
+  Real Y[MAX_SPECIES] = {0.0};
+  for (int l = 0; l < NSCALARS; l++)
+    Y[l] = prim_scalar[l];
+
+  if ((cs_2 > max_cs2) && warn_unrestricted_cs2)
+  {
+    std::printf("Warning: cs_sq exceeds max_cs2");
+  }
+
+  if (restrict_cs2)
+  {
+    cs_2 = std::min(cs_2, max_cs2);
+  }
+
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
+  Real cms_sq = cs_2 + va_sq - cs_2 * va_sq;
+
+  // Set fast magnetosonic speeds in appropriate coordinates
+  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
+  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
+  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
+  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
+  Real d_sqrt = std::sqrt(d);
+  Real root_1 = (-b + d_sqrt) / (2.0 * a);
+  Real root_2 = (-b - d_sqrt) / (2.0 * a);
+
+  // BD: TODO - should we use this or enforce zero?
+  if (!std::isfinite(root_1 + root_2))
+  {
+    root_1 = 1.0;
+    root_2 = 1.0;
+  }
+
+  if (root_1 > root_2)
+  {
+    *plambda_plus = root_1;
+    *plambda_minus = root_2;
+  } else {
+    *plambda_plus = root_2;
+    *plambda_minus = root_1;
+  }
+  return;
+}
+
+#endif // MAGNETIC_FIELDS_ENABLED
+
 //-----------------------------------------------------------------------------
 // \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
 //           int k, int j, int i)
@@ -772,13 +916,15 @@ void EquationOfState::ApplyPrimitiveFloors(AA &prim, AA &prim_scalar,
   return;
 }
 
-
-//-----------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------
 namespace {
 
 static void PrimitiveToConservedSingle(
   AA &prim,
   AA &prim_scalar,
+#if MAGNETIC_FIELDS_ENABLED
+  AA &bb_cc,
+#endif
   AA &cons,
   AA &cons_scalar,
   AA &derived_ms,
@@ -793,7 +939,7 @@ static void PrimitiveToConservedSingle(
   // Extract the primitive variables
   Real prim_pt[NPRIM] = {0.0};
   Real Y[MAX_SPECIES] = {0.0};
-  Real bu[NMAG] = {0.0};
+
   Real mb = ps.GetEOS()->GetBaryonMass();
   prim_pt[IDN] = prim(IDN, k, j, i)/mb;
   prim_pt[IVX] = prim(IVX, k, j, i);
@@ -827,6 +973,14 @@ static void PrimitiveToConservedSingle(
                          gamma_dd_(2,2,i)};
   Real detg = det_gamma_(i);
   Real sdetg = sqrt_det_gamma_(i);
+
+#if MAGNETIC_FIELDS_ENABLED
+  // Extract and undensitize the magnetic field.
+  Real bu[NMAG] = {bb_cc(IB1, k, j, i)/sdetg, bb_cc(IB2, k, j, i)/sdetg,
+                   bb_cc(IB3, k, j, i)/sdetg};
+#else
+  Real bu[NMAG] = {0.0};
+#endif
 
   // Perform the primitive solve.
   Real cons_pt[NCONS];
@@ -863,8 +1017,8 @@ static void PrimitiveToConservedSingle(
   cons(IM3, k, j, i) = cons_pt[IM3]*sdetg;
   cons(IEN, k, j, i) = cons_pt[IEN]*sdetg;
   for (int n = 0; n < NSCALARS; n++) {
-      cons_scalar(n, k, j, i)= cons_pt[IYD + n]*sdetg;
-    }
+    cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sdetg;
+  }
 
   // If we floored things, we'll need to readjust the primitives.
   if (result) {

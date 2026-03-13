@@ -24,7 +24,6 @@
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
 #   -g                  enable general relativity
-#   -t                  enable interface frame transformations for GR
 #   -debug              enable debug flags (-g -O0); override other compiler options
 #   -coverage           enable compiler-dependent code coverage flags
 #   -float              enable single precision (default is double)
@@ -196,16 +195,15 @@ parser.add_argument(
   help="select coordinate system",
 )
 
-# --eos=[name] argument
+# --eos=[name] argument (DEPRECATED - EOS is now derived from -f)
 parser.add_argument(
   "--eos",
   default="none",
   choices=[
     "none",
-    "adiabatictaudyn_rep",
     "eostaudyn_ps",
   ],
-  help="select equation of state",
+  help="(deprecated) select equation of state; now derived from -f flag",
 )
 
 # --eospolicy=[name] argument
@@ -230,7 +228,6 @@ parser.add_argument(
   default="default",
   choices=[
     "default",
-    "hlletaudyn",
     "llftaudyn",
   ],
   help="select Riemann solver",
@@ -318,11 +315,6 @@ parser.add_argument(
 # -sts argument
 parser.add_argument(
   "-sts", action="store_true", default=False, help="enable super-time-stepping"
-)
-
-# -s argument
-parser.add_argument(
-  "-s", action="store_true", default=False, help="enable special relativity"
 )
 
 # -g argument
@@ -436,14 +428,6 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="enable ejecta (requires PrimitiveSolver)",
-)
-
-# -t argument
-parser.add_argument(
-  "-t",
-  action="store_true",
-  default=False,
-  help="enable interface frame transformations for GR",
 )
 
 # -ref_box_in_box argument
@@ -772,47 +756,11 @@ args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
 
-# Set default flux; HLLD for MHD, HLLC for hydro, HLLE for isothermal hydro or any GR
+# Set default flux: always llftaudyn
 if args["flux"] == "default":
-  if args["g"]:
-    args["flux"] = "hlle"
-  elif args["b"]:
-    args["flux"] = "hlld"
-  elif args["eos"] == "isothermal":
-    args["flux"] = "hlle"
-  else:
-    args["flux"] = "hllc"
-
-# Check Riemann solver compatibility
-if args["flux"] == "hllc" and args["eos"] == "isothermal":
-  raise SystemExit(
-    "### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS"
-  )
-if args["flux"] == "hllc" and args["b"]:
-  raise SystemExit("### CONFIGURE ERROR: HLLC flux cannot be used with MHD")
-if args["flux"] == "hlld" and not args["b"]:
-  raise SystemExit("### CONFIGURE ERROR: HLLD flux can only be used with MHD")
+  args["flux"] = "llftaudyn"
 
 # Check relativity
-if args["s"] and args["g"]:
-  raise SystemExit(
-    "### CONFIGURE ERROR: "
-    + "GR implies SR; the -s option is restricted to pure SR"
-  )
-if args["t"] and not args["g"]:
-  raise SystemExit(
-    "### CONFIGURE ERROR: Frame transformations only apply to GR"
-  )
-if (
-  args["g"]
-  and not args["t"]
-  and args["flux"] not in ("llf", "llftaudyn", "hlle", "hlletaudyn")
-):
-  raise SystemExit(
-    "### CONFIGURE ERROR: Frame transformations required for {0}".format(
-      args["flux"]
-    )
-  )
 if args["g"] and args["coord"] in (
   "cartesian",
   "cylindrical",
@@ -832,28 +780,6 @@ if not args["g"] and args["coord"] not in (
   raise SystemExit(
     "### CONFIGURE ERROR: " + args["coord"] + " coordinates only apply to GR"
   )
-
-if args["eos"] == "isothermal":
-  if args["s"] or args["g"]:
-    raise SystemExit(
-      "### CONFIGURE ERROR: " + "Isothermal EOS is incompatible with relativity"
-    )
-if args["eos"] == "eostaudyn_ps":
-  if not args["z"]:
-    raise SystemExit(
-      "### CONFIGURE ERROR: " + "PrimitiveSolver EOS interface requires Z4c"
-    )
-if args["eos"][:8] == "general/":
-  if args["s"] or args["g"]:
-    raise SystemExit(
-      "### CONFIGURE ERROR: " + "General EOS is incompatible with relativity"
-    )
-  if args["flux"] not in ["hllc", "hlld", "hlle"]:
-    raise SystemExit(
-      "### CONFIGURE ERROR: "
-      + "General EOS is incompatible with flux "
-      + args["flux"]
-    )
 
 # Check Z4c
 if args["z"] and args["coord"] not in ("cartesian", "gr_dynamical"):
@@ -878,18 +804,30 @@ definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
   "coord"
 ]
 
-# --eos=[name] argument
-definitions["NON_BAROTROPIC_EOS"] = "1"
+# --eos=[name] argument (DEPRECATED - EOS is now derived from -f)
+# When -f is active, EOS is implicitly eostaudyn_ps.
+# When -f is not active, EOS is implicitly none.
+if args["eos"] != "none":
+  import warnings
+
+  warnings.warn(
+    "The --eos flag is deprecated. EOS is now derived from the -f flag. "
+    "Use --eospolicy and --errorpolicy to configure PrimitiveSolver.",
+    DeprecationWarning,
+    stacklevel=1,
+  )
+
+# Auto-derive EOS from -f flag
+if args["f"]:
+  args["eos"] = "eostaudyn_ps"
+else:
+  args["eos"] = "none"
+
+
 makefile_options["EOS_FILE"] = args["eos"]
 definitions["EQUATION_OF_STATE"] = args["eos"]
 
-# set number of hydro variables for adiabatic/isothermal
-definitions["GENERAL_EOS"] = "0"
-makefile_options["GENERAL_EOS_FILE"] = "noop"
-definitions["EOS_TABLE_ENABLED"] = "0"
-
 # defaults for PrimitiveSolver definitions
-definitions["USE_TM"] = "0"
 definitions["EOS_POLICY"] = ""
 definitions["ERROR_POLICY"] = ""
 definitions["EOS_POLICY_CODE"] = "0"
@@ -898,13 +836,8 @@ definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
   "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
 )
 
-if args["eos"] == "adiabatictaudyn_rep":
+if args["eos"] == "eostaudyn_ps":
   definitions["NHYDRO_VARIABLES"] = "5"
-  makefile_options["GENERAL_EOS_FILE"] = "ideal"
-  definitions["COLDEOS_POLICY"] = "None"
-elif args["eos"] == "eostaudyn_ps":
-  definitions["NHYDRO_VARIABLES"] = "5"
-  definitions["USE_TM"] = "1"
   if args["eospolicy"] == "idealgas":
     definitions["EOS_POLICY"] = "IdealGas"
     definitions["EOS_POLICY_CODE"] = "0"
@@ -994,16 +927,9 @@ else:
 # -f argument
 if args["f"]:
   definitions["FLUID_ENABLED"] = "1"
-else:
-  definitions["FLUID_ENABLED"] = "0"
-
-if args["f"]:
-  definitions["FLUID_ENABLED"] = "1"
   aux = [
-    "src/eos/general/$(GENERAL_EOS_FILE)",
     "src/eos/$(EOS_FILE)",
-    #   "src/eos/eos_high_order.cpp",
-    #   "src/eos/eos_scalars.cpp"
+    "src/eos/eos_utils.cpp",
   ]
   makefile_options["EOS_BASE_SRC"] = "\\\n".join(aux)
 
@@ -1029,37 +955,15 @@ else:
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args["b"]:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "1"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_mhd"
-  else:
-    makefile_options["EOS_FILE"] += "_mhd"
   definitions["NFIELD_VARIABLES"] = "3"
   makefile_options["RSOLVER_DIR"] = "mhd/"
-  if (
-    args["flux"] == "hlle"
-    or args["flux"] == "llf"
-    or args["flux"] == "roe"
-    or args["flux"] == "llftaudyn"
-  ):
-    makefile_options["RSOLVER_FILE"] += "_mhd"
-  if args["eos"] == "isothermal":
-    definitions["NWAVE_VALUE"] = "6"
-    if args["flux"] == "hlld":
-      makefile_options["RSOLVER_FILE"] += "_iso"
-  else:
-    definitions["NWAVE_VALUE"] = "7"
+  makefile_options["RSOLVER_FILE"] += "_mhd"
+  definitions["NWAVE_VALUE"] = "7"
 else:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "0"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_hydro"
-  else:
-    makefile_options["EOS_FILE"] += "_hydro"
   definitions["NFIELD_VARIABLES"] = "0"
   makefile_options["RSOLVER_DIR"] = "hydro/"
-  if args["eos"] == "isothermal":
-    definitions["NWAVE_VALUE"] = "4"
-  else:
-    definitions["NWAVE_VALUE"] = "5"
+  definitions["NWAVE_VALUE"] = "5"
 
 # -sts argument
 if args["sts"]:
@@ -1067,22 +971,11 @@ if args["sts"]:
 else:
   definitions["STS_ENABLED"] = "0"
 
-# -s, -g, and -t arguments
-definitions["RELATIVISTIC_DYNAMICS"] = "1" if args["s"] or args["g"] else "0"
+# -g argument
 definitions["GENERAL_RELATIVITY"] = "1" if args["g"] else "0"
-definitions["FRAME_TRANSFORMATIONS"] = "1" if args["t"] else "0"
-if args["s"]:
-  makefile_options["EOS_FILE"] += "_sr"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_sr"
-  makefile_options["RSOLVER_FILE"] += "_rel"
 if args["g"]:
   makefile_options["EOS_FILE"] += "_gr"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_gr"
-  makefile_options["RSOLVER_FILE"] += "_rel"
-  if not args["t"]:
-    makefile_options["RSOLVER_FILE"] += "_no_transform"
+  makefile_options["RSOLVER_FILE"] += "_rel_no_transform"
 
 # -z argument
 if args["z"]:
@@ -1464,8 +1357,6 @@ if args["cxx"] == "clang++-apple":
   makefile_options["LINKER_FLAGS"] = ""
   makefile_options["LIBRARY_FLAGS"] = ""
 
-if args["eos"] == "adiabatictaudyn_rep":
-  makefile_options["LIBRARY_FLAGS"] = "-lRePrimAnd"
 # -float argument
 if args["float"]:
   definitions["SINGLE_PRECISION_ENABLED"] = "1"
@@ -2094,7 +1985,6 @@ else:
 makefile_options["PROBLEM_FILE"] += ".cpp"
 makefile_options["COORDINATES_FILE"] += ".cpp"
 makefile_options["EOS_FILE"] += ".cpp"
-makefile_options["GENERAL_EOS_FILE"] += ".cpp"
 makefile_options["RSOLVER_FILE"] += ".cpp"
 
 # Read templates
@@ -2153,7 +2043,6 @@ print("  Riemann solver:               " + args["flux"])
 print("  Hydrodynamics:                " + ("ON" if args["f"] else "OFF"))
 print("  Magnetic fields:              " + ("ON" if args["b"] else "OFF"))
 print("  Number of scalars:            " + args["nscalars"])
-print("  Special relativity:           " + ("ON" if args["s"] else "OFF"))
 print("  General relativity:           " + ("ON" if args["g"] else "OFF"))
 print("  Z4c equations:                " + ("ON" if args["z"] else "OFF"))
 if args["z"]:
@@ -2180,7 +2069,6 @@ if args["w"]:
   print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
   print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
 
-print("  Frame transformations:        " + ("ON" if args["t"] else "OFF"))
 print("  Super-Time-Stepping:          " + ("ON" if args["sts"] else "OFF"))
 print("  Debug flags:                  " + ("ON" if args["debug"] else "OFF"))
 print(

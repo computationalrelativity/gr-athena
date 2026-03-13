@@ -658,7 +658,7 @@ private:
   AT_N_sca w_rho;
   AT_N_sca w_p;
   AT_N_vec w_utilde_u;
-#if USETM
+#if FLUID_ENABLED
   AT_S_vec w_r;
 #endif
 

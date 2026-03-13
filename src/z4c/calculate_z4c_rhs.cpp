@@ -667,8 +667,10 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 {
   MeshBlock * pmb = pmy_block;
   Mesh * pm = pmb->pmy_mesh;
+#if FLUID_ENABLED
   Hydro * ph = pmb->phydro;
   EquationOfState * peos = pmb->peos;
+#endif // FLUID_ENABLED
 
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
@@ -676,6 +678,7 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 
   AT_N_sca & alpha = z4c.alpha;
 
+#if FLUID_ENABLED
   Real horizon_factor = ph->opt_excision.horizon_factor;
   if (opt.excise_z4c_freeze_evo_rat > 0)
     ph->opt_excision.horizon_factor = opt.excise_z4c_freeze_evo_rat;
@@ -699,5 +702,6 @@ void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
 
   if (opt.excise_z4c_freeze_evo_rat > 0)
     ph->opt_excision.horizon_factor = horizon_factor;
+#endif // FLUID_ENABLED
 
 }

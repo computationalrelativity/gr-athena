@@ -96,7 +96,8 @@ void FieldDiffusion::CalcDiffusionEMF(FaceField &bi, const AthenaArray<Real> &bc
   if (eta_ad != 0.0) AmbipolarEMF(bi, bc, e_oa);
 
   // calculate the Poynting flux pflux and add to energy flux in Hydro class
-  if (NON_BAROTROPIC_EOS) PoyntingFlux(e_oa, bc);
+  // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+  //if (NON_BAROTROPIC_EOS) PoyntingFlux(e_oa, bc);
   return;
 }
 

@@ -63,10 +63,11 @@ void HydroDiffusion::ViscousFluxIso(const AthenaArray<Real> &prim,
         x1flux(IM1,k,j,i) += flx1;
         x1flux(IM2,k,j,i) += flx2;
         x1flux(IM3,k,j,i) += flx3;
-        if (NON_BAROTROPIC_EOS)
-          x1flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i-1) + prim(IM1,k,j,i))*flx1 +
-                                    (prim(IM2,k,j,i-1) + prim(IM2,k,j,i))*flx2 +
-                                    (prim(IM3,k,j,i-1) + prim(IM3,k,j,i))*flx3);
+        // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+        //if (NON_BAROTROPIC_EOS)
+        //  x1flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i-1) + prim(IM1,k,j,i))*flx1 +
+        //                            (prim(IM2,k,j,i-1) + prim(IM2,k,j,i))*flx2 +
+        //                            (prim(IM3,k,j,i-1) + prim(IM3,k,j,i))*flx3);
       }
     }
   }
@@ -96,10 +97,11 @@ void HydroDiffusion::ViscousFluxIso(const AthenaArray<Real> &prim,
           x2flux(IM1,k,j,i) += flx1;
           x2flux(IM2,k,j,i) += flx2;
           x2flux(IM3,k,j,i) += flx3;
-          if (NON_BAROTROPIC_EOS)
-            x2flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i) + prim(IM1,k,j-1,i))*flx1 +
-                                      (prim(IM2,k,j,i) + prim(IM2,k,j-1,i))*flx2 +
-                                      (prim(IM3,k,j,i) + prim(IM3,k,j-1,i))*flx3);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS)
+          //  x2flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i) + prim(IM1,k,j-1,i))*flx1 +
+          //                            (prim(IM2,k,j,i) + prim(IM2,k,j-1,i))*flx2 +
+          //                            (prim(IM3,k,j,i) + prim(IM3,k,j-1,i))*flx3);
         }
       }
     }
@@ -118,17 +120,19 @@ void HydroDiffusion::ViscousFluxIso(const AthenaArray<Real> &prim,
       x2flux(IM1,ks,js,i) += flx1;
       x2flux(IM2,ks,js,i) += flx2;
       x2flux(IM3,ks,js,i) += flx3;
-      if (NON_BAROTROPIC_EOS)
-        x2flux(IEN,ks,js,i) += prim(IM1,ks,js,i)*flx1 +
-                               prim(IM2,ks,js,i)*flx2 +
-                               prim(IM3,ks,js,i)*flx3;
+      // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+      //if (NON_BAROTROPIC_EOS)
+      //  x2flux(IEN,ks,js,i) += prim(IM1,ks,js,i)*flx1 +
+      //                         prim(IM2,ks,js,i)*flx2 +
+      //                         prim(IM3,ks,js,i)*flx3;
     }
     for (int i=il; i<=iu; i++) {
       x2flux(IM1,ks,je+1,i) = x2flux(IM1,ks,js,i);
       x2flux(IM2,ks,je+1,i) = x2flux(IM2,ks,js,i);
       x2flux(IM3,ks,je+1,i) = x2flux(IM3,ks,js,i);
-      if (NON_BAROTROPIC_EOS)
-        x2flux(IEN,ks,je+1,i) = x2flux(IEN,ks,js,i);
+      // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+      //if (NON_BAROTROPIC_EOS)
+      //  x2flux(IEN,ks,je+1,i) = x2flux(IEN,ks,js,i);
     }
   }
   // k-direction
@@ -157,10 +161,11 @@ void HydroDiffusion::ViscousFluxIso(const AthenaArray<Real> &prim,
           x3flux(IM1,k,j,i) += flx1;
           x3flux(IM2,k,j,i) += flx2;
           x3flux(IM3,k,j,i) += flx3;
-          if (NON_BAROTROPIC_EOS)
-            x3flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i) + prim(IM1,k-1,j,i))*flx1 +
-                                      (prim(IM2,k,j,i) + prim(IM2,k-1,j,i))*flx2 +
-                                      (prim(IM3,k,j,i) + prim(IM3,k-1,j,i))*flx3);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS)
+          //  x3flux(IEN,k,j,i) += 0.5*((prim(IM1,k,j,i) + prim(IM1,k-1,j,i))*flx1 +
+          //                            (prim(IM2,k,j,i) + prim(IM2,k-1,j,i))*flx2 +
+          //                            (prim(IM3,k,j,i) + prim(IM3,k-1,j,i))*flx3);
         }
       }
     }
@@ -183,12 +188,13 @@ void HydroDiffusion::ViscousFluxIso(const AthenaArray<Real> &prim,
         x3flux(IM1,ke+1,j,i) = x3flux(IM1,ks,j,i);
         x3flux(IM2,ke+1,j,i) = x3flux(IM2,ks,j,i);
         x3flux(IM3,ke+1,j,i) = x3flux(IM3,ks,j,i);
-        if (NON_BAROTROPIC_EOS) {
-          x3flux(IEN,ks,j,i) += prim(IM1,ks,j,i)*flx1 +
-                                prim(IM2,ks,j,i)*flx2 +
-                                prim(IM3,ks,j,i)*flx3;
-          x3flux(IEN,ke+1,j,i) = x3flux(IEN,ks,j,i);
-        }
+        // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+        //if (NON_BAROTROPIC_EOS) {
+        //  x3flux(IEN,ks,j,i) += prim(IM1,ks,j,i)*flx1 +
+        //                        prim(IM2,ks,j,i)*flx2 +
+        //                        prim(IM3,ks,j,i)*flx3;
+        //  x3flux(IEN,ke+1,j,i) = x3flux(IEN,ks,j,i);
+        //}
       }
     }
   }

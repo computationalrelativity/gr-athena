@@ -164,7 +164,7 @@ public:
     )
   {
 
-#if !USETM
+#if !FLUID_ENABLED
     #pragma omp critical
     {
       std::cout << "Warning: ";

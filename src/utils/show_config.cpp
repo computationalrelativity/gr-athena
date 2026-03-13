@@ -37,11 +37,6 @@ void ShowConfig() {
   } else {
     std::cout<<"  Magnetic fields:            OFF" << std::endl;
   }
-  if (RELATIVISTIC_DYNAMICS) { // configure.py output: "Special relativity"
-    std::cout<<"  Relativistic dynamics:      ON " << std::endl;
-  } else {
-    std::cout<<"  Relativistic dynamics:      OFF " << std::endl;
-  }
   if (GENERAL_RELATIVITY) {
     std::cout<<"  General relativity:         ON " << std::endl;
   } else {

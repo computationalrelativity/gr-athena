@@ -1,3 +1,12 @@
+//========================================================================================
+// Athena++ astrophysical MHD code
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
+// Licensed under the 3-clause BSD License, see LICENSE file for details
+//========================================================================================
+//! \file llftaudyn_mhd_rel_no_transform.cpp
+//  \brief Implements local Lax-Friedrichs Riemann solver for relativistic MHD
+//  in pure GR with dynamically evolving spacetime.
+
 // C++ headers
 #include <algorithm>  // max(), min()
 #include <cmath>      // sqrt()
@@ -66,9 +75,7 @@ void Hydro::RiemannSolver(
   using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
-  Mesh * pm = pmb->pmy_mesh;
   Hydro * ph = pmb->phydro;
-  PassiveScalars * ps = pmb->pscalars;
   EquationOfState * peos = pmb->peos;
   Reconstruction * precon = pmb->precon;
 
@@ -78,18 +85,11 @@ void Hydro::RiemannSolver(
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
 
-  const int nn1 = pmy_block->nverts1;  // utilize the verts
-
   // time-step (needed for CT weight)
   const Real dt = pmb->pmy_mesh->dt;
 
   // Extract ratio of specific heats
-#if USETM
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-#else
-  const Real Gamma = pmb->peos->GetGamma();
-  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
-#endif
 
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l_, IDN);
@@ -104,10 +104,8 @@ void Hydro::RiemannSolver(
   Real T_min = 0;
   Real h_min = 0;
 
-#if USETM
   T_min = peos->GetEOS().GetTemperatureFloor();
   h_min = peos->GetEOS().GetMinimumEnthalpy();
-#endif
 
   // deal with excision -------------------------------------------------------
   auto excise = [&](const int i)
@@ -395,7 +393,6 @@ void Hydro::RiemannSolver(
   for (int i = il; i <= iu; ++i)
   {
     // Calculate wavespeeds in left state NB EOS specific
-#if USETM
     // If using the PrimitiveSolver framework, get the number density
     // and temperature to help calculate enthalpy.
     Real nl__ = w_rho_l_(i) / mb;
@@ -450,20 +447,6 @@ void Hydro::RiemannSolver(
         beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i), &lambda_p_r(i),
         &lambda_m_r(i), Yr__);
     }
-
-#else
-    w_hrho_l_(i) = w_rho_l_(i) + Eos_Gamma_ratio * w_p_l_(i);
-    w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);
-
-    peos->FastMagnetosonicSpeedsGR(
-      w_hrho_l_(i), w_p_l_(i), b2_l_(i), w_v_u_l_(ivx - 1, i), w_norm2_v_l_(i),
-      alpha_(i), beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i),
-      &lambda_p_l(i), &lambda_m_l(i));
-    peos->FastMagnetosonicSpeedsGR(
-      w_hrho_r_(i), w_p_r_(i), b2_r_(i), w_v_u_r_(ivx - 1, i), w_norm2_v_r_(i),
-      alpha_(i), beta_u_(ivx - 1, i), gamma_uu_(ivx - 1, ivx - 1, i),
-      &lambda_p_r(i), &lambda_m_r(i));
-#endif
   }
 
   // Calculate extremal wavespeed
@@ -560,7 +543,7 @@ void Hydro::RiemannSolver(
     flux_l_(IBZ, i) =
       (cons_l_(IBZ, i) * alpha_w_vtil_u_l_(ivx - 1, i) -
        q_scB_u_l_(ivx - 1, i) * sqrt_detgamma_(i) *
-         alpha_w_vtil_u_l_(ivz - 1, i));  // check these indices
+         alpha_w_vtil_u_l_(ivz - 1, i));
 
     // r: D
     flux_r_(IDN, i) = cons_r_(IDN, i) * alpha_w_vtil_u_r_(ivx - 1, i);
@@ -591,7 +574,7 @@ void Hydro::RiemannSolver(
     flux_r_(IBZ, i) =
       (cons_r_(IBZ, i) * alpha_w_vtil_u_r_(ivx - 1, i) -
        q_scB_u_r_(ivx - 1, i) * sqrt_detgamma_(i) *
-         alpha_w_vtil_u_r_(ivz - 1, i));  // check these indices
+          alpha_w_vtil_u_r_(ivz - 1, i));
   }
 
   // Set fluxes ---------------------------------------------------------------

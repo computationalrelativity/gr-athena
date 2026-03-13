@@ -56,23 +56,24 @@ HydroDiffusion::HydroDiffusion(Hydro *phyd, ParameterInput *pin) :
       CalcViscCoeff_ = pmb_->pmy_mesh->ViscosityCoeff_;
   }
 
+  // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
   // Check if thermal conduction is active
-  if (NON_BAROTROPIC_EOS) {
-    kappa_iso  = pin->GetOrAddReal("problem", "kappa_iso", 0.0); // iso thermal conduction
-    kappa_aniso  = pin->GetOrAddReal("problem", "kappa_aniso", 0.0); // aniso conduction
-    if (kappa_iso > 0.0 || kappa_aniso > 0.0) {
-      hydro_diffusion_defined = true;
-      cndflx[X1DIR].NewAthenaArray(nc3, nc2, nc1+1);
-      cndflx[X2DIR].NewAthenaArray(nc3, nc2+1, nc1);
-      cndflx[X3DIR].NewAthenaArray(nc3+1, nc2, nc1);
-
-      kappa.NewAthenaArray(2, nc3, nc2, nc1);
-      if (pmb_->pmy_mesh->ConductionCoeff_ == nullptr)
-        CalcCondCoeff_ = ConstConduction;
-      else
-        CalcCondCoeff_ = pmb_->pmy_mesh->ConductionCoeff_;
-    }
-  }
+  //if (NON_BAROTROPIC_EOS) {
+  //  kappa_iso  = pin->GetOrAddReal("problem", "kappa_iso", 0.0); // iso thermal conduction
+  //  kappa_aniso  = pin->GetOrAddReal("problem", "kappa_aniso", 0.0); // aniso conduction
+  //  if (kappa_iso > 0.0 || kappa_aniso > 0.0) {
+  //    hydro_diffusion_defined = true;
+  //    cndflx[X1DIR].NewAthenaArray(nc3, nc2, nc1+1);
+  //    cndflx[X2DIR].NewAthenaArray(nc3, nc2+1, nc1);
+  //    cndflx[X3DIR].NewAthenaArray(nc3+1, nc2, nc1);
+  //
+  //    kappa.NewAthenaArray(2, nc3, nc2, nc1);
+  //    if (pmb_->pmy_mesh->ConductionCoeff_ == nullptr)
+  //      CalcCondCoeff_ = ConstConduction;
+  //    else
+  //      CalcCondCoeff_ = pmb_->pmy_mesh->ConductionCoeff_;
+  //  }
+  //}
 
   if (hydro_diffusion_defined) {
     dx1_.NewAthenaArray(nc1);

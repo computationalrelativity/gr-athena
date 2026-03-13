@@ -30,7 +30,7 @@ bool PassiveScalars::SpeciesWithinLimits(AthenaArray<Real> & z_, const int i)
 {
   bool within_limits = true;
 
-#if USETM
+#if FLUID_ENABLED
   EquationOfState *peos = pmy_block->peos;
 
   for (int n=0; n<NSCALARS; ++n)
@@ -46,7 +46,6 @@ bool PassiveScalars::SpeciesWithinLimits(AthenaArray<Real> & z_, const int i)
       return false;
   }
 #endif
-  // BD: TODO - worth to fix if not USETM?
   return within_limits;
 }
 
@@ -54,7 +53,7 @@ void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
                                         const int il,
                                         const int iu)
 {
-#if USETM
+#if FLUID_ENABLED
   EquationOfState *peos = pmy_block->peos;
 
   Real Y[MAX_SPECIES] = {0.0};
@@ -73,8 +72,6 @@ void PassiveScalars::ApplySpeciesLimits(AthenaArray<Real> & z_,
     }
   }
 #endif
-  // BD: TODO - worth to fix if not USETM?
-
 }
 
 void PassiveScalars::ApplySpeciesLimits(AA & z,
@@ -82,7 +79,7 @@ void PassiveScalars::ApplySpeciesLimits(AA & z,
                                         const int j,
                                         const int k)
 {
-#if USETM
+#if FLUID_ENABLED
   EquationOfState *peos = pmy_block->peos;
 
   Real Y[MAX_SPECIES] = {0.0};
@@ -98,7 +95,6 @@ void PassiveScalars::ApplySpeciesLimits(AA & z,
     z(n,k,j,i) = Y[n];
   }
 #endif
-  // BD: TODO - worth to fix if not USETM?
 }
 
 void PassiveScalars::FallbackInadmissibleScalarX_(

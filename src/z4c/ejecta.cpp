@@ -114,7 +114,7 @@ Ejecta::Ejecta(Mesh *pmesh, ParameterInput *pin, int n) :
   for (int n = 0; n < NDIM; ++n) {
     Bcc[n].NewAthenaArray(ntheta, nphi);
   }
-#if USETM
+#if FLUID_ENABLED
   for (int n = 0; n < NSCALARS; ++n) {
     Y[n].NewAthenaArray(ntheta, nphi);
   }
@@ -364,7 +364,7 @@ void Ejecta::Interp(MeshBlock * pmb)
     prim_[n].InitWithShallowSlice(pmb->phydro->w, IDN + n, 1);
     cons_[n].InitWithShallowSlice(pmb->phydro->u, IDN + n, 1);
   }
-#if USETM
+#if FLUID_ENABLED
   for (int n = 0; n < NSCALARS; ++n) {
     Y_[n].InitWithShallowSlice(pmb->pscalars->r, IYF + n, 1);
   }
@@ -444,7 +444,7 @@ void Ejecta::Interp(MeshBlock * pmb)
         prim[n](i, j) = pinterp3->eval(&(prim_[n](0, 0, 0)));
         cons[n](i, j) = pinterp3->eval(&(cons_[n](0, 0, 0)));
       }
-#if USETM
+#if FLUID_ENABLED
       for (int n = 0; n < NSCALARS; ++n) {
         Y[n](i, j) = pinterp3->eval(&(Y_[n](0, 0, 0)));
       }
@@ -635,7 +635,7 @@ void Ejecta::Calculate(const Real time)
     prim[n].ZeroClear();
     cons[n].ZeroClear();
   }
-#if USETM
+#if FLUID_ENABLED
   for (int n = 0; n < NSCALARS; ++n) {
     Y[n].ZeroClear();
   }
@@ -681,7 +681,7 @@ void Ejecta::Calculate(const Real time)
       MPI_Reduce(MPI_IN_PLACE, cons[n].data(), ntheta * nphi, MPI_ATHENA_REAL,
                  MPI_SUM, root, MPI_COMM_WORLD);
     }
-#if USETM
+#if FLUID_ENABLED
     MPI_Reduce(MPI_IN_PLACE, T.data(), ntheta * nphi, MPI_ATHENA_REAL, MPI_SUM,
                root, MPI_COMM_WORLD);
     for (int n = 0; n < NSCALARS; ++n) {
@@ -728,7 +728,7 @@ void Ejecta::Calculate(const Real time)
       MPI_Reduce(cons[n].data(), cons[n].data(), ntheta * nphi, MPI_ATHENA_REAL,
                  MPI_SUM, root, MPI_COMM_WORLD);
     }
-#if USETM
+#if FLUID_ENABLED
     MPI_Reduce(T.data(), T.data(), ntheta * nphi, MPI_ATHENA_REAL, MPI_SUM,
                root, MPI_COMM_WORLD);
     for (int n = 0; n < NSCALARS; ++n) {
@@ -936,7 +936,7 @@ void Ejecta::Write_hdf5(const Real time)
     hdf5_write_arr_nd(id_file, full_path, cons[n]);
   }
 
-#if USETM
+#if FLUID_ENABLED
   {
     std::string full_path = "/prim/T";
     hdf5_write_arr_nd(id_file, full_path, T);
@@ -947,7 +947,7 @@ void Ejecta::Write_hdf5(const Real time)
       hdf5_write_arr_nd(id_file, full_path, Y[n]);
     }
   }
-#endif // USETM
+#endif // FLUID_ENABLED
 
 #if MAGNETIC_FIELDS_ENABLED
     for (int n=0; n<NFIELD; ++n)

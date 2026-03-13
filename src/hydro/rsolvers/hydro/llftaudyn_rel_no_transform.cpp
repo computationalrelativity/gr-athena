@@ -10,7 +10,6 @@
 // C++ headers
 #include <algorithm>  // max(), min()
 #include <cmath>      // sqrt()
-#include <iomanip>
 
 // Athena++ headers
 #include "../../hydro.hpp"
@@ -74,9 +73,7 @@ void Hydro::RiemannSolver(
   using namespace FloatingPoint;
 
   MeshBlock * pmb = pmy_block;
-  Mesh * pm = pmb->pmy_mesh;
   Hydro * ph = pmb->phydro;
-  PassiveScalars * ps = pmb->pscalars;
   EquationOfState * peos = pmb->peos;
   Reconstruction * precon = pmb->precon;
 
@@ -86,15 +83,8 @@ void Hydro::RiemannSolver(
   int ivy = IVX + ((ivx-IVX)+1)%3;
   int ivz = IVX + ((ivx-IVX)+2)%3;
 
-  const int nn1 = pmb->nverts1;  // utilize the verts
-
   // Extract ratio of specific heats
-#if USETM
   const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-#else
-  const Real Gamma = pmb->peos->GetGamma();
-  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
-#endif
 
   // 1d slices ----------------------------------------------------------------
   AT_N_sca w_rho_l_(prim_l_, IDN);
@@ -109,10 +99,8 @@ void Hydro::RiemannSolver(
   Real T_min = 0;
   Real h_min = 0;
 
-#if USETM
   T_min = peos->GetEOS().GetTemperatureFloor();
   h_min = peos->GetEOS().GetMinimumEnthalpy();
-#endif
 
   // deal with excision -------------------------------------------------------
   auto excise = [&](const int i)
@@ -258,20 +246,11 @@ void Hydro::RiemannSolver(
   InnerProductSlicedVec3Metric(w_norm2_v_l_, w_v_u_l_, gamma_dd_, il, iu);
   InnerProductSlicedVec3Metric(w_norm2_v_r_, w_v_u_r_, gamma_dd_, il, iu);
 
-  // #pragma omp simd
-  // for (int i=il; i<=iu; ++i)
-  // {
-  //   w_norm2_v_l_(i) = 1.0 - OO(SQR(W_l_(i)));
-  //   w_norm2_v_r_(i) = 1.0 - OO(SQR(W_r_(i)));
-  // }
-
-
   // eigen-structure ----------------------------------------------------------
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
     // Calculate wavespeeds in left state NB EOS specific
-#if USETM
     // If using the PrimitiveSolver framework, get the number density
     // and temperature to help calculate enthalpy.
     Real nl__ = w_rho_l_(i) / mb;
@@ -321,21 +300,6 @@ void Hydro::RiemannSolver(
                           gamma_uu_(ivx-1,ivx-1,i),
                           &lambda_p_r(i), &lambda_m_r(i), Yr__);
     }
-#else
-    w_hrho_l_(i) = w_rho_l_(i) + Eos_Gamma_ratio * w_p_l_(i);
-    w_hrho_r_(i) = w_rho_r_(i) + Eos_Gamma_ratio * w_p_r_(i);
-
-    peos->SoundSpeedsGR(w_hrho_l_(i), w_p_l_(i), w_v_u_l_(ivx-1,i),
-                        w_norm2_v_l_(i),
-                        alpha_(i), beta_u_(ivx-1,i),
-                        gamma_uu_(ivx-1,ivx-1,i),
-                        &lambda_p_l(i), &lambda_m_l(i));
-    peos->SoundSpeedsGR(w_hrho_r_(i), w_p_r_(i), w_v_u_r_(ivx-1,i),
-                        w_norm2_v_r_(i),
-                        alpha_(i), beta_u_(ivx-1,i),
-                        gamma_uu_(ivx-1,ivx-1,i),
-                        &lambda_p_r(i), &lambda_m_r(i));
-#endif
 }
 
   // Calculate extremal wavespeed
@@ -432,7 +396,7 @@ void Hydro::RiemannSolver(
     }
   }
 
-  // Calculate fluxes in L region (rho u^i and T^i_\mu, where i = ivx)
+  // Calculate fluxes in R region (rho u^i and T^i_\mu, where i = ivx)
   #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {

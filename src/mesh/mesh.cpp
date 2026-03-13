@@ -412,7 +412,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     }
   }
 
-  if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
 
   if (multilevel) {
@@ -925,7 +924,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     }
   }
 
-  if (EOS_TABLE_ENABLED) peos_table = new EosTable(pin);
   InitUserMeshData(pin);
   // read user Mesh data
   IOWrapperSizeT udsize = 0;
@@ -1286,7 +1284,6 @@ Mesh::~Mesh() {
   // delete user Mesh data
   if (nreal_user_mesh_data_>0) delete [] ruser_mesh_data;
   if (nint_user_mesh_data_>0) delete [] iuser_mesh_data;
-  if (EOS_TABLE_ENABLED) delete peos_table;
 
 #if FLUID_ENABLED
   delete presc;

@@ -122,8 +122,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
             hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
 
-            if (NON_BAROTROPIC_EOS) {
-              Real& u_e = phyd->u(IEN,k,j,i);;
+            {
+              Real& u_e = phyd->u(IEN,k,j,i);
               hst_data[isum++] += vol(i)*u_e;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
@@ -402,7 +402,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
         std::fprintf(pfile,"[%d]=1-KE ", iout++);
         std::fprintf(pfile,"[%d]=2-KE ", iout++);
         std::fprintf(pfile,"[%d]=3-KE ", iout++);
-        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E ", iout++);
+        std::fprintf(pfile,"[%d]=tot-E ", iout++);
         if (MAGNETIC_FIELDS_ENABLED) {
           std::fprintf(pfile,"[%d]=1-ME ", iout++);
           std::fprintf(pfile,"[%d]=2-ME ", iout++);

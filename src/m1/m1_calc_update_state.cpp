@@ -740,7 +740,7 @@ void M1::CalcUpdate(const int stage,
     const AT_C_sca & I_sc_E_01 = U_I.sc_E(0,1);
     const AT_C_sca & I_sc_E_02 = U_I.sc_E(0,2);
 
-#if FLUID_ENABLED && USETM
+#if FLUID_ENABLED
     const AT_C_sca & C_sc_nG_00 = U_C.sc_nG(0,0);
     const AT_C_sca & C_sc_nG_01 = U_C.sc_nG(0,1);
     // const AT_C_sca & C_sc_nG_02 = U_C.sc_nG(0,2);
@@ -767,7 +767,7 @@ void M1::CalcUpdate(const int stage,
       const Real DE_02 = C_sc_E_02(k,j,i) - E_star_02__;
 
       net.heat(k,j,i) = DE_00 + DE_01 + DE_02;
-#if FLUID_ENABLED && USETM
+#if FLUID_ENABLED
       const Real nG_star_00__ = P_sc_nG_00(k,j,i) + dt * I_sc_nG_00(k,j,i);
       const Real DN_00 = C_sc_nG_00(k,j,i) - nG_star_00__;
       const Real nG_star_01__ = P_sc_nG_01(k,j,i) + dt * I_sc_nG_01(k,j,i);

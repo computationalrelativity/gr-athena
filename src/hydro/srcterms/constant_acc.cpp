@@ -34,7 +34,8 @@ void HydroSourceTerms::ConstantAcceleration(const Real dt,const AthenaArray<Real
         for (int i=pmb->is; i<=pmb->ie; ++i) {
           Real src = dt*prim(IDN,k,j,i)*g1_;
           cons(IM1,k,j,i) += src;
-          if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVX,k,j,i);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVX,k,j,i);
         }
       }
     }
@@ -48,7 +49,8 @@ void HydroSourceTerms::ConstantAcceleration(const Real dt,const AthenaArray<Real
         for (int i=pmb->is; i<=pmb->ie; ++i) {
           Real src = dt*prim(IDN,k,j,i)*g2_;
           cons(IM2,k,j,i) += src;
-          if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVY,k,j,i);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVY,k,j,i);
         }
       }
     }
@@ -62,7 +64,8 @@ void HydroSourceTerms::ConstantAcceleration(const Real dt,const AthenaArray<Real
         for (int i=pmb->is; i<=pmb->ie; ++i) {
           Real src = dt*prim(IDN,k,j,i)*g3_;
           cons(IM3,k,j,i) += src;
-          if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVZ,k,j,i);
+          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
+          //if (NON_BAROTROPIC_EOS) cons(IEN,k,j,i) += src*prim(IVZ,k,j,i);
         }
       }
     }

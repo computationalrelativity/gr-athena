@@ -198,7 +198,7 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
 
   const Real rho = pin->GetReal("problem", "rho");
   const Real Ye = pin->GetReal("problem", "Y_e");
-#if USETM
+#if FLUID_ENABLED
   const Real temp = pin->GetReal("problem", "temperature");
   AA temperature;
   temperature.InitWithShallowSlice(phydro->derived_ms, IX_T, 1);
@@ -222,7 +222,7 @@ void InitM1HomogenousMedium(MeshBlock *pmb, ParameterInput *pin)
 #if NSCALARS>0
     pscalars->r(0,k,j,i) = Ye;
 #endif
-#if USETM
+#if FLUID_ENABLED
     Real const nb = rho/(pmb->peos->GetEOS().GetBaryonMass());
     Real Yvec[MAX_SPECIES] = {Ye};
     phydro->w(IPR,k,j,i) = pmb->peos->GetEOS().GetPressure(nb, temp, Yvec);

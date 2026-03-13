@@ -440,7 +440,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     w_rho.NewAthenaTensor(     mbi.nn1);
     w_p.NewAthenaTensor(       mbi.nn1);
     w_utilde_u.NewAthenaTensor(mbi.nn1);
-#if USETM
+#if FLUID_ENABLED
     w_r.NewAthenaTensor(       mbi.nn1);
 #endif
 
