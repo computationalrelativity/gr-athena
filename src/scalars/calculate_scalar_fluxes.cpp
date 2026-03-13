@@ -293,28 +293,3 @@ void PassiveScalars::FallbackInadmissibleMaskScalarX_(
 void PassiveScalars::CalculateFluxes_STS() {
   AddDiffusionFluxes();
 }
-
-
-void PassiveScalars::ComputeUpwindFlux(const int k, const int j, const int il,
-                                       const int iu, // CoordinateDirection dir,
-                                       AthenaArray<Real> &rl, AthenaArray<Real> &rr, // 2D
-                                       AthenaArray<Real> &mass_flx,  // 3D
-                                       AthenaArray<Real> &flx_out) { // 4D
-  if (!pmy_block->precon->xorder_upwind_scalars)
-  {
-    return;
-  }
-
-  const int nu = NSCALARS - 1;
-  for (int n=0; n<=nu; n++) {
-#pragma omp simd
-    for (int i=il; i<=iu; i++) {
-      Real fluid_flx = mass_flx(k,j,i);
-      if (fluid_flx >= 0.0)
-        flx_out(n,k,j,i) = fluid_flx*rl(n,i);
-      else
-        flx_out(n,k,j,i) = fluid_flx*rr(n,i);
-    }
-  }
-  return;
-}

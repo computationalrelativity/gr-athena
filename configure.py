@@ -65,7 +65,7 @@
 #   -lorene_hardcoded_units
 #
 # Hydro/passive scalars:
-#   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
+#   -recon_cmb_hydpa    [DEPRECATED] combined recon is the only supported mode; flag is redundant
 #   -DBG_FALLBACK_NO_TABLE_LIMITS: employ fallback with Y<0 check instead
 #
 # z4c settings:
@@ -293,8 +293,8 @@ parser.add_argument(
 parser.add_argument(
   "-recon_cmb_hydpa",
   action="store_true",
-  default=False,
-  help="reconstruct hydro & passive scalars simult.",
+  default=True,
+  help="[DEPRECATED] combined recon is the only supported mode; flag is redundant",
 )
 
 parser.add_argument(
@@ -1244,11 +1244,13 @@ if "-cons_bc" in sys.argv:
     "a future release."
   )
 
-# -recon_cmb_hydpa argument
-if args["recon_cmb_hydpa"]:
-  definitions["DBG_COMBINED_HYDPA"] = "DBG_COMBINED_HYDPA"
-else:
-  definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
+# -recon_cmb_hydpa argument (deprecated - combined recon is always on)
+if "-recon_cmb_hydpa" in sys.argv:
+  print(
+    "WARNING: -recon_cmb_hydpa is deprecated. Combined hydro & passive "
+    "scalar reconstruction is the only supported mode. This flag is "
+    "redundant and will be removed in a future release."
+  )
 
 # -DBG_FALLBACK_NO_TABLE_LIMITS argument
 if args["DBG_FALLBACK_NO_TABLE_LIMITS"]:

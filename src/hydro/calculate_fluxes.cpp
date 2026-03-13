@@ -123,7 +123,6 @@ void InterpolateGeometry(
 void ReconstructFields(
   MeshBlock * pmb,
   Reconstruction::ReconstructionVariant rv_w,
-  Reconstruction::ReconstructionVariant rv_r,
   Reconstruction::ReconstructionVariant rv_a,
   Reconstruction::ReconstructionVariant rv_b,
   AA & wl_, AA & wr_, // rec. primitive hydro
@@ -192,7 +191,7 @@ void ReconstructFields(
   for (int n=0; n<NSCALARS; ++n)
   {
     pr->ReconstructFieldXd(
-      rv_r, r, rl_, rr_, ivx, n, n, k, j, il-os_il, iu
+      rv_w, r, rl_, rr_, ivx, n, n, k, j, il-os_il, iu
     );
   }
 
@@ -393,7 +392,6 @@ void Hydro::CalculateFluxesCombined(AA &w,
   PassiveScalars *ps = pmb->pscalars;
 
   Reconstruction::ReconstructionVariant rv_w = rv;
-  Reconstruction::ReconstructionVariant rv_r = rv;
   Reconstruction::ReconstructionVariant rv_a = rv;
   Reconstruction::ReconstructionVariant rv_b = rv;
 
@@ -436,7 +434,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
   {
     ReconstructFields(
       pmb,
-      rv_w, rv_r, rv_a, rv_b,
+      rv_w, rv_a, rv_b,
       wl_, wr_,
       rl_, rr_,
       al_, ar_,
@@ -534,7 +532,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
     {
       ReconstructFields(
         pmb,
-        rv_w, rv_r, rv_a, rv_b,
+        rv_w, rv_a, rv_b,
         wl_, wr_,
         rl_, rr_,
         al_, ar_,
@@ -548,7 +546,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
 
         ReconstructFields(
           pmb,
-          rv_w, rv_r, rv_a, rv_b,
+          rv_w, rv_a, rv_b,
           wlb_, wr_,
           rlb_, rr_,
           alb_, ar_,
@@ -648,7 +646,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
 
       ReconstructFields(
         pmb,
-        rv_w, rv_r, rv_a, rv_b,
+        rv_w, rv_a, rv_b,
         wl_, wr_,
         rl_, rr_,
         al_, ar_,
@@ -661,7 +659,7 @@ void Hydro::CalculateFluxesCombined(AA &w,
       {
         ReconstructFields(
           pmb,
-          rv_w, rv_r, rv_a, rv_b,
+          rv_w, rv_a, rv_b,
           wlb_, wr_,
           rlb_, rr_,
           alb_, ar_,
@@ -766,7 +764,6 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
   PassiveScalars *ps = pmb->pscalars;
 
   Reconstruction::ReconstructionVariant rv_w = rv;
-  Reconstruction::ReconstructionVariant rv_r = rv;
   Reconstruction::ReconstructionVariant rv_a = rv;
   Reconstruction::ReconstructionVariant rv_b = rv;
 
@@ -810,7 +807,7 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
   {
     ReconstructFields(
       pmb,
-      rv_w, rv_r, rv_a, rv_b,
+      rv_w, rv_a, rv_b,
       wl_, wr_,
       rl_, rr_,
       al_, ar_,
@@ -892,7 +889,7 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
     {
       ReconstructFields(
         pmb,
-        rv_w, rv_r, rv_a, rv_b,
+        rv_w, rv_a, rv_b,
         wl_, wr_,
         rl_, rr_,
         al_, ar_,
@@ -906,7 +903,7 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
 
         ReconstructFields(
           pmb,
-          rv_w, rv_r, rv_a, rv_b,
+          rv_w, rv_a, rv_b,
           wlb_, wr_,
           rlb_, rr_,
           alb_, ar_,
@@ -990,7 +987,7 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
 
       ReconstructFields(
         pmb,
-        rv_w, rv_r, rv_a, rv_b,
+        rv_w, rv_a, rv_b,
         wl_, wr_,
         rl_, rr_,
         al_, ar_,
@@ -1003,7 +1000,7 @@ void Hydro::CalculateFluxesCachedGeometry(AA &w,
       {
         ReconstructFields(
           pmb,
-          rv_w, rv_r, rv_a, rv_b,
+          rv_w, rv_a, rv_b,
           wlb_, wr_,
           rlb_, rr_,
           alb_, ar_,

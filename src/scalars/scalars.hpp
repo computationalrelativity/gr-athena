@@ -95,21 +95,12 @@ class PassiveScalars {
     AthenaArray<Real> & zr_,
     const int il, const int iu, const int ivx);
 
-public:  // debug for combined hydro-scalar recon
+ public:
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
-  // 2D scratch arrays
-  // AthenaArray<Real> rl_, rr_, rlb_;
-  // AthenaArray<Real> r_rl_, r_rr_, r_rlb_;
-
   // 1D scratch arrays
   AthenaArray<Real> dflx_;
 
-  void ComputeUpwindFlux(const int k, const int j, const int il,
-                         const int iu, // CoordinateDirection dir,
-                         AthenaArray<Real> &rl, AthenaArray<Real> &rr,
-                         AthenaArray<Real> &mass_flx,
-                         AthenaArray<Real> &flx_out);
   void AddDiffusionFluxes();
   // TODO(felker): dedpulicate these arrays and the same named ones in HydroDiffusion
   AthenaArray<Real> dx1_, dx2_, dx3_;
