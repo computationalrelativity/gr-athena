@@ -26,6 +26,7 @@ struct SolverResult {
   bool cons_floor;
   bool prim_floor;
   bool cons_adjusted;
+  bool scalars_adjusted;
 };
 
 extern std::string ErrorString[11];

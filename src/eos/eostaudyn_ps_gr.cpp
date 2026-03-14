@@ -443,16 +443,19 @@ void EquationOfState::ConservedToPrimitive(
           prim_scalar(n, k, j, i) = prim_pt[IYF + n];
         }
 
-        // Because the conserved variables may have changed, we update those, too.
-        cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
-        cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
-        cons(IM2, k, j, i) = cons_pt[IM2]*sqrt_detgamma;
-        cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
-        cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
-
-        for(int n=0; n<NSCALARS; n++)
-        {
-          cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
+        // Write back conserved variables only if they were modified.
+        if (result.cons_adjusted) {
+          cons(IDN, k, j, i) = cons_pt[IDN]*sqrt_detgamma;
+          cons(IM1, k, j, i) = cons_pt[IM1]*sqrt_detgamma;
+          cons(IM2, k, j, i) = cons_pt[IM2]*sqrt_detgamma;
+          cons(IM3, k, j, i) = cons_pt[IM3]*sqrt_detgamma;
+          cons(IEN, k, j, i) = cons_pt[IEN]*sqrt_detgamma;
+        }
+        if (result.cons_adjusted || result.scalars_adjusted) {
+          for(int n=0; n<NSCALARS; n++)
+          {
+            cons_scalar(n, k, j, i) = cons_pt[IYD + n]*sqrt_detgamma;
+          }
         }
       }
       else
