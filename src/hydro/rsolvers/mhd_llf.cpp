@@ -3,8 +3,8 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file llftaudyn_mhd_rel_no_transform.cpp
-//  \brief Implements local Lax-Friedrichs Riemann solver for relativistic MHD
+//! \file mhd_llf.cpp
+//  \brief Implements LLF / HLLE Riemann solver for relativistic MHD
 //  in pure GR with dynamically evolving spacetime.
 
 // C++ headers
@@ -12,17 +12,17 @@
 #include <cmath>      // sqrt()
 
 // Athena++ headers
-#include "../../hydro.hpp"
-#include "../../../z4c/z4c.hpp"
-#include "../../../utils/linear_algebra.hpp"
-#include "../../../utils/interp_intergrid.hpp"
-#include "../../../utils/floating_point.hpp"
-#include "../../../athena_aliases.hpp"
-#include "../../../coordinates/coordinates.hpp"
-#include "../../../eos/eos.hpp"
-#include "../../../mesh/mesh.hpp"
+#include "../hydro.hpp"
+#include "../../z4c/z4c.hpp"
+#include "../../utils/linear_algebra.hpp"
+#include "../../utils/interp_intergrid.hpp"
+#include "../../utils/floating_point.hpp"
+#include "../../athena_aliases.hpp"
+#include "../../coordinates/coordinates.hpp"
+#include "../../eos/eos.hpp"
+#include "../../mesh/mesh.hpp"
 
-#include "../../../z4c/ahf.hpp"
+#include "../../z4c/ahf.hpp"
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -578,7 +578,7 @@ void Hydro::RiemannSolver(
   }
 
   // Set fluxes ---------------------------------------------------------------
-  const bool use_hlle = pmy_block->precon->xorder_use_hlle;
+  const bool use_hlle = (rsolver_method_ == RSolverMethod::hlle);
 
   // probably cleaner to condense into single block, but verbose also works
 

@@ -82,9 +82,6 @@
 // coordinate system
 #define COORDINATE_SYSTEM "@COORDINATE_SYSTEM@"
 
-// Riemann solver
-#define RIEMANN_SOLVER "@RSOLVER@"
-
 // configure.py dict(definitions) Boolean values:
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@

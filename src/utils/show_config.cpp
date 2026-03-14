@@ -26,7 +26,6 @@ void ShowConfig() {
   std::cout<<"  Problem generator:          " << PROBLEM_GENERATOR << std::endl;
   std::cout<<"  Coordinate system:          " << COORDINATE_SYSTEM << std::endl;
   std::cout<<"  Equation of state:          " << EQUATION_OF_STATE << std::endl;
-  std::cout<<"  Riemann solver:             " << RIEMANN_SOLVER << std::endl;
   if (FLUID_ENABLED) {
     std::cout<<"  Hydrodynamics:              ON" << std::endl;
   } else {

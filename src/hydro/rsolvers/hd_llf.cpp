@@ -3,26 +3,26 @@
 // Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
 // Licensed under the 3-clause BSD License, see LICENSE file for details
 //========================================================================================
-//! \file llf_rel_no_transform.cpp
-//  \brief Implements local Lax-Friedrichs Riemann solver for relativistic hydrodynamics
-//  in pure GR.
+//! \file hd_llf.cpp
+//  \brief Implements LLF / HLLE Riemann solver for relativistic hydrodynamics
+//  in pure GR (no coordinate transform).
 
 // C++ headers
 #include <algorithm>  // max(), min()
 #include <cmath>      // sqrt()
 
 // Athena++ headers
-#include "../../hydro.hpp"
-#include "../../../z4c/z4c.hpp"
-#include "../../../utils/linear_algebra.hpp"
-#include "../../../utils/interp_intergrid.hpp"
-#include "../../../utils/floating_point.hpp"
-#include "../../../athena_aliases.hpp"
-#include "../../../coordinates/coordinates.hpp"  // Coordinates
-#include "../../../eos/eos.hpp"                  // EquationOfState
-#include "../../../mesh/mesh.hpp"                // MeshBlock
+#include "../hydro.hpp"
+#include "../../z4c/z4c.hpp"
+#include "../../utils/linear_algebra.hpp"
+#include "../../utils/interp_intergrid.hpp"
+#include "../../utils/floating_point.hpp"
+#include "../../athena_aliases.hpp"
+#include "../../coordinates/coordinates.hpp"  // Coordinates
+#include "../../eos/eos.hpp"                  // EquationOfState
+#include "../../mesh/mesh.hpp"                // MeshBlock
 
-#include "../../../z4c/ahf.hpp"
+#include "../../z4c/ahf.hpp"
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -431,7 +431,7 @@ void Hydro::RiemannSolver(
   }
 
   // Set fluxes ---------------------------------------------------------------
-  const bool use_hlle = pmy_block->precon->xorder_use_hlle;
+  const bool use_hlle = (rsolver_method_ == RSolverMethod::hlle);
 
   if (use_hlle)
   {

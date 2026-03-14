@@ -10,6 +10,7 @@
 
 // C++ headers
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -67,6 +68,22 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   flux_table_limiter = pin->GetOrAddBoolean(
     "hydro", "flux_table_limiter", false);
+
+  // Riemann solver method (runtime selection)
+  {
+    std::string rsolver_str = pin->GetOrAddString("hydro", "rsolver", "llf");
+    if (rsolver_str == "llf") {
+      rsolver_method_ = RSolverMethod::llf;
+    } else if (rsolver_str == "hlle") {
+      rsolver_method_ = RSolverMethod::hlle;
+    } else {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in Hydro constructor" << std::endl
+          << "[hydro] rsolver=" << rsolver_str
+          << " not a valid choice (llf, hlle)" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
 
   opt_excision.alpha_threshold =
       pin->GetOrAddReal("excision", "alpha_threshold", -1.0);

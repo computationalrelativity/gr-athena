@@ -138,10 +138,6 @@ Reconstruction::Reconstruction(MeshBlock *pmb, ParameterInput *pin)
     "time", "xorder_fb_Y_max_fac", 1.0
   );
 
-  xorder_use_hlle = pin->GetOrAddBoolean(
-    "time", "xorder_use_hlle", false
-  );
-
   xorder_upwind_scalars = pin->GetOrAddBoolean(
     "time", "xorder_upwind_scalars", true
   );

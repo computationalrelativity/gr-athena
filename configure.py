@@ -13,7 +13,7 @@
 #   --eos=xxx           use xxx as the equation of state
 #   --eospolicy=xxx     use xxx as eos policy for eostaudyn_ps
 #   --errorpolicy=xxx   use xxx as error policy for eostaudyn_ps
-#   --flux=xxx          use xxx as the Riemann solver
+#   --flux=xxx          (deprecated, ignored)
 #   --nghost=xxx        set NGHOST=xxx
 #   --ncghost=xxx       set NCGHOST=xxx
 #   --ncghost_cx=xxx    set NCGHOST_CX=xxx
@@ -222,7 +222,9 @@ parser.add_argument(
   help="select error policy for PrimitiveSolver framework",
 )
 
-# --flux=[name] argument
+# --flux=[name] argument (DEPRECATED: ignored; solver is now selected at runtime
+# via [hydro] rsolver = llf|hlle in the input file. This flag is kept for
+# backward compatibility but its value is ignored.)
 parser.add_argument(
   "--flux",
   default="default",
@@ -230,7 +232,7 @@ parser.add_argument(
     "default",
     "llftaudyn",
   ],
-  help="select Riemann solver",
+  help="(deprecated) ignored; use [hydro] rsolver instead",
 )
 
 # --nghost=[value] argument
@@ -756,9 +758,12 @@ args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
 
-# Set default flux: always llftaudyn
-if args["flux"] == "default":
-  args["flux"] = "llftaudyn"
+# Set default flux: always llftaudyn (deprecated, value ignored)
+if args["flux"] != "default":
+  print("### WARNING: --flux is deprecated and its value is ignored.")
+  print(
+    "###          Use [hydro] rsolver = llf|hlle in the input file instead."
+  )
 
 # Check relativity
 if args["g"] and args["coord"] in (
@@ -881,8 +886,7 @@ if args["eos"] == "eostaudyn_ps":
 else:
   definitions["NHYDRO_VARIABLES"] = "0"
 
-# --flux=[name] argument
-definitions["RSOLVER"] = makefile_options["RSOLVER_FILE"] = args["flux"]
+# --flux is deprecated; RSOLVER macro is no longer emitted
 
 # --nghost=[value] argument
 definitions["NUMBER_GHOST_CELLS"] = args["nghost"]
@@ -940,7 +944,6 @@ if args["f"]:
     "$(wildcard src/hydro/*.cpp)",
     "$(wildcard src/hydro/srcterms/*.cpp)",
     "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
-    "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
     "$(wildcard src/reconstruct/recon*.cpp)",
     "$(wildcard src/scalars/*.cpp)",
   ]
@@ -956,14 +959,19 @@ else:
 if args["b"]:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "1"
   definitions["NFIELD_VARIABLES"] = "3"
-  makefile_options["RSOLVER_DIR"] = "mhd/"
-  makefile_options["RSOLVER_FILE"] += "_mhd"
+  rsolver_prefix = "mhd"
   definitions["NWAVE_VALUE"] = "7"
 else:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "0"
   definitions["NFIELD_VARIABLES"] = "0"
-  makefile_options["RSOLVER_DIR"] = "hydro/"
+  rsolver_prefix = "hd"
   definitions["NWAVE_VALUE"] = "5"
+
+# Append rsolver wildcard to HYDRO_DEPENDENT_SRC (must come after -b sets prefix)
+if args["f"]:
+  makefile_options["HYDRO_DEPENDENT_SRC"] += (
+    "\\\n$(wildcard src/hydro/rsolvers/" + rsolver_prefix + "_*.cpp)"
+  )
 
 # -sts argument
 if args["sts"]:
@@ -975,7 +983,6 @@ else:
 definitions["GENERAL_RELATIVITY"] = "1" if args["g"] else "0"
 if args["g"]:
   makefile_options["EOS_FILE"] += "_gr"
-  makefile_options["RSOLVER_FILE"] += "_rel_no_transform"
 
 # -z argument
 if args["z"]:
@@ -1985,7 +1992,6 @@ else:
 makefile_options["PROBLEM_FILE"] += ".cpp"
 makefile_options["COORDINATES_FILE"] += ".cpp"
 makefile_options["EOS_FILE"] += ".cpp"
-makefile_options["RSOLVER_FILE"] += ".cpp"
 
 # Read templates
 with open(defsfile_input, "r") as current_file:
@@ -2039,7 +2045,6 @@ print("GR-Athena++ configured with:")
 print("  Problem generator:            " + args["prob"])
 print("  Coordinate system:            " + args["coord"])
 print("  Equation of state:            " + args["eos"])
-print("  Riemann solver:               " + args["flux"])
 print("  Hydrodynamics:                " + ("ON" if args["f"] else "OFF"))
 print("  Magnetic fields:              " + ("ON" if args["b"] else "OFF"))
 print("  Number of scalars:            " + args["nscalars"])

@@ -28,6 +28,9 @@ struct ThreadCache;
 
 using namespace gra::aliases;
 
+// Riemann solver method selection (runtime)
+enum class RSolverMethod { llf, hlle };
+
 // TODO(felker): consider adding a struct FaceFlux w/ overloaded ctor in athena.hpp, or:
 // using FaceFlux = AA[3];
 
@@ -61,6 +64,9 @@ class Hydro {
   // TODO(KGF): remove trailing underscore or revert to private:
   AA coarse_cons_, coarse_prim_;
   int refinement_idx{-1};
+
+  // Riemann solver method (runtime selection)
+  RSolverMethod rsolver_method_;
 
   // for reconstruction failure, should both states be floored?
   bool floor_both_states = false;
