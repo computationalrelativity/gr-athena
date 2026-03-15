@@ -28,7 +28,7 @@ ColdEOSTransition::ColdEOSTransition():
   m_np(0),
   m_table(nullptr),
   m_initialized(false) {
-  n_species = 2;
+  n_species = 1;
   eos_units = &Nuclear;
 }
 
@@ -59,9 +59,8 @@ Real ColdEOSTransition::SpecificInternalEnergy(Real n) {
 
 Real ColdEOSTransition::Y(Real n, int iy) {
   assert (m_initialized);
-  if (iy == 0) return eval_at_n<0>(ECY, n);
-  if (iy == 1) return eval_at_n<0>(ECABAR, n);
-  throw std::out_of_range("ColdEOSTransition::Y: species index out of range");
+  if (iy+ECY < ECNVARS) return eval_at_n<0>(ECY+iy, n);
+  throw std::out_of_range("ColdEOSTransition::Y species index out of range");
 }
 
 Real ColdEOSTransition::Enthalpy(Real n) {
@@ -166,13 +165,39 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   ierr = H5LTread_dataset_double(grp_id, "Y[e]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY, in)] = scratch[in];
+    m_table[index(ECY+SCYE, in)] = scratch[in];
   }
 
-  ierr = H5LTread_dataset_double(grp_id, "Abar", scratch);
+  ierr = H5LTread_dataset_double(grp_id, "Y[n]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECABAR, in)] = scratch[in];
+    m_table[index(ECY+SCXN, in)] = scratch[in];
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[p]", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in) {
+    m_table[index(ECY+SCXP, in)] = scratch[in];
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[He4]", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in) {
+    // convert from abundance to mass fraction
+    m_table[index(ECY+SCXA, in)] = scratch[in]*4.0;
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "A[N]", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in) {
+    m_table[index(ECY+SCAH, in)] = scratch[in];
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[N]", scratch);
+    MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in) {
+    // convert from abundance to mass fraction
+    m_table[index(ECY + SCXH, in)] = scratch[in] * m_table[index(ECY + SCAH, in)];
   }
 
   //  fill enthalpy

@@ -30,9 +30,8 @@ class ColdEOSTransition {
       ECDPDN  = 3,  //! Derivative of pressure wrt. number density
       ECENT   = 4,  //! entropy per baryon [kb]
       ECH     = 5,  //! enthapy per baryon [MeV]
-      ECY     = 6,  //! Abundance of species
-      ECABAR  = 7,  //! Average baryon number per nucleon
-      ECNVARS = 8
+      ECY     = 6,  //! Passive scalars, available are ECY + {SCYE, SCXN, SCXP, SCXA, SCXH, SCAH}
+      ECNVARS = 12
     };
 
   protected:
