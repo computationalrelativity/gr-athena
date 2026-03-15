@@ -44,9 +44,10 @@
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
-#if FLUID_ENABLED
-using namespace Primitive;
+#if not FLUID_ENABLED
+#error "This problem generator requires fluid (-f)"
 #endif
+using namespace Primitive;
 //----------------------------------------------------------------------------------------
 
 extern "C" {
@@ -97,13 +98,8 @@ enum{idvar_alpha,
 namespace {
   int RefinementCondition(MeshBlock *pmb);
 
-#if FLUID_ENABLED
   // Global variables
   ColdEOS<COLDEOS_POLICY> * ceos = NULL;
-#else
-  Real k_adi;
-  Real gamma_adi;
-#endif
 
   Real sep;
   Real pgasmax_1;
@@ -292,14 +288,9 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   sep = pin->GetReal("problem", "DNSdata_b");
   const Real sgrid_x_CM = pin->GetReal("problem", "x_CM");
 
-#if FLUID_ENABLED
   // initialize the cold EOS
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
-#else
-  k_adi = pin->GetReal("hydro", "k_adi");
-  gamma_adi = pin->GetReal("hydro", "gamma");
-#endif
 
   SGRID_DNSdata_Interpolate_ADMvars_to_xyz(NULL, NULL, 1);
 
@@ -326,24 +317,15 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
 //  Real rho_2 = bns->nbar[1] / m_u_si * 1e-45 * ceos->GetBaryonMass();
 //#endif
 
-#if FLUID_ENABLED
   pgasmax_1 = ceos->GetPressure(rho_1);
   pgasmax_2 = ceos->GetPressure(rho_2);
-#else
-  pgasmax_1 = k_adi * pow(rho_1, gamma_adi);
-  pgasmax_2 = k_adi * pow(rho_2, gamma_adi);
-#endif
 
   // sanity check if the internal energy matches the eos
 //#if defined(USE_COMPOSE_EOS)  || defined(USE_TABULATED_EOS)
 //  eps_1 = m_u_mev/ceos->mb * (eps_1 + 1) - 1; // convert eos baryon mass
 //#endif
 
-#if FLUID_ENABLED
   Real eps_ceos = ceos->GetSpecificInternalEnergy(rho_1);
-#else
-  Real eps_ceos = k_adi * pow(w_rho, gamma_adi -1 )/(gamma_adi - 1);
-#endif
   Real eps_err = std::abs(eps_ceos/eps_1 - 1);
 
 #ifdef MPI_PARALLEL
@@ -406,6 +388,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // settings -----------------------------------------------------------------
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
+
+  // Scalar arrays - safe even when NSCALARS == 0 (pscalars is nullptr)
+  AthenaArray<Real> empty;
+#if NSCALARS > 0
+  AthenaArray<Real> &r_scalar = pscalars->r;
+  AthenaArray<Real> &s_scalar = pscalars->s;
+#else
+  AthenaArray<Real> &r_scalar = empty;
+  AthenaArray<Real> &s_scalar = empty;
+#endif
 
   // Initialize the data reader
   DNS_init_sgrid(pin);
@@ -603,10 +595,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       const Real vsq = (
         2.0*(v_u_x * v_u_y * IDvars[idvar_gxy]  +
              v_u_x * v_u_z * IDvars[idvar_gxz]  +
-             v_u_y * v_u_z * IDvars[idvar_gyz]  +
+             v_u_y * v_u_z * IDvars[idvar_gyz]) +
         v_u_x * v_u_x * IDvars[idvar_gxx]  +
         v_u_y * v_u_y * IDvars[idvar_gyy]  +
-        v_u_z * v_u_z * IDvars[idvar_gzz]) 
+        v_u_z * v_u_z * IDvars[idvar_gzz]
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
@@ -635,17 +627,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     r.Fill(0.0);
 #endif
 
-#if !FLUID_ENABLED
-    // Reprimand --------------------------------------------------------------
-    // Reprimand fill
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    {
-      w(IPR,k,j,i) = k_adi*std::pow(w(IDN,k,j,i),gamma_adi);
-    }
-
-#else
     // PrimitiveSolver --------------------------------------------------------
     Real w_rho_atm = pin->GetReal("hydro", "dfloor");
     Real rho_cut = std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm),
@@ -692,7 +673,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
     // ------------------------------------------------------------------------
-#endif // !FLUID_ENABLED
   }
   // --------------------------------------------------------------------------
 
@@ -706,7 +686,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, r_scalar, k, j, i);
       continue;
     }
   }
@@ -774,7 +754,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=0; j<=ncells2-1; ++j)
     for (int i=0; i<=ncells1-1; ++i)
     {
-      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, r_scalar, k, j, i);
     }
 
   }
@@ -783,10 +763,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w,
-                             pscalars->r,
+                             r_scalar,
                              pfield->bcc,
                              phydro->u,
-                             pscalars->s,
+                             s_scalar,
                              pcoord,
                              0, ncells1-1,
                              0, ncells2-1,
@@ -817,10 +797,8 @@ void Mesh::DeleteTemporaryUserMeshData()
  if (!resume_flag && SGRID_grid_exists()) {
     SGRID_free_everything();
   }
-#if FLUID_ENABLED
   // Free cold EOS data
   delete ceos;
-#endif
   return;
 }
 

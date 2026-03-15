@@ -30,12 +30,14 @@
 
 using namespace std;
 
+#if not FLUID_ENABLED
+#error "This problem generator requires fluid (-f)"
+#endif
+
 namespace {
   static ini_data *rns_data;
-#if FLUID_ENABLED
   Primitive::ColdEOS<Primitive::COLDEOS_POLICY> * ceos = NULL;
   Real mb_rnsc = 931.191715903434; // RNSC uses this mass factor
-#endif
 
   void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin);
   // int RefinementCondition(MeshBlock *pmb);
@@ -71,10 +73,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     string inputfile = pin->GetOrAddString("problem", "filename", "tovgamma2.par");
     RNS_params_set_inputfile((char *) inputfile.c_str());
     rns_data = RNS_make_initial_data();
-#if FLUID_ENABLED
     ceos = new Primitive::ColdEOS<Primitive::COLDEOS_POLICY>;
     InitColdEOS(ceos, pin);
-#endif
 
   }
 
@@ -88,6 +88,7 @@ void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 {
   if (!resume_flag)
     RNS_finalise(rns_data);
+  delete ceos;
   return;
 }
 
@@ -211,6 +212,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Real pres_pert = pin->GetOrAddReal("problem","pres_pert",0);
   Real v_pert = pin->GetOrAddReal("problem","v_pert",0);
 
+  // Scalar arrays - safe even when NSCALARS == 0 (pscalars is nullptr)
+  AthenaArray<Real> empty;
+#if NSCALARS > 0
+  AthenaArray<Real> &r_scalar = pscalars->r;
+  AthenaArray<Real> &s_scalar = pscalars->s;
+#else
+  AthenaArray<Real> &r_scalar = empty;
+  AthenaArray<Real> &s_scalar = empty;
+#endif
+
 //  MeshBlock * pmb = pmy_block;
 //  Coordinates * pco = pcoord;
 //  Z4c * pz4c = pmb->pz4c;
@@ -323,16 +334,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   }
 
-  delete gxx; delete gxy; delete gxz;
-  delete gyy; delete gyz; delete gzz;
+  delete[] gxx; delete[] gxy; delete[] gxz;
+  delete[] gyy; delete[] gyz; delete[] gzz;
 
-  delete Kxx; delete Kxy; delete Kxz;
-  delete Kyy; delete Kyz; delete Kzz;
+  delete[] Kxx; delete[] Kxy; delete[] Kxz;
+  delete[] Kyy; delete[] Kyz; delete[] Kzz;
 
-  delete alp;
-  delete betax; delete betay; delete betaz;
+  delete[] alp;
+  delete[] betax; delete[] betay; delete[] betaz;
 
-  delete x; delete y; delete z;
+  delete[] x; delete[] y; delete[] z;
 
   //---------------------------------------------------------------------------
   // ADM-to-Z4c
@@ -410,9 +421,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   Real pres_diff = 0.0;
 
-#if FLUID_ENABLED
   Real rho_min = pin->GetReal("hydro", "dfloor");
-#endif
 
   for (int k=0; k<ncells3; ++k)
   for (int j=0; j<ncells2; ++j)
@@ -422,20 +431,18 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     int flat_ix = i + n[0]*(j + n[1]*k);
     Real r = std::sqrt(x[i]*x[i]+y[j]*y[j]+z[k]*z[k]);
 
-#if FLUID_ENABLED
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
     rho[flat_ix] *= ceos->mb/mb_rnsc; // adjust for rns baryon mass
 #endif
     if (rho[flat_ix] > rho_min) {
       Real pres_eos = ceos->GetPressure(rho[flat_ix]);
-      Real pres_diff = max(abs(pres[flat_ix] / pres_eos - 1), pres_diff);
+      pres_diff = max(abs(pres[flat_ix] / pres_eos - 1), pres_diff);
       pres[flat_ix] = pres_eos;
     }
 
 #if NSCALARS > 0
     for (int l=0; l<NSCALARS; ++l)
       pscalars->r(l,k,j,i) = ceos->GetY(rho[flat_ix], l);
-#endif
 #endif
 
 
@@ -459,11 +466,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   if (pres_diff > 1e-3)
     std::cout << "WARNING: Interpolated pressure does not match eos. abs. rel. diff = " << pres_diff << std::endl;
 
-  delete rho;
-  delete pres;
-  delete ux; delete uy; delete uz;
+  delete[] rho;
+  delete[] pres;
+  delete[] ye;
+  delete[] ux; delete[] uy; delete[] uz;
 
-  delete x; delete y; delete z;
+  delete[] x; delete[] y; delete[] z;
 
   //---------------------------------------------------------------------------
   // Initialise conserved variables
@@ -488,9 +496,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   }
 
   peos->PrimitiveToConserved(phydro->w,
-		  pscalars->r,
+		  r_scalar,
 		  pfield->bcc, phydro->u,
-		  pscalars->s,
+		  s_scalar,
 		  pcoord, il, iu, jl, ju, kl, ku);
 
   //---------------------------------------------------------------------------
@@ -533,7 +541,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, r_scalar, k, j, i);
       continue;
     }
   }
@@ -606,11 +614,7 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
      &prnsmax  // pres
      );
   //
-#if FLUID_ENABLED
   Real pgasmax = ceos->GetPressure(rhomax);
-#else
-  Real pgasmax = k_adi * pow(rhomax, gamma_adi);
-#endif
   printf("rhomax=%.5e prnsmax=%.5e pmax=%.5e\n", rhomax, prnsmax, pgasmax);
 
   Real pcut = pin->GetReal("problem","pcut") * pgasmax;

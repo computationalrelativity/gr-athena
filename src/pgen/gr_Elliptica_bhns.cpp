@@ -31,6 +31,10 @@
 using namespace gra::aliases;
 //----------------------------------------------------------------------------------------
 
+#if not FLUID_ENABLED
+#error "This problem generator requires fluid (-f)"
+#endif
+
 namespace {
   int RefinementCondition(MeshBlock *pmb);
 
@@ -101,6 +105,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   //std::string checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
   Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
+
+  // Scalar arrays - safe even when NSCALARS == 0 (pscalars is nullptr)
+  AthenaArray<Real> empty;
+#if NSCALARS > 0
+  AthenaArray<Real> &r_scalar = pscalars->r;
+  AthenaArray<Real> &s_scalar = pscalars->s;
+#else
+  AthenaArray<Real> &r_scalar = empty;
+  AthenaArray<Real> &s_scalar = empty;
+#endif
 
   // check ID is accessible
   if (!file_exists(checkpoint_file.c_str()))
@@ -405,7 +419,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = 0; j <= ncells2-1; ++j)
     for (int i = 0; i <= ncells1-1; ++i)
     {
-      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, r_scalar, k, j, i);
     }
 
   }
@@ -413,10 +427,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 
   // Initialise conserved variables
-  peos->PrimitiveToConserved(phydro->w, pfield->bcc, phydro->u, pcoord,
-                             0, ncells1,
-                             0, ncells2,
-                             0, ncells3);
+  peos->PrimitiveToConserved(phydro->w,
+                             r_scalar,
+                             pfield->bcc,
+                             phydro->u,
+                             s_scalar,
+                             pcoord,
+                             0, ncells1-1,
+                             0, ncells2-1,
+                             0, ncells3-1);
 
   // --------------------------------------------------------------------------
   // The following is now done else-where and is redundant here
@@ -444,7 +463,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 void Mesh::UserWorkAfterLoop(ParameterInput *pin)
 {
   elliptica_id_reader_free(idr);
-  idr = 0;
+  idr = nullptr;
   return;
 }
 

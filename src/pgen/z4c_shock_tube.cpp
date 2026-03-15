@@ -105,6 +105,16 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
     bbz_right = pin->GetReal("problem", "bzr");
   }
 
+  // Scalar arrays - safe even when NSCALARS == 0 (pscalars is nullptr)
+  AthenaArray<Real> empty;
+#if NSCALARS > 0
+  AthenaArray<Real> &r_scalar = pscalars->r;
+  AthenaArray<Real> &s_scalar = pscalars->s;
+#else
+  AthenaArray<Real> &r_scalar = empty;
+  AthenaArray<Real> &s_scalar = empty;
+#endif
+
   // Prepare auxiliary arrays
   AthenaArray<Real> bb;
   bb.NewAthenaArray(3, ke+1, je+1, ie+1);
@@ -179,10 +189,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
 
   peos->PrimitiveToConserved(
     phydro->w,
-    pscalars->r,
+    r_scalar,
     bb,
     phydro->u,
-    pscalars->s,
+    s_scalar,
     pcoord,
     is, ie, js, je, ks, ke
   );
