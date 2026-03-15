@@ -288,22 +288,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       const int IL = M1_IX_IL-M1_MSIZEI;
       const int IU = M1_IX_IU+M1_MSIZEI;
 
-      // BD: TODO- calculation could be avoided if we computed candidate soln.
-      // first; but that would require another storage / a bit of refactoring.
-
-      // Bind fluxes_lo aliases to per-thread scratch (ThreadCache::m1_lo_flux)
-      // instead of per-MeshBlock storage, to reduce memory footprint.
-      {
-#ifdef OPENMP_PARALLEL
-        ThreadCache &cache = pm->thread_cache(omp_get_thread_num());
-#else
-        ThreadCache &cache = pm->thread_cache(0);
-#endif
-        pm1->SetVarAliasesFluxes(cache.m1_lo_flux, pm1->fluxes_lo);
-      }
-
-      pm1->CalcFluxes(pm1->storage.u, true);
-
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
 
@@ -383,10 +367,29 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       pm1->SubFluxDivergence(pm1->storage.u_rhs,
                              KL, KU, JL, JU, IL, IU);
 
-      // hybridize fluxes based on pp mask ------------------------------------
-      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
-                           pm1->fluxes,
-                           pm1->fluxes_lo);
+      // Compute LO fluxes and hybridize only when fallback is needed -------
+      // When num_lo == 0 (but not short-circuitable due to AMR neighbors),
+      // pp mask is all 0.0, so hybridization would be a no-op.
+      if (num_lo > 0)
+      {
+        // Bind fluxes_lo aliases to per-thread scratch (ThreadCache::m1_lo_flux)
+        // instead of per-MeshBlock storage, to reduce memory footprint.
+        {
+#ifdef OPENMP_PARALLEL
+          ThreadCache &cache = pm->thread_cache(omp_get_thread_num());
+#else
+          ThreadCache &cache = pm->thread_cache(0);
+#endif
+          pm1->SetVarAliasesFluxes(cache.m1_lo_flux, pm1->fluxes_lo);
+        }
+
+        pm1->CalcFluxes(pm1->storage.u, true);
+
+        // hybridize fluxes based on pp mask ----------------------------------
+        pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
+                             pm1->fluxes,
+                             pm1->fluxes_lo);
+      }
       // ----------------------------------------------------------------------
 
     }

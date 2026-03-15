@@ -106,7 +106,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (i>IL) ? (
+        hf = ((i>IL) && (i<IU)) ? (
           (rat_L < rat_sl_sc_E) ? 1.0 : hf
         ) : hf;
 
@@ -122,7 +122,7 @@ void SlopeFallback(
         rat_L = d_m1 / d_0;
         rat_R = d_0 / d_p1;
 
-        hf = (j>JL) ? (
+        hf = ((j>JL) && (j<JU)) ? (
           (rat_L < rat_sl_sc_E) ? 1.0 : hf
         ) : hf;
 
@@ -139,7 +139,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k>KL) ? (
+        hf = ((k>KL) && (k<KU)) ? (
           (rat_L < rat_sl_sc_E) ? 1.0 : hf
         ) : hf;
 
@@ -162,7 +162,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (i>IL) ? (
+        hf = ((i>IL) && (i<IU)) ? (
           (rat_L < rat_sl_sc_nG) ? 1.0 : hf
         ) : hf;
 
@@ -180,7 +180,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (j>JL) ? (
+        hf = ((j>JL) && (j<JU)) ? (
           (rat_L < rat_sl_sc_nG) ? 1.0 : hf
         ) : hf;
 
@@ -198,7 +198,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k>KL) ? (
+        hf = ((k>KL) && (k<KU)) ? (
           (rat_L < rat_sl_sc_nG) ? 1.0 : hf
         ) : hf;
 
@@ -222,7 +222,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (i>IL) ? (
+        hf = ((i>IL) && (i<IU)) ? (
           (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
         ) : hf;
 
@@ -240,7 +240,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (j>JL) ? (
+        hf = ((j>JL) && (j<JU)) ? (
           (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
         ) : hf;
 
@@ -258,7 +258,7 @@ void SlopeFallback(
         rat_R = d_0 / d_p1;
 
         // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k>KL) ? (
+        hf = ((k>KL) && (k<KU)) ? (
           (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
         ) : hf;
 
