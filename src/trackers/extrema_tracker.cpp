@@ -193,41 +193,29 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
       param_well_formed = false;
     }
 
-    switch (pmesh->ndim)
-    {
-      case 3:
-      {
-        c_x3_ = pin->GetOrAddRealArray(
-          "trackers_extrema", "ini_x3", 0
-        );
-        param_well_formed = param_well_formed && (
-          c_x3_.GetSize() == N_tracker
-        );
-      }
-      case 2:
-      {
-        c_x2_ = pin->GetOrAddRealArray(
-          "trackers_extrema", "ini_x2", 0
-        );
-        param_well_formed = param_well_formed && (
-          c_x2_.GetSize() == N_tracker
-        );
-      }
-      case 1:
-      {
-        c_x1_ = pin->GetOrAddRealArray(
-          "trackers_extrema", "ini_x1", 0
-        );
-        param_well_formed = param_well_formed && (
-          c_x1_.GetSize() == N_tracker
-        );
-        break;
-      }
-      default:
-      {
-        std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
-                  << std::endl;
-      }
+    if constexpr (NDIM >= 3) {
+      c_x3_ = pin->GetOrAddRealArray(
+        "trackers_extrema", "ini_x3", 0
+      );
+      param_well_formed = param_well_formed && (
+        c_x3_.GetSize() == N_tracker
+      );
+    }
+    if constexpr (NDIM >= 2) {
+      c_x2_ = pin->GetOrAddRealArray(
+        "trackers_extrema", "ini_x2", 0
+      );
+      param_well_formed = param_well_formed && (
+        c_x2_.GetSize() == N_tracker
+      );
+    }
+    if constexpr (NDIM >= 1) {
+      c_x1_ = pin->GetOrAddRealArray(
+        "trackers_extrema", "ini_x1", 0
+      );
+      param_well_formed = param_well_formed && (
+        c_x1_.GetSize() == N_tracker
+      );
     }
 
     if (!param_well_formed)
@@ -244,18 +232,12 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
       ref_zone_radius(n-1) = ref_zone_radius_(n-1);
       minima(n-1) = minima_(n-1);
 
-      switch (pmesh->ndim)
-      {
-        case 3:
-          c_x3(n-1) = c_x3_(n-1);
-        case 2:
-          c_x2(n-1) = c_x2_(n-1);
-        case 1:
-          c_x1(n-1) = c_x1_(n-1);
-          break;
-        default:
-          assert(false);
-      }
+      if constexpr (NDIM >= 3)
+        c_x3(n-1) = c_x3_(n-1);
+      if constexpr (NDIM >= 2)
+        c_x2(n-1) = c_x2_(n-1);
+      if constexpr (NDIM >= 1)
+        c_x1(n-1) = c_x1_(n-1);
     }
 
 
@@ -298,24 +280,20 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput * pin)
       minima(n-1) = pin->GetOrAddBoolean(
         "trackers_extrema", "minima_" + n_str, true);
 
-      switch (pmesh->ndim)
-      {
-        case 3:
-          c_x3(n-1) = pin->GetOrAddReal(
-            "trackers_extrema", "ini_" + n_str + "_x3", 0
-          );
-        case 2:
-          c_x2(n-1) = pin->GetOrAddReal(
-            "trackers_extrema", "ini_" + n_str + "_x2", 0
-          );
-        case 1:
-          c_x1(n-1) = pin->GetOrAddReal(
-            "trackers_extrema", "ini_" + n_str + "_x1", 0
-          );
-          break;
-        default:
-          std::cout << "tracker_extrema requires 1<=pmesh->ndim<=3"
-                    << std::endl;
+      if constexpr (NDIM >= 3) {
+        c_x3(n-1) = pin->GetOrAddReal(
+          "trackers_extrema", "ini_" + n_str + "_x3", 0
+        );
+      }
+      if constexpr (NDIM >= 2) {
+        c_x2(n-1) = pin->GetOrAddReal(
+          "trackers_extrema", "ini_" + n_str + "_x2", 0
+        );
+      }
+      if constexpr (NDIM >= 1) {
+        c_x1(n-1) = pin->GetOrAddReal(
+          "trackers_extrema", "ini_" + n_str + "_x1", 0
+        );
       }
     }
   }
@@ -440,40 +418,36 @@ void ExtremaTracker::EvolveTracker()
 
 #ifdef MPI_PARALLEL
   {
-    // Batch c_x1/c_x2/c_x3 and c_dx1/c_dx2/c_dx3 into contiguous buffers
-    // to reduce 6 MPI_Bcast calls to 2.
-    const int buf_sz = 3 * N_tracker;
-    std::vector<Real> pos_buf(buf_sz);
-    std::vector<Real> dx_buf(buf_sz);
+    // Batch c_x1/c_x2/c_x3 and c_dx1/c_dx2/c_dx3 into a single contiguous
+    // buffer so we need only 1 MPI_Bcast (latency reduction).
+    // Layout: [c_x1 | c_x2 | c_x3 | c_dx1 | c_dx2 | c_dx3]
+    const int buf_sz = 6 * N_tracker;
+    std::vector<Real> bcast_buf(buf_sz);
 
     if (is_io_process)
     {
       for (int n = 0; n < N_tracker; ++n)
       {
-        pos_buf[0 * N_tracker + n] = c_x1(n);
-        pos_buf[1 * N_tracker + n] = c_x2(n);
-        pos_buf[2 * N_tracker + n] = c_x3(n);
-
-        dx_buf[0 * N_tracker + n] = c_dx1(n);
-        dx_buf[1 * N_tracker + n] = c_dx2(n);
-        dx_buf[2 * N_tracker + n] = c_dx3(n);
+        bcast_buf[0 * N_tracker + n] = c_x1(n);
+        bcast_buf[1 * N_tracker + n] = c_x2(n);
+        bcast_buf[2 * N_tracker + n] = c_x3(n);
+        bcast_buf[3 * N_tracker + n] = c_dx1(n);
+        bcast_buf[4 * N_tracker + n] = c_dx2(n);
+        bcast_buf[5 * N_tracker + n] = c_dx3(n);
       }
     }
 
-    MPI_Bcast(pos_buf.data(), buf_sz, MPI_ATHENA_REAL,
-              rank_root, MPI_COMM_WORLD);
-    MPI_Bcast(dx_buf.data(), buf_sz, MPI_ATHENA_REAL,
+    MPI_Bcast(bcast_buf.data(), buf_sz, MPI_ATHENA_REAL,
               rank_root, MPI_COMM_WORLD);
 
     for (int n = 0; n < N_tracker; ++n)
     {
-      c_x1(n) = pos_buf[0 * N_tracker + n];
-      c_x2(n) = pos_buf[1 * N_tracker + n];
-      c_x3(n) = pos_buf[2 * N_tracker + n];
-
-      c_dx1(n) = dx_buf[0 * N_tracker + n];
-      c_dx2(n) = dx_buf[1 * N_tracker + n];
-      c_dx3(n) = dx_buf[2 * N_tracker + n];
+      c_x1(n)  = bcast_buf[0 * N_tracker + n];
+      c_x2(n)  = bcast_buf[1 * N_tracker + n];
+      c_x3(n)  = bcast_buf[2 * N_tracker + n];
+      c_dx1(n) = bcast_buf[3 * N_tracker + n];
+      c_dx2(n) = bcast_buf[4 * N_tracker + n];
+      c_dx3(n) = bcast_buf[5 * N_tracker + n];
     }
   }
 #endif // MPI_PARALLEL
@@ -730,88 +704,80 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldTimeStep(const int n)
 {
   // Take a step (of size dt) in direction of auxiliary field descent
 
-  switch (ndim)
+  if constexpr (NDIM == 3)
   {
-    case 3:
-    {
-      int ix_c_x1, ix_c_x2, ix_c_x3;
-      int offset_ix_x1, offset_ix_x2, offset_ix_x3;
+    int ix_c_x1, ix_c_x2, ix_c_x3;
+    int offset_ix_x1, offset_ix_x2, offset_ix_x3;
 
-      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
-      ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
-      ix_c_x3 = LocateCentrePhysicalIndex(n, 2);
+    ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
+    ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
+    ix_c_x3 = LocateCentrePhysicalIndex(n, 2);
 
-      offset_ix_x1 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1-1),
-        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1),
-        (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1+1)
-      );
+    offset_ix_x1 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1-1),
+      (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1),
+      (control_fields[n-1])(ix_c_x3, ix_c_x2, ix_c_x1+1)
+    );
 
-      offset_ix_x2 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x3, ix_c_x2-1, ix_c_x1),
-        (control_fields[n-1])(ix_c_x3, ix_c_x2,   ix_c_x1),
-        (control_fields[n-1])(ix_c_x3, ix_c_x2+1, ix_c_x1)
-      );
+    offset_ix_x2 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x3, ix_c_x2-1, ix_c_x1),
+      (control_fields[n-1])(ix_c_x3, ix_c_x2,   ix_c_x1),
+      (control_fields[n-1])(ix_c_x3, ix_c_x2+1, ix_c_x1)
+    );
 
-      offset_ix_x3 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x3-1, ix_c_x2, ix_c_x1),
-        (control_fields[n-1])(ix_c_x3,   ix_c_x2, ix_c_x1),
-        (control_fields[n-1])(ix_c_x3+1, ix_c_x2, ix_c_x1)
-      );
+    offset_ix_x3 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x3-1, ix_c_x2, ix_c_x1),
+      (control_fields[n-1])(ix_c_x3,   ix_c_x2, ix_c_x1),
+      (control_fields[n-1])(ix_c_x3+1, ix_c_x2, ix_c_x1)
+    );
 
-      loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
-      loc_c_dx2(n-1) = offset_ix_x2 * (pmy_block->pmy_mesh->dt);
-      loc_c_dx3(n-1) = offset_ix_x3 * (pmy_block->pmy_mesh->dt);
-      break;
-    }
-    case 2:
-    {
-      int ix_c_x1, ix_c_x2;
-      int offset_ix_x1, offset_ix_x2;
+    loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
+    loc_c_dx2(n-1) = offset_ix_x2 * (pmy_block->pmy_mesh->dt);
+    loc_c_dx3(n-1) = offset_ix_x3 * (pmy_block->pmy_mesh->dt);
+  }
+  else if constexpr (NDIM == 2)
+  {
+    int ix_c_x1, ix_c_x2;
+    int offset_ix_x1, offset_ix_x2;
 
-      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
-      ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
+    ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
+    ix_c_x2 = LocateCentrePhysicalIndex(n, 1);
 
-      offset_ix_x1 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x2, ix_c_x1-1),
-        (control_fields[n-1])(ix_c_x2, ix_c_x1),
-        (control_fields[n-1])(ix_c_x2, ix_c_x1+1)
-      );
+    offset_ix_x1 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x2, ix_c_x1-1),
+      (control_fields[n-1])(ix_c_x2, ix_c_x1),
+      (control_fields[n-1])(ix_c_x2, ix_c_x1+1)
+    );
 
-      offset_ix_x2 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x2-1, ix_c_x1),
-        (control_fields[n-1])(ix_c_x2,   ix_c_x1),
-        (control_fields[n-1])(ix_c_x2+1, ix_c_x1)
-      );
+    offset_ix_x2 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x2-1, ix_c_x1),
+      (control_fields[n-1])(ix_c_x2,   ix_c_x1),
+      (control_fields[n-1])(ix_c_x2+1, ix_c_x1)
+    );
 
-      loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
-      loc_c_dx2(n-1) = offset_ix_x2 * (pmy_block->pmy_mesh->dt);
-      break;
-    }
-    case 1:
-    {
-      int ix_c_x1;
-      int offset_ix_x1;
+    loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
+    loc_c_dx2(n-1) = offset_ix_x2 * (pmy_block->pmy_mesh->dt);
+  }
+  else if constexpr (NDIM == 1)
+  {
+    int ix_c_x1;
+    int offset_ix_x1;
 
-      ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
+    ix_c_x1 = LocateCentrePhysicalIndex(n, 0);
 
-      offset_ix_x1 = IxExtremaOffset(
-        n,
-        (control_fields[n-1])(ix_c_x1-1),
-        (control_fields[n-1])(ix_c_x1),
-        (control_fields[n-1])(ix_c_x1+1)
-      );
+    offset_ix_x1 = IxExtremaOffset(
+      n,
+      (control_fields[n-1])(ix_c_x1-1),
+      (control_fields[n-1])(ix_c_x1),
+      (control_fields[n-1])(ix_c_x1+1)
+    );
 
-      loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
-      break;
-    }
-    default:
-      std::cout << "ExtremaTrackerLocal requires ndim<=3" << std::endl;
+    loc_c_dx1(n-1) = offset_ix_x1 * (pmy_block->pmy_mesh->dt);
   }
 
 }
@@ -850,515 +816,508 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
   const Real umsf = ptracker_extrema->update_max_step_factor;
 
   // populate salient data in this block
-  switch (ndim)
-  {
-    case 3:
-    {
-      origin[2] = mbi->x3(0);
-      sz[2] = mbi->nn3;
-      ds[2] = mbi->dx3(0);
-      coord[2] = ptracker_extrema->c_x3(n-1);
+  if constexpr (NDIM >= 3) {
+    origin[2] = mbi->x3(0);
+    sz[2] = mbi->nn3;
+    ds[2] = mbi->dx3(0);
+    coord[2] = ptracker_extrema->c_x3(n-1);
 
-      dx_max[2] = umsf * pmy_block->pcoord->dx3v(0);
-    }
-    case 2:
-    {
-      origin[1] = mbi->x2(0);
-      sz[1] = mbi->nn2;
-      ds[1] = mbi->dx2(0);
-      coord[1] = ptracker_extrema->c_x2(n-1);
+    dx_max[2] = umsf * pmy_block->pcoord->dx3v(0);
+  }
+  if constexpr (NDIM >= 2) {
+    origin[1] = mbi->x2(0);
+    sz[1] = mbi->nn2;
+    ds[1] = mbi->dx2(0);
+    coord[1] = ptracker_extrema->c_x2(n-1);
 
-      dx_max[1] = umsf * pmy_block->pcoord->dx2v(0);
-    }
-    case 1:
-    {
-      origin[0] = mbi->x1(0);
-      sz[0] = mbi->nn1;
-      ds[0] = mbi->dx1(0);
-      coord[0] = ptracker_extrema->c_x1(n-1);
+    dx_max[1] = umsf * pmy_block->pcoord->dx2v(0);
+  }
+  if constexpr (NDIM >= 1) {
+    origin[0] = mbi->x1(0);
+    sz[0] = mbi->nn1;
+    ds[0] = mbi->dx1(0);
+    coord[0] = ptracker_extrema->c_x1(n-1);
 
-      dx_max[0] = umsf * pmy_block->pcoord->dx1v(0);
-      break;
-    }
-    default:
-    {
-      std::cout << "ExtremaTrackerLocal requires ndim<=3" << std::endl;
-    }
+    dx_max[0] = umsf * pmy_block->pcoord->dx1v(0);
   }
 
   // performed required interpolation
-  switch (ndim)
+  if constexpr (NDIM == 3)
   {
-    case 3:
+    dx_st[0] = 0;
+    dx_st[1] = 0;
+    dx_st[2] = 0;
+
+    int iter = 0;
+
+    Real coord_new[3] = { coord[0], coord[1], coord[2] };
+    Real cdx_st[3] = { 0., 0., 0. };
+
+    Real ds_i = 0;
+
+    const Real ds_interp[3] = {
+      ds[0] / interp_ds_fac,
+      ds[1] / interp_ds_fac,
+      ds[2] / interp_ds_fac
+    };
+
+    Real coord_L[3];
+    Real coord_R[3];
+
+    do
     {
-      dx_st[0] = 0;
-      dx_st[1] = 0;
-      dx_st[2] = 0;
+      // axis 0 ---------------------------------------------------
+      ds_i = ds_interp[0];
 
-      int iter = 0;
+      coord_L[0] = coord_new[0] - ds_i;
+      coord_L[1] = coord_new[1];
+      coord_L[2] = coord_new[2];
 
-      Real coord_new[3] = { coord[0], coord[1], coord[2] };
-      Real cdx_st[3] = { 0., 0., 0. };
+      coord_R[0] = coord_new[0] + ds_i;
+      coord_R[1] = coord_new[1];
+      coord_R[2] = coord_new[2];
 
-      Real ds_i = 0;
-
-      Real coord_L[3];
-      Real coord_R[3];
-
-      do
       {
-        // axis 0 ---------------------------------------------------
-        ds_i = ds[0] / interp_ds_fac;
-
-        coord_L[0] = coord_new[0] - ds_i;
-        coord_L[1] = coord_new[1];
-        coord_L[2] = coord_new[2];
-
-        coord_R[0] = coord_new[0] + ds_i;
-        coord_R[1] = coord_new[1];
-        coord_R[2] = coord_new[2];
-
-        {
-          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          // coord_M is coord_new for this axis
-          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
-          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
-        }
-
-        // candidate step for update
-        cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[0]) > dx_max[0])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[0] = -dx_max[0];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[0] = dx_max[0];
-          }
-          else
-          {
-            cdx_st[0] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
-        {
-          cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
-        }
-
-        if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
-        {
-          cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
-        }
-
-        dx_st[0] += cdx_st[0];
-        coord_new[0] = coord[0] + dx_st[0];
-
-        // axis 1 ---------------------------------------------------
-        ds_i = ds[1] / interp_ds_fac;
-
-        coord_L[0] = coord_new[0];
-        coord_L[1] = coord_new[1] - ds_i;
-        coord_L[2] = coord_new[2];
-
-        coord_R[0] = coord_new[0];
-        coord_R[1] = coord_new[1] + ds_i;
-        coord_R[2] = coord_new[2];
-
-        {
-          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
-          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
-        }
-
-        // candidate step for update
-        cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[1]) > dx_max[1])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[1] = -dx_max[1];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[1] = dx_max[1];
-          }
-          else
-          {
-            cdx_st[1] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[1] + dx_st[1] + cdx_st[1] < mbi->x2(0))
-        {
-          cdx_st[1] = mbi->x2(0) - (coord[1] + dx_st[1]);
-        }
-
-        if (coord[1] + dx_st[1] + cdx_st[1] > mbi->x2(mbi->nn2-1))
-        {
-          cdx_st[1] = mbi->x2(mbi->nn2-1) - (coord[1] + dx_st[1]);
-        }
-
-        dx_st[1] += cdx_st[1];
-        coord_new[1] = coord[1] + dx_st[1];
-
-        // axis 2 ---------------------------------------------------
-        ds_i = ds[2] / interp_ds_fac;
-
-        coord_L[0] = coord_new[0];
-        coord_L[1] = coord_new[1];
-        coord_L[2] = coord_new[2] - ds_i;
-
-        coord_R[0] = coord_new[0];
-        coord_R[1] = coord_new[1];
-        coord_R[2] = coord_new[2] + ds_i;
-
-        {
-          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
-          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
-        }
-        {
-          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
-        }
-
-        // candidate step for update
-        cdx_st[2] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[2]) > dx_max[2])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[2] = -dx_max[2];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[2] = dx_max[2];
-          }
-          else
-          {
-            cdx_st[2] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[2] + dx_st[2] + cdx_st[2] < mbi->x3(0))
-        {
-          cdx_st[2] = mbi->x3(0) - (coord[2] + dx_st[2]);
-        }
-
-        if (coord[2] + dx_st[2] + cdx_st[2] > mbi->x3(mbi->nn3-1))
-        {
-          cdx_st[2] = mbi->x3(mbi->nn3-1) - (coord[2] + dx_st[2]);
-        }
-
-        dx_st[2] += cdx_st[2];
-        coord_new[2] = coord[2] + dx_st[2];
-
-        ++iter;
+        Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
       }
-      while ((iter < iter_max) &&
-             ((std::abs(cdx_st[0]) > tol_ds) ||
-              (std::abs(cdx_st[1]) > tol_ds) ||
-              (std::abs(cdx_st[2]) > tol_ds)));
-
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
-      loc_c_dx2(n-1) = dx_st[1];
-      loc_c_dx3(n-1) = dx_st[2];
-
-      break;
-    }
-    case 2:
-    {
-      dx_st[0] = 0;
-      dx_st[1] = 0;
-
-      int iter = 0;
-
-      Real coord_new[2] = { coord[0], coord[1] };
-      Real cdx_st[2] = { 0., 0. };
-
-      Real ds_i = 0;
-
-      Real coord_L[2];
-      Real coord_R[2];
-
-      do
       {
-        // axis 0 ---------------------------------------------------
-        ds_i = ds[0] / interp_ds_fac;
-
-        coord_L[0] = coord_new[0] - ds_i;
-        coord_L[1] = coord_new[1];
-
-        coord_R[0] = coord_new[0] + ds_i;
-        coord_R[1] = coord_new[1];
-
-        {
-          Interp_Lag2 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
-        }
-        {
-          Interp_Lag2 interp_M(origin, ds, sz, coord_new);
-          f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
-        }
-        {
-          Interp_Lag2 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
-        }
-
-        // candidate step for update
-        cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[0]) > dx_max[0])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[0] = -dx_max[0];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[0] = dx_max[0];
-          }
-          else
-          {
-            cdx_st[0] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
-        {
-          cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
-        }
-
-        if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
-        {
-          cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
-        }
-
-        dx_st[0] += cdx_st[0];
-        coord_new[0] = coord[0] + dx_st[0];
-
-        // axis 1 ---------------------------------------------------
-        ds_i = ds[1] / interp_ds_fac;
-
-        coord_L[0] = coord_new[0];
-        coord_L[1] = coord_new[1] - ds_i;
-
-        coord_R[0] = coord_new[0];
-        coord_R[1] = coord_new[1] + ds_i;
-
-        {
-          Interp_Lag2 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
-        }
-        {
-          Interp_Lag2 interp_M(origin, ds, sz, coord_new);
-          f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
-        }
-        {
-          Interp_Lag2 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
-        }
-
-        // candidate step for update
-        cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[1]) > dx_max[1])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[1] = -dx_max[1];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[1] = dx_max[1];
-          }
-          else
-          {
-            cdx_st[1] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[1] + dx_st[1] + cdx_st[1] < mbi->x2(0))
-        {
-          cdx_st[1] = mbi->x2(0) - (coord[1] + dx_st[1]);
-        }
-
-        if (coord[1] + dx_st[1] + cdx_st[1] > mbi->x2(mbi->nn2-1))
-        {
-          cdx_st[1] = mbi->x2(mbi->nn2-1) - (coord[1] + dx_st[1]);
-        }
-
-        dx_st[1] += cdx_st[1];
-        coord_new[1] = coord[1] + dx_st[1];
-
-        ++iter;
+        // coord_M is coord_new for this axis
+        Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+        f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
       }
-      while ((iter < iter_max) &&
-             ((std::abs(cdx_st[0]) > tol_ds) ||
-              (std::abs(cdx_st[1]) > tol_ds)));
+      {
+        Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+      }
 
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
-      loc_c_dx2(n-1) = dx_st[1];
+      // candidate step for update
+      cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
 
-      break;
-    }
-    case 1:
-    {
-      dx_st[0] = 0;
-
-      // Single iter algo:
+      // check candidate point satisfies thresholds;
       //
-      // Old extrema at coord[0]
-      // Interpolate to coord[0]-ds, coord[0], coord[0]+ds
-      //
-      // Find ds* such that coord[0] + ds* is new extrema;
-      // ds* found via extrema of parabolic fit of above interp.
-
-      int iter = 0;
-
-      // Updated extrema
-      Real coord_new[1] = { coord[0] };
-
-      // Current iter. distance update
-      Real cdx_st[1] = { 0. };
-
-      do
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[0]) > dx_max[0])
       {
-        Real ds_i = ds[0] / interp_ds_fac;
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
 
-        // axis 0 ---------------------------------------------------
-        const Real coord_L[1] = {coord_new[0] - ds_i};
-        const Real coord_M[1] = {coord_new[0]};
-        const Real coord_R[1] = {coord_new[0] + ds_i};
-
+        if (cf_0 < cf_1)
         {
-          Interp_Lag1 interp_L(origin, ds, sz, coord_L);
-          f_0 = interp_L.eval(&(control_fields[n-1](0)));
+          cdx_st[0] = -dx_max[0];
         }
+        else if (cf_0 > cf_1)
         {
-          Interp_Lag1 interp_M(origin, ds, sz, coord_M);
-          f_1 = interp_M.eval(&(control_fields[n-1](0)));
+          cdx_st[0] = dx_max[0];
         }
+        else
         {
-          Interp_Lag1 interp_R(origin, ds, sz, coord_R);
-          f_2 = interp_R.eval(&(control_fields[n-1](0)));
+          cdx_st[0] = 0.;
         }
-
-        // candidate step for update
-        cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
-
-        // check candidate point satisfies thresholds;
-        //
-        // if not attempt grid-step in direction of descent
-        if (std::abs(cdx_st[0]) > dx_max[0])
-        {
-          const Real cf_0 = sign_minima(n-1) * f_0;
-          const Real cf_1 = sign_minima(n-1) * f_1;
-          const Real cf_2 = sign_minima(n-1) * f_2;
-
-          if (cf_0 < cf_1)
-          {
-            cdx_st[0] = -dx_max[0];
-          }
-          else if (cf_0 > cf_1)
-          {
-            cdx_st[0] = dx_max[0];
-          }
-          else
-          {
-            cdx_st[0] = 0.;
-          }
-        }
-
-        // set to edge if update falls outside MeshBlock
-        if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
-        {
-          cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
-        }
-
-        if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
-        {
-          cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
-        }
-
-        dx_st[0] += cdx_st[0];
-        coord_new[0] = coord[0] + dx_st[0];
-
-        ++iter;
       }
-      while ((iter < iter_max) &&
-             (std::abs(cdx_st[0]) > tol_ds));
 
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
+      // set to edge if update falls outside MeshBlock
+      if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
+      {
+        cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
+      }
 
-      break;
+      if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
+      {
+        cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
+      }
+
+      dx_st[0] += cdx_st[0];
+      coord_new[0] = coord[0] + dx_st[0];
+
+      // axis 1 ---------------------------------------------------
+      ds_i = ds_interp[1];
+
+      coord_L[0] = coord_new[0];
+      coord_L[1] = coord_new[1] - ds_i;
+      coord_L[2] = coord_new[2];
+
+      coord_R[0] = coord_new[0];
+      coord_R[1] = coord_new[1] + ds_i;
+      coord_R[2] = coord_new[2];
+
+      {
+        Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
+      }
+      {
+        Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+        f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
+      }
+      {
+        Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+      }
+
+      // candidate step for update
+      cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
+
+      // check candidate point satisfies thresholds;
+      //
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[1]) > dx_max[1])
+      {
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
+
+        if (cf_0 < cf_1)
+        {
+          cdx_st[1] = -dx_max[1];
+        }
+        else if (cf_0 > cf_1)
+        {
+          cdx_st[1] = dx_max[1];
+        }
+        else
+        {
+          cdx_st[1] = 0.;
+        }
+      }
+
+      // set to edge if update falls outside MeshBlock
+      if (coord[1] + dx_st[1] + cdx_st[1] < mbi->x2(0))
+      {
+        cdx_st[1] = mbi->x2(0) - (coord[1] + dx_st[1]);
+      }
+
+      if (coord[1] + dx_st[1] + cdx_st[1] > mbi->x2(mbi->nn2-1))
+      {
+        cdx_st[1] = mbi->x2(mbi->nn2-1) - (coord[1] + dx_st[1]);
+      }
+
+      dx_st[1] += cdx_st[1];
+      coord_new[1] = coord[1] + dx_st[1];
+
+      // axis 2 ---------------------------------------------------
+      ds_i = ds_interp[2];
+
+      coord_L[0] = coord_new[0];
+      coord_L[1] = coord_new[1];
+      coord_L[2] = coord_new[2] - ds_i;
+
+      coord_R[0] = coord_new[0];
+      coord_R[1] = coord_new[1];
+      coord_R[2] = coord_new[2] + ds_i;
+
+      {
+        Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
+      }
+      {
+        Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+        f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
+      }
+      {
+        Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+      }
+
+      // candidate step for update
+      cdx_st[2] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
+
+      // check candidate point satisfies thresholds;
+      //
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[2]) > dx_max[2])
+      {
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
+
+        if (cf_0 < cf_1)
+        {
+          cdx_st[2] = -dx_max[2];
+        }
+        else if (cf_0 > cf_1)
+        {
+          cdx_st[2] = dx_max[2];
+        }
+        else
+        {
+          cdx_st[2] = 0.;
+        }
+      }
+
+      // set to edge if update falls outside MeshBlock
+      if (coord[2] + dx_st[2] + cdx_st[2] < mbi->x3(0))
+      {
+        cdx_st[2] = mbi->x3(0) - (coord[2] + dx_st[2]);
+      }
+
+      if (coord[2] + dx_st[2] + cdx_st[2] > mbi->x3(mbi->nn3-1))
+      {
+        cdx_st[2] = mbi->x3(mbi->nn3-1) - (coord[2] + dx_st[2]);
+      }
+
+      dx_st[2] += cdx_st[2];
+      coord_new[2] = coord[2] + dx_st[2];
+
+      ++iter;
     }
+    while ((iter < iter_max) &&
+           ((std::abs(cdx_st[0]) > tol_ds) ||
+            (std::abs(cdx_st[1]) > tol_ds) ||
+            (std::abs(cdx_st[2]) > tol_ds)));
+
+    // update local -----------------------------------------------
+    loc_c_dx1(n-1) = dx_st[0];
+    loc_c_dx2(n-1) = dx_st[1];
+    loc_c_dx3(n-1) = dx_st[2];
+  }
+  else if constexpr (NDIM == 2)
+  {
+    dx_st[0] = 0;
+    dx_st[1] = 0;
+
+    int iter = 0;
+
+    Real coord_new[2] = { coord[0], coord[1] };
+    Real cdx_st[2] = { 0., 0. };
+
+    Real ds_i = 0;
+
+    const Real ds_interp[2] = {
+      ds[0] / interp_ds_fac,
+      ds[1] / interp_ds_fac
+    };
+
+    Real coord_L[2];
+    Real coord_R[2];
+
+    do
+    {
+      // axis 0 ---------------------------------------------------
+      ds_i = ds_interp[0];
+
+      coord_L[0] = coord_new[0] - ds_i;
+      coord_L[1] = coord_new[1];
+
+      coord_R[0] = coord_new[0] + ds_i;
+      coord_R[1] = coord_new[1];
+
+      {
+        Interp_Lag2 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
+      }
+      {
+        Interp_Lag2 interp_M(origin, ds, sz, coord_new);
+        f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
+      }
+      {
+        Interp_Lag2 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
+      }
+
+      // candidate step for update
+      cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
+
+      // check candidate point satisfies thresholds;
+      //
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[0]) > dx_max[0])
+      {
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
+
+        if (cf_0 < cf_1)
+        {
+          cdx_st[0] = -dx_max[0];
+        }
+        else if (cf_0 > cf_1)
+        {
+          cdx_st[0] = dx_max[0];
+        }
+        else
+        {
+          cdx_st[0] = 0.;
+        }
+      }
+
+      // set to edge if update falls outside MeshBlock
+      if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
+      {
+        cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
+      }
+
+      if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
+      {
+        cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
+      }
+
+      dx_st[0] += cdx_st[0];
+      coord_new[0] = coord[0] + dx_st[0];
+
+      // axis 1 ---------------------------------------------------
+      ds_i = ds_interp[1];
+
+      coord_L[0] = coord_new[0];
+      coord_L[1] = coord_new[1] - ds_i;
+
+      coord_R[0] = coord_new[0];
+      coord_R[1] = coord_new[1] + ds_i;
+
+      {
+        Interp_Lag2 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
+      }
+      {
+        Interp_Lag2 interp_M(origin, ds, sz, coord_new);
+        f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
+      }
+      {
+        Interp_Lag2 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
+      }
+
+      // candidate step for update
+      cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
+
+      // check candidate point satisfies thresholds;
+      //
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[1]) > dx_max[1])
+      {
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
+
+        if (cf_0 < cf_1)
+        {
+          cdx_st[1] = -dx_max[1];
+        }
+        else if (cf_0 > cf_1)
+        {
+          cdx_st[1] = dx_max[1];
+        }
+        else
+        {
+          cdx_st[1] = 0.;
+        }
+      }
+
+      // set to edge if update falls outside MeshBlock
+      if (coord[1] + dx_st[1] + cdx_st[1] < mbi->x2(0))
+      {
+        cdx_st[1] = mbi->x2(0) - (coord[1] + dx_st[1]);
+      }
+
+      if (coord[1] + dx_st[1] + cdx_st[1] > mbi->x2(mbi->nn2-1))
+      {
+        cdx_st[1] = mbi->x2(mbi->nn2-1) - (coord[1] + dx_st[1]);
+      }
+
+      dx_st[1] += cdx_st[1];
+      coord_new[1] = coord[1] + dx_st[1];
+
+      ++iter;
+    }
+    while ((iter < iter_max) &&
+           ((std::abs(cdx_st[0]) > tol_ds) ||
+            (std::abs(cdx_st[1]) > tol_ds)));
+
+    // update local -----------------------------------------------
+    loc_c_dx1(n-1) = dx_st[0];
+    loc_c_dx2(n-1) = dx_st[1];
+  }
+  else if constexpr (NDIM == 1)
+  {
+    dx_st[0] = 0;
+
+    // Single iter algo:
+    //
+    // Old extrema at coord[0]
+    // Interpolate to coord[0]-ds, coord[0], coord[0]+ds
+    //
+    // Find ds* such that coord[0] + ds* is new extrema;
+    // ds* found via extrema of parabolic fit of above interp.
+
+    int iter = 0;
+
+    // Updated extrema
+    Real coord_new[1] = { coord[0] };
+
+    // Current iter. distance update
+    Real cdx_st[1] = { 0. };
+
+    const Real ds_interp_0 = ds[0] / interp_ds_fac;
+
+    do
+    {
+      const Real ds_i = ds_interp_0;
+
+      // axis 0 ---------------------------------------------------
+      const Real coord_L[1] = {coord_new[0] - ds_i};
+      const Real coord_M[1] = {coord_new[0]};
+      const Real coord_R[1] = {coord_new[0] + ds_i};
+
+      {
+        Interp_Lag1 interp_L(origin, ds, sz, coord_L);
+        f_0 = interp_L.eval(&(control_fields[n-1](0)));
+      }
+      {
+        Interp_Lag1 interp_M(origin, ds, sz, coord_M);
+        f_1 = interp_M.eval(&(control_fields[n-1](0)));
+      }
+      {
+        Interp_Lag1 interp_R(origin, ds, sz, coord_R);
+        f_2 = interp_R.eval(&(control_fields[n-1](0)));
+      }
+
+      // candidate step for update
+      cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
+
+      // check candidate point satisfies thresholds;
+      //
+      // if not attempt grid-step in direction of descent
+      if (std::abs(cdx_st[0]) > dx_max[0])
+      {
+        const Real cf_0 = sign_minima(n-1) * f_0;
+        const Real cf_1 = sign_minima(n-1) * f_1;
+        const Real cf_2 = sign_minima(n-1) * f_2;
+
+        if (cf_0 < cf_1)
+        {
+          cdx_st[0] = -dx_max[0];
+        }
+        else if (cf_0 > cf_1)
+        {
+          cdx_st[0] = dx_max[0];
+        }
+        else
+        {
+          cdx_st[0] = 0.;
+        }
+      }
+
+      // set to edge if update falls outside MeshBlock
+      if (coord[0] + dx_st[0] + cdx_st[0] < mbi->x1(0))
+      {
+        cdx_st[0] = mbi->x1(0) - (coord[0] + dx_st[0]);
+      }
+
+      if (coord[0] + dx_st[0] + cdx_st[0] > mbi->x1(mbi->nn1-1))
+      {
+        cdx_st[0] = mbi->x1(mbi->nn1-1) - (coord[0] + dx_st[0]);
+      }
+
+      dx_st[0] += cdx_st[0];
+      coord_new[0] = coord[0] + dx_st[0];
+
+      ++iter;
+    }
+    while ((iter < iter_max) &&
+           (std::abs(cdx_st[0]) > tol_ds));
+
+    // update local -----------------------------------------------
+    loc_c_dx1(n-1) = dx_st[0];
   }
 
   return;

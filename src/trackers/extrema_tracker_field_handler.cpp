@@ -2,14 +2,13 @@
 // Write as column data
 
 // c/c++
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <iomanip>
-#include <limits>
 #include <stdexcept>
 #include <sstream>
 #include <iostream>
-#include <algorithm>
 #include <string>
 #include <unistd.h>
 
@@ -46,90 +45,57 @@
 
 namespace {
 
-Real DoInterpolateCC(
+// Interpolator type for the compile-time dimension
+typedef LagrangeInterpND<2*(NGHOST-1), NDIM> InterpCC;
+
+// Build the interpolator for a given MeshBlock and target point.
+// Returned object encodes all stencil weights; call eval() with different
+// field data pointers to interpolate many variables at the same point.
+InterpCC BuildInterpolatorCC(
   MeshBlock * pmb,
-  AA & field_cc,
-  const Real n,
   const Real x, const Real y, const Real z
 )
 {
-  ExtremaTracker * pet = pmb->pmy_mesh->ptracker_extrema;
+  Real origin[NDIM];
+  Real ds[NDIM];
+  int sz[NDIM];
+  Real coord[NDIM];
 
-  // Uniform grid spacing assumed
-  const int ndim = pmb->pmy_mesh->ndim;
-
-  Real origin[3];
-  Real ds[3];
-  int sz[3];
-  Real coord[3];
-
-  // populate salient data in this block
-  switch (ndim)
-  {
-    case 3:
-    {
-      origin[2] = pmb->pcoord->x3v(0);
-      sz[2] = pmb->ncells3;
-      ds[2] = pmb->pcoord->dx3v(0);
-      coord[2] = z;
-    }
-    case 2:
-    {
-      origin[1] = pmb->pcoord->x2v(0);
-      sz[1] = pmb->ncells2;
-      ds[1] = pmb->pcoord->dx2v(0);
-      coord[1] = y;
-    }
-    case 1:
-    {
-      origin[0] = pmb->pcoord->x1v(0);
-      sz[0] = pmb->ncells1;
-      ds[0] = pmb->pcoord->dx1v(0);
-      coord[0] = x;
-      break;
-    }
-    default:
-    {
-      std::cout << "DoInterpolateCC requires ndim<=3" << std::endl;
-      assert(false);
-    }
+  // populate salient data in this block (uniform grid spacing assumed)
+  if constexpr (NDIM >= 3) {
+    origin[2] = pmb->pcoord->x3v(0);
+    sz[2] = pmb->ncells3;
+    ds[2] = pmb->pcoord->dx3v(0);
+    coord[2] = z;
   }
+  if constexpr (NDIM >= 2) {
+    origin[1] = pmb->pcoord->x2v(0);
+    sz[1] = pmb->ncells2;
+    ds[1] = pmb->pcoord->dx2v(0);
+    coord[1] = y;
+  }
+  origin[0] = pmb->pcoord->x1v(0);
+  sz[0] = pmb->ncells1;
+  ds[0] = pmb->pcoord->dx1v(0);
+  coord[0] = x;
 
+  return InterpCC(origin, ds, sz, coord);
+}
+
+// Evaluate a single component of a CC field using a pre-built interpolator.
+Real EvalInterpolateCC(
+  const InterpCC & interp,
+  AA & field_cc,
+  const int n
+)
+{
   AA slice_cc;
   slice_cc.InitWithShallowSlice(field_cc, n, 1);
-  Real value_interpolated = std::numeric_limits<Real>::quiet_NaN();
-
-  switch (ndim)
-  {
-    case 3:
-    {
-      typedef LagrangeInterpND<2*(NGHOST-1), 3> Interp_Lag3;
-      Interp_Lag3 interp3(origin, ds, sz, coord);
-      value_interpolated = interp3.eval(&(slice_cc(0,0,0)));
-      break;
-    }
-    case 2:
-    {
-      typedef LagrangeInterpND<2*(NGHOST-1), 2> Interp_Lag2;
-      Interp_Lag2 interp2(origin, ds, sz, coord);
-      value_interpolated = interp2.eval(&(slice_cc(0,0,0)));
-      break;
-    }
-    case 1:
-    {
-      typedef LagrangeInterpND<2*(NGHOST-1), 1> Interp_Lag1;
-      Interp_Lag1 interp1(origin, ds, sz, coord);
-      value_interpolated = interp1.eval(&(slice_cc(0)));
-      break;
-    }
-    default:
-    {
-      std::cout << "DoInterpolateCC requires ndim<=3" << std::endl;
-      assert(false);
-    }
+  if constexpr (NDIM >= 2) {
+    return interp.eval(&(slice_cc(0,0,0)));
+  } else {
+    return interp.eval(&(slice_cc(0)));
   }
-
-  return value_interpolated;
 }
 
 }
@@ -155,6 +121,10 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
   const Real x = c_x1(n-1);
   const Real y = c_x2(n-1);
   const Real z = c_x3(n-1);
+
+  // Build interpolator once - reused for all ~80 field evaluations below.
+  // All fields share the same MeshBlock geometry and target point.
+  const InterpCC interp = BuildInterpolatorCC(pmb, x, y, z);
 
   Hydro * ph = pmb->phydro;
   PassiveScalars * ps = pmb->pscalars;
@@ -236,7 +206,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
   {
     for (int ix=0; ix<Hydro::ixn_cons::N; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(pmb, ph->u, ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, ph->u, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -248,7 +218,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<Hydro::ixn_prim::N; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(pmb, ph->w, ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, ph->w, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -260,9 +230,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<HydroDerivedIndex::NDRV_HYDRO; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, ph->derived_ms, ix, x, y, z
-      );
+      const Real interp_val = EvalInterpolateCC(interp, ph->derived_ms, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -279,7 +247,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
   {
     for (int ix=0; ix<NSCALARS; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(pmb, ps->s, ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, ps->s, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -291,7 +259,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<NSCALARS; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(pmb, ps->r, ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, ps->r, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -308,7 +276,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
   {
     for (int ix=0; ix<Field::ixn_cc::N; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(pmb, ph->w, ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, pf->bcc, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -320,9 +288,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<FieldDerivedIndex::NDRV_FIELD; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, pf->derived_ms, ix, x, y, z
-      );
+      const Real interp_val = EvalInterpolateCC(interp, pf->derived_ms, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -345,9 +311,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
     // z4c state-vector variables
     for (int ix=0; ix<Z4c::N_Z4c; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, pz4c->storage.u,
-        ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.u, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -359,9 +323,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<Z4c::N_ADM; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, pz4c->storage.adm,
-        ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.adm, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -373,9 +335,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<Z4c::N_CON; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, pz4c->storage.con,
-        ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.con, ix);
       push_num_Real(interp_val);
 
       if (new_file)
@@ -389,9 +349,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
     {
       for (int ix=0; ix<Z4c::N_MAT; ++ix)
       {
-        const Real interp_val = DoInterpolateCC(
-          pmb, pz4c->storage.mat,
-          ix, x, y, z);
+        const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.mat, ix);
         push_num_Real(interp_val);
 
         if (new_file)
@@ -404,9 +362,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     for (int ix=0; ix<Z4c::N_AUX_EXTENDED; ++ix)
     {
-      const Real interp_val = DoInterpolateCC(
-        pmb, pz4c->storage.aux_extended,
-        ix, x, y, z);
+      const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.aux_extended, ix);
       push_num_Real(interp_val);
 
       if (new_file)
