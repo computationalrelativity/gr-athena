@@ -90,21 +90,19 @@ class AthenaArray {
   // user-provided dtor, "rule of five" applies:
   ~AthenaArray();
   // define copy constructor and overload assignment operator so both do deep copies.
-  __attribute__((nothrow)) AthenaArray(const AthenaArray<T>& t);
+  AthenaArray(const AthenaArray<T>& t);
   __attribute__((nothrow)) AthenaArray<T> &operator= (const AthenaArray<T> &t);
   // define move constructor and overload assignment operator to transfer ownership
   __attribute__((nothrow)) AthenaArray(AthenaArray<T>&& t);
   __attribute__((nothrow)) AthenaArray<T> &operator= (AthenaArray<T> &&t);
 
   // public functions to allocate/deallocate memory for 1D-5D data
-  __attribute__((nothrow)) void NewAthenaArray(int nx1);
-  __attribute__((nothrow)) void NewAthenaArray(int nx2, int nx1);
-  __attribute__((nothrow)) void NewAthenaArray(int nx3, int nx2, int nx1);
-  __attribute__((nothrow)) void NewAthenaArray(int nx4, int nx3, int nx2, int nx1);
-  __attribute__((nothrow)) void NewAthenaArray(int nx5, int nx4, int nx3, int nx2,
-                                               int nx1);
-  __attribute__((nothrow)) void NewAthenaArray(int nx6, int nx5, int nx4, int nx3,
-                                               int nx2, int nx1);
+  void NewAthenaArray(int nx1);
+  void NewAthenaArray(int nx2, int nx1);
+  void NewAthenaArray(int nx3, int nx2, int nx1);
+  void NewAthenaArray(int nx4, int nx3, int nx2, int nx1);
+  void NewAthenaArray(int nx5, int nx4, int nx3, int nx2, int nx1);
+  void NewAthenaArray(int nx6, int nx5, int nx4, int nx3, int nx2, int nx1);
   void DeleteAthenaArray();
 
   // deep copy of another Array **of the same size**
@@ -119,7 +117,9 @@ class AthenaArray {
   // Mask array by a multiplicative constant
   void MulConst(T const val)
   {
-    for (int ix=0; ix<GetSize(); ++ix)
+    const int size = GetSize();
+    _Pragma("omp simd")
+    for (int ix=0; ix<size; ++ix)
     {
       pdata_[ix] *= val;
     }
@@ -349,7 +349,7 @@ class AthenaArray {
   // for monitoring data / debug
   bool is_finite() {
     bool finite = true;
-    std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
+    std::size_t size = GetSize();
     for (std::size_t i=0; i<size; ++i) {
       finite = finite and (std::isfinite(pdata_[i]));
       if (not finite)
@@ -360,7 +360,7 @@ class AthenaArray {
 
   bool is_nan() {
     bool bnan = true;
-    std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
+    std::size_t size = GetSize();
     for (std::size_t i=0; i<size; ++i) {
       bnan = bnan and (std::isnan(pdata_[i]));
       if (not bnan)
@@ -371,7 +371,7 @@ class AthenaArray {
 
   bool is_inf() {
     bool binf = true;
-    std::size_t size = nx1_ * nx2_ * nx3_ * nx4_ * nx5_;
+    std::size_t size = GetSize();
     for (std::size_t i=0; i<size; ++i) {
       binf = binf and (std::isinf(pdata_[i]));
       if (not binf)
@@ -558,7 +558,7 @@ AthenaArray<T>::~AthenaArray() {
 // copy constructor (does a deep copy)
 
 template<typename T>
-__attribute__((nothrow)) AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) {
+AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) {
   nx1_ = src.nx1_;
   nx2_ = src.nx2_;
   nx3_ = src.nx3_;
@@ -567,11 +567,9 @@ __attribute__((nothrow)) AthenaArray<T>::AthenaArray(const AthenaArray<T>& src) 
   nx6_ = src.nx6_;
   dim_ = src.dim_;
   if (src.pdata_) {
-    std::size_t size = (src.nx1_)*(src.nx2_)*(src.nx3_)*(src.nx4_)*(src.nx5_);
+    std::size_t size = (src.nx1_)*(src.nx2_)*(src.nx3_)*(src.nx4_)*(src.nx5_)*(src.nx6_);
     pdata_ = new T[size]; // allocate memory for array data
-    for (std::size_t i=0; i<size; ++i) {
-      pdata_[i] = src.pdata_[i]; // copy data (not just addresses!) into new memory
-    }
+    std::memcpy(pdata_, src.pdata_, size * sizeof(T));
     state_ = DataStatus::allocated;
   }
 }
@@ -592,9 +590,7 @@ AthenaArray<T> &AthenaArray<T>::operator= (const AthenaArray<T> &src) {
     nx6_ = src.nx6_;
     dim_ = src.dim_;
     std::size_t size = (src.nx1_)*(src.nx2_)*(src.nx3_)*(src.nx4_)*(src.nx5_)*(src.nx6_);
-    for (std::size_t i=0; i<size; ++i) {
-      this->pdata_[i] = src.pdata_[i]; // copy data (not just addresses!)
-    }
+    std::memcpy(this->pdata_, src.pdata_, size * sizeof(T));
     // BD: Copy assign assumes existence of an appropriately sized (&allocated)
     //     target.
     //     It *could* be sliced; therefore, do *not* change internal state!
@@ -768,7 +764,7 @@ void AthenaArray<T>::InitWithShallowSlice(AthenaArray<T> &src) {
 //  \brief allocate new 1D array with elements initialized to zero.
 
 template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx1) {
+    void AthenaArray<T>::NewAthenaArray(int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;
     nx2_ = 1;
@@ -785,7 +781,7 @@ template<typename T>
   //  \brief 2d data allocation
 
   template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx2, int nx1) {
+    void AthenaArray<T>::NewAthenaArray(int nx2, int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;
     nx2_ = nx2;
@@ -802,7 +798,7 @@ template<typename T>
   //  \brief 3d data allocation
 
   template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx3, int nx2, int nx1) {
+    void AthenaArray<T>::NewAthenaArray(int nx3, int nx2, int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;
     nx2_ = nx2;
@@ -819,7 +815,7 @@ template<typename T>
   //  \brief 4d data allocation
 
   template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx4, int nx3, int nx2,
+    void AthenaArray<T>::NewAthenaArray(int nx4, int nx3, int nx2,
                                                                  int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;
@@ -837,7 +833,7 @@ template<typename T>
   //  \brief 5d data allocation
 
   template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx5, int nx4, int nx3,
+    void AthenaArray<T>::NewAthenaArray(int nx5, int nx4, int nx3,
                                                                  int nx2, int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;
@@ -855,7 +851,7 @@ template<typename T>
   //  \brief 6d data allocation
 
   template<typename T>
-    __attribute__((nothrow)) void AthenaArray<T>::NewAthenaArray(int nx6, int nx5, int nx4,
+    void AthenaArray<T>::NewAthenaArray(int nx6, int nx5, int nx4,
                                                                  int nx3, int nx2, int nx1) {
     state_ = DataStatus::allocated;
     nx1_ = nx1;

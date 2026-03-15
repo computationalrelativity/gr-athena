@@ -19,8 +19,8 @@
 namespace gra::aliases {
 
 // for readability
-static const int D = NDIM + 1;
-static const int N = NDIM;
+inline constexpr int D = NDIM + 1;
+inline constexpr int N = NDIM;
 
 // Data structures ------------------------------------------------------------
 typedef AthenaArray<Real>                          AA;

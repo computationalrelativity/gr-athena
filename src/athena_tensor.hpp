@@ -12,7 +12,6 @@
 
 #include <cassert>
 #include <iostream>
-#include <math.h>
 
 #include "athena_arrays.hpp"
 #include "athena.hpp"
@@ -24,6 +23,113 @@ enum class TensorSymm {
   ISYM2,    // symmetric in the first 2 indices
   SYM22,    // symmetric in the last 2 pairs of indices
 };
+
+//----------------------------------------------------------------------------------------
+// Compile-time index map computation helpers
+namespace tensor_detail {
+
+// Generic result struct for index maps of arbitrary rank.
+// Data is stored in a flat array; accessor helpers convert multi-indices to flat offsets.
+template<int N>
+struct IdxMapResult {
+  int data[N];
+  int ndof;
+};
+
+// Rank-2 index map computation
+template<TensorSymm sym, int ndim>
+constexpr IdxMapResult<ndim * ndim> compute_idxmap_rank2() {
+  IdxMapResult<ndim * ndim> r{};
+  r.ndof = 0;
+  if constexpr (sym == TensorSymm::NONE) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = 0; b < ndim; ++b) {
+      r.data[a * ndim + b] = r.ndof++;
+    }
+  } else if constexpr (sym == TensorSymm::SYM2 || sym == TensorSymm::ISYM2) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = a; b < ndim; ++b) {
+      r.data[a * ndim + b] = r.ndof++;
+      r.data[b * ndim + a] = r.data[a * ndim + b];
+    }
+  }
+  return r;
+}
+
+// Rank-3 index map computation
+template<TensorSymm sym, int ndim>
+constexpr IdxMapResult<ndim * ndim * ndim> compute_idxmap_rank3() {
+  IdxMapResult<ndim * ndim * ndim> r{};
+  r.ndof = 0;
+  if constexpr (sym == TensorSymm::NONE) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = 0; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c) {
+      r.data[a * ndim * ndim + b * ndim + c] = r.ndof++;
+    }
+  } else if constexpr (sym == TensorSymm::SYM2) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = 0; b < ndim; ++b)
+    for (int c = b; c < ndim; ++c) {
+      r.data[a * ndim * ndim + b * ndim + c] = r.ndof++;
+      r.data[a * ndim * ndim + c * ndim + b] = r.data[a * ndim * ndim + b * ndim + c];
+    }
+  } else if constexpr (sym == TensorSymm::ISYM2) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = a; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c) {
+      r.data[a * ndim * ndim + b * ndim + c] = r.ndof++;
+      r.data[b * ndim * ndim + a * ndim + c] = r.data[a * ndim * ndim + b * ndim + c];
+    }
+  }
+  return r;
+}
+
+// Rank-4 index map computation
+template<TensorSymm sym, int ndim>
+constexpr IdxMapResult<ndim * ndim * ndim * ndim> compute_idxmap_rank4() {
+  constexpr int N2 = ndim * ndim;
+  constexpr int N3 = ndim * ndim * ndim;
+  IdxMapResult<ndim * ndim * ndim * ndim> r{};
+  r.ndof = 0;
+  if constexpr (sym == TensorSymm::NONE) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = 0; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c)
+    for (int d = 0; d < ndim; ++d) {
+      r.data[a*N3 + b*N2 + c*ndim + d] = r.ndof++;
+    }
+  } else if constexpr (sym == TensorSymm::SYM2) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = 0; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c)
+    for (int d = c; d < ndim; ++d) {
+      r.data[a*N3 + b*N2 + c*ndim + d] = r.ndof++;
+      r.data[a*N3 + b*N2 + d*ndim + c] = r.data[a*N3 + b*N2 + c*ndim + d];
+    }
+  } else if constexpr (sym == TensorSymm::ISYM2) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = a; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c)
+    for (int d = 0; d < ndim; ++d) {
+      r.data[a*N3 + b*N2 + c*ndim + d] = r.ndof++;
+      r.data[b*N3 + a*N2 + c*ndim + d] = r.data[a*N3 + b*N2 + c*ndim + d];
+    }
+  } else if constexpr (sym == TensorSymm::SYM22) {
+    for (int a = 0; a < ndim; ++a)
+    for (int b = a; b < ndim; ++b)
+    for (int c = 0; c < ndim; ++c)
+    for (int d = c; d < ndim; ++d) {
+      r.data[a*N3 + b*N2 + c*ndim + d] = r.ndof++;
+      r.data[b*N3 + a*N2 + c*ndim + d] = r.data[a*N3 + b*N2 + c*ndim + d];
+      r.data[a*N3 + b*N2 + d*ndim + c] = r.data[a*N3 + b*N2 + c*ndim + d];
+      r.data[b*N3 + a*N2 + d*ndim + c] = r.data[a*N3 + b*N2 + c*ndim + d];
+    }
+  }
+  return r;
+}
+
+} // namespace tensor_detail
 
 
 // this is the abstract base class
@@ -99,10 +205,10 @@ public:
   }
 
   // index map
-  int idxmap() const {
+  static constexpr int idxmap() {
     return 0;
   }
-  int ndof() const {
+  static constexpr int ndof() {
     return 1;
   }
 
@@ -118,7 +224,7 @@ public:
   bool is_inf() { return data_.is_inf(); }
 
   // operators to access the data
-  AthenaArray<Real> const & operator()() {
+  AthenaArray<T> const & operator()() {
     return data_;
   }
   T & operator()(int const i) {
@@ -152,11 +258,7 @@ public:
     return data_(m,n,k,j,i);
   }
 
-  // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src)
-  {
-    data_.InitWithShallowCopy(src);
-  }
+  // functions that initialize a tensor with shallow slice from an array
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
   {
     data_.InitWithShallowSlice(src, indx, ndof());
@@ -246,10 +348,10 @@ public:
   }
 
   // index map
-  int idxmap(int const a) const {
+  static constexpr int idxmap(int const a) {
     return a;
   }
-  int ndof() const {
+  static constexpr int ndof() {
     return ndim;
   }
 
@@ -272,10 +374,6 @@ public:
   }
 
   // operators to access the data
-  AthenaArray<Real> const & operator()(int const a) {
-    slice_.InitWithShallowSlice(data_, a, 1);
-    return slice_;
-  }
   T & operator()(int const a,
                  int const i) {
     return data_(a,i);
@@ -310,10 +408,7 @@ public:
   }
 
   // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src)
-  {
-    data_.InitWithShallowCopy(src);
-  }
+  // functions that initialize a tensor with shallow slice from an array
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
   {
     data_.InitWithShallowSlice(src, indx, ndof());
@@ -343,7 +438,6 @@ public:
 
 private:
   AthenaArray<T> data_;
-  AthenaArray<T> slice_;
 };
 
 //----------------------------------------------------------------------------------------
@@ -351,34 +445,30 @@ private:
 template<typename T, TensorSymm sym, int ndim>
 class AthenaTensor<T, sym, ndim, 2>
 {
+  static constexpr auto idxmap_result_ = tensor_detail::compute_idxmap_rank2<sym, ndim>();
 public:
   // xtors: -------------------------------------------------------------------
-  AthenaTensor() { ComputeIdxMap(); } // NewAthenaTensor needed for alloc.
+  AthenaTensor() { } // NewAthenaTensor needed for alloc.
   // Allocate at point of decl.
   AthenaTensor(int nx1)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1);
   }
   AthenaTensor(int nx1, int nx2)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2);
   }
   AthenaTensor(int nx1, int nx2, int nx3)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3);
   }
   AthenaTensor(int nx1, int nx2, int nx3, int nx4)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3, nx4);
   }
   // Shallow slice at point of decl.
   AthenaTensor(AthenaArray<T> &src, const int indx)
   {
-    ComputeIdxMap();
     InitWithShallowSlice(src, indx);
   }
   // Cleanup
@@ -390,16 +480,16 @@ public:
 
   // functions to allocate/de-allocate the data
   void NewAthenaTensor(int nx1) {
-    data_.NewAthenaArray(ndof_, nx1);
+    data_.NewAthenaArray(ndof(), nx1);
   }
   void NewAthenaTensor(int nx1, int nx2) {
-    data_.NewAthenaArray(ndof_, nx1, nx2);
+    data_.NewAthenaArray(ndof(), nx1, nx2);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3, int nx4) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3, nx4);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3, nx4);
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
@@ -422,11 +512,11 @@ public:
   }
 
   // index map
-  int idxmap(int const a, int const b) const {
-    return idxmap_[a][b];
+  static constexpr int idxmap(int const a, int const b) {
+    return idxmap_result_.data[a * ndim + b];
   }
-  int ndof() const {
-    return ndof_;
+  static constexpr int ndof() {
+    return idxmap_result_.ndof;
   }
 
   // fill a tensor field with a constant value
@@ -439,50 +529,42 @@ public:
   bool is_inf() { return data_.is_inf(); }
 
   // operators to access the data
-  AthenaArray<Real> const & operator()(int const a, int const b) {
-    slice_.InitWithShallowSlice(data_, idxmap_[a][b], 1);
-    return slice_;
-  }
   T & operator()(int const a, int const b,
                  int const i) {
-    return data_(idxmap_[a][b],i);
+    return data_(idxmap(a,b),i);
   }
   T & operator()(int const a, int const b,
                  int const j, int const i) {
-    return data_(idxmap_[a][b],j,i);
+    return data_(idxmap(a,b),j,i);
   }
   T & operator()(int const a, int const b,
                  int const k, int const j, int const i) {
-    return data_(idxmap_[a][b],k,j,i);
+    return data_(idxmap(a,b),k,j,i);
   }
   T & operator()(int const a, int const b,
                  int const n, int const k, int const j, int const i) {
-    return data_(idxmap_[a][b],n,k,j,i);
+    return data_(idxmap(a,b),n,k,j,i);
   }
   T operator()(int const a, int const b,
                int const i) const {
-    return data_(idxmap_[a][b],i);
+    return data_(idxmap(a,b),i);
   }
   T operator()(int const a, int const b,
                int const j, int const i) const {
-    return data_(idxmap_[a][b],j,i);
+    return data_(idxmap(a,b),j,i);
   }
 
   T operator()(int const a, int const b,
                int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b],k,j,i);
+    return data_(idxmap(a,b),k,j,i);
   }
 
   T operator()(int const a, int const b,
                int const n, int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b],n,k,j,i);
+    return data_(idxmap(a,b),n,k,j,i);
   }
 
-  // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src)
-  {
-    data_.InitWithShallowCopy(src);
-  }
+  // functions that initialize a tensor with shallow slice from an array
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx)
   {
     data_.InitWithShallowSlice(src, indx, ndof());
@@ -558,11 +640,6 @@ public:
 
 private:
   AthenaArray<T> data_;
-  AthenaArray<T> slice_;
-  int idxmap_[ndim][ndim];
-  int ndof_;
-
-  inline void ComputeIdxMap();
 };
 
 //----------------------------------------------------------------------------------------
@@ -570,34 +647,30 @@ private:
 template<typename T, TensorSymm sym, int ndim>
 class AthenaTensor<T, sym, ndim, 3>
 {
+  static constexpr auto idxmap_result_ = tensor_detail::compute_idxmap_rank3<sym, ndim>();
 public:
   // xtors: -------------------------------------------------------------------
-  AthenaTensor() { ComputeIdxMap(); } // NewAthenaTensor needed for alloc.
+  AthenaTensor() { } // NewAthenaTensor needed for alloc.
   // Allocate at point of decl.
   AthenaTensor(int nx1)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1);
   }
   AthenaTensor(int nx1, int nx2)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2);
   }
   AthenaTensor(int nx1, int nx2, int nx3)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3);
   }
   AthenaTensor(int nx1, int nx2, int nx3, int nx4)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3, nx4);
   }
   // Shallow slice at point of decl.
   AthenaTensor(AthenaArray<T> &src, const int indx)
   {
-    ComputeIdxMap();
     InitWithShallowSlice(src, indx);
   }
   // Cleanup
@@ -609,16 +682,16 @@ public:
 
   // functions to allocate/de-allocate the data
   void NewAthenaTensor(int nx1) {
-    data_.NewAthenaArray(ndof_, nx1);
+    data_.NewAthenaArray(ndof(), nx1);
   }
   void NewAthenaTensor(int nx1, int nx2) {
-    data_.NewAthenaArray(ndof_, nx1, nx2);
+    data_.NewAthenaArray(ndof(), nx1, nx2);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3, int nx4) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3, nx4);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3, nx4);
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
@@ -641,11 +714,11 @@ public:
   }
 
   // index map
-  int idxmap(int const a, int const b, int const c) const {
-    return idxmap_[a][b][c];
+  static constexpr int idxmap(int const a, int const b, int const c) {
+    return idxmap_result_.data[a * ndim * ndim + b * ndim + c];
   }
-  int ndof() const {
-    return ndof_;
+  static constexpr int ndof() {
+    return idxmap_result_.ndof;
   }
 
   // fill a tensor field with a constant value
@@ -658,47 +731,40 @@ public:
   bool is_inf() { return data_.is_inf(); }
 
   // operators to access the data
-  AthenaArray<Real> const & operator()(int const a, int const b, int const c) {
-    slice_.InitWithShallowSlice(data_, idxmap_[a][b][c], 1);
-    return slice_;
-  }
   T & operator()(int const a, int const b, int const c,
                  int const i) {
-    return data_(idxmap_[a][b][c],i);
+    return data_(idxmap(a,b,c),i);
   }
   T & operator()(int const a, int const b, int const c,
                  int const j, int const i) {
-    return data_(idxmap_[a][b][c],j,i);
+    return data_(idxmap(a,b,c),j,i);
   }
   T & operator()(int const a, int const b, int const c,
                  int const k, int const j, int const i) {
-    return data_(idxmap_[a][b][c],k,j,i);
+    return data_(idxmap(a,b,c),k,j,i);
   }
   T & operator()(int const a, int const b, int const c,
                  int const n, int const k, int const j, int const i) {
-    return data_(idxmap_[a][b][c],n,k,j,i);
+    return data_(idxmap(a,b,c),n,k,j,i);
   }
   T operator()(int const a, int const b, int const c,
                int const i) const {
-    return data_(idxmap_[a][b][c],i);
+    return data_(idxmap(a,b,c),i);
   }
   T operator()(int const a, int const b, int const c,
                int const j, int const i) const {
-    return data_(idxmap_[a][b][c],j,i);
+    return data_(idxmap(a,b,c),j,i);
   }
   T operator()(int const a, int const b, int const c,
                int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b][c],k,j,i);
+    return data_(idxmap(a,b,c),k,j,i);
   }
   T operator()(int const a, int const b, int const c,
                int const n, int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b][c],n,k,j,i);
+    return data_(idxmap(a,b,c),n,k,j,i);
   }
 
-  // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
-    data_.InitWithShallowCopy(src);
-  }
+  // functions that initialize a tensor with shallow slice from an array
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
@@ -742,11 +808,6 @@ public:
 
 private:
   AthenaArray<T> data_;
-  AthenaArray<T> slice_;
-  int idxmap_[ndim][ndim][ndim];
-  int ndof_;
-
-  inline void ComputeIdxMap();
 };
 
 //----------------------------------------------------------------------------------------
@@ -754,34 +815,30 @@ private:
 template<typename T, TensorSymm sym, int ndim>
 class AthenaTensor<T, sym, ndim, 4>
 {
+  static constexpr auto idxmap_result_ = tensor_detail::compute_idxmap_rank4<sym, ndim>();
 public:
   // xtors: -------------------------------------------------------------------
-  AthenaTensor() { ComputeIdxMap(); } // NewAthenaTensor needed for alloc.
+  AthenaTensor() { } // NewAthenaTensor needed for alloc.
   // Allocate at point of decl.
   AthenaTensor(int nx1)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1);
   }
   AthenaTensor(int nx1, int nx2)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2);
   }
   AthenaTensor(int nx1, int nx2, int nx3)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3);
   }
   AthenaTensor(int nx1, int nx2, int nx3, int nx4)
   {
-    ComputeIdxMap();
     NewAthenaTensor(nx1, nx2, nx3, nx4);
   }
   // Shallow slice at point of decl.
   AthenaTensor(AthenaArray<T> &src, const int indx)
   {
-    ComputeIdxMap();
     InitWithShallowSlice(src, indx);
   }
   // Cleanup
@@ -793,16 +850,16 @@ public:
 
   // functions to allocate/de-allocate the data
   void NewAthenaTensor(int nx1) {
-    data_.NewAthenaArray(ndof_, nx1);
+    data_.NewAthenaArray(ndof(), nx1);
   }
   void NewAthenaTensor(int nx1, int nx2) {
-    data_.NewAthenaArray(ndof_, nx1, nx2);
+    data_.NewAthenaArray(ndof(), nx1, nx2);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3);
   }
   void NewAthenaTensor(int nx1, int nx2, int nx3, int nx4) {
-    data_.NewAthenaArray(ndof_, nx1, nx2, nx3, nx4);
+    data_.NewAthenaArray(ndof(), nx1, nx2, nx3, nx4);
   }
   void DeleteAthenaTensor() {
     data_.DeleteAthenaArray();
@@ -825,11 +882,11 @@ public:
   }
 
   // index map
-  int idxmap(int const a, int const b, int const c, int const d) const {
-    return idxmap_[a][b][c][d];
+  static constexpr int idxmap(int const a, int const b, int const c, int const d) {
+    return idxmap_result_.data[a * ndim * ndim * ndim + b * ndim * ndim + c * ndim + d];
   }
-  int ndof() const {
-    return ndof_;
+  static constexpr int ndof() {
+    return idxmap_result_.ndof;
   }
 
   // fill a tensor field with a constant value
@@ -842,184 +899,45 @@ public:
   bool is_inf() { return data_.is_inf(); }
 
   // operators to access the data
-  AthenaArray<Real> const & operator()(int const a, int const b, int const c, int const d) {
-    slice_.InitWithShallowSlice(data_, idxmap_[a][b][c][d], 1);
-    return slice_;
-  }
   T & operator()(int const a, int const b, int const c, int const d,
                  int const i) {
-    return data_(idxmap_[a][b][c][d],i);
+    return data_(idxmap(a,b,c,d),i);
   }
   T & operator()(int const a, int const b, int const c, int const d,
                  int const j, int const i) {
-    return data_(idxmap_[a][b][c][d],j,i);
+    return data_(idxmap(a,b,c,d),j,i);
   }
   T & operator()(int const a, int const b, int const c, int const d,
                  int const k, int const j, int const i) {
-    return data_(idxmap_[a][b][c][d],k,j,i);
+    return data_(idxmap(a,b,c,d),k,j,i);
   }
   T & operator()(int const a, int const b, int const c, int const d,
                  int const n, int const k, int const j, int const i) {
-    return data_(idxmap_[a][b][c][d],n,k,j,i);
+    return data_(idxmap(a,b,c,d),n,k,j,i);
   }
   T operator()(int const a, int const b, int const c, int const d,
                int const i) const {
-    return data_(idxmap_[a][b][c][d],i);
+    return data_(idxmap(a,b,c,d),i);
   }
   T operator()(int const a, int const b, int const c, int const d,
                int const j, int const i) const {
-    return data_(idxmap_[a][b][c][d],j,i);
+    return data_(idxmap(a,b,c,d),j,i);
   }
   T operator()(int const a, int const b, int const c, int const d,
                int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b][c][d],k,j,i);
+    return data_(idxmap(a,b,c,d),k,j,i);
   }
   T operator()(int const a, int const b, int const c, int const d,
                int const n, int const k, int const j, int const i) const {
-    return data_(idxmap_[a][b][c][d],n,k,j,i);
+    return data_(idxmap(a,b,c,d),n,k,j,i);
   }
 
-  // functions that initialize a tensor with shallow copy or slice from an array
-  void InitWithShallowCopy(AthenaArray<T> &src) {
-    data_.InitWithShallowCopy(src);
-  }
+  // functions that initialize a tensor with shallow slice from an array
   void InitWithShallowSlice(AthenaArray<T> &src, const int indx) {
     data_.InitWithShallowSlice(src, indx, ndof());
   }
 private:
   AthenaArray<T> data_;
-  AthenaArray<T> slice_;
-  int idxmap_[ndim][ndim][ndim][ndim];
-  int ndof_;
-
-  inline void ComputeIdxMap();
 };
-
-//----------------------------------------------------------------------------------------
-// Implementation details
-
-#include <cassert>
-
-template<typename T, TensorSymm sym, int ndim>
-void AthenaTensor<T, sym, ndim, 2>::ComputeIdxMap()
-{
-  switch(sym) {
-    case TensorSymm::NONE:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = 0; b < ndim; ++b)
-      {
-        idxmap_[a][b] = ndof_++;
-      }
-      break;
-    case TensorSymm::SYM2:
-    case TensorSymm::ISYM2:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = a; b < ndim; ++b)
-      {
-        idxmap_[a][b] = ndof_++;
-        idxmap_[b][a] = idxmap_[a][b];
-      }
-      break;
-    default:
-      assert(false); // you shouldn't be here
-      abort();
-  }
-}
-
-template<typename T, TensorSymm sym, int ndim>
-void AthenaTensor<T, sym, ndim, 3>::ComputeIdxMap()
-{
-  switch(sym) {
-    case TensorSymm::NONE:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = 0; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      {
-        idxmap_[a][b][c] = ndof_++;
-      }
-      break;
-    case TensorSymm::SYM2:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = 0; b < ndim; ++b)
-      for(int c = b; c < ndim; ++c)
-      {
-        idxmap_[a][b][c] = ndof_++;
-        idxmap_[a][c][b] = idxmap_[a][b][c];
-      }
-      break;
-    case TensorSymm::ISYM2:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = a; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      {
-        idxmap_[a][b][c] = ndof_++;
-        idxmap_[b][a][c] = idxmap_[a][b][c];
-      }
-      break;
-    default:
-      assert(false); // you shouldn't be here
-      abort();
-  }
-}
-
-template<typename T, TensorSymm sym, int ndim>
-void AthenaTensor<T, sym, ndim, 4>::ComputeIdxMap()
-{
-  switch(sym) {
-    case TensorSymm::NONE:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = 0; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      for(int d = 0; d < ndim; ++d)
-      {
-        idxmap_[a][b][c][d] = ndof_++;
-      }
-      break;
-    case TensorSymm::SYM2:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = 0; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      for(int d = c; d < ndim; ++d)
-      {
-        idxmap_[a][b][c][d] = ndof_++;
-        idxmap_[a][b][d][c] = idxmap_[a][b][c][d];
-      }
-      break;
-    case TensorSymm::ISYM2:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = a; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      for(int d = 0; d < ndim; ++d)
-      {
-        idxmap_[a][b][c][d] = ndof_++;
-        idxmap_[b][a][c][d] = idxmap_[a][b][c][d];
-      }
-      break;
-    case TensorSymm::SYM22:
-      ndof_ = 0;
-      for(int a = 0; a < ndim; ++a)
-      for(int b = a; b < ndim; ++b)
-      for(int c = 0; c < ndim; ++c)
-      for(int d = c; d < ndim; ++d)
-      {
-        idxmap_[a][b][c][d] = ndof_++;
-        idxmap_[b][a][c][d] = idxmap_[a][b][c][d];
-        idxmap_[a][b][d][c] = idxmap_[a][b][c][d];
-        idxmap_[b][a][d][c] = idxmap_[a][b][c][d];
-      }
-      break;
-    default:
-      assert(false); // you shouldn't be here
-      abort();
-  }
-}
 
 #endif
