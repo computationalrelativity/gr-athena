@@ -58,10 +58,10 @@ Real DoInterpolateCC(
   // Uniform grid spacing assumed
   const int ndim = pmb->pmy_mesh->ndim;
 
-  Real origin[ndim];
-  Real ds[ndim];
-  int sz[ndim];
-  Real coord[ndim];
+  Real origin[3];
+  Real ds[3];
+  int sz[3];
+  Real coord[3];
 
   // populate salient data in this block
   switch (ndim)
@@ -104,31 +104,22 @@ Real DoInterpolateCC(
     case 3:
     {
       typedef LagrangeInterpND<2*(NGHOST-1), 3> Interp_Lag3;
-      Interp_Lag3 * pinterp3 = new Interp_Lag3(origin, ds, sz, coord);
-
-      value_interpolated = pinterp3->eval(&(slice_cc(0,0,0)));
-
-      delete pinterp3;
+      Interp_Lag3 interp3(origin, ds, sz, coord);
+      value_interpolated = interp3.eval(&(slice_cc(0,0,0)));
       break;
     }
     case 2:
     {
       typedef LagrangeInterpND<2*(NGHOST-1), 2> Interp_Lag2;
-      Interp_Lag2 * pinterp2 = new Interp_Lag2(origin, ds, sz, coord);
-
-      value_interpolated = pinterp2->eval(&(slice_cc(0,0,0)));
-
-      delete pinterp2;
+      Interp_Lag2 interp2(origin, ds, sz, coord);
+      value_interpolated = interp2.eval(&(slice_cc(0,0,0)));
       break;
     }
     case 1:
     {
       typedef LagrangeInterpND<2*(NGHOST-1), 1> Interp_Lag1;
-      Interp_Lag1 * pinterp1 = new Interp_Lag1(origin, ds, sz, coord);
-
-      value_interpolated = pinterp1->eval(&(slice_cc(0)));
-
-      delete pinterp1;
+      Interp_Lag1 interp1(origin, ds, sz, coord);
+      value_interpolated = interp1.eval(&(slice_cc(0)));
       break;
     }
     default:

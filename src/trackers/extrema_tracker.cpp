@@ -9,6 +9,7 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -57,13 +58,6 @@ ExtremaTracker::ExtremaTracker(Mesh * pmesh, ParameterInput * pin,
       pin->SetBoolean("trackers_extrema", "use_new_style", true);
     }
   }
-
-  // bool use_ns = false;
-  // if ((N_tracker == 0) && (ns_control_fields.GetSize() > 0))
-  // {
-  //   use_ns = true;
-  //   N_tracker = ns_control_fields.GetSize();
-  // }
 
   if (N_tracker > 0)
   {
@@ -349,13 +343,14 @@ void ExtremaTracker::ReduceTracker()
   // local to process
   while (pmb != NULL)
   {
+    ExtremaTrackerLocal * const ploc = pmb->ptracker_extrema_loc;
     for (int n=1; n<=N_tracker; ++n)
     {
-      if (pmb->ptracker_extrema_loc->to_update(n-1))
+      if (ploc->to_update(n-1))
       {
-        c_dx1(n-1) += pmb->ptracker_extrema_loc->loc_c_dx1(n-1);
-        c_dx2(n-1) += pmb->ptracker_extrema_loc->loc_c_dx2(n-1);
-        c_dx3(n-1) += pmb->ptracker_extrema_loc->loc_c_dx3(n-1);
+        c_dx1(n-1) += ploc->loc_c_dx1(n-1);
+        c_dx2(n-1) += ploc->loc_c_dx2(n-1);
+        c_dx3(n-1) += ploc->loc_c_dx3(n-1);
 
         multiplicity_update(n-1)++;
       }
@@ -365,48 +360,48 @@ void ExtremaTracker::ReduceTracker()
 
 
 #ifdef MPI_PARALLEL
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  if (rank == rank_root)
   {
-    MPI_Reduce(MPI_IN_PLACE,
-               multiplicity_update.data(), N_tracker, MPI_INT,
-               MPI_SUM, rank_root, MPI_COMM_WORLD);
+    // Batch c_dx1/c_dx2/c_dx3 into a single contiguous buffer to reduce
+    // MPI_Reduce calls from 4 to 2 (1 for int, 1 for Real).
+    const int buf_sz = 3 * N_tracker;
+    std::vector<Real> dx_buf(buf_sz);  // N_tracker is typically very small (1-4)
 
-    MPI_Reduce(MPI_IN_PLACE,
-               c_dx1.data(), N_tracker, MPI_ATHENA_REAL,
-               MPI_SUM, rank_root, MPI_COMM_WORLD);
+    for (int n = 0; n < N_tracker; ++n)
+    {
+      dx_buf[0 * N_tracker + n] = c_dx1(n);
+      dx_buf[1 * N_tracker + n] = c_dx2(n);
+      dx_buf[2 * N_tracker + n] = c_dx3(n);
+    }
 
-    MPI_Reduce(MPI_IN_PLACE,
-               c_dx2.data(), N_tracker, MPI_ATHENA_REAL,
-               MPI_SUM, rank_root, MPI_COMM_WORLD);
+    if (rank == rank_root)
+    {
+      MPI_Reduce(MPI_IN_PLACE,
+                 multiplicity_update.data(), N_tracker, MPI_INT,
+                 MPI_SUM, rank_root, MPI_COMM_WORLD);
 
-    MPI_Reduce(MPI_IN_PLACE,
-               c_dx3.data(), N_tracker, MPI_ATHENA_REAL,
-               MPI_SUM, rank_root, MPI_COMM_WORLD);
+      MPI_Reduce(MPI_IN_PLACE,
+                 dx_buf.data(), buf_sz, MPI_ATHENA_REAL,
+                 MPI_SUM, rank_root, MPI_COMM_WORLD);
+    }
+    else
+    {
+      MPI_Reduce(multiplicity_update.data(),
+                 multiplicity_update.data(),
+                 N_tracker,
+                 MPI_INT, MPI_SUM, rank_root, MPI_COMM_WORLD);
 
-  }
-  else
-  {
-    MPI_Reduce(multiplicity_update.data(),
-               multiplicity_update.data(),
-               N_tracker,
-               MPI_INT, MPI_SUM, rank_root, MPI_COMM_WORLD);
+      MPI_Reduce(dx_buf.data(), dx_buf.data(), buf_sz,
+                 MPI_ATHENA_REAL, MPI_SUM, rank_root, MPI_COMM_WORLD);
+    }
 
-    MPI_Reduce(c_dx1.data(),
-               c_dx1.data(),
-               N_tracker,
-               MPI_ATHENA_REAL, MPI_SUM, rank_root, MPI_COMM_WORLD);
-
-    MPI_Reduce(c_dx2.data(),
-               c_dx2.data(),
-               N_tracker,
-               MPI_ATHENA_REAL, MPI_SUM, rank_root, MPI_COMM_WORLD);
-
-    MPI_Reduce(c_dx3.data(),
-               c_dx3.data(),
-               N_tracker,
-               MPI_ATHENA_REAL, MPI_SUM, rank_root, MPI_COMM_WORLD);
+    // Unpack back to individual arrays (only root has valid reduced data,
+    // but all ranks will receive it via Bcast in EvolveTracker anyway)
+    for (int n = 0; n < N_tracker; ++n)
+    {
+      c_dx1(n) = dx_buf[0 * N_tracker + n];
+      c_dx2(n) = dx_buf[1 * N_tracker + n];
+      c_dx3(n) = dx_buf[2 * N_tracker + n];
+    }
   }
 
 #endif // MPI_PARALLEL
@@ -444,21 +439,43 @@ void ExtremaTracker::EvolveTracker()
   }
 
 #ifdef MPI_PARALLEL
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  {
+    // Batch c_x1/c_x2/c_x3 and c_dx1/c_dx2/c_dx3 into contiguous buffers
+    // to reduce 6 MPI_Bcast calls to 2.
+    const int buf_sz = 3 * N_tracker;
+    std::vector<Real> pos_buf(buf_sz);
+    std::vector<Real> dx_buf(buf_sz);
 
-  MPI_Bcast(c_x1.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
-  MPI_Bcast(c_x2.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
-  MPI_Bcast(c_x3.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
+    if (is_io_process)
+    {
+      for (int n = 0; n < N_tracker; ++n)
+      {
+        pos_buf[0 * N_tracker + n] = c_x1(n);
+        pos_buf[1 * N_tracker + n] = c_x2(n);
+        pos_buf[2 * N_tracker + n] = c_x3(n);
 
-  MPI_Bcast(c_dx1.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
-  MPI_Bcast(c_dx2.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
-  MPI_Bcast(c_dx3.data(), N_tracker, MPI_ATHENA_REAL,
-            rank_root, MPI_COMM_WORLD);
+        dx_buf[0 * N_tracker + n] = c_dx1(n);
+        dx_buf[1 * N_tracker + n] = c_dx2(n);
+        dx_buf[2 * N_tracker + n] = c_dx3(n);
+      }
+    }
+
+    MPI_Bcast(pos_buf.data(), buf_sz, MPI_ATHENA_REAL,
+              rank_root, MPI_COMM_WORLD);
+    MPI_Bcast(dx_buf.data(), buf_sz, MPI_ATHENA_REAL,
+              rank_root, MPI_COMM_WORLD);
+
+    for (int n = 0; n < N_tracker; ++n)
+    {
+      c_x1(n) = pos_buf[0 * N_tracker + n];
+      c_x2(n) = pos_buf[1 * N_tracker + n];
+      c_x3(n) = pos_buf[2 * N_tracker + n];
+
+      c_dx1(n) = dx_buf[0 * N_tracker + n];
+      c_dx2(n) = dx_buf[1 * N_tracker + n];
+      c_dx3(n) = dx_buf[2 * N_tracker + n];
+    }
+  }
 #endif // MPI_PARALLEL
 
   // Enforce that trackers remain within the Mesh bounds
@@ -503,23 +520,23 @@ void ExtremaTracker::WriteTracker(int iter, Real time) const
 
   if (is_io_process)
   {
-    FILE *pofile[N_tracker];
-
     for (int n=1; n<=N_tracker; ++n)
     {
       std::string title = output_filename + std::to_string(n) + ".txt";
       const bool file_init = !file_exists(title.c_str());
 
+      FILE *pofile;
+
       if (file_init)
       {
-        pofile[n-1] = fopen(title.c_str(), "w");
+        pofile = fopen(title.c_str(), "w");
       }
       else
       {
-        pofile[n-1] = fopen(title.c_str(), "a");
+        pofile = fopen(title.c_str(), "a");
       }
 
-      if (NULL == pofile[n-1])
+      if (NULL == pofile)
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in ExtremaTracker" << std::endl;
@@ -529,24 +546,16 @@ void ExtremaTracker::WriteTracker(int iter, Real time) const
 
       if (file_init)
       {
-        fprintf(pofile[n-1], "# 1:iter 2:time 3:T-x 4:T-y 5:T-z\n");
+        fprintf(pofile, "# 1:iter 2:time 3:T-x 4:T-y 5:T-z\n");
       }
 
-      /*
-      fprintf(pofile[n-1], "%-13d%-13.5e", iter, time);
-      fprintf(pofile[n-1], "%-13.5e%-13.5e%-13.5e\n",
-        c_x1(n-1),
-        c_x2(n-1),
-        c_x3(n-1));
-      fclose(pofile[n-1]);
-      */
-      fprintf(pofile[n-1], "%-13d % -.*e % .*e % .*e % .*e\n",
+      fprintf(pofile, "%-13d % -.*e % .*e % .*e % .*e\n",
               iter,
               FPRINTF_PREC, time,
               FPRINTF_PREC, c_x1(n-1),
               FPRINTF_PREC, c_x2(n-1),
               FPRINTF_PREC, c_x3(n-1));
-      fclose(pofile[n-1]);
+      fclose(pofile);
     }
   }
 }
@@ -820,55 +829,6 @@ Real ExtremaTrackerLocal::ExtremaStepQuadInterp(const Real ds,
   Real i_fac = ds * (f_0 - f_2) / (2. * (f_0 - 2 * f_1 + f_2));
 
   return (std::isfinite(i_fac) ? i_fac : 0.);
-  /*
-  // implement safety factor as specified in parameter file
-  const Real umsf = ptracker_extrema->update_max_step_factor;
-  i_fac = (std::abs(i_fac) > umsf) ? sign(i_fac) * umsf : i_fac;
-
-  const Real dx_st = (std::isfinite(dx_st)) ? ds * i_fac : 0.0;
-  return dx_st;
-  */
-
-  /*
-  // safety-check
-  if (!std::isfinite(dx_st))
-  {
-    return 0.0;
-  }
-
-  // interpolated minima value
-  Real imin_val = (
-    (ds - dx_st) * (-dx_st * f_0 + 2 * (ds + dx_st) * f_1) +
-    dx_st * (ds + dx_st) * f_2
-  ) / (2 * SQR(ds));
-
-  // min should be in [x_0, x_2] and bounded above by f_1
-  // if (imin_val > f_1)
-  if (f_0 - 2 * f_1 + f_2 <=0)
-  {
-    std::cout << imin_val << std::endl;
-    std::cout << f_0 << std::endl;
-    std::cout << f_1 << std::endl;
-    std::cout << f_2 << std::endl;
-  }
-
-  return dx_st;
-  */
-}
-
-Real ExtremaTrackerLocal::ExtremaFunctionQuadInterp(const Real f_0,
-                                                    const Real f_1,
-                                                    const Real f_2)
-{
-  // Given function values:
-  // {(x_0, f_0), (x_1, f_1), (x_2, f_2)}
-  // With x_0 = x_1 - ds = x_2 - 2 * ds
-  // Fit quadratic poly. and evaluate at dx* where x_1 + dx* is an extremum
-
-  const Real num = SQR(f_0) + SQR(-4.*f_1+f_2) - 2.*f_0*(4.*f_1+f_2);
-  const Real den = 8.*(f_0-2.*f_1+f_2);
-
-  return -num / den;
 }
 
 void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
@@ -877,15 +837,15 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
   // Uses quadratic poly. fit
   // Uniform grid spacing assumed
 
-  Real origin[ndim];
-  Real ds[ndim];
-  int sz[ndim];
-  Real coord[ndim];
+  Real origin[3];
+  Real ds[3];
+  int sz[3];
+  Real coord[3];
 
   // for interpolation
   Real f_0, f_1, f_2;
-  Real dx_st[ndim];
-  Real dx_max[ndim];
+  Real dx_st[3];
+  Real dx_max[3];
 
   const Real umsf = ptracker_extrema->update_max_step_factor;
 
@@ -927,126 +887,10 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
   }
 
   // performed required interpolation
-  /*
   switch (ndim)
   {
     case 3:
     {
-      Interp_Lag3 * pinterp3 = nullptr;
-
-      // axis 0 -----------------------------------------------------
-      coord[0] -= ds[0];
-      pinterp3 = new Interp_Lag3(origin, ds, sz, coord);
-
-      f_0 = pinterp3->eval(&((*control_field)(0, 0, 0)));
-      f_1 = pinterp3->eval(&((*control_field)(0, 0, 1)));
-      f_2 = pinterp3->eval(&((*control_field)(0, 0, 2)));
-
-      dx_st[0] = ExtremaStepQuadInterp(ds[0], f_0, f_1, f_2);
-      coord[0] += ds[0];
-
-      delete pinterp3;
-
-      // axis 1 -----------------------------------------------------
-      coord[1] -= ds[1];
-      pinterp3 = new Interp_Lag3(origin, ds, sz, coord);
-
-      f_0 = pinterp3->eval(&((*control_field)(0, 0, 0)));
-      f_1 = pinterp3->eval(&((*control_field)(0, 1, 0)));
-      f_2 = pinterp3->eval(&((*control_field)(0, 2, 0)));
-
-      dx_st[1] = ExtremaStepQuadInterp(ds[1], f_0, f_1, f_2);
-      coord[1] += ds[1];
-
-      delete pinterp3;
-
-      // axis 2 -----------------------------------------------------
-      coord[2] -= ds[2];
-      pinterp3 = new Interp_Lag3(origin, ds, sz, coord);
-
-      f_0 = pinterp3->eval(&((*control_field)(0, 0, 0)));
-      f_1 = pinterp3->eval(&((*control_field)(1, 0, 0)));
-      f_2 = pinterp3->eval(&((*control_field)(2, 0, 0)));
-
-      dx_st[2] = ExtremaStepQuadInterp(ds[2], f_0, f_1, f_2);
-      coord[2] += ds[2];
-
-      delete pinterp3;
-
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
-      loc_c_dx2(n-1) = dx_st[1];
-      loc_c_dx3(n-1) = dx_st[2];
-
-      break;
-    }
-    case 2:
-    {
-      Interp_Lag2 * pinterp2 = nullptr;
-
-      // axis 0 -----------------------------------------------------
-      coord[0] -= ds[0];
-      pinterp2 = new Interp_Lag2(origin, ds, sz, coord);
-
-      f_0 = pinterp2->eval(&((*control_field)(0, 0)));
-      f_1 = pinterp2->eval(&((*control_field)(0, 1)));
-      f_2 = pinterp2->eval(&((*control_field)(0, 2)));
-
-      dx_st[0] = ExtremaStepQuadInterp(ds[0], f_0, f_1, f_2);
-      coord[0] += ds[0];
-
-      delete pinterp2;
-
-      // axis 1 -----------------------------------------------------
-      coord[1] -= ds[1];
-      pinterp2 = new Interp_Lag2(origin, ds, sz, coord);
-
-      f_0 = pinterp2->eval(&((*control_field)(0, 0)));
-      f_1 = pinterp2->eval(&((*control_field)(1, 0)));
-      f_2 = pinterp2->eval(&((*control_field)(2, 0)));
-
-      dx_st[1] = ExtremaStepQuadInterp(ds[1], f_0, f_1, f_2);
-      coord[1] += ds[1];
-
-      delete pinterp2;
-
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
-      loc_c_dx2(n-1) = dx_st[1];
-
-      break;
-    }
-    case 1:
-    {
-      Interp_Lag1 * pinterp1 = nullptr;
-
-      // axis 0 -----------------------------------------------------
-      coord[0] -= ds[0];
-      pinterp1 = new Interp_Lag1(origin, ds, sz, coord);
-
-      f_0 = pinterp1->eval(&((*control_field)(0)));
-      f_1 = pinterp1->eval(&((*control_field)(1)));
-      f_2 = pinterp1->eval(&((*control_field)(2)));
-
-      dx_st[0] = ExtremaStepQuadInterp(ds[0], f_0, f_1, f_2);
-      coord[0] += ds[0];
-
-      delete pinterp1;
-
-      // update local -----------------------------------------------
-      loc_c_dx1(n-1) = dx_st[0];
-
-      break;
-    }
-  }
-  */
-
-  // performed required interpolation
-  switch (ndim)
-  {
-    case 3:
-    {
-      Interp_Lag3 * pinterp3 = nullptr;
       dx_st[0] = 0;
       dx_st[1] = 0;
       dx_st[2] = 0;
@@ -1059,7 +903,6 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
       Real ds_i = 0;
 
       Real coord_L[3];
-      Real coord_M[3];
       Real coord_R[3];
 
       do
@@ -1068,28 +911,26 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         ds_i = ds[0] / interp_ds_fac;
 
         coord_L[0] = coord_new[0] - ds_i;
-        coord_M[0] = coord_new[0];
-        coord_R[0] = coord_new[0] + ds_i;
-
         coord_L[1] = coord_new[1];
-        coord_M[1] = coord_new[1];
-        coord_R[1] = coord_new[1];
-
         coord_L[2] = coord_new[2];
-        coord_M[2] = coord_new[2];
+
+        coord_R[0] = coord_new[0] + ds_i;
+        coord_R[1] = coord_new[1];
         coord_R[2] = coord_new[2];
 
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
+        {
+          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          // coord_M is coord_new for this axis
+          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+        }
 
         // candidate step for update
         cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
@@ -1135,28 +976,25 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         ds_i = ds[1] / interp_ds_fac;
 
         coord_L[0] = coord_new[0];
-        coord_M[0] = coord_new[0];
-        coord_R[0] = coord_new[0];
-
         coord_L[1] = coord_new[1] - ds_i;
-        coord_M[1] = coord_new[1];
-        coord_R[1] = coord_new[1] + ds_i;
-
         coord_L[2] = coord_new[2];
-        coord_M[2] = coord_new[2];
+
+        coord_R[0] = coord_new[0];
+        coord_R[1] = coord_new[1] + ds_i;
         coord_R[2] = coord_new[2];
 
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
+        {
+          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+        }
 
         // candidate step for update
         cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
@@ -1202,28 +1040,25 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         ds_i = ds[2] / interp_ds_fac;
 
         coord_L[0] = coord_new[0];
-        coord_M[0] = coord_new[0];
-        coord_R[0] = coord_new[0];
-
         coord_L[1] = coord_new[1];
-        coord_M[1] = coord_new[1];
-        coord_R[1] = coord_new[1];
-
         coord_L[2] = coord_new[2] - ds_i;
-        coord_M[2] = coord_new[2];
+
+        coord_R[0] = coord_new[0];
+        coord_R[1] = coord_new[1];
         coord_R[2] = coord_new[2] + ds_i;
 
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_L);
-        f_0 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_M);
-        f_1 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
-
-        pinterp3 = new Interp_Lag3(origin, ds, sz, coord_R);
-        f_2 = pinterp3->eval(&(control_fields[n-1](0,0,0)));
-        delete pinterp3;
+        {
+          Interp_Lag3 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          Interp_Lag3 interp_M(origin, ds, sz, coord_new);
+          f_1 = interp_M.eval(&(control_fields[n-1](0,0,0)));
+        }
+        {
+          Interp_Lag3 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0,0,0)));
+        }
 
         // candidate step for update
         cdx_st[2] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
@@ -1266,25 +1101,6 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         coord_new[2] = coord[2] + dx_st[2];
 
         ++iter;
-
-        if (0) // debug iter
-        {
-          if (n==1)
-          {
-            const bool cond = ((std::abs(cdx_st[0]) > tol_ds) ||
-                  (std::abs(cdx_st[1]) > tol_ds) ||
-                  (std::abs(cdx_st[2]) > tol_ds));
-            std::cout << iter << ": "
-                      << coord_new[0] << ", "
-                      << coord_new[1] << ", "
-                      << coord_new[2] << ", "
-                      << cdx_st[0] << ", "
-                      << cdx_st[1] << ", "
-                      << cdx_st[2] << "@ " << tol_ds
-                      << "cond:" << cond << std::endl;
-
-          }
-        }
       }
       while ((iter < iter_max) &&
              ((std::abs(cdx_st[0]) > tol_ds) ||
@@ -1300,7 +1116,6 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
     }
     case 2:
     {
-      Interp_Lag2 * pinterp2 = nullptr;
       dx_st[0] = 0;
       dx_st[1] = 0;
 
@@ -1312,7 +1127,6 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
       Real ds_i = 0;
 
       Real coord_L[2];
-      Real coord_M[2];
       Real coord_R[2];
 
       do
@@ -1321,24 +1135,23 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         ds_i = ds[0] / interp_ds_fac;
 
         coord_L[0] = coord_new[0] - ds_i;
-        coord_M[0] = coord_new[0];
-        coord_R[0] = coord_new[0] + ds_i;
-
         coord_L[1] = coord_new[1];
-        coord_M[1] = coord_new[1];
+
+        coord_R[0] = coord_new[0] + ds_i;
         coord_R[1] = coord_new[1];
 
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_L);
-        f_0 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
-
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_M);
-        f_1 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
-
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_R);
-        f_2 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
+        {
+          Interp_Lag2 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
+        }
+        {
+          Interp_Lag2 interp_M(origin, ds, sz, coord_new);
+          f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
+        }
+        {
+          Interp_Lag2 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
+        }
 
         // candidate step for update
         cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
@@ -1384,24 +1197,23 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
         ds_i = ds[1] / interp_ds_fac;
 
         coord_L[0] = coord_new[0];
-        coord_M[0] = coord_new[0];
-        coord_R[0] = coord_new[0];
-
         coord_L[1] = coord_new[1] - ds_i;
-        coord_M[1] = coord_new[1];
+
+        coord_R[0] = coord_new[0];
         coord_R[1] = coord_new[1] + ds_i;
 
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_L);
-        f_0 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
-
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_M);
-        f_1 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
-
-        pinterp2 = new Interp_Lag2(origin, ds, sz, coord_R);
-        f_2 = pinterp2->eval(&(control_fields[n-1](0,0)));
-        delete pinterp2;
+        {
+          Interp_Lag2 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0,0)));
+        }
+        {
+          Interp_Lag2 interp_M(origin, ds, sz, coord_new);
+          f_1 = interp_M.eval(&(control_fields[n-1](0,0)));
+        }
+        {
+          Interp_Lag2 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0,0)));
+        }
 
         // candidate step for update
         cdx_st[1] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
@@ -1457,7 +1269,6 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
     }
     case 1:
     {
-      Interp_Lag1 * pinterp1 = nullptr;
       dx_st[0] = 0;
 
       // Single iter algo:
@@ -1479,25 +1290,24 @@ void ExtremaTrackerLocal::UpdateLocStepByControlFieldQuadInterp(const int n)
       do
       {
         Real ds_i = ds[0] / interp_ds_fac;
-        // if ((std::abs(cdx_st[0]) > 0) && (std::abs(cdx_st[0]) < ds[0]))
-        //   ds_i = std::abs(cdx_st[0]);
 
         // axis 0 ---------------------------------------------------
         const Real coord_L[1] = {coord_new[0] - ds_i};
         const Real coord_M[1] = {coord_new[0]};
         const Real coord_R[1] = {coord_new[0] + ds_i};
 
-        pinterp1 = new Interp_Lag1(origin, ds, sz, coord_L);
-        f_0 = pinterp1->eval(&(control_fields[n-1](0)));
-        delete pinterp1;
-
-        pinterp1 = new Interp_Lag1(origin, ds, sz, coord_M);
-        f_1 = pinterp1->eval(&(control_fields[n-1](0)));
-        delete pinterp1;
-
-        pinterp1 = new Interp_Lag1(origin, ds, sz, coord_R);
-        f_2 = pinterp1->eval(&(control_fields[n-1](0)));
-        delete pinterp1;
+        {
+          Interp_Lag1 interp_L(origin, ds, sz, coord_L);
+          f_0 = interp_L.eval(&(control_fields[n-1](0)));
+        }
+        {
+          Interp_Lag1 interp_M(origin, ds, sz, coord_M);
+          f_1 = interp_M.eval(&(control_fields[n-1](0)));
+        }
+        {
+          Interp_Lag1 interp_R(origin, ds, sz, coord_R);
+          f_2 = interp_R.eval(&(control_fields[n-1](0)));
+        }
 
         // candidate step for update
         cdx_st[0] = ExtremaStepQuadInterp(ds_i, f_0, f_1, f_2);
