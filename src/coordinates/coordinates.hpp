@@ -512,16 +512,6 @@ class Cylindrical : public Coordinates {
   void CellVolume(const int k, const int j, const int il, const int iu,
                   AthenaArray<Real> &vol) final;
   Real GetCellVolume(const int k, const int j, const int i) final;
-
-  // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if FLUID_ENABLED
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u) final;
 };
 
 //----------------------------------------------------------------------------------------
@@ -574,16 +564,6 @@ class SphericalPolar : public Coordinates {
   void CellVolume(const int k, const int j, const int il, const int iu,
                   AthenaArray<Real> &vol) final;
   Real GetCellVolume(const int k, const int j, const int i) final;
-
-  // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if FLUID_ENABLED
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u) final;
 };
 
 //----------------------------------------------------------------------------------------
@@ -686,16 +666,6 @@ class Schwarzschild : public Coordinates {
                   AthenaArray<Real> &vol) final;
   Real GetCellVolume(const int k, const int j, const int i) final;
 
-  // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if FLUID_ENABLED
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u) final;
-
   // In GR, functions...
   // ...to compute metric
   void CellMetric(const int k, const int j, const int il, const int iu,
@@ -784,16 +754,6 @@ class KerrSchild : public Coordinates {
   void CellVolume(const int k, const int j, const int il, const int iu,
                   AthenaArray<Real> &vol) final;
   Real GetCellVolume(const int k, const int j, const int i) final;
-
-  // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if FLUID_ENABLED
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u) final;
 
   // In GR, functions...
   // ...to compute metric
