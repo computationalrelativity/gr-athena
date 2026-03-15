@@ -9,6 +9,7 @@
 #include "../athena_aliases.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "hydro.hpp"
+#include "rsolvers/eigenvalues.hpp"           // Eigenvalues::HydroEigenvalues
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -304,7 +305,7 @@ void AssembleEigenvalues(MeshBlock * pmb,
 
     w_hrho_(i) = w_rho(k,j,i)*pmb->peos->GetEOS().GetEnthalpy(n, T, Y);
 
-    pmb->peos->SoundSpeedsGR(n, T,
+    Eigenvalues::HydroEigenvalues(pmb->peos, n, T,
                              w_v_u_(ivx-1,i),
                              w_norm2_v_(i),
                              alpha(k,j,i),
@@ -315,24 +316,7 @@ void AssembleEigenvalues(MeshBlock * pmb,
                              Y);
   }
 #else
-  const Real Gamma = pmb->peos->GetGamma();
-  const Real Eos_Gamma_ratio = Gamma / (Gamma - 1.0);
-
-  #pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    w_hrho_(i) = w_rho(k,j,i) + Eos_Gamma_ratio * w_p(k,j,i);
-
-    pmb->peos->SoundSpeedsGR(w_hrho_(i),
-                             w_p(k,j,i),
-                             w_v_u_(ivx-1,i),
-                             w_norm2_v_(i),
-                             alpha(k,j,i),
-                             beta_u(ivx-1,k,j,i),
-                             gamma_uu_(ivx-1,ivx-1,i),
-                             &lambda_p_(i),
-                             &lambda_m_(i));
-  }
+  #error "CalculateFluxesExtended requires FLUID_ENABLED"
 #endif
 
   #pragma omp simd

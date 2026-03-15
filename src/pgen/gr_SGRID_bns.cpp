@@ -706,11 +706,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int n=0; n<NHYDRO; ++n)
     if (!std::isfinite(phydro->w(n,k,j,i)))
     {
-#if FLUID_ENABLED
-      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
-#else
-      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
-#endif
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
       continue;
     }
   }
@@ -778,11 +774,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j=0; j<=ncells2-1; ++j)
     for (int i=0; i<=ncells1-1; ++i)
     {
-#if FLUID_ENABLED
-      peos->ApplyPrimitiveFloors(phydro->w, pscalars->r, k, j, i);
-#else
-      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
-#endif
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
     }
 
   }

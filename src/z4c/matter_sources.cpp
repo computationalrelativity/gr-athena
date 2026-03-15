@@ -60,7 +60,7 @@ void Z4c::GetMatter(
 #if FLUID_ENABLED
   Real mb = peos->GetEOS().GetBaryonMass();
 #else
-  Real gamma_adi = peos->GetGamma();
+  #error "Z4C_WITH_HYDRO_ENABLED requires FLUID_ENABLED"
 #endif
   // --------------------------------------------------------------------------
 
@@ -167,8 +167,6 @@ void Z4c::GetMatter(
 
 
         w_hrho(i) = w_rho(i) * h;
-#else
-        w_hrho(i) = w_rho(i) + gamma_adi/(gamma_adi-1.0) * w_p(i);
 #endif
 
         // compute Lorenz factors

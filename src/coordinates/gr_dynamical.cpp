@@ -389,9 +389,6 @@ void GRDynamical::AddCoordTermsDivergence(
 #endif
 
       w_hrho_(i) = w_rho(k,j,i) * h;
-#else
-      const Real gamma_adi = peos->GetGamma();
-    	w_hrho_(i) = w_rho(k,j,i) + gamma_adi/(gamma_adi-1.0) * w_p(k,j,i);
 #endif
     }
 

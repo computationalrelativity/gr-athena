@@ -21,6 +21,7 @@
 #include "../../coordinates/coordinates.hpp"  // Coordinates
 #include "../../eos/eos.hpp"                  // EquationOfState
 #include "../../mesh/mesh.hpp"                // MeshBlock
+#include "eigenvalues.hpp"                    // Eigenvalues::HydroEigenvalues
 
 #include "../../z4c/ahf.hpp"
 
@@ -106,8 +107,8 @@ void Hydro::RiemannSolver(
   auto excise = [&](const int i)
   {
     // Floor primitives during excision.
-    peos->SetPrimAtmo(prim_l_, pscalars_l_, i);
-    peos->SetPrimAtmo(prim_r_, pscalars_r_, i);
+    PrimHelper::SetPrimAtmo(peos->GetEOS(), prim_l_, pscalars_l_, i);
+    PrimHelper::SetPrimAtmo(peos->GetEOS(), prim_r_, pscalars_r_, i);
 
     aux_l_(IX_T,i) = T_min;
     aux_r_(IX_T,i) = T_min;
@@ -278,12 +279,12 @@ void Hydro::RiemannSolver(
       Real cs2l = aux_l_(IX_CS2,i);
       Real cs2r = aux_r_(IX_CS2,i);
 
-      peos->SoundSpeedsGR(cs2l, nl__, Tl__, w_v_u_l_(ivx-1,i),
+      Eigenvalues::HydroEigenvalues(peos, cs2l, nl__, Tl__, w_v_u_l_(ivx-1,i),
                           w_norm2_v_l_(i),
                           alpha_(i), beta_u_(ivx-1,i),
                           gamma_uu_(ivx-1,ivx-1,i),
                           &lambda_p_l(i), &lambda_m_l(i), Yl__);
-      peos->SoundSpeedsGR(cs2r, nr__, Tr__, w_v_u_r_(ivx-1,i),
+      Eigenvalues::HydroEigenvalues(peos, cs2r, nr__, Tr__, w_v_u_r_(ivx-1,i),
                           w_norm2_v_r_(i),
                           alpha_(i), beta_u_(ivx-1,i),
                           gamma_uu_(ivx-1,ivx-1,i),
@@ -291,11 +292,11 @@ void Hydro::RiemannSolver(
     }
     else
     {
-      peos->SoundSpeedsGR(nl__, Tl__, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),
+      Eigenvalues::HydroEigenvalues(peos, nl__, Tl__, w_v_u_l_(ivx-1,i), w_norm2_v_l_(i),
                           alpha_(i), beta_u_(ivx-1,i),
                           gamma_uu_(ivx-1,ivx-1,i),
                           &lambda_p_l(i), &lambda_m_l(i), Yl__);
-      peos->SoundSpeedsGR(nr__, Tr__, w_v_u_r_(ivx-1,i), w_norm2_v_r_(i),
+      Eigenvalues::HydroEigenvalues(peos, nr__, Tr__, w_v_u_r_(ivx-1,i), w_norm2_v_r_(i),
                           alpha_(i), beta_u_(ivx-1,i),
                           gamma_uu_(ivx-1,ivx-1,i),
                           &lambda_p_r(i), &lambda_m_r(i), Yr__);

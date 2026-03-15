@@ -24,6 +24,7 @@
 #include "../z4c/primitive/coldeos.hpp"
 #include "../z4c/primitive/primitive_solver.hpp"
 #include "include_eos.hpp"
+#include "primitive_solver_helper.hpp"    // PrimHelper
 #endif
 
 // Declarations
@@ -263,238 +264,19 @@ class EquationOfState {
     const Real sigma_s_frac = 0.5    // fraction of num_neighbors for spatial weight
   );
 
-  // BD: TODO - clean up this mess ---v
-
-  // pass k, j, i to following 2x functions even though x1-sliced input array is expected
-  // in order to accomodate position-dependent floors
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this,prim,k,j) linear(i)
-#if FLUID_ENABLED
-  void ApplyPrimitiveFloors(AthenaArray<Real> &prim, AthenaArray<Real> &prim_scalar, int k, int j, int i);
-#else
-  void ApplyPrimitiveFloors(AthenaArray<Real> &prim, int k, int j, int i);
-  void ApplyPrimitiveFloors(const int dir,
-                            AthenaArray<Real> &prim_l,
-                            AthenaArray<Real> &prim_r, int i);
-#endif
-
-#if FLUID_ENABLED
-  void SetPrimAtmo(
-    AA &prim,
-    AA &prim_scalar,
-    const int k, const int j, const int i)
-  {
-    Real prim_pt[NPRIM] = {0.0};
-    ps.GetEOS()->DoFailureResponse(prim_pt);
-
-    // Update the primitive variables.
-    prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-    prim(IVX, k, j, i) = prim_pt[IVX];
-    prim(IVY, k, j, i) = prim_pt[IVY];
-    prim(IVZ, k, j, i) = prim_pt[IVZ];
-    prim(IPR, k, j, i) = prim_pt[IPR];
-    for(int n=0; n<NSCALARS; n++){
-      prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-    }
-  }
-
-  void SetPrimAtmo(
-    AA &temperature,
-    AA &prim,
-    AA &prim_scalar,
-    const int k, const int j, const int i)
-  {
-    Real prim_pt[NPRIM] = {0.0};
-    ps.GetEOS()->DoFailureResponse(prim_pt);
-
-    // Update the primitive variables.
-    prim(IDN, k, j, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-    prim(IVX, k, j, i) = prim_pt[IVX];
-    prim(IVY, k, j, i) = prim_pt[IVY];
-    prim(IVZ, k, j, i) = prim_pt[IVZ];
-    prim(IPR, k, j, i) = prim_pt[IPR];
-    temperature(k,j,i) = prim_pt[ITM];
-    for(int n=0; n<NSCALARS; n++){
-      prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-    }
-  }
-
-  void SetPrimAtmo(
-    AA &prim_,
-    AA &prim_scalar_,
-    const int i)
-  {
-    Real prim_pt[NPRIM] = {0.0};
-    ps.GetEOS()->DoFailureResponse(prim_pt);
-
-    // Update the primitive variables.
-    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-    prim_(IVX, i) = prim_pt[IVX];
-    prim_(IVY, i) = prim_pt[IVY];
-    prim_(IVZ, i) = prim_pt[IVZ];
-    prim_(IPR, i) = prim_pt[IPR];
-    for(int n=0; n<NSCALARS; n++){
-      prim_scalar_(n, i) = prim_pt[IYF + n];
-    }
-  }
-
-  void SetPrimAtmo(
-    AA &temperature_,
-    AA &prim_,
-    AA &prim_scalar_,
-    const int i)
-  {
-    Real prim_pt[NPRIM] = {0.0};
-    ps.GetEOS()->DoFailureResponse(prim_pt);
-
-    // Update the primitive variables.
-    prim_(IDN, i) = prim_pt[IDN]*ps.GetEOS()->GetBaryonMass();
-    prim_(IVX, i) = prim_pt[IVX];
-    prim_(IVY, i) = prim_pt[IVY];
-    prim_(IVZ, i) = prim_pt[IVZ];
-    prim_(IPR, i) = prim_pt[IPR];
-    temperature_(i) = prim_pt[ITM];
-    for(int n=0; n<NSCALARS; n++){
-      prim_scalar_(n, i) = prim_pt[IYF + n];
-    }
-  }
-#else
-  void SetPrimAtmo(
-    AA &temperature,
-    AA &prim,
-    AA &prim_scalar,
-    const int k, const int j, const int i)
-  {
-    assert(false);
-  }
-
-  void SetPrimAtmo(
-    AA &prim,
-    AA &prim_scalar,
-    const int k, const int j, const int i)
-  {
-    assert(false);
-  }
-
-  void SetPrimAtmo(
-    AA &temperature,
-    AA &prim,
-    AA &prim_scalar,
-    const int i)
-  {
-    assert(false);
-  }
-
-  void SetPrimAtmo(
-    AA &prim,
-    AA &prim_scalar,
-    const int i)
-  {
-    assert(false);
-  }
-#endif // FLUID_ENABLED
-
-
-// BD: TODO - many functions don't do what their names suggest.
-//            Sound speed != eigenvalue..
-// Should clean this up at some point, for now, just add actual sound speed
-
-  // Sound speed functions in different regimes
-#if !GENERAL_RELATIVITY  // Newtonian: GR defined as no-op
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-  Real SoundSpeed(const Real prim[(NHYDRO)]);
-#if !MAGNETIC_FIELDS_ENABLED  // Newtonian hydro: Newtonian MHD defined as no-op
-  Real FastMagnetosonicSpeed(const Real[], const Real) {return 0.0;}
-#else  // Newtonian MHD
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-  Real FastMagnetosonicSpeed(const Real prim[(NWAVE)], const Real bx);
-#endif  // !MAGNETIC_FIELDS_ENABLED
-  void SoundSpeedsSR(Real, Real, Real, Real, Real *, Real *) {return;}
-  void FastMagnetosonicSpeedsSR(
-      const AthenaArray<Real> &, const AthenaArray<Real> &,
-      int, int, int, int, int, AthenaArray<Real> &,
-      AthenaArray<Real> &) {return;}
-  void SoundSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real *, Real *)
-  {return;}
-  void FastMagnetosonicSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real, Real *,
-                                Real *) {return;}
-#else  // GR: Newtonian defined as no-op
-  Real SoundSpeed(const Real[]) {return 0.0;}
-  Real FastMagnetosonicSpeed(const Real[], const Real) {return 0.0;}
-#if !MAGNETIC_FIELDS_ENABLED  // GR hydro: GR+SR MHD defined as no-op
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-
-#if FLUID_ENABLED
-  void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
-                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
-#else
-  void SoundSpeedsSR(Real rho_h, Real pgas, Real vx, Real gamma_lorentz_sq,
-                     Real *plambda_plus, Real *plambda_minus);
-#endif // FLUID_ENABLED
-  void FastMagnetosonicSpeedsSR(
-      const AthenaArray<Real> &, const AthenaArray<Real> &,
-      int, int, int, int, int, AthenaArray<Real> &,
-      AthenaArray<Real> &) {return;}
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-#if FLUID_ENABLED
-  void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
-                     Real g00, Real g01, Real g11,
-                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
-
-  void SoundSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1,
-                     Real g00, Real g01, Real g11,
-                     Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
-#else
-  void SoundSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1,
-                     Real g00, Real g01, Real g11,
-                     Real *plambda_plus, Real *plambda_minus);
-#endif // FLUID_ENABLED
-  void FastMagnetosonicSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real,
-                                Real *, Real *) {return;}
-#else  // GR MHD: GR+SR hydro defined as no-op
-  void SoundSpeedsSR(Real, Real, Real, Real, Real *, Real *) {return;}
-  void FastMagnetosonicSpeedsSR(
-      const AthenaArray<Real> &prim, const AthenaArray<Real> &bbx_vals,
-      int k, int j, int il, int iu, int ivx,
-      AthenaArray<Real> &lambdas_p, AthenaArray<Real> &lambdas_m);
-  void SoundSpeedsGR(Real, Real, Real, Real, Real, Real, Real, Real *, Real *)
-  {return;}
-#if FLUID_ENABLED
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-  void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
-                                Real g00, Real g01, Real g11,
-                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
-  void FastMagnetosonicSpeedsGR(Real cs_2, Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
-                                Real g00, Real g01, Real g11,
-                                Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]);
-#else
-#pragma omp declare simd simdlen(SIMD_WIDTH) uniform(this)
-  void FastMagnetosonicSpeedsGR(Real rho_h, Real pgas, Real u0, Real u1, Real b_sq,
-                                Real g00, Real g01, Real g11,
-                                Real *plambda_plus, Real *plambda_minus);
-#endif  // FLUID_ENABLED
-#endif  // !MAGNETIC_FIELDS_ENABLED (GR)
-#endif  // !GENERAL_RELATIVITY
-
-  Real GetDensityFloor() const {return density_floor_;}
 #if FLUID_ENABLED
   inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>& GetEOS() {
     return eos;
   }
-  Real GetTemperatureFloor() const {return temperature_floor_;}
 #endif
-  Real GetGamma() const {return gamma_;}
 
  private:
   MeshBlock *pmy_block_;                 // ptr to MeshBlock containing this EOS
-  Real gamma_;                            // ratio of specific heats
-  Real density_floor_;                   // density floor
-  Real scalar_floor_; // dimensionless concentration floor
 #if FLUID_ENABLED
   // If we're using the PrimitiveSolver framework, we need to declare the
   // EOS and PrimitiveSolver objects.
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> eos;
   Primitive::PrimitiveSolver<Primitive::EOS_POLICY, Primitive::ERROR_POLICY> ps;
-  Real temperature_floor_;
 #endif
 };
 

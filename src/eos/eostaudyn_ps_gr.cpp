@@ -70,9 +70,9 @@ static void PrimitiveToConservedSingle(
 EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 {
   pmy_block_ = pmb;
-  density_floor_ = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
-  temperature_floor_ = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
-  scalar_floor_ = pin->GetOrAddReal("hydro", "sfloor", std::sqrt(1024*FLT_MIN));
+  Real density_floor = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
+  Real temperature_floor = pin->GetOrAddReal("hydro", "tfloor", std::sqrt(1024*(FLT_MIN)));
+
 #if MAGNETIC_FIELDS_ENABLED
   Real bsq_max = pin->GetOrAddReal("hydro", "bsq_max", 1e6);
 #endif
@@ -141,11 +141,11 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 #endif
 
   // Set the number density floor.
-  eos.SetDensityFloor(density_floor_/mb);
+  eos.SetDensityFloor(density_floor/mb);
   Real threshold = pin->GetOrAddReal("hydro", "dthreshold", 1.0);
   eos.SetThreshold(threshold);
   // Set the temperature floor.
-  eos.SetTemperatureFloor(temperature_floor_);
+  eos.SetTemperatureFloor(temperature_floor);
   for (int i = 0; i < eos.GetNSpecies(); i++) {
     std::stringstream ss;
     ss << "y" << i << "_atmosphere";
@@ -161,17 +161,10 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetLimitMomenta(pin->GetOrAddBoolean("hydro", "limit_momenta", false));
 
   // If we're working with an ideal gas, we need to fix the adiabatic constant.
-  // MJ: is this needed
 #ifdef USE_IDEAL_GAS
-  gamma_ = pin->GetOrAddReal("hydro", "gamma", 2.0);
-  eos.SetGamma(gamma_);
+  eos.SetGamma(pin->GetOrAddReal("hydro", "gamma", 2.0));
 #elif defined(USE_HYBRID_EOS)
-  gamma_ = pin->GetOrAddReal("hydro", "gamma_th", 2.0);
-  eos.SetThermalGamma(gamma_);
-#else
-  // If we're not using a gamma-law EOS, we should not ever reference gamma.
-  // Make sure that's the case by setting it to NaN.
-  gamma_ = std::numeric_limits<double>::quiet_NaN();
+  eos.SetThermalGamma(pin->GetOrAddReal("hydro", "gamma_th", 2.0));
 #endif
 
 }
@@ -327,7 +320,7 @@ void EquationOfState::ConservedToPrimitive(
 
       if (!is_admissible)
       {
-        SetPrimAtmo(temperature, prim, prim_scalar, k, j, i);
+        PrimHelper::SetPrimAtmo(eos, prim, prim_scalar, k, j, i, &temperature);
         // SetEuclideanCC(gsc, i);
         PrimitiveToConservedSingle(prim,
                                    prim_scalar,
@@ -574,349 +567,6 @@ void EquationOfState::PrimitiveToConserved(
                                  ps);
     }
   }
-}
-
-#if !MAGNETIC_FIELDS_ENABLED
-//----------------------------------------------------------------------------------------
-// Function for calculating relativistic sound speeds
-// Inputs:
-//   rho_h: enthalpy per unit volume
-//   pgas: gas pressure
-//   vx: 3-velocity component v^x
-//   gamma_lorentz_sq: Lorentz factor \gamma^2
-// Outputs:
-//   plambda_plus: value set to most positive wavespeed
-//   plambda_minus: value set to most negative wavespeed
-// Notes:
-//   same function as in adiabatic_hydro_sr.cpp
-//     uses SR formula (should be called in locally flat coordinates)
-//   references Mignone & Bodo 2005, MNRAS 364 126 (MB)
-
-void EquationOfState::SoundSpeedsSR(Real n, Real T, Real vx, Real gamma_lorentz_sq,
-    Real *plambda_plus, Real *plambda_minus, Real prim_scalar[NSCALARS]) {
-  // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int n=0; n<NSCALARS; n++) {
-    Y[n] = prim_scalar[n];
-  }
-
-  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
-  Real csq = cs*cs;
-  Real sigma_s = csq / (gamma_lorentz_sq * (1.0 - csq));
-  Real relative_speed = std::sqrt(sigma_s * (1.0 + sigma_s - vx*vx));
-  *plambda_plus = 1.0/(1.0 + sigma_s) * (vx + relative_speed);
-  *plambda_minus = 1.0/(1.0 + sigma_s) * (vx - relative_speed);
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-// Function for calculating relativistic sound speeds in arbitrary coordinates
-// Inputs:
-//   rho_h: enthalpy per unit volume
-//   pgas: gas pressure
-//   u0,u1: 4-velocity components u^0, u^1
-//   g00,g01,g11: metric components g^00, g^01, g^11
-// Outputs:
-//   plambda_plus: value set to most positive wavespeed
-//   plambda_minus: value set to most negative wavespeed
-// Notes:
-//   follows same general procedure as vchar() in phys.c in Harm
-//   variables are named as though 1 is normal direction
-
-// BD: TODO - eigenvalues, _not_ the speed; should be refactored
-void EquationOfState::SoundSpeedsGR(
-  Real n, Real T, Real vi, Real v2, Real alpha,
-  Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus,
-  Real prim_scalar[NSCALARS])
-{
-  // Calculate comoving sound speed
-  // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int l=0; l<NSCALARS; l++) {
-    Y[l] = prim_scalar[l];
-  }
-
-  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
-
-  Real cs_sq = cs*cs;
-
-  if ((cs_sq > max_cs2) && warn_unrestricted_cs2)
-  {
-    std::printf("Warning: cs_sq exceeds max_cs2");
-  }
-
-  cs_sq = std::min(cs_sq, max_cs2);
-  cs = std::sqrt(cs_sq);
-
-  const Real sqrt_term = std::sqrt(
-    (1-v2)*(gammaii*(1.0-v2*cs_sq) - vi*vi*(1.0-cs_sq))
-  );
-
-  Real root_1 = alpha*(vi*(1.0-cs_sq) + cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
-  Real root_2 = alpha*(vi*(1.0-cs_sq) - cs*sqrt_term)/(1.0-v2*cs_sq) - betai;
-
-  if (!std::isfinite(root_1 + root_2))
-  {
-    root_1 = 1.0;
-    root_2 = 1.0;
-  }
-
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-
-void EquationOfState::SoundSpeedsGR(
-  Real cs_2, Real n, Real T, Real vi, Real v2, Real alpha,
-  Real betai, Real gammaii, Real *plambda_plus, Real *plambda_minus,
-  Real prim_scalar[NSCALARS])
-{
-  // Calculate comoving sound speed
-  // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int l=0; l<NSCALARS; l++) {
-    Y[l] = prim_scalar[l];
-  }
-
-  if ((cs_2 > max_cs2) && warn_unrestricted_cs2)
-  {
-    std::printf("Warning: cs_sq exceeds max_cs2");
-  }
-
-  cs_2 = std::min(cs_2, max_cs2);
-  const Real cs = std::sqrt(cs_2);
-
-  const Real sqrt_term = std::sqrt(
-    (1-v2)*(gammaii*(1.0-v2*cs_2) - vi*vi*(1.0-cs_2))
-  );
-
-  Real root_1 = alpha*(vi*(1.0-cs_2) + cs*sqrt_term)/(1.0-v2*cs_2) - betai;
-  Real root_2 = alpha*(vi*(1.0-cs_2) - cs*sqrt_term)/(1.0-v2*cs_2) - betai;
-
-  if (!std::isfinite(root_1 + root_2)) {
-    root_1 = 1.0;
-    root_2 = 1.0;
-  }
-
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-
-#else // MAGNETIC_FIELDS_ENABLED
-
-// BD: TODO - eigenvalues, _not_ the speed; should be refactored / renamed
-void EquationOfState::FastMagnetosonicSpeedsGR(Real n, Real T, Real bsq,
-                                               Real vi, Real v2, Real alpha,
-                                               Real betai, Real gammaii,
-                                               Real *plambda_plus,
-                                               Real *plambda_minus,
-                                               Real prim_scalar[NSCALARS])
-{
-  // Constants and stuff
-  Real Wlor = std::sqrt(1.0 - v2);
-  Wlor = 1.0 / Wlor;
-  Real u0 = Wlor / alpha;
-  Real g00 = -1.0 / (alpha * alpha);
-  Real g01 = betai / (alpha * alpha);
-  Real u1 = (vi - betai / alpha) * Wlor;
-  Real g11 = gammaii - betai * betai / (alpha * alpha);
-  // Calculate comoving fast magnetosonic speed
-  // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int l = 0; l < NSCALARS; l++)
-    Y[l] = prim_scalar[l];
-
-  Real cs = ps.GetEOS()->GetSoundSpeed(n, T, Y);
-  Real cs_sq = cs * cs;
-
-  if ((cs_sq > max_cs2) && warn_unrestricted_cs2)
-  {
-    std::printf("Warning: cs_sq exceeds max_cs2");
-  }
-
-  cs_sq = std::min(cs_sq, max_cs2);
-  cs = std::sqrt(cs_sq);
-
-  Real mb = ps.GetEOS()->GetBaryonMass();
-  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
-  Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
-
-  // Set fast magnetosonic speeds in appropriate coordinates
-  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
-  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
-  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
-  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
-  Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0 * a);
-  Real root_2 = (-b - d_sqrt) / (2.0 * a);
-
-  // BD: TODO - should we use this or enforce zero?
-  if (std::isnan(root_1) || std::isnan(root_2))
-  {
-    root_1 = 1.0;
-    root_2 = 1.0;
-  }
-
-  if (root_1 > root_2) {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-
-void EquationOfState::FastMagnetosonicSpeedsGR(Real cs_2, Real n, Real T, Real bsq,
-                                               Real vi, Real v2, Real alpha,
-                                               Real betai, Real gammaii,
-                                               Real *plambda_plus,
-                                               Real *plambda_minus,
-                                               Real prim_scalar[NSCALARS])
-{
-  // Constants and stuff
-  Real Wlor = std::sqrt(1.0 - v2);
-  Wlor = 1.0 / Wlor;
-  Real u0 = Wlor / alpha;
-  Real g00 = -1.0 / (alpha * alpha);
-  Real g01 = betai / (alpha * alpha);
-  Real u1 = (vi - betai / alpha) * Wlor;
-  Real g11 = gammaii - betai * betai / (alpha * alpha);
-  // Calculate comoving fast magnetosonic speed
-  // FIXME: Need to update to work with particle fractions.
-  Real Y[MAX_SPECIES] = {0.0};
-  for (int l = 0; l < NSCALARS; l++)
-    Y[l] = prim_scalar[l];
-
-  if ((cs_2 > max_cs2) && warn_unrestricted_cs2)
-  {
-    std::printf("Warning: cs_sq exceeds max_cs2");
-  }
-
-  if (restrict_cs2)
-  {
-    cs_2 = std::min(cs_2, max_cs2);
-  }
-
-  Real mb = ps.GetEOS()->GetBaryonMass();
-  Real va_sq = bsq / (bsq + n * mb * ps.GetEOS()->GetEnthalpy(n, T, Y));
-  Real cms_sq = cs_2 + va_sq - cs_2 * va_sq;
-
-  // Set fast magnetosonic speeds in appropriate coordinates
-  Real a = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
-  Real b = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
-  Real c = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
-  Real d = std::max(SQR(b) - 4.0 * a * c, 0.0);
-  Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0 * a);
-  Real root_2 = (-b - d_sqrt) / (2.0 * a);
-
-  // BD: TODO - should we use this or enforce zero?
-  if (!std::isfinite(root_1 + root_2))
-  {
-    root_1 = 1.0;
-    root_2 = 1.0;
-  }
-
-  if (root_1 > root_2)
-  {
-    *plambda_plus = root_1;
-    *plambda_minus = root_2;
-  } else {
-    *plambda_plus = root_2;
-    *plambda_minus = root_1;
-  }
-  return;
-}
-
-#endif // MAGNETIC_FIELDS_ENABLED
-
-//-----------------------------------------------------------------------------
-// \!fn void EquationOfState::ApplyPrimitiveFloors(AthenaArray<Real> &prim,
-//           int k, int j, int i)
-// Apply density and pressure floors to reconstructed L/R cell interface states
-
-void EquationOfState::ApplyPrimitiveFloors(AA &prim, AA &prim_scalar,
-                                           int k, int j, int i)
-{
-  // Extract the primitive variables and floor them using PrimitiveSolver.
-  Real Y[MAX_SPECIES] = {0.0};
-  Real Wvu[3] = {};
-  Real P;
-  Real n;
-
-  Real mb = ps.GetEOS()->GetBaryonMass();
-
-  // BD: TODO - this kind of switching... just use polymorphism for 1d slices?
-  if (prim.GetDim4()==1)
-  {
-    n = prim(IDN,i)/mb;
-    P = prim(IPR,i);
-
-    for (int a=0; a<3; ++a)
-    {
-      Wvu[a] = prim(IVX+a,i);
-    }
-
-    for (int l=0; l<NSCALARS; l++) {
-      Y[l] = prim_scalar(l,i);
-    }
-  }
-  else
-  {
-    n = prim(IDN,k,j,i)/mb;
-    P = prim(IPR,k,j,i);
-
-    for (int a=0; a<3; ++a)
-    {
-      Wvu[a] = prim(IVX+a,k,j,i);
-    }
-
-    for (int l=0; l<NSCALARS; l++) {
-      Y[l] = prim_scalar(l,k,j,i);
-    }
-  }
-
-  ps.GetEOS()->ApplyDensityLimits(n);
-  ps.GetEOS()->ApplySpeciesLimits(Y);
-  Real T = ps.GetEOS()->GetTemperatureFromP(n, P, Y);
-  ps.GetEOS()->ApplyPrimitiveFloor(n, Wvu, P, T, Y);
-
-  // Now push the updated quantities back to Athena.
-  if (prim.GetDim4()==1)
-  {
-    prim(IDN,i) = n*mb;
-    prim(IVX,i) = Wvu[0];
-    prim(IVY,i) = Wvu[1];
-    prim(IVZ,i) = Wvu[2];
-    prim(IPR,i) = P;
-    for (int l=0; l<NSCALARS; l++) {
-      prim_scalar(l,i) = Y[l];
-    }
-  }
-  else
-  {
-    prim(IDN,k,j,i) = n*mb;
-    prim(IVX,k,j,i) = Wvu[0];
-    prim(IVY,k,j,i) = Wvu[1];
-    prim(IVZ,k,j,i) = Wvu[2];
-    prim(IPR,k,j,i) = P;
-    for (int l=0; l<NSCALARS; l++) {
-      prim_scalar(l,k,j,i) = Y[l];
-    }
-  }
-  return;
 }
 
 //----------------------------------------------------------------------------------------

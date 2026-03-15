@@ -232,10 +232,10 @@ public:
   MeshRefinement *pmr;
 
   // physics-related objects (possibly containing their derived bvals classes)
-  Hydro *phydro;
-  Field *pfield;
-  PassiveScalars *pscalars;
-  EquationOfState *peos;
+  Hydro *phydro = nullptr;
+  Field *pfield = nullptr;
+  PassiveScalars *pscalars = nullptr;
+  EquationOfState *peos = nullptr;
 
   Wave *pwave;
 

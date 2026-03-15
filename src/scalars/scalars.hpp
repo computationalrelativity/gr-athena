@@ -74,27 +74,6 @@ class PassiveScalars {
                         AthenaArray<Real> *flx_out);
   Real NewDiffusionDt();
 
-  bool SpeciesWithinLimits(AthenaArray<Real> & z_, const int i);
-  void ApplySpeciesLimits(AthenaArray<Real> & z_, const int il, const int iu);
-  void ApplySpeciesLimits(AthenaArray<Real> & z_,
-                          const int i,
-                          const int j,
-                          const int k);
-
-  void FallbackInadmissibleScalarX_(
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    AthenaArray<Real> & f_zl_,
-    AthenaArray<Real> & f_zr_,
-    const int il, const int iu, const int ivx);
-
-  void FallbackInadmissibleMaskScalarX_(
-    AA_B & mask_l_,
-    AA_B & mask_r_,
-    AthenaArray<Real> & zl_,
-    AthenaArray<Real> & zr_,
-    const int il, const int iu, const int ivx);
-
  public:
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes

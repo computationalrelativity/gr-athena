@@ -65,50 +65,6 @@ void Hydro::NewBlockTimeStep() {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dt2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
-      if (!GENERAL_RELATIVITY) {
-#pragma ivdep
-        for (int i=is; i<=ie; ++i) {
-          wi[IDN] = w(IDN,k,j,i);
-          wi[IVX] = w(IVX,k,j,i);
-          wi[IVY] = w(IVY,k,j,i);
-          wi[IVZ] = w(IVZ,k,j,i);
-          // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
-          //if (NON_BAROTROPIC_EOS) wi[IPR] = w(IPR,k,j,i);
-          if (fluid_status == FluidFormulation::evolve) {
-            if (MAGNETIC_FIELDS_ENABLED) {
-              AthenaArray<Real> &bcc = pmb->pfield->bcc, &b_x1f = pmb->pfield->b.x1f,
-                              &b_x2f = pmb->pfield->b.x2f, &b_x3f = pmb->pfield->b.x3f;
-              Real bx = bcc(IB1,k,j,i) + std::abs(b_x1f(k,j,i) - bcc(IB1,k,j,i));
-              wi[IBY] = bcc(IB2,k,j,i);
-              wi[IBZ] = bcc(IB3,k,j,i);
-              Real cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt1(i) /= (std::abs(wi[IVX]) + cf);
-
-              wi[IBY] = bcc(IB3,k,j,i);
-              wi[IBZ] = bcc(IB1,k,j,i);
-              bx = bcc(IB2,k,j,i) + std::abs(b_x2f(k,j,i) - bcc(IB2,k,j,i));
-              cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt2(i) /= (std::abs(wi[IVY]) + cf);
-
-              wi[IBY] = bcc(IB1,k,j,i);
-              wi[IBZ] = bcc(IB2,k,j,i);
-              bx = bcc(IB3,k,j,i) + std::abs(b_x3f(k,j,i) - bcc(IB3,k,j,i));
-              cf = pmb->peos->FastMagnetosonicSpeed(wi,bx);
-              dt3(i) /= (std::abs(wi[IVZ]) + cf);
-            } else {
-              Real cs = pmb->peos->SoundSpeed(wi);
-              dt1(i) /= (std::abs(wi[IVX]) + cs);
-              dt2(i) /= (std::abs(wi[IVY]) + cs);
-              dt3(i) /= (std::abs(wi[IVZ]) + cs);
-            }
-          } else { // FluidFormulation::background or disabled. Assume scalar advection:
-            dt1(i) /= (std::abs(wi[IVX]));
-            dt2(i) /= (std::abs(wi[IVY]));
-            dt3(i) /= (std::abs(wi[IVZ]));
-          }
-        }
-      }
-
       // compute minimum of (v1 +/- C)
       for (int i=is; i<=ie; ++i) {
         Real& dt_1 = dt1(i);

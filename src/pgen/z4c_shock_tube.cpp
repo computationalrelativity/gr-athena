@@ -30,6 +30,9 @@
 #if not Z4C_ENABLED
 #error "This problem generator must be used with z4c"
 #endif
+#if not FLUID_ENABLED
+#error "This problem generator requires fluid (-f)"
+#endif
 
 
 //----------------------------------------------------------------------------------------
@@ -45,10 +48,6 @@
 //         particularly troublesome jump leading to NaN's
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin) {
-  // Read and set ratio of specific heats
-  Real gamma_adi = peos->GetGamma();
-  Real gamma_adi_red = gamma_adi / (gamma_adi - 1.0);
-
   // Read and check shock direction and position
   int shock_dir = pin->GetInteger("problem", "shock_dir");
   Real shock_pos = pin->GetReal("problem", "xshock");

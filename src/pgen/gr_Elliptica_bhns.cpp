@@ -405,7 +405,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int j = 0; j <= ncells2-1; ++j)
     for (int i = 0; i <= ncells1-1; ++i)
     {
-      peos->ApplyPrimitiveFloors(phydro->w, k, j, i);
+      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
     }
 
   }
