@@ -113,17 +113,13 @@ class ParameterInput {
     T value)
   {
     InputBlock* pb;
-    InputLine *pl;
-
-    pb = GetPtrToBlock(block);
-    pl = pb->GetPtrToLine(name);
 
     Lock();
 
     if (DoesParameterExist(block, name))
     {
       pb = GetPtrToBlock(block);
-      pl = pb->GetPtrToLine(name);
+      InputLine *pl = pb->GetPtrToLine(name);
       pl->param_value = std::to_string(value);
     }
     else
