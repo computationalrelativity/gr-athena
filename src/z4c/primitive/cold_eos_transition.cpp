@@ -1,5 +1,5 @@
-//! \file coldeos_compose_transition.cpp
-//  \brief Implementation of ColdColdEOSCompOSETransition
+//! \file coldeos_transition.cpp
+//  \brief Implementation of ColdColdEOSTransition
 
 #include <cassert>
 #include <cmath>
@@ -12,7 +12,7 @@
 #include <hdf5_hl.h>
 
 #include "unit_system.hpp"
-#include "cold_eos_compose_transition.hpp"
+#include "cold_eos_transition.hpp"
 
 using namespace Primitive;
 using namespace std;
@@ -24,7 +24,7 @@ using namespace std;
     throw runtime_error(ss.str().c_str()); \
   }
 
-ColdEOSCompOSETransition::ColdEOSCompOSETransition():
+ColdEOSTransition::ColdEOSTransition():
   m_np(0),
   m_table(nullptr),
   m_initialized(false) {
@@ -32,51 +32,51 @@ ColdEOSCompOSETransition::ColdEOSCompOSETransition():
   eos_units = &Nuclear;
 }
 
-ColdEOSCompOSETransition::~ColdEOSCompOSETransition() {
+ColdEOSTransition::~ColdEOSTransition() {
   if (m_initialized) {
     delete[] m_table;
   }
 }
 
-Real ColdEOSCompOSETransition::Pressure(Real n) {
+Real ColdEOSTransition::Pressure(Real n) {
   assert (m_initialized);
   return exp(eval_at_n<0>(ECLOGP, n));
 }
 
-Real ColdEOSCompOSETransition::Energy(Real n) {
+Real ColdEOSTransition::Energy(Real n) {
   assert (m_initialized);
   return exp(eval_at_n<0>(ECLOGE, n));
 }
 
-Real ColdEOSCompOSETransition::dPdn(Real n) {
+Real ColdEOSTransition::dPdn(Real n) {
   assert (m_initialized);
   return eval_at_n<2>(ECDPDN, n);
 }
 
-Real ColdEOSCompOSETransition::SpecificInternalEnergy(Real n) {
+Real ColdEOSTransition::SpecificInternalEnergy(Real n) {
   return Energy(n)/(mb*n) - 1;
 }
 
-Real ColdEOSCompOSETransition::Y(Real n, int iy) {
+Real ColdEOSTransition::Y(Real n, int iy) {
   assert (m_initialized);
   if (iy == 0) return eval_at_n<0>(ECY, n);
   if (iy == 1) return eval_at_n<0>(ECABAR, n);
-  throw std::out_of_range("ColdEOSCompOSETransition::Y: species index out of range");
+  throw std::out_of_range("ColdEOSTransition::Y: species index out of range");
 }
 
-Real ColdEOSCompOSETransition::Enthalpy(Real n) {
+Real ColdEOSTransition::Enthalpy(Real n) {
   return (Pressure(n) + Energy(n))/n;
 }
 
-Real ColdEOSCompOSETransition::Entropy(Real n) {
+Real ColdEOSTransition::Entropy(Real n) {
   return eval_at_n<0>(ECENT, n);
 }
 
-Real ColdEOSCompOSETransition::DensityFromPressure(Real P) {
+Real ColdEOSTransition::DensityFromPressure(Real P) {
   return eval_at_general(ECLOGP, ECLOGN, P);
 }
 
-void ColdEOSCompOSETransition::ReadColdSliceFromFile(std::string fname) {
+void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   herr_t ierr;
   hid_t file_id;
   hid_t grp_id;
@@ -116,7 +116,7 @@ void ColdEOSCompOSETransition::ReadColdSliceFromFile(std::string fname) {
   ierr = H5LTread_dataset_double(grp_id, "t", scratch);
     MYH5CHECK(ierr);
   T = scratch[0];
-  // the neutron mass is used as the baryon mass in CompOSE
+  // the neutron mass is used as the baryon mass in
   ierr = H5LTread_dataset_double(grp_id, "mn", scratch);
     MYH5CHECK(ierr);
   mb = scratch[0];
@@ -194,7 +194,7 @@ void ColdEOSCompOSETransition::ReadColdSliceFromFile(std::string fname) {
   m_initialized = true;
 }
 
-void ColdEOSCompOSETransition::DumpLoreneEOSFile(std::string fname) {
+void ColdEOSTransition::DumpLoreneEOSFile(std::string fname) {
   // Dump the eos_akmalpr.d file that lorene routines expect
   // Lorene units are n [fm^-3], e [g/cm^3], p [erg/cm^3]
   Real n_conv = eos_units->DensityConversion(Nuclear);
@@ -215,7 +215,7 @@ void ColdEOSCompOSETransition::DumpLoreneEOSFile(std::string fname) {
 }
 
 template<int LIX_EXTRAPOLATE>
-void ColdEOSCompOSETransition::weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const {
+void ColdEOSTransition::weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const {
 
   *in = (log_n - m_table[index(ECLOGN, 0)])*m_id_log_nb;
 
@@ -234,7 +234,7 @@ void ColdEOSCompOSETransition::weight_idx_ln(Real *w0, Real *w1, int *in, Real l
 }
 
 template<int LIX_EXTRAPOLATE>
-Real ColdEOSCompOSETransition::eval_at_ln(int iv, Real log_n) const {
+Real ColdEOSTransition::eval_at_ln(int iv, Real log_n) const {
   int in;
   Real wn0, wn1;
 
@@ -248,11 +248,11 @@ Real ColdEOSCompOSETransition::eval_at_ln(int iv, Real log_n) const {
 }
 
 template<int LIX_EXTRAPOLATE>
-Real ColdEOSCompOSETransition::eval_at_n(int iv, Real n) const {
+Real ColdEOSTransition::eval_at_n(int iv, Real n) const {
   return eval_at_ln<LIX_EXTRAPOLATE>(iv, log(n));
 }
 
-Real ColdEOSCompOSETransition::eval_at_general(int iv_in, int iv_out, Real v) const {
+Real ColdEOSTransition::eval_at_general(int iv_in, int iv_out, Real v) const {
   return linterp1d(v, &m_table[index(iv_in, 0)], &m_table[index(iv_out, 0)]);
 }
 
@@ -260,7 +260,7 @@ Real ColdEOSCompOSETransition::eval_at_general(int iv_in, int iv_out, Real v) co
 //--------------------------------------------------------------------------------------
 //! \fn int D0_x_2(double *f, double *x, int n, double *df)
 // \brief 1st order centered stencil first derivative, nonuniform grids
-int ColdEOSCompOSETransition::D0_x_2(double *f, double *x, int n, double *df)
+int ColdEOSTransition::D0_x_2(double *f, double *x, int n, double *df)
 {
   int i;
   for(i=1; i<n-1; i++) {
@@ -273,7 +273,7 @@ int ColdEOSCompOSETransition::D0_x_2(double *f, double *x, int n, double *df)
   return 0;
 }
 
-Real ColdEOSCompOSETransition::linterp1d(Real x, Real *xp, Real *fp) const {
+Real ColdEOSTransition::linterp1d(Real x, Real *xp, Real *fp) const {
   int i;
   for(i=1; i<m_np; i++) {
     if (x < xp[i]) {
