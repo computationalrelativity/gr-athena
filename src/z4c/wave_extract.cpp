@@ -95,21 +95,16 @@ void WaveExtract::ReduceMultipole() {
     pmb = pmb->next;
   }
 #ifdef MPI_PARALLEL
+  // Batch all (l,m) modes into a single MPI_Reduce over the contiguous psi
+  // array.  The array is laid out as (lmax-1) x (2*lmax+1) x 2 and includes
+  // zero-padded entries for |m|>l which are harmless under MPI_SUM.
+  const int total_size = psi.GetSize();
   if (0 == Globals::my_rank) {
-    for(int l=2;l<lmax+1;++l){
-      for(int m=-l;m<l+1;++m){
-      MPI_Reduce(MPI_IN_PLACE, &psi(l-2,m+l,0), 1, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-      MPI_Reduce(MPI_IN_PLACE, &psi(l-2,m+l,1), 1, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-      }
-    }
-  }
-  else {
-    for(int l=2;l<lmax+1;++l){
-      for(int m=-l;m<l+1;++m){
-      MPI_Reduce(&psi(l-2,m+l,0), &psi(l-2,m+l,0), 1, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-      MPI_Reduce(&psi(l-2,m+l,1), &psi(l-2,m+l,1), 1, MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
-      }
-    }
+    MPI_Reduce(MPI_IN_PLACE, psi.data(), total_size,
+               MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
+  } else {
+    MPI_Reduce(psi.data(), nullptr, total_size,
+               MPI_ATHENA_REAL, MPI_SUM, 0, MPI_COMM_WORLD);
   }
 #endif
 }
