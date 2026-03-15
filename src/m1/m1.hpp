@@ -342,6 +342,7 @@ public:
 
     Real eql_rho_min;
     Real tra_rho_min;
+    Real eql_t_min;
 
     // fallback parameters for checking matter coupling
     Real flux_lo_fallback_tau_min;
@@ -904,6 +905,7 @@ public:
                                 const Real kap_a,
                                 const Real kap_s,
                                 const Real rho,
+                                const Real T,
                                 t_sln_r & mask_sln_r);
   void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);

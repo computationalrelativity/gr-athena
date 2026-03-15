@@ -6,8 +6,6 @@
 
 // Athena++ classes headers
 #include "../../m1.hpp"
-#include "../../../hydro/hydro.hpp"
-#include "../../../eos/eos.hpp"
 
 // ============================================================================
 namespace M1::Opacities::Photon {

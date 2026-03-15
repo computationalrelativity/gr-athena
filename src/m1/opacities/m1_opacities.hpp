@@ -9,10 +9,13 @@
 #include "../m1_macro.hpp"
 #include "fake/m1_opacities_fake.hpp"
 #include "photon/m1_opacities_photon.hpp"
-
-#if !(M1_NO_WEAKRATES)
+#if FLUID_ENABLED
 #include "weakrates/m1_opacities_weakrates.hpp"
+
+#if M1_BNS_NURATES
+#include "bnsnurates/m1_opacities_bns_nurates.hpp"
 #endif
+#endif // FLUID_ENABLED
 
 // ============================================================================
 namespace M1::Opacities {
@@ -39,10 +42,15 @@ public:
     if (popac_photon != nullptr)
       delete popac_photon;
 
-#if !(M1_NO_WEAKRATES)
+#if FLUID_ENABLED
     if (popac_weakrates != nullptr)
       delete popac_weakrates;
+
+#if M1_BNS_NURATES
+    if (popac_bns_nurates != nullptr)
+      delete popac_bns_nurates;
 #endif
+#endif // FLUID_ENABLED
   };
 
   // handler
@@ -69,13 +77,20 @@ public:
         popac_photon->CalculateOpacityPhoton(dt, u);
         break;
       }
-#if !(M1_NO_WEAKRATES)
+#if FLUID_ENABLED
       case (opt_opacity_variety::weakrates):
       {
-        popac_weakrates->CalculateOpacityWeakRates(dt, u);
+        popac_weakrates->CalculateOpacity(dt, u);
+        break;
+      }
+#if M1_BNS_NURATES
+      case (opt_opacity_variety::bns_nurates):
+      {
+        popac_bns_nurates->CalculateOpacity(dt, u);
         break;
       }
 #endif
+#endif // FLUID_ENABLED
       default:
       {
         assert(0);
@@ -84,13 +99,21 @@ public:
     }
   }
 
-  // Photon:
-  // [[n_nue, n_nua, n_nux, n_nux]
-  //  [e_nue, e_nua, e_nux, e_nux]]
+  // Compute equilibrium neutrino number and energy densities for use as
+  // initial/boundary data.
   //
-  // WeakRates:
-  // [[n_nue, n_nua, n_nux, n_nux]
-  //  [e_nue, e_nua, e_nux, e_nux]]
+  // in:   w_rho  [code_units]  (mass density, GeometricSolar)
+  //       w_T    [MeV]         (temperature = code_units for GeometricSolar)
+  //       w_Y_e  [-]           (electron fraction, dimensionless)
+  // out:  nudens(0, s)  [code_units]  (number density for species s)
+  //       nudens(1, s)  [code_units]  (energy density for species s)
+  //
+  // NUX convention:
+  //   The backend NeutrinoDensity call returns NUX = TOTAL (all 4
+  //   heavy-lepton species).  For 3-species transport (N_SPCS == 3),
+  //   nux_weight = 1.0 so nudens(*,2) remains TOTAL.
+  //   For 4-species transport (N_SPCS == 4), nux_weight = 0.5 splits the
+  //   total evenly into nudens(*,2) and nudens(*,3) (2 species each).
   void CalculateEquilibriumDensity(
     const Real w_rho,
     const Real w_T,
@@ -104,7 +127,7 @@ public:
         nudens(1, 0) = popac_photon->black_body(w_T);
         break;
       }
-#if !(M1_NO_WEAKRATES)
+#if FLUID_ENABLED
       case opt_opacity_variety::weakrates:
       {
         // For 4 species neutrino transport we need to divide the nux luminosity
@@ -133,7 +156,37 @@ public:
 
         break;
       }
-#endif  // !(M1_NO_WEAKRATES)
+#if M1_BNS_NURATES
+      case opt_opacity_variety::bns_nurates:
+      {
+        // For 4 species neutrino transport we need to divide the nux luminosity
+        // by 2
+        const Real nux_weight = (pm1->N_SPCS == 3 ? 1.0 : 0.5);
+
+        const int ierr = popac_bns_nurates->NeutrinoDensity(
+          w_rho,        // Real rho,
+          w_T,          // Real temp,
+          w_Y_e,        // Real ye,
+          nudens(0, 0), // Real &n_nue,
+          nudens(0, 1), // Real &n_nua,
+          nudens(0, 2), // Real &n_nux,
+          nudens(1, 0), // Real &e_nue,
+          nudens(1, 1), // Real &e_nua,
+          nudens(1, 2)  // Real &e_nux
+        );
+
+        assert(!ierr);
+
+        nudens(0,2) *= nux_weight;
+        nudens(1,2) *= nux_weight;
+
+        nudens(0,3) = nudens(0,2);
+        nudens(1,3) = nudens(1,2);
+
+        break;
+      }
+#endif  // M1_BNS_NURATES
+#endif // FLUID_ENABLED
       default:
       {
         assert(false);
@@ -150,11 +203,14 @@ private:
   Coordinates *pmy_coord;
 
   // some varieties have their own classes ------------------------------------
-  Fake::Fake           * popac_fake   = nullptr;
-  Photon::Photon       * popac_photon = nullptr;
-#if !(M1_NO_WEAKRATES)
-  WeakRates::WeakRates * popac_weakrates = nullptr;
+  Fake::Fake           * popac_fake       = nullptr;
+  Photon::Photon       * popac_photon     = nullptr;
+#if FLUID_ENABLED
+  WeakRates::WeakRates * popac_weakrates  = nullptr;
+#if M1_BNS_NURATES
+  BNS_NuRates::BNSNuRates * popac_bns_nurates = nullptr;
 #endif
+#endif // FLUID_ENABLED
   // --------------------------------------------------------------------------
 
   void PopulateOptionsOpacities(ParameterInput *pin)
@@ -182,11 +238,21 @@ private:
         opt.opacity_variety = opt_opacity_variety::photon;
         popac_photon = new Photon::Photon(pmy_block, pm1, pin);
       }
-#if !(M1_NO_WEAKRATES)
       else if (tmp == "weakrates")
       {
+#if FLUID_ENABLED
         opt.opacity_variety = opt_opacity_variety::weakrates;
         popac_weakrates = new WeakRates::WeakRates(pmy_block, pm1, pin);
+#else
+        msg << "M1_opacities/variety 'weakrates' requires FLUID_ENABLED" << std::endl;
+        ATHENA_ERROR(msg);
+#endif
+      }
+#if FLUID_ENABLED && M1_BNS_NURATES
+      else if (tmp == "bnsnurates")
+      {
+        opt.opacity_variety = opt_opacity_variety::bns_nurates;
+        popac_bns_nurates = new BNS_NuRates::BNSNuRates(pmy_block, pm1, pin);
       }
 #endif
       else
@@ -215,7 +281,7 @@ private:
 
 // configuration ==============================================================
 public:
-  enum class opt_opacity_variety { none, zero, fake, photon, weakrates };
+  enum class opt_opacity_variety { none, zero, fake, photon, weakrates, bns_nurates };
 
   struct
   {
@@ -229,4 +295,3 @@ public:
 // ============================================================================
 
 #endif // M1_OPACITIES_HPP
-

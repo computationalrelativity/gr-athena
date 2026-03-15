@@ -292,6 +292,7 @@ void M1::PrepareEvolutionStrategy(const Real dt,
                                   const Real kap_a,
                                   const Real kap_s,
                                   const Real rho,
+                                  const Real T,
                                   t_sln_r & mask_sln_r)
 {
   // Equilibrium detected in Weak-rates; short-circuit
@@ -305,7 +306,8 @@ void M1::PrepareEvolutionStrategy(const Real dt,
   if((opt_solver.src_lim_thick > 0) &&
      (SQR(dt) * (kap_a * (kap_a + kap_s)) >
       SQR(opt_solver.src_lim_thick)) &&
-     (rho >= pm1->opt_solver.eql_rho_min))
+     (rho >= pm1->opt_solver.eql_rho_min) &&
+     (T >= pm1->opt_solver.eql_t_min))
   {
     mask_sln_r = t_sln_r::equilibrium;
   }
@@ -351,6 +353,7 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       bool non_stiff = true;
 
       const Real rho = hydro.sc_w_rho(k,j,i);
+      const Real w_T = hydro.sc_T(k,j,i);
 
       // Find maximum opacities across all species
       for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
@@ -374,7 +377,8 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
       if ((opt_solver.src_lim_thick > 0) &&
           (SQR(dt) * max_kap_prod >
            SQR(opt_solver.src_lim_thick)) &&
-          (rho >= pm1->opt_solver.eql_rho_min))
+          (rho >= pm1->opt_solver.eql_rho_min) &&
+          (w_T >= pm1->opt_solver.eql_t_min))
       {
         mask_sln_r(ix_g, k, j, i) = t_sln_r::equilibrium;
       }
@@ -429,6 +433,7 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
     PrepareEvolutionStrategy(dt, kap_a, kap_s,
                              hydro.sc_w_rho(k,j,i),
+                             hydro.sc_T(k,j,i),
                              mask_sln_r(ix_g, ix_s, k, j, i));
   }
 
