@@ -341,9 +341,6 @@ void EOSTransition::SetTransition(Real n_start, Real n_end, Real T_start, Real T
   trans_T_start = T_start;
   trans_T_end = T_end;
   m_trans_T_width = T_start - T_end;
-
-  comp_it_trans_start = (log(trans_T_start) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t + 1;
-  comp_it_trans_end = (log(trans_T_end) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t;
 }
 
 void EOSTransition::PrintParameters() {
@@ -407,6 +404,10 @@ void EOSTransition::update_bounds() {
   max_Y[SCYE] = compose_eos->max_Y[SCYE];
 
   m_min_h = helmholtz_eos->MinimumEnthalpy();
+
+  comp_it_trans_start = (log(trans_T_start) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t + 1;
+  comp_it_trans_end = (log(trans_T_end) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t;
+
 }
 
 Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real *Y) {
