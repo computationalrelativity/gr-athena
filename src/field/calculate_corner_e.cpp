@@ -18,7 +18,6 @@
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "field.hpp"
-#include "field_diffusion/field_diffusion.hpp"
 
 //----------------------------------------------------------------------------------------
 using namespace gra::aliases;
@@ -61,8 +60,6 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
       e3(ks  ,js  ,i) = e3_x1f(ks,js,i);
       e3(ks  ,je+1,i) = e3_x1f(ks,js,i);
     }
-    if (!STS_ENABLED) // add diffusion flux
-      if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
     return;
   }
 
@@ -228,19 +225,6 @@ void Field::ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc) {
     }
   }
 
-  if (!STS_ENABLED) // add diffusion flux
-    if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
-
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn  void Field::ComputeCornerE_STS
-//  \brief Compute corner E for STS
-
-void Field::ComputeCornerE_STS() {
-  // add diffusion flux
-  if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
   return;
 }
 
@@ -326,9 +310,6 @@ void Field::ComputeCornerE_Z4c_3D(
     e3(k,j,i) = 0.25*(de3_l1 + de3_r1 + de3_l2 + de3_r2 + e3_x2f(k,j,i-1) +
                       e3_x2f(k,j,i) + e3_x1f(k,j-1,i) + e3_x1f(k,j,i));
   }
-
-  if (!STS_ENABLED) // add diffusion flux
-    if (fdif.field_diffusion_defined) fdif.AddEMF(fdif.e_oa, e);
 
   return;
 }

@@ -19,8 +19,7 @@
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../reconstruct/reconstruction.hpp"
-#include "hydro_diffusion/hydro_diffusion.hpp"
-#include "srcterms/hydro_srcterms.hpp"
+
 
 class MeshBlock;
 class ParameterInput;
@@ -75,8 +74,6 @@ class Hydro {
   bool flux_table_limiter = false;
 
   HydroBoundaryVariable hbvar;
-  HydroSourceTerms hsrc;
-  HydroDiffusion hdif;
 
   struct {
     Real alpha_threshold;           // excise hydro if alpha < alpha_excision
@@ -339,8 +336,6 @@ public:
     AA &w, FaceField &b,
     AA &bcc, const int order);
 
-  void CalculateFluxes_STS();
-
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
   void RiemannSolver(
     const int ivx,
@@ -424,7 +419,6 @@ public:
 
   TimeStepFunc UserTimeStep_;
 
-  void AddDiffusionFluxes();
   Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt);
 };
 

@@ -34,10 +34,8 @@
 #include "../fft/athena_fft.hpp"
 #include "../fft/turbulence.hpp"
 #include "../field/field.hpp"
-#include "../field/field_diffusion/field_diffusion.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
-#include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -77,13 +75,16 @@
 Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     // public members:
     // aggregate initialization of RegionSize struct:
+    // (x1rat, x2rat, x3rat, nx1, nx2, nx3 are set in this initializer list, which is
+    // called before Mesh body; remaining 6 members are initialized in the Mesh() body)
     mesh_size{pin->GetReal("mesh", "x1min"), pin->GetReal("mesh", "x2min"),
               pin->GetReal("mesh", "x3min"), pin->GetReal("mesh", "x1max"),
               pin->GetReal("mesh", "x2max"), pin->GetReal("mesh", "x3max"),
               pin->GetOrAddReal("mesh", "x1rat", 1.0),
               pin->GetOrAddReal("mesh", "x2rat", 1.0),
               pin->GetOrAddReal("mesh", "x3rat", 1.0),
-              pin->GetInteger("mesh", "nx1"), pin->GetInteger("mesh", "nx2"),
+              pin->GetInteger("mesh", "nx1"),
+              pin->GetInteger("mesh", "nx2"),
               pin->GetInteger("mesh", "nx3") },
     mesh_bcs{GetBoundaryFlag(pin->GetOrAddString("mesh", "ix1_bc", "none")),
              GetBoundaryFlag(pin->GetOrAddString("mesh", "ox1_bc", "none")),
@@ -91,13 +92,13 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
              GetBoundaryFlag(pin->GetOrAddString("mesh", "ox2_bc", "none")),
              GetBoundaryFlag(pin->GetOrAddString("mesh", "ix3_bc", "none")),
              GetBoundaryFlag(pin->GetOrAddString("mesh", "ox3_bc", "none"))},
-    f2(mesh_size.nx2 > 1 ? true : false), f3(mesh_size.nx3 > 1 ? true : false),
+    f2(mesh_size.nx2 > 1 ? true : false),
+    f3(mesh_size.nx3 > 1 ? true : false),
     ndim(f3 ? 3 : (f2 ? 2 : 1)),
     adaptive(pin->GetOrAddString("mesh", "refinement", "none") == "adaptive"
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
-    fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
     dt_hyperbolic(dt), dt_parabolic(dt), dt_user(dt),
@@ -105,7 +106,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     nlim(pin->GetOrAddInteger("time", "nlim", -1)), ncycle(),
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
-    muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
     // private members:
@@ -113,13 +113,11 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(),
-    four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{}
+    AMRFlag_{}, UserTimeStep_{}
 {
 
   std::stringstream msg;
@@ -686,7 +684,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
              ? true : false),
     multilevel((adaptive || pin->GetOrAddString("mesh", "refinement", "none") == "static")
                ? true : false),
-    fluid_setup(GetFluidFormulation(pin->GetOrAddString("hydro", "active", "true"))),
     start_time(pin->GetOrAddReal("time", "start_time", 0.0)), time(start_time),
     tlim(pin->GetReal("time", "tlim")), dt(std::numeric_limits<Real>::max()),
     dt_hyperbolic(dt), dt_parabolic(dt), dt_user(dt),
@@ -694,7 +691,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     nlim(pin->GetOrAddInteger("time", "nlim", -1)), ncycle(),
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
-    muj(), nuj(), muj_tilde(),
     nbnew(), nbdel(),
     step_since_lb(), gflag(), turb_flag(),
     // private members:
@@ -702,13 +698,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(),
-    four_pi_G_(), grav_eps_(-1.0), grav_mean_rho_(-1.0),
     lb_flag_(true), lb_automatic_(), lb_manual_(),
     MeshGenerator_{UniformMeshGeneratorX1, UniformMeshGeneratorX2,
                    UniformMeshGeneratorX3},
     BoundaryFunction_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    AMRFlag_{}, UserSourceTerm_{}, UserTimeStep_{}, ViscosityCoeff_{},
-    ConductionCoeff_{}, FieldDiffusivity_{}
+    AMRFlag_{}, UserTimeStep_{}
 {
 
   std::stringstream msg;
@@ -1591,15 +1585,6 @@ void Mesh::EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg) {
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollUserExplicitSourceFunction(SrcTermFunc my_func)
-//  \brief Enroll a user-defined source function
-
-void Mesh::EnrollUserExplicitSourceFunction(SrcTermFunc my_func) {
-  UserSourceTerm_ = my_func;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
 //! \fn void Mesh::EnrollUserTimeStepFunction(TimeStepFunc my_func)
 //  \brief Enroll a user-defined time step function
 
@@ -1628,42 +1613,6 @@ void Mesh::EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
   user_history_output_names_.push_back(std::move(name));
   user_history_func_.push_back(my_func);
   user_history_ops_.push_back(std::move(op));
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollUserMetric(MetricFunc my_func)
-//  \brief Enroll a user-defined metric for arbitrary GR coordinates
-
-void Mesh::EnrollUserMetric(MetricFunc my_func) {
-  UserMetric_ = my_func;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollViscosityCoefficient(ViscosityCoeff my_func)
-//  \brief Enroll a user-defined magnetic field diffusivity function
-
-void Mesh::EnrollViscosityCoefficient(ViscosityCoeffFunc my_func) {
-  ViscosityCoeff_ = my_func;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollConductionCoefficient(ConductionCoeff my_func)
-//  \brief Enroll a user-defined thermal conduction function
-
-void Mesh::EnrollConductionCoefficient(ConductionCoeffFunc my_func) {
-  ConductionCoeff_ = my_func;
-  return;
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn void Mesh::EnrollFieldDiffusivity(FieldDiffusionCoeff my_func)
-//  \brief Enroll a user-defined magnetic field diffusivity function
-
-void Mesh::EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func) {
-  FieldDiffusivity_ = my_func;
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1898,10 +1847,6 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
 #endif
       // ----------------------------------------------------------------------
 
-      // Initial diffusion coefficients ---------------------------------------
-// #if FLUID_ENABLED
-//       FinalizeDiffusion(pmb_array);
-// #endif
       // ----------------------------------------------------------------------
 
       // M1 needs to slice into hydro, hence after that R/P -------------------
@@ -2251,26 +2196,7 @@ void Mesh::ReserveMeshBlockPhysIDs() {
   return;
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn GetFluidFormulation(std::string input_string)
-//  \brief Parses input string to return scoped enumerator flag specifying boundary
-//  condition. Typically called in Mesh() ctor initializer list
 
-FluidFormulation GetFluidFormulation(const std::string& input_string) {
-  if (input_string == "true") {
-    return FluidFormulation::evolve;
-  } else if (input_string == "disabled") {
-    return FluidFormulation::disabled;
-  } else if (input_string == "background") {
-    return FluidFormulation::background;
-  } else {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in GetFluidFormulation" << std::endl
-        << "Input string=" << input_string << "\n"
-        << "is an invalid fluid formulation" << std::endl;
-    ATHENA_ERROR(msg);
-  }
-}
 
 void Mesh::OutputCycleDiagnostics() {
   const int Real_prec = std::numeric_limits<Real>::max_digits10 - 1;
@@ -2323,11 +2249,7 @@ void Mesh::OutputCycleDiagnostics() {
       }
 
       if (dt_diagnostics != -1) {
-        if (STS_ENABLED) {
-          if (UserTimeStep_ == nullptr)
-            std::cout << "=dt_hyperbolic";
-          // remaining dt_parabolic diagnostic output handled in STS StartupTaskList
-        } else {
+        {
           Real ratio = dt / dt_hyperbolic;
           std::cout << "\ndt_hyperbolic=" << dt_hyperbolic << " ratio="
                     << std::setprecision(ratio_precision) << ratio

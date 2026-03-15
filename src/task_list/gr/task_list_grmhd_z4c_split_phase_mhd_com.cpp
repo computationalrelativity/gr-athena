@@ -12,7 +12,6 @@
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
-#include "../../hydro/srcterms/hydro_srcterms.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../z4c/z4c.hpp"
 #include "../../z4c/wave_extract.hpp"

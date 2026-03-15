@@ -19,7 +19,6 @@
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "field.hpp"
-#include "field_diffusion/field_diffusion.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -42,8 +41,7 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
     coarse_b_(pmb->ncc3, pmb->ncc2, pmb->ncc1+1,
               (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                AthenaArray<Real>::DataStatus::empty)),
-    fbvar(pmb, &b, &coarse_b_, e),
-    fdif(pmb, pin) {
+    fbvar(pmb, &b, &coarse_b_, e) {
   int ncells1 = pmb->ncells1, ncells2 = pmb->ncells2, ncells3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
 
@@ -53,7 +51,7 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   // Note the extra cell in each longitudinal direction for interface fields
   std::string integrator = pin->GetOrAddString("time","integrator","vl2");
-  if (integrator == "ssprk5_4" || STS_ENABLED) {
+  if (integrator == "ssprk5_4") {
     // future extension may add "int nregister" to Hydro class
     b2.x1f.NewAthenaArray( ncells3   , ncells2   ,(ncells1+1));
     b2.x2f.NewAthenaArray( ncells3   ,(ncells2+1), ncells1   );

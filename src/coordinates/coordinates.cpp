@@ -78,7 +78,7 @@ Coordinates::Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag) :
 
   // allocate arrays for volume- and face-centered geometry coefficients of cells
   // (only for spherical-polar, cylindrical, cartesian coordinates, for now)
-  if (!GENERAL_RELATIVITY) { // exclude: minkowski, gr_user, schwarzschild, kerr-schild
+  if (!GENERAL_RELATIVITY) { // exclude: minkowski, schwarzschild, kerr-schild, gr_dynamical
     h2f.NewAthenaArray(nc1);
     dh2fd1.NewAthenaArray(nc1);
     h31f.NewAthenaArray(nc1);
@@ -783,21 +783,4 @@ bool Coordinates::IsPole(int j) {
     return true;
   }
   return false;
-}
-
-//----------------------------------------------------------------------------------------
-// Function for implementing user-defined metric
-// Inputs:
-//   x1,x2,x3: spatial location of point
-//   pin: pointer to runtime inputs
-// Outputs:
-//   g,g_inv: arrays of metric covariant and contravariant components
-//   dg_dx1,dg_dx2,dg_dx3: arrays of spatial derivatives of covariant components
-
-void Coordinates::Metric(
-    Real x1, Real x2, Real x3, ParameterInput *pin,
-    AthenaArray<Real> &g, AthenaArray<Real> &g_inv, AthenaArray<Real> &dg_dx1,
-    AthenaArray<Real> &dg_dx2, AthenaArray<Real> &dg_dx3) {
-  pmy_block->pmy_mesh->UserMetric_(x1, x2, x3, pin, g, g_inv, dg_dx1, dg_dx2, dg_dx3);
-  return;
 }

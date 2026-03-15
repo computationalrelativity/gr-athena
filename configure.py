@@ -189,7 +189,6 @@ parser.add_argument(
     "tilted",
     "schwarzschild",
     "kerr-schild",
-    "gr_user",
     "gr_dynamical",
   ],
   help="select coordinate system",
@@ -312,11 +311,6 @@ parser.add_argument(
 # -b argument
 parser.add_argument(
   "-b", action="store_true", default=False, help="enable magnetic field"
-)
-
-# -sts argument
-parser.add_argument(
-  "-sts", action="store_true", default=False, help="enable super-time-stepping"
 )
 
 # -g argument
@@ -940,10 +934,7 @@ if args["f"]:
   aux = [
     "$(wildcard src/bvals/cc/hydro/*.cpp)",
     "$(wildcard src/field/*.cpp)",
-    "$(wildcard src/field/field_diffusion/*.cpp)",
     "$(wildcard src/hydro/*.cpp)",
-    "$(wildcard src/hydro/srcterms/*.cpp)",
-    "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
     "$(wildcard src/reconstruct/recon*.cpp)",
     "$(wildcard src/scalars/*.cpp)",
   ]
@@ -972,12 +963,6 @@ if args["f"]:
   makefile_options["HYDRO_DEPENDENT_SRC"] += (
     "\\\n$(wildcard src/hydro/rsolvers/" + rsolver_prefix + "_*.cpp)"
   )
-
-# -sts argument
-if args["sts"]:
-  definitions["STS_ENABLED"] = "1"
-else:
-  definitions["STS_ENABLED"] = "0"
 
 # -g argument
 definitions["GENERAL_RELATIVITY"] = "1" if args["g"] else "0"
@@ -1950,9 +1935,6 @@ elif args["m1"]:
 else:
   src_aux.append("$(wildcard src/task_list/time_integrator.cpp)")
 
-if args["sts"]:
-  src_aux.append("$(wildcard src/task_list/sts_task_list.cpp)")
-
 makefile_options["TASK_LIST_SRC"] = "\\\n".join(src_aux)
 
 # wave eqn: -------------------------------------------------------------------
@@ -2074,7 +2056,6 @@ if args["w"]:
   print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
   print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
 
-print("  Super-Time-Stepping:          " + ("ON" if args["sts"] else "OFF"))
 print("  Debug flags:                  " + ("ON" if args["debug"] else "OFF"))
 print(
   "  Code coverage flags:          " + ("ON" if args["coverage"] else "OFF")

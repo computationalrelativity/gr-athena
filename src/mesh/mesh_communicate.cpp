@@ -313,33 +313,6 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*> & pmb_array)
 #endif // M1_ENABLED
 }
 
-void Mesh::FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array)
-{
-  MeshBlock *pmb;
-  BoundaryValues *pbval;
-
-  const int nmb = pmb_array.size();
-
-  Field *pf = nullptr;
-  Hydro *ph = nullptr;
-
-  #pragma omp for private(pmb, pbval, pf, ph)
-  for (int i = 0; i < nmb; ++i) {
-    pmb = pmb_array[i];
-
-    pf = pmb->pfield;
-    ph = pmb->phydro;
-
-    if (FLUID_ENABLED && ph->hdif.hydro_diffusion_defined)
-      ph->hdif.SetDiffusivity(ph->w, pf->bcc);
-
-    if (MAGNETIC_FIELDS_ENABLED) {
-      if (pf->fdif.field_diffusion_defined)
-        pf->fdif.SetDiffusivity(ph->w, pf->bcc);
-    }
-  }
-}
-
 void Mesh::FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array)
 {
 #if FLUID_ENABLED

@@ -76,7 +76,7 @@ class M1;
 }
 
 
-FluidFormulation GetFluidFormulation(const std::string& input_string);
+
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
@@ -415,12 +415,9 @@ class Mesh {
   friend class FaceCenteredBoundaryVariable;
   friend class Coordinates;
   friend class MeshRefinement;
-  friend class HydroSourceTerms;
   friend class Hydro;
   friend class FFTDriver;
   friend class TurbulenceDriver;
-  friend class HydroDiffusion;
-  friend class FieldDiffusion;
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -448,11 +445,9 @@ class Mesh {
   const bool f2, f3; // flags indicating (at least) 2D or 3D Mesh
   const int ndim;     // number of dimensions
   const bool adaptive, multilevel;
-  const FluidFormulation fluid_setup;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
   Real evo_rate;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
-  Real muj, nuj, muj_tilde;
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
 
   int step_since_lb;
@@ -566,8 +561,6 @@ class Mesh {
   void FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array);
   void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
 
-  void FinalizeDiffusion(std::vector<MeshBlock*> & pmb_array);
-
 
   void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
                          const bool interior_only);
@@ -652,9 +645,6 @@ private:
   std::vector<std::string> user_history_output_names_;
   std::vector<UserHistoryOperation> user_history_ops_;
 
-  // global constants
-  Real four_pi_G_, grav_eps_, grav_mean_rho_;
-
   // variables for load balancing control
   bool lb_flag_, lb_automatic_, lb_manual_;
   double lb_tolerance_;
@@ -664,13 +654,8 @@ private:
   MeshGenFunc MeshGenerator_[3];
   BValFunc BoundaryFunction_[6];
   AMRFlagFunc AMRFlag_;
-  SrcTermFunc UserSourceTerm_;
   TimeStepFunc UserTimeStep_;
   std::vector<std::function<Real(MeshBlock*, int)>> user_history_func_;
-  MetricFunc UserMetric_;
-  ViscosityCoeffFunc ViscosityCoeff_;
-  ConductionCoeffFunc ConductionCoeff_;
-  FieldDiffusionCoeffFunc FieldDiffusivity_;
 
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
@@ -711,27 +696,17 @@ private:
 
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
-  void EnrollUserExplicitSourceFunction(SrcTermFunc my_func);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
   void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
   void EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
                                const char *name,
                                UserHistoryOperation op=UserHistoryOperation::sum);
-  void EnrollUserMetric(MetricFunc my_func);
 
   void EnrollUserStandardHydro(ParameterInput * pin);
   void EnrollUserStandardField(ParameterInput * pin);
   void EnrollUserStandardZ4c(ParameterInput * pin);
   void EnrollUserStandardM1(ParameterInput * pin);
-
-  void EnrollViscosityCoefficient(ViscosityCoeffFunc my_func);
-  void EnrollConductionCoefficient(ConductionCoeffFunc my_func);
-  void EnrollFieldDiffusivity(FieldDiffusionCoeffFunc my_func);
-  void SetGravitationalConstant(Real g) { four_pi_G_=4.0*PI*g; }
-  void SetFourPiG(Real fpg) { four_pi_G_=fpg; }
-  void SetGravityThreshold(Real eps) { grav_eps_=eps; }
-  void SetMeanDensity(Real d0) { grav_mean_rho_=d0; }
 };
 
 // collect sampling information into struct

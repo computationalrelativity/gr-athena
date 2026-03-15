@@ -22,7 +22,6 @@
 #include "../athena_arrays.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
-#include "../hydro/hydro_diffusion/hydro_diffusion.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "coordinates.hpp"

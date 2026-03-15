@@ -19,12 +19,3 @@
 #include "../hydro/hydro.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "scalars.hpp"
-
-// OpenMP header
-#ifdef OPENMP_PARALLEL
-#include <omp.h>
-#endif
-
-void PassiveScalars::CalculateFluxes_STS() {
-  AddDiffusionFluxes();
-}

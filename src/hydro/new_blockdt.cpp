@@ -19,11 +19,9 @@
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
-#include "../field/field_diffusion/field_diffusion.hpp"
 #include "../mesh/mesh.hpp"
 #include "../scalars/scalars.hpp"
 #include "hydro.hpp"
-#include "hydro_diffusion/hydro_diffusion.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -58,8 +56,6 @@ void Hydro::NewBlockTimeStep() {
   Real min_dt_parabolic  = real_max;
   Real min_dt_user  = real_max;
 
-  // TODO(felker): skip this next loop if pm->fluid_setup == FluidFormulation::disabled
-  FluidFormulation fluid_status = pmb->pmy_mesh->fluid_setup;
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
@@ -89,28 +85,6 @@ void Hydro::NewBlockTimeStep() {
     }
   }
 
-  // calculate the timestep limited by the diffusion processes
-  if (hdif.hydro_diffusion_defined) {
-    Real min_dt_vis, min_dt_cnd;
-    hdif.NewDiffusionDt(min_dt_vis, min_dt_cnd);
-    min_dt_parabolic = std::min(min_dt_parabolic, min_dt_vis);
-    min_dt_parabolic = std::min(min_dt_parabolic, min_dt_cnd);
-  } // hydro diffusion
-
-  if (MAGNETIC_FIELDS_ENABLED &&
-      pmb->pfield->fdif.field_diffusion_defined) {
-    Real min_dt_oa, min_dt_hall;
-    pmb->pfield->fdif.NewDiffusionDt(min_dt_oa, min_dt_hall);
-    min_dt_parabolic = std::min(min_dt_parabolic, min_dt_oa);
-    // Hall effect is dispersive, not diffusive:
-    min_dt_hyperbolic = std::min(min_dt_hyperbolic, min_dt_hall);
-  } // field diffusion
-
-  if (NSCALARS > 0 && pmb->pscalars->scalar_diffusion_defined) {
-    Real min_dt_scalar_diff = pmb->pscalars->NewDiffusionDt();
-    min_dt_parabolic = std::min(min_dt_parabolic, min_dt_scalar_diff);
-  } // passive scalar diffusion
-
   min_dt_hyperbolic *= pmb->pmy_mesh->cfl_number;
   // scale the theoretical stability limit by a safety factor = the hyperbolic CFL limit
   // (user-selected or automaticlaly enforced). May add independent parameter "cfl_diff"
@@ -126,11 +100,7 @@ void Hydro::NewBlockTimeStep() {
     min_dt = std::min(min_dt, min_dt_user);
   }
   // parabolic:
-  // STS handles parabolic terms -> then take the smaller of hyperbolic or user timestep
-  if (!STS_ENABLED) {
-    // otherwise, take the smallest of the hyperbolic, parabolic, user timesteps
-    min_dt = std::min(min_dt, min_dt_parabolic);
-  }
+  // (diffusion removed; min_dt_parabolic stays at real_max - harmless no-op)
   pmb->new_block_dt_ = std::min(pmb->new_block_dt_, min_dt);
   pmb->new_block_dt_hyperbolic_ = std::min(pmb->new_block_dt_hyperbolic_, min_dt_hyperbolic);
   pmb->new_block_dt_parabolic_ = std::min(pmb->new_block_dt_parabolic_, min_dt_parabolic);

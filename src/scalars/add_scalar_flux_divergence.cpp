@@ -37,9 +37,6 @@
 
 // ----> Hydro should be derived from PassiveScalars
 
-// TODO(felker): remove the following unnecessary private class member?
-// field_diffusion.cpp:66:    cell_volume_.NewAthenaArray(nc1);
-
 void PassiveScalars::AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out)
 {
   MeshBlock *pmb = pmy_block;

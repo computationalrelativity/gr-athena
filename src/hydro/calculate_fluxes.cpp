@@ -16,11 +16,9 @@
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
-#include "../field/field_diffusion/field_diffusion.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "../scalars/scalars.hpp"
 #include "hydro.hpp"
-#include "hydro_diffusion/hydro_diffusion.hpp"
 
 #include "../utils/floating_point.hpp"
 #include "../utils/linear_algebra.hpp"
@@ -1293,30 +1291,3 @@ void Hydro::CalculateFluxes_FluxReconstruction(
 
 }
 
-//----------------------------------------------------------------------------------------
-//! \fn  void Hydro::CalculateFluxes_STS
-//  \brief Calculate Hydrodynamic Diffusion Fluxes for STS
-
-void Hydro::CalculateFluxes_STS() {
-  AddDiffusionFluxes();
-}
-
-void Hydro::AddDiffusionFluxes() {
-  Field *pf = pmy_block->pfield;
-  // add diffusion fluxes
-  if (hdif.hydro_diffusion_defined) {
-    if (hdif.nu_iso > 0.0 || hdif.nu_aniso > 0.0)
-      hdif.AddDiffusionFlux(hdif.visflx,flux);
-    // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
-    //if (NON_BAROTROPIC_EOS) {
-    //  if (hdif.kappa_iso > 0.0 || hdif.kappa_aniso > 0.0)
-    //    hdif.AddDiffusionEnergyFlux(hdif.cndflx,flux);
-    //}
-  }
-  // BD: NON_BAROTROPIC_EOS removed (was always 1); Newtonian legacy code
-  //if (MAGNETIC_FIELDS_ENABLED && NON_BAROTROPIC_EOS) {
-  //  if (pf->fdif.field_diffusion_defined)
-  //    pf->fdif.AddPoyntingFlux(pf->fdif.pflux);
-  //}
-  return;
-}

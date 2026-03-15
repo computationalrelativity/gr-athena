@@ -21,8 +21,6 @@
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
 #include "hydro.hpp"
-#include "hydro_diffusion/hydro_diffusion.hpp"
-#include "srcterms/hydro_srcterms.hpp"
 
 // constructor, initializes data structures and parameters
 
@@ -51,9 +49,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                   AthenaArray<Real>::DataStatus::empty)),
-    hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons),
-    hsrc(this, pin),
-    hdif(this, pin)
+    hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons)
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
@@ -143,7 +139,6 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   // If user-requested time integrator is type 3S*, allocate additional memory registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4" ||
-      STS_ENABLED ||
       (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
   {
     // future extension may add "int nregister" to Hydro class

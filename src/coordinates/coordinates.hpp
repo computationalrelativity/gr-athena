@@ -20,7 +20,6 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
-#include "../hydro/srcterms/hydro_srcterms.hpp"
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
 #include "../utils/interp_intergrid.hpp"
@@ -38,7 +37,6 @@ class ParameterInput;
 
 class Coordinates {
  public:
-  friend class HydroSourceTerms;
   Coordinates(MeshBlock *pmb, ParameterInput *pin, bool flag = false);
   virtual ~Coordinates()
   {
@@ -162,10 +160,6 @@ class Coordinates {
   Real GetSpin() const {return bh_spin_;}
 
   // ...to compute metric
-  void Metric(
-      Real x1, Real x2, Real x3, ParameterInput *pin, AthenaArray<Real> &g,
-      AthenaArray<Real> &g_inv, AthenaArray<Real> &dg_dx1, AthenaArray<Real> &dg_dx2,
-      AthenaArray<Real> &dg_dx3);
   virtual void CellMetric(const int k, const int j, const int il, const int iu,
                           AthenaArray<Real> &g, AthenaArray<Real> &gi) {}
   virtual void Face1Metric(const int k, const int j, const int il, const int iu,
@@ -475,7 +469,6 @@ class Coordinates {
 //  in the Coordinates abstract base class need to be overridden.
 
 class Cartesian : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   Cartesian(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -487,7 +480,6 @@ class Cartesian : public Coordinates {
 //  and volume functions in the Coordinates abstract base class are overridden
 
 class Cylindrical : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   Cylindrical(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -538,7 +530,6 @@ class Cylindrical : public Coordinates {
 //  and volume functions in the Coordinates abstract base class are overridden.
 
 class SphericalPolar : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   SphericalPolar(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -602,7 +593,6 @@ class SphericalPolar : public Coordinates {
 //  overridden, but all the metric and transforms functions are.
 
 class Minkowski : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   Minkowski(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -656,7 +646,6 @@ class Minkowski : public Coordinates {
 //  Nearly every function in the abstract base class need to be overridden.
 
 class Schwarzschild : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   Schwarzschild(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -756,7 +745,6 @@ class Schwarzschild : public Coordinates {
 //  Nearly every function in the abstract base class need to be overridden.
 
 class KerrSchild : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   KerrSchild(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -851,112 +839,11 @@ class KerrSchild : public Coordinates {
 };
 
 //----------------------------------------------------------------------------------------
-//! \class GRUser
-//  \brief derived class for arbitrary (stationary) user-defined coordinates in GR.
-//  Nearly every function in the abstract base class need to be overridden.
-
-class GRUser : public Coordinates {
-  friend class HydroSourceTerms;
-
- public:
-  GRUser(MeshBlock *pmb, ParameterInput *pin, bool flag);
-
-  // functions...
-  // ...to compute length of edges
-  void Edge1Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  void Edge2Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  void Edge3Length(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &len) final;
-  Real GetEdge1Length(const int k, const int j, const int i) final;
-  Real GetEdge2Length(const int k, const int j, const int i) final;
-  Real GetEdge3Length(const int k, const int j, const int i) final;
-
-  // ...to compute physical width at cell center
-  void CenterWidth1(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx1) final;
-  void CenterWidth2(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx2) final;
-  void CenterWidth3(const int k, const int j, const int il, const int iu,
-                    AthenaArray<Real> &dx3) final;
-
-  // ...to compute area of faces
-  void Face1Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  void Face2Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  void Face3Area(const int k, const int j, const int il, const int iu,
-                 AthenaArray<Real> &area) final;
-  Real GetFace1Area(const int k, const int j, const int i) final;
-  Real GetFace2Area(const int k, const int j, const int i) final;
-  Real GetFace3Area(const int k, const int j, const int i) final;
-
-  // ...to compute volumes of cells
-  void CellVolume(const int k, const int j, const int il, const int iu,
-                  AthenaArray<Real> &vol) final;
-  Real GetCellVolume(const int k, const int j, const int i) final;
-
-  // ...to compute geometrical source terms
-  void AddCoordTermsDivergence(const Real dt, 
-                               const AthenaArray<Real> *flux,
-                               const AthenaArray<Real> &prim, 
-#if FLUID_ENABLED
-                               const AthenaArray<Real> &prim_scalar,
-#endif
-                               const AthenaArray<Real> &bcc,
-                               AthenaArray<Real> &u) final;
-
-  // In GR, functions...
-  // ...to compute metric
-  void CellMetric(const int k, const int j, const int il, const int iu,
-                  AthenaArray<Real> &g, AthenaArray<Real> &gi) final;
-  void Face1Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
-  void Face2Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
-  void Face3Metric(const int k, const int j, const int il, const int iu,
-                   AthenaArray<Real> &g, AthenaArray<Real> &g_inv) final;
-
-  // ...to transform primitives to locally flat space
-  void PrimToLocal1(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b1_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-  void PrimToLocal2(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b2_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-  void PrimToLocal3(const int k, const int j, const int il, const int iu,
-                    const AthenaArray<Real> &b3_vals, AthenaArray<Real> &prim_left,
-                    AthenaArray<Real> &prim_right, AthenaArray<Real> &bx) final;
-
-  // ...to transform fluxes in locally flat space to global frame
-  void FluxToGlobal1(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-  void FluxToGlobal2(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-  void FluxToGlobal3(
-      const int k, const int j, const int il, const int iu,
-      const AthenaArray<Real> &cons, const AthenaArray<Real> &bbx,
-      AthenaArray<Real> &flux, AthenaArray<Real> &ey, AthenaArray<Real> &ez) final;
-
-  // ...for raising (lowering) covariant (contravariant) components of a vector
-  void RaiseVectorCell(Real a_0, Real a_1, Real a_2, Real a_3, int k, int j, int i,
-                       Real *pa0, Real *pa1, Real *pa2, Real *pa3) final;
-  void LowerVectorCell(Real a0, Real a1, Real a2, Real a3, int k, int j, int i,
-                       Real *pa_0, Real *pa_1, Real *pa_2, Real *pa_3) final;
-};
-
-//----------------------------------------------------------------------------------------
 //! \class GRDynamical
 //  \brief derived class for arbitrary dynamically evolving coordinates in GR.
 //  Nearly every function in the abstract base class need to be overridden.
 
 class GRDynamical : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   GRDynamical(MeshBlock *pmb, ParameterInput *pin, bool flag);
@@ -1189,7 +1076,6 @@ private:
 
 //-----------------------------------------------------------------------------
 class SphericalPolarUniform : public Coordinates {
-  friend class HydroSourceTerms;
 
  public:
   SphericalPolarUniform(MeshBlock *pmb, ParameterInput *pin, bool flag);

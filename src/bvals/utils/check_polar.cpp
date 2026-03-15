@@ -31,9 +31,7 @@ void BoundaryValues::CheckPolarBoundaries() {
   // must be manually updated when a new coordinate system is added to coordinates/)
   if (((std::strcmp(COORDINATE_SYSTEM, "spherical_polar") != 0)
        && (std::strcmp(COORDINATE_SYSTEM, "kerr-schild") != 0)
-       && (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") != 0)
-       // no safety-checks or restrictions on user-defined metrics
-       && (std::strcmp(COORDINATE_SYSTEM, "gr_user") != 0))) {
+       && (std::strcmp(COORDINATE_SYSTEM, "schwarzschild") != 0))) {
     std::stringstream msg;
     msg << "### FATAL ERROR in BoundaryValues constructor" << std::endl
         << "The use of 'polar' or 'polar_wedge' boundary flags is limited \n"

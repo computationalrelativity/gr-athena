@@ -17,7 +17,6 @@
 #include "../athena_arrays.hpp"
 #include "../bvals/fc/bvals_fc.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "field_diffusion/field_diffusion.hpp"
 
 class MeshBlock;
 class ParameterInput;
@@ -58,14 +57,12 @@ public:
   FaceField coarse_b_;
 
   FaceCenteredBoundaryVariable fbvar;
-  FieldDiffusion fdif;
 
   void CalculateCellCenteredField(
       const FaceField &bf, AthenaArray<Real> &bc,
       Coordinates *pco, int il, int iu, int jl, int ju, int kl, int ku);
   void CT(const Real wght, FaceField &b_out);
   void ComputeCornerE(AthenaArray<Real> &w, AthenaArray<Real> &bcc);
-  void ComputeCornerE_STS();
 
   struct ixn_cc
   {

@@ -63,11 +63,6 @@ void ShowConfig() {
   } else {
     std::cout<<"  Z4c equations:              OFF" << std::endl;
   }
-  if (STS_ENABLED) {
-    std::cout<<"  Super-Time-Stepping:        ON" << std::endl;
-  } else {
-    std::cout<<"  Super-Time-Stepping:        OFF" << std::endl;
-  }
   // configure.py output: +"Debug flags"
   // configure.py output: +"Code coverage flags"
   // configure.py output: +"Linker flags"
