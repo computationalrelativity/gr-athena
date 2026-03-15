@@ -510,7 +510,6 @@ void FaceCenteredBoundaryVariable::CopyPolarBufferSameProcess(
     target_flag = BoundaryStatus::arrived;
   }
   std::memcpy(target_buf, send_buf, ssize*sizeof(Real));
-  return;
 }
 
 //----------------------------------------------------------------------------------------

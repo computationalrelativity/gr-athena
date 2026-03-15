@@ -1816,6 +1816,23 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
         CommunicateConserved(pmb_array);
       }
 
+      // Reconcile shared boundary faces after pgen ghost exchange.
+      // Same-level face-sharing blocks may have different values at their
+      // shared boundary face (set independently by SeedMagneticFields).
+      // Lower-gid block's value is made canonical.
+      #pragma omp barrier
+      #pragma omp master
+      {
+        // should only be needed for pgen but for maximal safety put everything
+        if ((init_style == initialize_style::pgen)   ||
+            (init_style == initialize_style::regrid) ||
+            (init_style == initialize_style::restart))
+        {
+          ReconcileSharedFacesFC(pmb_array);
+        }
+      }
+      #pragma omp barrier
+
       // Finalize sub-systems that only need conserved vars -------------------
 #if Z4C_ENABLED
       // To finalize Z4c/ADM
@@ -1983,7 +2000,6 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
     }
     // ------------------------------------------------------------------------
   } while (!iflag);
-
 
   // calculate the first time step --------------------------------------------
   #pragma omp parallel for num_threads(nthreads)

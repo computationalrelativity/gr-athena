@@ -16,6 +16,7 @@
 #include "../athena_arrays.hpp"
 #include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "field.hpp"
 

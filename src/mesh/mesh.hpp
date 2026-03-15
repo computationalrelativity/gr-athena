@@ -500,6 +500,9 @@ class Mesh {
   // in main integration loop
   void InitializePostMainUpdatedMesh(ParameterInput *pin);
 
+  // Reconcile shared boundary faces of face-centered B after pgen init.
+  void ReconcileSharedFacesFC(std::vector<MeshBlock*> &pmb_array);
+
   void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
                                  BoundaryFlag *block_bcs);
 

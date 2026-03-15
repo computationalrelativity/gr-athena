@@ -269,8 +269,8 @@ inline void SetIndexRangesSetFromFiner_FC(
 //! \fn void FaceCenteredBoundaryVariable::idxLoadSameLevelRanges_FC(...)
 //  \brief Index ranges for LoadBoundaryBufferSameLevel, one face component.
 //
-//  is_coarse=false: fine grid indices, includes multilevel edge/corner overlap.
-//  is_coarse=true:  coarse same-level payload, NO edge/corner overlap.
+//  is_coarse=false: fine grid indices (edge/corner overlap disabled - see below).
+//  is_coarse=true:  coarse same-level payload, no edge/corner overlap.
 void FaceCenteredBoundaryVariable::idxLoadSameLevelRanges_FC(
     const NeighborIndexes& ni,
     int &si, int &ei, int &sj, int &ej, int &sk, int &ek,
@@ -286,19 +286,26 @@ void FaceCenteredBoundaryVariable::idxLoadSameLevelRanges_FC(
                           stagger_axis == 1, pmb->block_size.nx2 > 1);
     SetIndexRangesLoad_FC(ni.ox3, sk, ek, pmb->ks, pmb->ke, ng,
                           stagger_axis == 2, pmb->block_size.nx3 > 1);
-    // Edge/corner overlap: re-include the boundary face for multilevel non-face
-    if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
-      if (stagger_axis == 0) {
-        if (ni.ox1 > 0) ei++;
-        else if (ni.ox1 < 0) si--;
-      } else if (stagger_axis == 1) {
-        if (ni.ox2 > 0) ej++;
-        else if (ni.ox2 < 0) sj--;
-      } else {
-        if (ni.ox3 > 0) ek++;
-        else if (ni.ox3 < 0) sk--;
-      }
-    }
+
+    // Same-level edge/corner overlap re-included the shared
+    // interior boundary face in edge/corner neighbor packs.
+    // This overwrote EMF-corrected face values with neighbor-computed values.
+    // The matching set-side and buffer-size overlaps are also disabled and
+    // must stay in sync.
+
+    // if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
+    //   if (stagger_axis == 0) {
+    //     if (ni.ox1 > 0) ei++;
+    //     else if (ni.ox1 < 0) si--;
+    //   } else if (stagger_axis == 1) {
+    //     if (ni.ox2 > 0) ej++;
+    //     else if (ni.ox2 < 0) sj--;
+    //   } else {
+    //     if (ni.ox3 > 0) ek++;
+    //     else if (ni.ox3 < 0) sk--;
+    //   }
+    // }
+
   } else {
     // --- coarse same-level payload (no edge/corner overlap) ---
     int cng  = pmb->cnghost;
@@ -388,8 +395,8 @@ void FaceCenteredBoundaryVariable::idxLoadToFinerRanges_FC(
 //! \fn void FaceCenteredBoundaryVariable::idxSetSameLevelRanges_FC(...)
 //  \brief Index ranges for SetBoundarySameLevel, one face component.
 //
-//  type=1: fine data (includes multilevel edge/corner overlap).
-//  type=2: coarse same-level payload (NO edge/corner overlap).
+//  type=1: fine data (edge/corner overlap disabled - see idxLoadSameLevelRanges_FC).
+//  type=2: coarse same-level payload (no edge/corner overlap).
 void FaceCenteredBoundaryVariable::idxSetSameLevelRanges_FC(
     const NeighborIndexes& ni,
     int &si, int &ei, int &sj, int &ej, int &sk, int &ek,
@@ -405,20 +412,20 @@ void FaceCenteredBoundaryVariable::idxSetSameLevelRanges_FC(
                          stagger_axis == 1, pmb->block_size.nx2 > 1);
     SetIndexRangesSet_FC(ni.ox3, sk, ek, pmb->ks, pmb->ke, ng,
                          stagger_axis == 2, pmb->block_size.nx3 > 1);
-    // Edge/corner overlap: for multilevel non-face, re-include boundary face
-    // on the ghost-zone side (opposite direction from Load)
-    if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
-      if (stagger_axis == 0) {
-        if (ni.ox1 > 0) si--;
-        else if (ni.ox1 < 0) ei++;
-      } else if (stagger_axis == 1) {
-        if (ni.ox2 > 0) sj--;
-        else if (ni.ox2 < 0) ej++;
-      } else {
-        if (ni.ox3 > 0) sk--;
-        else if (ni.ox3 < 0) ek++;
-      }
-    }
+    // Same-level edge/corner overlap (Set side).
+    // See idxLoadSameLevelRanges_FC for the full explanation.
+    // if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
+    //   if (stagger_axis == 0) {
+    //     if (ni.ox1 > 0) si--;
+    //     else if (ni.ox1 < 0) ei++;
+    //   } else if (stagger_axis == 1) {
+    //     if (ni.ox2 > 0) sj--;
+    //     else if (ni.ox2 < 0) ej++;
+    //   } else {
+    //     if (ni.ox3 > 0) sk--;
+    //     else if (ni.ox3 < 0) ek++;
+    //   }
+    // }
   } else {
     // --- coarse same-level payload (no edge/corner overlap) ---
     int cng  = pmb->cnghost;
@@ -532,12 +539,15 @@ int FaceCenteredBoundaryVariable::MPI_BufferSizeSameLevel_FC(
   int size3 = ((ni.ox1 == 0) ? (nx1) : NGHOST)
               *((ni.ox2 == 0) ? (nx2) : NGHOST)
               *((ni.ox3 == 0) ? (nx3 + f3) : NGHOST);
-  // Edge/corner overlap adjustment for multilevel non-face
-  if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
-    if (ni.ox1 != 0) size1 = size1/NGHOST*(NGHOST + 1);
-    if (ni.ox2 != 0) size2 = size2/NGHOST*(NGHOST + 1);
-    if (ni.ox3 != 0) size3 = size3/NGHOST*(NGHOST + 1);
-  }
+  // Same-level edge/corner overlap (buffer size).
+  // See idxLoadSameLevelRanges_FC for the full explanation.
+
+  // if (pmy_mesh_->multilevel && ni.type != NeighborConnect::face) {
+  //   if (ni.ox1 != 0) size1 = size1/NGHOST*(NGHOST + 1);
+  //   if (ni.ox2 != 0) size2 = size2/NGHOST*(NGHOST + 1);
+  //   if (ni.ox3 != 0) size3 = size3/NGHOST*(NGHOST + 1);
+  // }
+
   int size = size1 + size2 + size3;
 
   // Coarse same-level payload
