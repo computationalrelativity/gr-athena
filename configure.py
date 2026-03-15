@@ -43,7 +43,6 @@
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   -sgrid             enable SGRID
 #   --sgrid_path=path  path to SGRID (requires SGRID library)
-#   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
 #   --mpiccmd=name      use name as the command to call the MPI C++ compiler
@@ -499,14 +498,6 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="enable parallelization with OpenMP",
-)
-
-# --grav=[name] argument
-parser.add_argument(
-  "--grav",
-  default="none",
-  choices=["none", "fft"],
-  help="select self-gravity solver",
 )
 
 # -fft argument

@@ -107,7 +107,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     nbnew(), nbdel(),
-    step_since_lb(), gflag(), turb_flag(),
+    step_since_lb(), turb_flag(),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -620,11 +620,11 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     // create a block and add into the link list
     if (i == nbs) {
       pblock = new MeshBlock(i, i-nbs, loclist[i], block_size, block_bcs, this,
-                             pin, gflag);
+                             pin);
       pfirst = pblock;
     } else {
       pblock->next = new MeshBlock(i, i-nbs, loclist[i], block_size, block_bcs,
-                                   this, pin, gflag);
+                                   this, pin);
       pblock->next->prev = pblock;
       pblock = pblock->next;
     }
@@ -692,7 +692,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     nbnew(), nbdel(),
-    step_since_lb(), gflag(), turb_flag(),
+    step_since_lb(), turb_flag(),
     // private members:
     next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -1094,11 +1094,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     // create a block and add into the link list
     if (i == nbs) {
       pblock = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                             block_bcs, costlist[i], mbdata+buff_os, gflag);
+                             block_bcs, costlist[i], mbdata+buff_os);
       pfirst = pblock;
     } else {
       pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                                   block_bcs, costlist[i], mbdata+buff_os, gflag);
+                                   block_bcs, costlist[i], mbdata+buff_os);
       pblock->next->prev = pblock;
       pblock = pblock->next;
     }
@@ -1147,11 +1147,11 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     // create a block and add into the link list
     if (i == nbs) {
       pblock = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                             block_bcs, costlist[i], mbdata, gflag);
+                             block_bcs, costlist[i], mbdata);
       pfirst = pblock;
     } else {
       pblock->next = new MeshBlock(i, i-nbs, this, pin, loclist[i], block_size,
-                                   block_bcs, costlist[i], mbdata, gflag);
+                                   block_bcs, costlist[i], mbdata);
       pblock->next->prev = pblock;
       pblock = pblock->next;
     }

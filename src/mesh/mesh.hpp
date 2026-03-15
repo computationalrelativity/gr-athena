@@ -100,11 +100,11 @@ class MeshBlock {
 
 public:
   MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
-            BoundaryFlag *input_bcs, Mesh *pm, ParameterInput *pin, int igflag,
+            BoundaryFlag *input_bcs, Mesh *pm, ParameterInput *pin,
             bool ref_flag = false);
   MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin, LogicalLocation iloc,
             RegionSize input_block, BoundaryFlag *input_bcs, double icost,
-            char *mbdata, int igflag);
+            char *mbdata);
   ~MeshBlock();
 
   // data
@@ -124,7 +124,6 @@ public:
   int is, ie, js, je, ks, ke;
   int gid, lid;
   int cis, cie, cjs, cje, cks, cke, cnghost;
-  int gflag;
 
   // convenience for vertices
   int nverts1, nverts2, nverts3;   // number of vertices (cells + 1)
@@ -451,7 +450,6 @@ class Mesh {
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
 
   int step_since_lb;
-  int gflag;
   int turb_flag; // turbulence flag
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:

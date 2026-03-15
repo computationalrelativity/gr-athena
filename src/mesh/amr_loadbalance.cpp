@@ -656,11 +656,11 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
       // insert new block in singly-linked list of MeshBlocks
       if (n == nbs) { // first node
         newlist = new MeshBlock(n, n-nbs, newloc[n], block_size, block_bcs, this,
-                                pin, gflag, true);
+                                 pin, true);
         pmb = newlist;
       } else {
         pmb->next = new MeshBlock(n, n-nbs, newloc[n], block_size, block_bcs, this,
-                                  pin, gflag, true);
+                                   pin, true);
         pmb->next->prev = pmb;
         pmb = pmb->next;
       }
