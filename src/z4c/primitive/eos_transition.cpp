@@ -25,19 +25,30 @@ EOSTransition::EOSTransition() {
   helmholtz_eos = new EOSHelmholtz();
   n_species = 7;
   eos_units = &Nuclear;
-  max_iter = 50;
-  T_tol = 1e-10;
+  min_Y[SCYE] = 0.0; // will be overwritten by update_bounds
   min_Y[SCXN] = 0.0;
   min_Y[SCXP] = 0.0;
   min_Y[SCXA] = 0.0;
   min_Y[SCXH] = 0.0;
   min_Y[SCAH] = 1.0;
   min_Y[SCEB] = 0.0;
+
+  max_Y[SCYE] = 1.0; // will be overwritten by update_bounds
   max_Y[SCXN] = 1.0;
   max_Y[SCXP] = 1.0;
   max_Y[SCXA] = 1.0;
   max_Y[SCXH] = 1.0;
   max_Y[SCAH] = 500.0;
+  max_Y[SCEB] = 1e-1; // will be overwritten by SetBaryonMass
+
+  m_min_h = numeric_limits<Real>::max();
+  m_trans_T_width = numeric_limits<Real>::quiet_NaN();
+  m_trans_ln_width = numeric_limits<Real>::quiet_NaN();
+  trans_T_start = numeric_limits<Real>::quiet_NaN();
+  trans_T_end = numeric_limits<Real>::quiet_NaN();
+  trans_ln_start = numeric_limits<Real>::quiet_NaN();
+  trans_ln_end = numeric_limits<Real>::quiet_NaN();
+  m_initialized = false;
 }
 
 EOSTransition::~EOSTransition() {
@@ -45,18 +56,6 @@ EOSTransition::~EOSTransition() {
   delete helmholtz_eos;
 }
 
-//Definitions for static members
-Real EOSTransition::max_Y[MAX_SPECIES] = {0};
-Real EOSTransition::min_Y[MAX_SPECIES] = {0};
-
-Real EOSTransition::m_min_h = numeric_limits<Real>::max();
-Real EOSTransition::m_trans_T_width = numeric_limits<Real>::quiet_NaN();
-Real EOSTransition::m_trans_ln_width = numeric_limits<Real>::quiet_NaN();
-Real EOSTransition::trans_T_start = numeric_limits<Real>::quiet_NaN();
-Real EOSTransition::trans_T_end = numeric_limits<Real>::quiet_NaN();
-Real EOSTransition::trans_ln_start = numeric_limits<Real>::quiet_NaN();
-Real EOSTransition::trans_ln_end = numeric_limits<Real>::quiet_NaN();
-bool EOSTransition::m_initialized = false;
 
 Real EOSTransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   assert (m_initialized);
@@ -374,7 +373,8 @@ void EOSTransition::PrintParameters() {
 void EOSTransition::SetBaryonMass(Real new_mb) {
   helmholtz_eos->SetBaryonMass(new_mb);
   compose_eos->SetBaryonMass(new_mb);
-  max_Y[SCEB] = 939.5654133/new_mb - 1.0;
+  min_Y[SCEB] = mFe/new_mb - 1.0; // most bound nucleus is Fe-56
+  max_Y[SCEB] = mn/new_mb - 1.0; // free neutron limit
   mb = new_mb;
 }
 
@@ -403,6 +403,8 @@ void EOSTransition::update_bounds() {
   min_T = helmholtz_eos->MinimumTemperature();
   max_n = compose_eos->MaximumDensity();
   max_T = compose_eos->MaximumTemperature();
+  min_Y[SCYE] = compose_eos->min_Y[SCYE];
+  max_Y[SCYE] = compose_eos->max_Y[SCYE];
 
   m_min_h = helmholtz_eos->MinimumEnthalpy();
 }
@@ -423,27 +425,12 @@ void EOSTransition::InitializeTables(std::string fname, std::string helm_fname, 
   #pragma omp critical
   {
     if (not m_initialized) {
-
       compose_eos->ReadTableFromFile(fname);
-      helmholtz_eos->ReadTableFromFile(helm_fname);
-
-      // Initialize the transitions if they have not been initialized
-      // -------------------------------------------------------------------------
-      if (std::isnan(m_trans_T_width)) {
-        m_trans_T_width = 1e9 * CGS.TemperatureConversion(*eos_units); // 1 GK
-        trans_T_end = min_T;
-        trans_T_start = min_T + m_trans_T_width;
-      }
-
-      if (std::isnan(m_trans_ln_width)) {
-        m_trans_ln_width = log(5); // start = 5 times end of transition
-        trans_ln_end = log(min_n);
-        trans_ln_start = trans_ln_end + m_trans_ln_width;
-      }
-
+      helmholtz_eos->ReadTableFromFile(helm_fname, compose_eos->min_Y[SCYE], compose_eos->max_Y[SCYE]);
+      if (std::isnan(m_trans_T_width) or std::isnan(m_trans_ln_width))
+        throw std::runtime_error("EOSTransition: Transition parameters must be set before initialization.");
       SetBaryonMass(baryon_mass);
       update_bounds();
-
       // PrintParameters();
       m_initialized = true;
     }

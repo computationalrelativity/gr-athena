@@ -4,7 +4,6 @@
 //! \file eos_transition.hpp
 //  \brief Defines EOSTransition, which is used to implement a transition between EOSCompose and EOSHelmholtz.
 
-#include <cstddef>
 #include <string>
 
 #include <boost/math/tools/roots.hpp>
@@ -143,6 +142,9 @@ class EOSTransition : public EOSPolicyInterface {
     /// Low level inversion function, not intended for outside use
     Real temperature_from_var_trans(int iv, Real var, Real n, Real *Y) const;
     int comp_it_trans_start, comp_it_trans_end;
+
+    const Real mn = 939.5654133; // MeV
+    const Real mFe = 930.411832325152; // MeV per baryon for 56Fe
 
   protected:
     EOSCompOSE * compose_eos;

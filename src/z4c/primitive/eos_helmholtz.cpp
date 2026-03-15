@@ -56,8 +56,6 @@ Real EOSHelmholtz::s_max_n = numeric_limits<Real>::quiet_NaN();
 Real EOSHelmholtz::s_min_n = numeric_limits<Real>::quiet_NaN();
 Real EOSHelmholtz::s_max_T = numeric_limits<Real>::quiet_NaN();
 Real EOSHelmholtz::s_min_T = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::s_max_Y[MAX_SPECIES] = {0};
-Real EOSHelmholtz::s_min_Y[MAX_SPECIES] = {0};
 
 Real EOSHelmholtz::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
@@ -209,7 +207,7 @@ Real EOSHelmholtz::MaximumEntropy(Real n, Real *Y) {
   return Entropy(n, max_T, Y);
 }
 
-void EOSHelmholtz::ReadTableFromFile(std::string fname) {
+void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye) {
   #pragma omp critical (EOSHelmholtz_ReadTable)
   {
     if (m_initialized==false) {
@@ -242,8 +240,8 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname) {
       // -------------------------------------------------------------------------
       ierr = H5LTread_dataset_double(file_id, "ne", scratch);
         MYH5CHECK(ierr);
-      min_n = scratch[0];
-      max_n = scratch[m_nn-1];
+      min_n = scratch[0]/min_Ye;
+      max_n = scratch[m_nn-1]/max_Ye;
       for (int in = 0; in < m_nn; ++in) {
         m_log_ne[in] = log(scratch[in]);
       }
@@ -323,8 +321,6 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname) {
       s_min_n = min_n;
       s_max_T = max_T;
       s_min_T = min_T;
-      s_max_Y[SCYE] = max_Y[SCYE];
-      s_min_Y[SCYE] = min_Y[SCYE];
 
     } // if (sm_initialized==false)
   } // omp critical (EOSHelmholtz_ReadTable)
@@ -342,8 +338,8 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname) {
   min_n    = s_min_n;
   max_T    = s_max_T;
   min_T    = s_min_T;
-  max_Y[SCYE] = s_max_Y[SCYE];
-  min_Y[SCYE] = s_min_Y[SCYE];
+  max_Y[SCYE] = max_Ye;
+  min_Y[SCYE] = min_Ye;
 
 }
 

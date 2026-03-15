@@ -112,7 +112,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
 
   public:
     /// Reads the table file.
-    void ReadTableFromFile(std::string fname);
+    void ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye);
 
     /// Set the baryon mass.
     void SetBaryonMass(Real new_mb);
@@ -187,7 +187,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
     static Real sm_min_h;
 
     // variables from EOSPolicy
-    static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES], s_min_Y[MAX_SPECIES];
+    static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T;
     // these correspond to defined but unused vars in EOSPolicy
     // static Real s_max_P, s_min_P, s_max_e, s_min_e;
     const Real hbarc = 197.3269804; // MeV fm
