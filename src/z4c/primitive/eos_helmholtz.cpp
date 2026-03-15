@@ -159,8 +159,8 @@ Real EOSHelmholtz::ProtonChemicalPotential(Real n, Real T, Real *Y) {
 
 Real EOSHelmholtz::ElectronChemicalPotential(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  Real etaele = eval_at_nty(ECELE, n, T, Y);
-  return etaele * T;
+  Real etaele = eval_at_nty(ECETA, n, T, Y);
+  return etaele * T + me;
 }
 
 Real EOSHelmholtz::BaryonChemicalPotential(Real n, Real T, Real *Y) {
@@ -274,6 +274,10 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
       ierr = H5LTread_dataset_double(file_id, "eps", scratch);
         MYH5CHECK(ierr);
       copy(&scratch[0], &scratch[m_nn*m_nt], &m_table[index(ECEPS, 0, 0)]);
+
+      ierr = H5LTread_dataset_double(file_id, "eta", scratch);
+        MYH5CHECK(ierr);
+      copy(&scratch[0], &scratch[m_nn*m_nt], &m_table[index(ECETA, 0, 0)]);
 
       ierr = H5LTread_dataset_double(file_id, "depsdt", scratch);
         MYH5CHECK(ierr);
@@ -473,9 +477,9 @@ Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real *Y) const 
       Real dpiondt = n * inverse_abar(Y);
       return var + dpraddt + dpiondt;
     }
-    case ECELE:
+    case ECETA:
     {
-      return var; // no correction to chemical potential
+      return var; // no correction electron degeneracy parameter
     }
   }
   throw std::logic_error("Invalid variable index in add_rad_ion");

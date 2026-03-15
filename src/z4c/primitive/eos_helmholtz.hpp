@@ -24,7 +24,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
       ECP      = 0,  //! pressure / 1 MeV fm^-3
       ECENT    = 1,  //! entropy per baryon [kb]
       ECEPS    = 2,  //! specific internal energy
-      ECELE    = 3,  //! electron degeneracy parameter
+      ECETA    = 3,  //! electron degeneracy parameter
       ECDEPSDT = 4,
       ECDPDN   = 5,
       ECDPDT   = 6,
@@ -195,6 +195,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
     const Real asol = M_PI*M_PI/(15.0*hbarc*hbarc*hbarc); // (MeV fm)^-3
     // const Real sac_const = 244654.27090035815; // h^2/(2*pi) in (MeV fm)^2
     const Real sac_const = hbarc*hbarc*2.0*M_PI; // (MeV fm)^2
+    const Real me = 0.5109989461; // MeV
     const Real mn = 939.5654133; // MeV
     const Real mp = 938.2720813; // MeV
     const Real ma = 3727.379378; // MeV
