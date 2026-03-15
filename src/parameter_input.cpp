@@ -104,12 +104,14 @@ void line_to_var_comment(
   std::string& content,
   std::string& comment)
 {
-  size_t pos = input.find('#'); // Find the first occurrence of '#'
+  size_t hash_pos = input.find('#');
+  size_t cmt_pos = input.find("//");
+  size_t pos = std::min(hash_pos, cmt_pos);
 
   if (pos != std::string::npos)
   {
-    content = input.substr(0, pos);  // Extract everything before '#'
-    comment = input.substr(pos);     // Extract the comment including '#'
+    content = input.substr(0, pos);  // Extract everything before comment
+    comment = input.substr(pos);     // Extract the comment
   } else {
       content = input;  // No comment found, so full string is content
       comment = "";     // No comment
@@ -208,7 +210,8 @@ void ParameterInput::LoadFromStream(std::istream &is) {
     if (line.empty()) continue;                             // skip blank line
     first_char = line.find_first_not_of(" ");               // skip white space
     if (first_char == std::string::npos) continue;          // line is all white space
-    if (line.compare(first_char, 1, "#") == 0) continue;      // skip comments
+    if (line.compare(first_char, 1, "#") == 0 ||
+        line.compare(first_char, 2, "//") == 0) continue;   // skip comments
     if (line.compare(first_char, 9, "<par_end>") == 0) break; // stop on <par_end>
 
     if (line.compare(first_char, 1, "<") == 0) {              // a new block
@@ -267,7 +270,8 @@ void ParameterInput::LoadFromStream(std::istream &is) {
         first_char = line.find_first_not_of(" ");
 
         if (is_line_empty(line)) continue;
-        if (line.compare(first_char, 1, "#") == 0) continue;
+        if (line.compare(first_char, 1, "#") == 0 ||
+            line.compare(first_char, 2, "//") == 0) continue;
 
         if ((line.compare(first_char, 1, "<") == 0) ||
             (line.compare(first_char, 9, "<par_end>") == 0))
@@ -383,11 +387,14 @@ InputBlock* ParameterInput::FindOrAddBlock(std::string name) {
 void ParameterInput::ParseLine(InputBlock *pib, std::string line,
                                std::string& name, std::string& value,
                                std::string& comment) {
-  std::size_t first_char, last_char, equal_char, hash_char, len;
+  std::size_t first_char, last_char, equal_char, comment_char, len;
 
   first_char = line.find_first_not_of(" ");   // find first non-white space
   equal_char = line.find_first_of("=");       // find "=" char
-  hash_char  = line.find_first_of("#");       // find "#" (optional)
+
+  std::size_t hash_char = line.find_first_of("#");
+  std::size_t cmt_char = line.find("//");
+  comment_char = std::min(hash_char, cmt_char);
 
   if (equal_char == std::string::npos) {
     std::stringstream msg;
@@ -404,7 +411,7 @@ void ParameterInput::ParseLine(InputBlock *pib, std::string line,
   name.erase(last_char+1, std::string::npos);
 
   // copy substring into value, remove white space at start and end
-  len = hash_char - equal_char - 1;
+  len = comment_char - equal_char - 1;
   value.assign(line, equal_char+1, len);
 
   first_char = value.find_first_not_of(" ");
@@ -414,8 +421,8 @@ void ParameterInput::ParseLine(InputBlock *pib, std::string line,
   value.erase(last_char+1, std::string::npos);
 
   // copy substring into comment, if present
-  if (hash_char != std::string::npos) {
-    comment = line.substr(hash_char);
+  if (comment_char != std::string::npos) {
+    comment = line.substr(comment_char);
   } else {
     comment = "";
   }
