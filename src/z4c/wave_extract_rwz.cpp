@@ -1144,7 +1144,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
   const Real div_r = 1.0/(Radius);     
   
   // For interp
-  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 3, true> * pinterp3 = nullptr;
   Real origin[NDIM];
   Real delta[NDIM];
   int size[NDIM];
@@ -1276,7 +1276,7 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock * pmb)
       // Interpolate Cartesian components at point (theta_i,phi_j)
       // ----------------------------------------------------------
 
-      pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+      pinterp3 = new LagrangeInterpND<metric_interp_order, 3, true>(origin, delta, size, coord);
 
       // 3-metric
       // With bitant wrt z=0, pick a (-) sign every time a z component is encountered.

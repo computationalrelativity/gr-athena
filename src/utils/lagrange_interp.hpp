@@ -30,7 +30,7 @@
 #endif
 
 
-template<int order>
+template<int order, bool compute_diff = false>
 class LagrangeInterp1D {
   public:
     LagrangeInterp1D(
@@ -110,15 +110,21 @@ class LagrangeInterp1D {
       }
 #endif
       m_calc_coeff_lr(xp, &m_coeff_lr[0]);
-      m_calc_coeff_diff_lr(xp, &m_coeff_lr[0], &m_coeff_diff_lr[0]);
+      if constexpr (compute_diff) {
+        m_calc_coeff_diff_lr(xp, &m_coeff_lr[0], &m_coeff_diff_lr[0]);
+      }
 #ifdef LOCALINTERP_SYMMETRIC
       if(0 == order % 2 && m_mid_flag) {
         m_calc_coeff_rl(&xp[1], &m_coeff_rl[0]);
-        m_calc_coeff_diff_rl(&xp[1], &m_coeff_rl[0], &m_coeff_diff_rl[0]);
+        if constexpr (compute_diff) {
+          m_calc_coeff_diff_rl(&xp[1], &m_coeff_rl[0], &m_coeff_diff_rl[0]);
+        }
       }
       else {
         std::memcpy(m_coeff_rl, m_coeff_lr, sizeof(m_coeff_lr));
-        std::memcpy(m_coeff_diff_rl, m_coeff_diff_lr, sizeof(m_coeff_diff_lr));
+        if constexpr (compute_diff) {
+          std::memcpy(m_coeff_diff_rl, m_coeff_diff_lr, sizeof(m_coeff_diff_lr));
+        }
       }
 #endif
     }
@@ -145,18 +151,18 @@ class LagrangeInterp1D {
         out_lr += static_cast<T>(m_coeff_lr[i]) * vals[i*stride];
       }
 #ifdef LOCALINTERP_SYMMETRIC
-      T out_rl = 0;
-      int shift = static_cast<int>(0 == order % 2 && m_mid_flag);
-      for(int i = order; i >= 0; --i) {
-        out_rl += static_cast<T>(m_coeff_rl[i]) * vals[(i + shift)*stride];
+      if (m_mid_flag) {
+        T out_rl = 0;
+        for(int i = order; i >= 0; --i) {
+          out_rl += static_cast<T>(m_coeff_rl[i]) * vals[(i + 1)*stride];
+        }
+        return T(0.5)*(out_lr + out_rl);
       }
-      return T(0.5)*(out_lr + out_rl);
-#else
-      return out_lr;
 #endif
+      return out_lr;
     }
 
-    //! Evaluates the interpolator
+    //! Evaluates the derivative interpolator
     template<typename T>
     T eval_diff(
         //! [in] must be offset so that vals[0] = vals["point"]
@@ -164,20 +170,22 @@ class LagrangeInterp1D {
         //! [in] stride used to access vals
         int const stride
         ) const {
+      static_assert(compute_diff,
+          "eval_diff() requires compute_diff=true");
       T out_lr = 0;
       for(int i = 0; i <= order; ++i) {
         out_lr += static_cast<T>(m_coeff_diff_lr[i]) * vals[i*stride];
       }
 #ifdef LOCALINTERP_SYMMETRIC
-      T out_rl = 0;
-      int shift = static_cast<int>(0 == order % 2 && m_mid_flag);
-      for(int i = order; i >= 0; --i) {
-        out_rl += static_cast<T>(m_coeff_diff_rl[i]) * vals[(i + shift)*stride];
+      if (m_mid_flag) {
+        T out_rl = 0;
+        for(int i = order; i >= 0; --i) {
+          out_rl += static_cast<T>(m_coeff_diff_rl[i]) * vals[(i + 1)*stride];
+        }
+        return T(0.5)*(out_lr + out_rl);
       }
-      return T(0.5)*(out_lr + out_rl);
-#else
-      return out_lr;
 #endif
+      return out_lr;
     }
   private:
     // Compute the Lagrange interpolation coefficients on a given stencil
@@ -295,7 +303,7 @@ class NextStencil<ndim, 0> {
 //   different direction is allowed;
 // . the fastest running index in the data is that corrsponding to the first dimension
 // . the stride used to access the data along the first dimension is 1
-template<int order, int ndim>
+template<int order, int ndim, bool compute_diff = false>
 class LagrangeInterpND {
   public:
     LagrangeInterpND(
@@ -314,10 +322,14 @@ class LagrangeInterpND {
         m_siz[d] = siz[d];
         m_coord[d] = coord[d];
         mp_interp[d] = new (&m_interp_scratch[d][0])
-          LagrangeInterp1D<order>(m_origin[d], m_delta[d],
+          LagrangeInterp1D<order, compute_diff>(m_origin[d], m_delta[d],
               m_siz[d], m_coord[d]);
         m_out_of_bounds = m_out_of_bounds || mp_interp[d]->out_of_bounds();
       }
+      // Precompute strides for the D==0 base case of m_fill_stencil
+      m_stride[0] = 1;
+      for(int d = 1; d < ndim; ++d)
+        m_stride[d] = m_stride[d-1] * m_siz[d-1];
     }
 
     // Rule of five -------------------------------------------------------
@@ -333,10 +345,11 @@ class LagrangeInterpND {
       std::memcpy(m_origin, o.m_origin, sizeof(m_origin));
       std::memcpy(m_delta, o.m_delta, sizeof(m_delta));
       std::memcpy(m_siz, o.m_siz, sizeof(m_siz));
+      std::memcpy(m_stride, o.m_stride, sizeof(m_stride));
       std::memcpy(m_coord, o.m_coord, sizeof(m_coord));
       std::memcpy(m_interp_scratch, o.m_interp_scratch, sizeof(m_interp_scratch));
       for (int d = 0; d < ndim; ++d) {
-        mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order>*>(
+        mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order, compute_diff>*>(
             &m_interp_scratch[d][0]);
       }
     }
@@ -348,10 +361,11 @@ class LagrangeInterpND {
         std::memcpy(m_origin, o.m_origin, sizeof(m_origin));
         std::memcpy(m_delta, o.m_delta, sizeof(m_delta));
         std::memcpy(m_siz, o.m_siz, sizeof(m_siz));
+        std::memcpy(m_stride, o.m_stride, sizeof(m_stride));
         std::memcpy(m_coord, o.m_coord, sizeof(m_coord));
         std::memcpy(m_interp_scratch, o.m_interp_scratch, sizeof(m_interp_scratch));
         for (int d = 0; d < ndim; ++d) {
-          mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order>*>(
+          mp_interp[d] = reinterpret_cast<LagrangeInterp1D<order, compute_diff>*>(
               &m_interp_scratch[d][0]);
         }
       }
@@ -368,42 +382,36 @@ class LagrangeInterpND {
         //! [in] Grid function to interpolate
         T const * const gf
         ) const {
-      T vals[ndim][order+2];
-      int pos[ndim];
-      m_fill_stencil<T, ndim-1, der>(gf, pos, vals);
-      if (ndim - 1 == der) {
-        return mp_interp[ndim-1]->eval_diff(vals[ndim-1], 1);
+      m_fill_stencil<T, ndim-1, der>(gf);
+      if constexpr (ndim - 1 == der) {
+        return mp_interp[ndim-1]->eval_diff(m_vals[ndim-1], 1);
       }
       else {
-        return mp_interp[ndim-1]->eval(vals[ndim-1], 1);
+        return mp_interp[ndim-1]->eval(m_vals[ndim-1], 1);
       }
     }
   private:
     // Recursively fill the stencil used for the interpolation
     template<typename T, int D, int der>
     void m_fill_stencil(
-        T const * const gf,
-        int pos[ndim],
-        T vals[ndim][order+2]
+        T const * const gf
         ) const {
-      assert(D >= 0 && D < ndim);
-      if(D == 0) {
+      static_assert(D >= 0 && D < ndim);
+      if constexpr (D == 0) {
         int gidx = mp_interp[0]->point();
-        int stride = 1;
         for(int d = 1; d < ndim; ++d) {
-          stride *= m_siz[d-1];
-          gidx += stride * (mp_interp[d]->point() + pos[d]);
+          gidx += m_stride[d] * (mp_interp[d]->point() + m_eval_pos[d]);
         }
-        std::memcpy(&vals[0][0], &gf[gidx], mp_interp[0]->npoint()*sizeof(T));
+        std::memcpy(&m_vals[0][0], &gf[gidx], mp_interp[0]->npoint()*sizeof(T));
       }
       else {
-        for(pos[D] = 0; pos[D] < mp_interp[D]->npoint(); ++pos[D]) {
-          m_fill_stencil<T, NextStencil<ndim, D>::value, der>(gf, pos, vals);
-          if (D - 1 == der) {
-            vals[D][pos[D]] = mp_interp[D-1]->eval_diff(vals[D-1], 1);
+        for(m_eval_pos[D] = 0; m_eval_pos[D] < mp_interp[D]->npoint(); ++m_eval_pos[D]) {
+          m_fill_stencil<T, NextStencil<ndim, D>::value, der>(gf);
+          if constexpr (D - 1 == der) {
+            m_vals[D][m_eval_pos[D]] = mp_interp[D-1]->eval_diff(m_vals[D-1], 1);
           }
           else {
-            vals[D][pos[D]] = mp_interp[D-1]->eval(vals[D-1], 1);
+            m_vals[D][m_eval_pos[D]] = mp_interp[D-1]->eval(m_vals[D-1], 1);
           }
         }
       }
@@ -412,14 +420,19 @@ class LagrangeInterpND {
     Real m_origin[ndim];
     Real m_delta[ndim];
     int m_siz[ndim];
+    int m_stride[ndim];
 
     Real m_coord[ndim];
     bool m_out_of_bounds;
 
     // 1D interpolators (constructed via placement new into scratch storage)
-    LagrangeInterp1D<order> * mp_interp[ndim];
+    LagrangeInterp1D<order, compute_diff> * mp_interp[ndim];
     // Scratch space used for placement new
-    char m_interp_scratch[ndim][sizeof(LagrangeInterp1D<order>)];
+    char m_interp_scratch[ndim][sizeof(LagrangeInterp1D<order, compute_diff>)];
+
+    // Scratch buffers for eval() - mutable so eval() can remain const
+    mutable Real m_vals[ndim][order+2];
+    mutable int m_eval_pos[ndim];
   public:
     //! True if any dimension's stencil was shifted to stay in bounds
     bool out_of_bounds() const { return m_out_of_bounds; }

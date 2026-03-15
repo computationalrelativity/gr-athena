@@ -145,17 +145,17 @@ void test_interp() {
   Real delta[ndim] = {dxyz, dxyz, dxyz};
   Real coord[ndim] = {0.2, -0.1, 0.7};
 
-  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
-  LagrangeInterpND<metric_interp_order, 1> * pinterp1 = nullptr;
-  LagrangeInterpND<metric_interp_order, 2> * pinterp2 = nullptr;
+  LagrangeInterpND<metric_interp_order, 3, true> * pinterp3 = nullptr;
+  LagrangeInterpND<metric_interp_order, 1, true> * pinterp1 = nullptr;
+  LagrangeInterpND<metric_interp_order, 2, true> * pinterp2 = nullptr;
   
   Real* func = new Real[Nxyz * Nxyz * Nxyz];
   Real* func1 = new Real[Nxyz];
   Real* func2 = new Real[Nxyz*Nxyz];
 
-  pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
-  pinterp1 = new LagrangeInterpND<metric_interp_order, 1>(origin, delta, size, coord);
-  pinterp2 = new LagrangeInterpND<metric_interp_order, 2>(origin, delta, size, coord);
+  pinterp3 = new LagrangeInterpND<metric_interp_order, 3, true>(origin, delta, size, coord);
+  pinterp1 = new LagrangeInterpND<metric_interp_order, 1, true>(origin, delta, size, coord);
+  pinterp2 = new LagrangeInterpND<metric_interp_order, 2, true>(origin, delta, size, coord);
 
   for (int i=0; i<Nxyz; i++){
     const Real x = origin[0] + i*delta[0]; 
