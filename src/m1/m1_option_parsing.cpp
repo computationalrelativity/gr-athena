@@ -150,7 +150,9 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
       { "semi_implicit_HybridsJ",
-        opt_integration_strategy::semi_implicit_HybridsJ}
+        opt_integration_strategy::semi_implicit_HybridsJ},
+      { "semi_implicit_custom_N",
+        opt_integration_strategy::semi_implicit_custom_N}
     };
 
     auto get_solver = [&](std::string name, std::string default_method)

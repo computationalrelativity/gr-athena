@@ -187,6 +187,51 @@ inline void SemiImplicitHybridsJIntegration(
   }
 }
 
+// Custom Newton solver wrapper: identical nG handling to HybridsJ, but uses
+// the hand-written 4x4 Newton solver with analytic Jacobian and
+// DotProductCache for the (E, F_d) system.
+inline void SemiImplicitCustomNIntegration(
+  M1 & pm1_,
+  const Real dt,
+  Update::StateMetaVector & C,
+  const Update::StateMetaVector & P,
+  const Update::StateMetaVector & I,
+  Update::SourceMetaVector & S,
+  Closures::ClosureMetaVector & CL,
+  const int k,
+  const int j,
+  const int i)
+{
+  using namespace Update;
+  using namespace Sources;
+  using namespace Closures;
+
+  using namespace Explicit;
+  using namespace Implicit;
+  using namespace Implicit::custom;
+
+  // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) with custom Newton solver
+  StepImplicitCustomN(pm1_,
+                      dt, C, P, I, S,
+                      CL,
+                      k, j, i);
+
+  if (!pm1_.opt_solver.solver_explicit_nG)
+  {
+    // Evolve (sc_nG, ) -> (sc_nG*, ) with semi-implicit
+    // Prepares also (sc_n*, ) and S
+    SolveImplicitNeutrinoCurrent(pm1_, dt, C, P, I, S, k, j, i);
+  }
+  else
+  {
+    PrepareMatterSource_nG(pm1_, P, S, k, j, i);
+    StepExplicit_nG(pm1_, dt, C, P, I, S, k, j, i);
+
+    // We now have nG*, it is useful to immediately construct n*
+    Prepare_n_from_nG(pm1_, C, k, j, i);
+  }
+}
+
 // ----------------------------------------------------------------------------
 inline void DispatchIntegrationMethodImplementation(
   M1 & pm1_,
@@ -229,6 +274,13 @@ inline void DispatchIntegrationMethodImplementation(
     case (M1::opt_integration_strategy::semi_implicit_HybridsJ):
     {
       SemiImplicitHybridsJIntegration(
+        pm1_, dt, C, P, I, S, CL, k, j, i
+      );
+      break;
+    }
+    case (M1::opt_integration_strategy::semi_implicit_custom_N):
+    {
+      SemiImplicitCustomNIntegration(
         pm1_, dt, C, P, I, S, CL, k, j, i
       );
       break;

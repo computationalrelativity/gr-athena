@@ -168,7 +168,8 @@ public:
                                         full_explicit,
                                         explicit_approximate_semi_implicit,
                                         semi_implicit_Hybrids,
-                                        semi_implicit_HybridsJ};
+                                        semi_implicit_HybridsJ,
+                                        semi_implicit_custom_N};
   enum class opt_fiducial_velocity { fluid, mixed, zero, none };
 
   enum class opt_flux_variety { HybridizeMinModA,

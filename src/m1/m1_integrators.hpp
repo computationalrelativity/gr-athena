@@ -197,6 +197,39 @@ void StepImplicitHybridsJ(
 // ============================================================================
 
 // ============================================================================
+namespace custom {
+// ============================================================================
+
+// Evolution of U ~ (E, F_d) utilizing hand-written 4x4 Newton solver with
+// analytic Jacobian and DotProductCache:
+// U* <- U + dt * [ -div[F_A[U]] + G_A[U] + S_A[U*] ]
+//
+// Replaces GSL hybridsj with:
+// - Stack-allocated 4x4 arrays (no per-cell heap allocation)
+// - Direct function calls (no GSL function pointer dispatch)
+// - Shared DotProductCache between source and Jacobian evaluations
+// - Inline 4x4 LU decomposition with partial pivoting
+//
+// Note:
+// - Internally U* is enforced via `EnforcePhysical_E_F_d`
+// - Closures are internally updated
+// - Sources are internally updated
+// - Same convergence criteria and fallback logic as StepImplicitHybridsJ
+void StepImplicitCustomN(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,        // current step
+  const Update::StateMetaVector & P,  // previous step data
+  const Update::StateMetaVector & I,  // inhomogeneity
+  Update::SourceMetaVector & S,       // carry source contribution
+  Closures::ClosureMetaVector & CL_C,
+  const int k, const int j, const int i);
+
+// ============================================================================
+} // namespace M1::Integrators::Implicit::custom
+// ============================================================================
+
+// ============================================================================
 } // namespace M1::Integrators::Implicit
 // ============================================================================
 

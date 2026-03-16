@@ -785,6 +785,354 @@ void StepImplicitHybridsJ(
 } // namespace M1::Integrators::Implicit::gsl
 // ============================================================================
 
+// ============================================================================
+namespace custom {
+// ============================================================================
+
+// 4x4 LU decomposition with partial pivoting + forward/back substitution.
+// Solves A * x = b in-place: on return, b contains the solution x.
+// A is modified (overwritten with L\U factors); diagonal entries are
+// replaced by their reciprocals during factorization so back-substitution
+// uses only multiplications (no divisions).
+// Returns true on success, false if the matrix is singular.
+//
+// Singularity criterion: a pivot is treated as zero when
+//   |pivot| < eps_mach * max_abs
+// where max_abs tracks the largest absolute element seen during
+// factorization. This is much more robust than an exact == 0.0 test
+// when the Jacobian has O(1e+8) entries alongside O(1e-8) entries.
+static inline bool solve_4x4_LU_pp(
+  Real (&A)[4][4],
+  Real (&b)[4])
+{
+  constexpr int n = 4;
+  constexpr Real eps_mach = std::numeric_limits<Real>::epsilon();
+  int piv[n]; // pivot indices
+
+  // Track the largest absolute element seen during factorization for
+  // relative singularity threshold
+  Real max_abs = 0.0;
+
+  // LU factorization with partial pivoting -----------------------------------
+  for (int k = 0; k < n; ++k)
+  {
+    // Find pivot: row with largest |A[r][k]| for r in [k, n)
+    int p = k;
+    Real max_val = std::abs(A[k][k]);
+    for (int r = k + 1; r < n; ++r)
+    {
+      const Real val = std::abs(A[r][k]);
+      if (val > max_val)
+      {
+        max_val = val;
+        p = r;
+      }
+    }
+
+    piv[k] = p;
+
+    // Update running max of all absolute values seen
+    if (max_val > max_abs) max_abs = max_val;
+
+    // Singular check: pivot is effectively zero relative to matrix scale
+    if (max_val < eps_mach * max_abs)
+    {
+      return false;
+    }
+
+    // Swap rows k and p (in both A and b)
+    if (p != k)
+    {
+      for (int c = 0; c < n; ++c)
+      {
+        std::swap(A[k][c], A[p][c]);
+      }
+      std::swap(b[k], b[p]);
+    }
+
+    // Store reciprocal pivot on the diagonal - eliminates 4 divisions
+    // from the back-substitution phase
+    const Real inv_pivot = OO(A[k][k]);
+    A[k][k] = inv_pivot;
+
+    // Eliminate below pivot
+    for (int r = k + 1; r < n; ++r)
+    {
+      const Real factor = A[r][k] * inv_pivot;
+      A[r][k] = factor;  // store L factor in lower triangle
+      for (int c = k + 1; c < n; ++c)
+      {
+        A[r][c] -= factor * A[k][c];
+      }
+      b[r] -= factor * b[k];
+    }
+  }
+
+  // Back substitution (U * x = b') ------------------------------------------
+  // Diagonal entries already hold 1/U[k][k], so use multiply instead of divide
+  for (int k = n - 1; k >= 0; --k)
+  {
+    for (int c = k + 1; c < n; ++c)
+    {
+      b[k] -= A[k][c] * b[c];
+    }
+    b[k] *= A[k][k];  // A[k][k] holds reciprocal pivot
+  }
+
+  return true;
+}
+
+// Hand-written 4x4 Newton solver for the M1 implicit system (E, F_x, F_y, F_z).
+//
+// This is a drop-in replacement for StepImplicitHybridsJ that eliminates:
+// - Per-cell heap allocation (AA J -> stack Real[4][4])
+// - GSL function pointer dispatch overhead
+// - GSL data marshalling between gsl_vector/gsl_matrix and native types
+// - Redundant dot product / Lorentz factor computations via DotProductCache
+//
+// Convergence criterion matches gsl_multiroot_test_delta:
+//   |dU[a]| < eps_a + eps_r * |U[a]|  for all a in {E, F_x, F_y, F_z}
+//
+// Fallback logic is identical to StepImplicitHybridsJ:
+//   1. On max iterations / stagnation -> revert to thick-limit closure
+//   2. On thick-limit failure -> fatal error with StatePrintPoint
+void StepImplicitCustomN(
+  M1 & pm1,
+  const Real dt,
+  Update::StateMetaVector & C,        // current step
+  const Update::StateMetaVector & P,  // previous step data
+  const Update::StateMetaVector & I,  // inhomogeneity
+  Update::SourceMetaVector & S,       // carry source contribution
+  Closures::ClosureMetaVector & CL_C,
+  const int k, const int j, const int i)
+{
+  using namespace Implicit;
+  using namespace Sources;
+
+  // Prepare initial guess (O(v) approximate solution) and check if
+  // equilibrium short-circuit applies
+  const bool need_implicit = !StepImplicitPrepareInitialGuess(
+    pm1, dt, C, P, I, S, CL_C, k, j, i
+  );
+
+  if (need_implicit)
+  {
+    constexpr int N_SYS = 4;  // = 1 + N (energy + 3 spatial flux components)
+
+    const Real eps_a = pm1.opt_solver.eps_a_tol;
+    const Real eps_r = pm1.opt_solver.eps_r_tol;
+    const int iter_max = pm1.opt_solver.iter_max;
+
+    // Hoist iteration-invariant constants outside the Newton loop:
+    //   WE    = P.sc_E  + dt * I.sc_E    (scalar)
+    //   WF_d  = P.sp_F_d + dt * I.sp_F_d (3-vector)
+    // These are the "previous + inhomogeneity" terms that don't change
+    // between Newton iterations (only C changes).
+    const Real WE = P.sc_E(k,j,i) + dt * I.sc_E(k,j,i);
+    Real WF_d[N];
+    for (int a = 0; a < N; ++a)
+    {
+      WF_d[a] = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
+    }
+
+    // Source values from the last Newton iteration - needed by downstream
+    // code (Limiter::Apply, CheckPhysicalFallback, GR coupling) which
+    // reads S.sc_E / S.sp_F_d after this solver returns.
+    Real S_E_final = 0.0;
+    Real S_F_d_final[N] = {0.0, 0.0, 0.0};
+
+    // Newton iteration -------------------------------------------------------
+    int iter = 0;
+    bool converged = false;
+    bool solver_failed = false;
+
+    do
+    {
+      iter++;
+
+      // Build DotProductCache once per iteration - shared between source
+      // and Jacobian evaluations, eliminating ~27 redundant loads and
+      // ~31 redundant FLOPs per iteration.
+      auto cache = Assemble::Frames::make_cache(
+        pm1, C.sc_E, C.sp_F_d, k, j, i
+      );
+
+      // Fused evaluation: sources + residual + Z-Jacobian in a single pass.
+      // This replaces the old 3-call sequence:
+      //   1. PrepareMatterSource_E_F_d (sources)
+      //   2. System::Z_E_F_d (residual)
+      //   3. ZJacobian_sc_E_sp_F_d_raw (Jacobian)
+      // All intermediates (d_th/d_tk, opacities, alpha, expansion coefficients,
+      // F^a raised with metric) are computed once and shared.
+      Real Z_vec[N_SYS];
+      Real ZJ[N_SYS][N_SYS];
+
+      switch (pm1.opt_closure.variety)
+      {
+        default:
+        {
+          Assemble::Frames::sources_and_ZJacobian_sc_E_sp_F_d(
+            pm1,
+            S_E_final, S_F_d_final,  // output: source terms
+            Z_vec,                     // output: residual
+            ZJ,                        // output: Z-Jacobian
+            dt,
+            WE, WF_d,                 // pre-hoisted iteration-invariant terms
+            C.sc_chi, C.sc_E, C.sp_F_d,
+            C.sc_eta, C.sc_kap_a, C.sc_kap_s,
+            cache,
+            k, j, i
+          );
+        }
+      }
+
+      // Solve ZJ * dU = Z via 4x4 LU with partial pivoting.
+      // On return, Z_vec contains the Newton step dU.
+      const bool lu_ok = solve_4x4_LU_pp(ZJ, Z_vec);
+
+      if (!lu_ok)
+      {
+        // Singular Jacobian - cannot proceed
+        solver_failed = true;
+        break;
+      }
+
+      // Apply Newton update: U <- U - dU
+      C.sc_E(k,j,i) -= Z_vec[0];
+      for (int a = 0; a < N; ++a)
+      {
+        C.sp_F_d(a,k,j,i) -= Z_vec[1 + a];
+      }
+
+      // Enforce physicality (non-negative energy, causality)
+      EnforcePhysical_E_F_d(pm1, C, k, j, i);
+
+      // Recompute closure with updated state
+      CL_C.Closure(k, j, i);
+
+      // Convergence test (matches gsl_multiroot_test_delta semantics):
+      //   |dU[a]| < eps_a + eps_r * |U[a]|  for all a
+      converged = true;
+      {
+        // Check energy component
+        const Real U_0 = C.sc_E(k,j,i);
+        if (std::abs(Z_vec[0]) >= eps_a + eps_r * std::abs(U_0))
+        {
+          converged = false;
+        }
+
+        // Check flux components
+        for (int a = 0; a < N; ++a)
+        {
+          const Real U_a = C.sp_F_d(a,k,j,i);
+          if (std::abs(Z_vec[1 + a]) >= eps_a + eps_r * std::abs(U_a))
+          {
+            converged = false;
+          }
+        }
+      }
+
+    }
+    while (!converged && !solver_failed && iter < iter_max);
+
+    // Write source values from the last Newton iteration to S so that
+    // downstream code (Limiter::Apply, CheckPhysicalFallback, GR-evolution
+    // coupling) can read them. This is required: those routines access
+    // S.sc_E and S.sp_F_d after this solver returns.
+    S.sc_E(k,j,i) = S_E_final;
+    for (int a = 0; a < N; ++a)
+    {
+      S.sp_F_d(a,k,j,i) = S_F_d_final[a];
+    }
+
+    // Failure handling (mirrors StepImplicitHybridsJ) ------------------------
+    bool revert_thick = false;
+
+    if (!converged && !solver_failed && iter >= iter_max)
+    {
+      // Max iterations reached without convergence
+      if (pm1.opt_solver.verbose)
+      #pragma omp critical
+      {
+        std::cout << "Warning: StepImplicitCustomN: ";
+        std::cout << "MAXITER (iter=" << iter << ")\n";
+        std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
+      }
+
+      revert_thick = pm1.opt_solver.thick_tol;
+    }
+    else if (solver_failed)
+    {
+      // Singular Jacobian or other solver breakdown
+      if (pm1.opt_solver.verbose)
+      #pragma omp critical
+      {
+        std::cout << "Warning: StepImplicitCustomN: ";
+        std::cout << "solver failure (singular Jacobian or stagnation)";
+        std::cout << ": iter " << iter << " \n";
+        std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
+        std::printf("|.-1/3|=%.3g ", std::abs(C.sc_chi(k,j,i) - ONE_3RD));
+        std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
+      }
+
+      if (pm1.opt_solver.verbose)
+      if (pm1.opt_closure.variety == M1::opt_closure_variety::thick)
+      {
+        std::ostringstream msg;
+        msg << "StepImplicitCustomN failure: ";
+        msg << "singular " << iter;
+
+        pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, false);
+      }
+
+      // retry thick
+      revert_thick = pm1.opt_solver.thick_npg;
+    }
+
+    if (revert_thick &&
+        (pm1.opt_closure.variety != M1::opt_closure_variety::thick))
+    {
+      M1::opt_closure_variety opt_cl = pm1.opt_closure.variety;
+      pm1.opt_closure.variety = M1::opt_closure_variety::thick;
+
+      C.Fallback(k, j, i);
+
+      StepImplicitCustomN(
+        pm1,
+        dt,
+        C,
+        P,
+        I,
+        S,
+        CL_C,
+        k,
+        j,
+        i
+      );
+
+      pm1.opt_closure.variety = opt_cl;
+    }
+    else if (!converged && !revert_thick && !solver_failed)
+    {
+      // Non-convergence without revert option: fatal error
+      std::ostringstream msg;
+      msg << "StepImplicitCustomN failure: ";
+      msg << "no convergence " << iter;
+
+      pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
+    }
+
+    // Note: No final EnforcePhysical_E_F_d needed here. The last Newton
+    // iteration already called EnforcePhysical_E_F_d (line above closure
+    // recomputation), and the revert_thick path handles its own enforcement
+    // via the recursive StepImplicitCustomN call.
+  }
+}
+
+// ============================================================================
+} // namespace M1::Integrators::Implicit::custom
+// ============================================================================
+
 // ----------------------------------------------------------------------------
 // Implicit update strategy for nG component of state vector
 void SolveImplicitNeutrinoCurrent(
