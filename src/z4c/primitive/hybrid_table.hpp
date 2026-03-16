@@ -75,6 +75,10 @@ class HybridTable : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
 
+    /// Calculate the effective nucleon interaction potential difference
+    [[ noreturn ]]
+    Real InteractionPotentialDifference(Real n, Real T, Real *Y);
+
     /// Species fractions
     [[ noreturn ]]
     Real FrYn(Real n, Real T, Real *Y);

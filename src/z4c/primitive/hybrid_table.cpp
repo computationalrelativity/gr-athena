@@ -156,6 +156,10 @@ Real HybridTable::ElectronLeptonChemicalPotential(Real n, Real T, Real *Y) {
   throw std::logic_error("HybridTable::ElectronLeptonChemicalPotential not currently implemented.");
 }
 
+Real HybridTable::InteractionPotentialDifference(Real n, Real T, Real *Y) {
+  throw std::logic_error("HybridTable::InteractionPotentialDifference not currently implemented.");
+}
+
 Real HybridTable::ColdEnergy(Real n) {
   assert (m_initialized);
   return exp(eval_at_n(ECLOGE, n));

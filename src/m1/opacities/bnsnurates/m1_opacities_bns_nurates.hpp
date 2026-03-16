@@ -269,8 +269,9 @@ class BNSNuRates
 
     // Chemical potentials (code units input, MeV output)
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    Real mu_n, mu_p, mu_e;
+    Real mu_n, mu_p, mu_e, dU;
     pmy_eos->ChemicalPotentials_npe(nb_eos, T, Y_e, mu_n, mu_p, mu_e);
+    pmy_eos->InteractionPotentialDifference(nb_eos, T, Y_e, dU);
 
     // Undensitized neutrino quantities
     Real invsdetg    = pm1->geom.sc_oo_sqrt_det_g(k, j, i);
@@ -305,6 +306,7 @@ class BNSNuRates
                                                  mu_n,
                                                  mu_p,
                                                  mu_e,
+                                                 dU,
                                                  nudens_0[0],
                                                  nudens_1[0],
                                                  chi_loc[0],
