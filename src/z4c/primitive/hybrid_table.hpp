@@ -85,6 +85,18 @@ class HybridTable : public EOSPolicyInterface
   /// Calculate the specific internal energy per unit mass
   Real SpecificInternalEnergy(Real n, Real T, Real* Y);
 
+  /// Calculate the effective nucleon interaction potential difference
+  [[noreturn]]
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
+
+  /// Species fractions
+  [[noreturn]]
+  Real FrYn(Real n, Real T, Real* Y);
+  [[noreturn]]
+  Real FrYp(Real n, Real T, Real* Y);
+  [[noreturn]]
+  Real FrYh(Real n, Real T, Real* Y);
+
   /// Calculate the baryon chemical potential
   [[noreturn]]
   Real BaryonChemicalPotential(Real n, Real T, Real* Y);

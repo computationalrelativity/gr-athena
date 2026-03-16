@@ -77,13 +77,13 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::MinimumPressure;
   using EOSPolicy::Pressure;
   using EOSPolicy::PressureAndEnthalpy;
+  using EOSPolicy::PressureAndEnthalpyFromE;
   using EOSPolicy::SoundSpeed;
   using EOSPolicy::SpecificInternalEnergy;
   using EOSPolicy::TemperatureFromE;
   using EOSPolicy::TemperatureFromEntropy;
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
-  using EOSPolicy::PressureAndEnthalpyFromE;
 
   using EOSPolicy::FrYh;
   using EOSPolicy::FrYn;
@@ -311,7 +311,6 @@ class EOS : public EOSPolicy, public ErrorPolicy
           eos_units->MassConversion(*code_units));
   }
 
-
   //! \brief Fused pressure + enthalpy query from energy.
   inline void GetPressureAndEnthalpyFromE(Real n,
                                           Real e,
@@ -321,13 +320,12 @@ class EOS : public EOSPolicy, public ErrorPolicy
                                           int* guess_it = nullptr)
   {
     Real P_eos, h_eos;
-    PressureAndEnthalpyFromE(
-      n,
-      e * code_units->PressureConversion(*eos_units),
-      Y,
-      &P_eos,
-      &h_eos,
-      guess_it);
+    PressureAndEnthalpyFromE(n,
+                             e * code_units->PressureConversion(*eos_units),
+                             Y,
+                             &P_eos,
+                             &h_eos,
+                             guess_it);
     *P = P_eos * eos_units->PressureConversion(*code_units);
     *h = h_eos / mb *
          (eos_units->EnergyConversion(*code_units) /
@@ -436,14 +434,14 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The baryon chemical potential for the EOS.
-  inline Real GetBaryonChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetBaryonChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return BaryonChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
   //! \fn Real GetChargeChemicalPotential(Real n, Real T, Real *Y)
@@ -451,14 +449,14 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The charge chemical potential for the EOS.
-  inline Real GetChargeChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetChargeChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return ChargeChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
   //! \fn Real GetElectronLeptonChemicalPotential(Real n, Real T, Real *Y)
@@ -466,14 +464,14 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  density, temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The electron-lepton chemical potential for the EOS.
-  inline Real GetElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetElectronLeptonChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return ElectronLeptonChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
 

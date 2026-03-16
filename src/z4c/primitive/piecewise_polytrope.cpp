@@ -241,6 +241,15 @@ Real PiecewisePolytrope::ElectronLeptonChemicalPotential(Real n,
     "implemented.");
 }
 
+Real PiecewisePolytrope::InteractionPotentialDifference(Real n,
+                                                        Real T,
+                                                        Real* Y)
+{
+  throw std::logic_error(
+    "PiecewisePolytrope::InteractionPotentialDifference not currently "
+    "implemented.");
+}
+
 Real PiecewisePolytrope::MinimumPressure(Real n, Real* Y)
 {
   int p = FindPiece(n);

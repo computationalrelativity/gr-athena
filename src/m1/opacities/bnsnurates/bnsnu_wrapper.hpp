@@ -61,7 +61,7 @@ using Opt = Common::OpacityUtils::Opt;
 struct BNSNuRatesParams
 {
   Real dm_eff;
-  Real dU;
+  //Real dU;
 
   bool use_abs_em;
   bool use_pair;
@@ -125,7 +125,7 @@ class BNSNuRatesWrapper
       pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", true);
 
     params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false);
-    params.dU     = pin->GetOrAddReal("bns_nurates", "dU", 0.0);
+    //params.dU     = pin->GetOrAddReal("bns_nurates", "dU", 0.0);  // must be read from eos
     params.use_dm_eff =
       pin->GetOrAddBoolean("bns_nurates", "use_dm_eff", false);
     params.dm_eff =
@@ -177,7 +177,8 @@ class BNSNuRatesWrapper
   //   nb               [code_units number density]
   //   temp             [MeV]
   //   ye               [-]
-  //   mu_n, mu_p, mu_e [MeV]          (chemical potentials)
+  //   mu_n, mu_p, mu_e [MeV]           (chemical potentials)
+  //   dU               [MeV]           (effective nucleon potential difference)
   //   n_nue .. n_anux  [code_units number density]   per single species
   //   j_nue .. j_anux  [code_units energy density]   per single species
   //   chi_nue .. chi_anux [-]          (Eddington factor, dimensionless)
@@ -209,6 +210,7 @@ class BNSNuRatesWrapper
                        Real mu_n,
                        Real mu_p,
                        Real mu_e,
+                       Real dU,
                        Real n_nue,
                        Real j_nue,
                        Real chi_nue,
@@ -274,9 +276,9 @@ class BNSNuRatesWrapper
     grey_op_params.eos_pars.mu_e = mu_e;  // [MeV]  (same in both systems)
     grey_op_params.eos_pars.mu_p = mu_p;  // [MeV]  (same in both systems)
     grey_op_params.eos_pars.mu_n = mu_n;  // [MeV]  (same in both systems)
-    // NB logic for use_dU not implemented - see THC/WeakRates2
-    grey_op_params.eos_pars.dU     = 0;  // [MeV]
-    grey_op_params.eos_pars.dm_eff = 0;  // [MeV]
+    grey_op_params.eos_pars.dU = dU;      // [MeV]
+    // NB logic for use_dm_eff not implemented - see THC/WeakRates2
+    grey_op_params.eos_pars.dm_eff = 0.;  // [MeV]
 
     // Reconstruct distribution function
     if (!params.use_equilibrium_distribution)

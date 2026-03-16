@@ -169,6 +169,47 @@ class EoSWrapper
   }
 
   // -----------------------------------------------------------------------
+  // Nucleon interaction potential difference
+  // -----------------------------------------------------------------------
+
+  // Nucleon interaction potential difference from the EOS (EOS-units interface).
+  // in:    nb_eos  [eos_units number density]
+  //        T       [MeV]
+  //        Ye      [-]
+  // out:   dU      [MeV]
+  void InteractionPotentialDifference(Real nb_eos,
+                              Real T,
+                              Real Ye,
+                              Real& dU)
+  {
+    Real Y[1] = { Ye };
+    dU = PS_EoS->GetInteractionPotentialDifference(nb_eos, T, Y);
+  }
+
+  // Nucleon interaction potential difference in MeV from cgs+MeV inputs.
+  //
+  // in:   rho   [g/cm^3]   (cgs mass density)
+  //       temp  [MeV]      (MeV temperature)
+  //       Ye    [-]        (electron fraction, dimensionless)
+  // out:  dU    [MeV]      (neutron chemical potential)
+  //
+  // Internally converts rho -> nb [eos_units] before calling
+  // InteractionPotentialDifference; applies TemperatureConversion
+  // on output for unit-system clarity.
+  void InteractionPotentialDifference_cgs(Real rho,
+                                  Real temp,
+                                  Real Ye,
+                                  Real& dU)
+  {
+    InteractionPotentialDifference(
+      rho / atomic_mass * wr_units->NumberDensityConversion(*eos_units),
+      temp,
+      Ye,
+      dU);
+    dU *= code_units->TemperatureConversion(*wr_units);
+  }
+
+  // -----------------------------------------------------------------------
   // Particle fractions from EOS table
   // -----------------------------------------------------------------------
 

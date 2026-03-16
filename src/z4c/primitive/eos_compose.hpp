@@ -37,7 +37,8 @@ class EOSCompOSE : public EOSPolicyInterface
     ECYH = 9,  //! (Y[N] read) what would be Y[h] (name schematic, we assemble)
     ECAN = 10,  //! A[N]
     ECZN = 11,  //! Z[N]
-    ECNVARS = 12
+    ECDU = 12,  //! effective nucleon potential difference dU [MeV]
+    ECNVARS = 13
   };
 
   protected:
@@ -104,6 +105,9 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Calculate the baryon chemical potential
   Real BaryonChemicalPotential(Real n, Real T, Real* Y);
+
+  /// Calculate the effective nucleon potential difference
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
   /// Calculate the charge chemical potential
   Real ChargeChemicalPotential(Real n, Real T, Real* Y);

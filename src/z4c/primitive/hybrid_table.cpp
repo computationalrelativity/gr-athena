@@ -222,6 +222,12 @@ Real HybridTable::ColdEnergy(Real n)
   return exp(eval_at_n(ECLOGE, n));
 }
 
+Real HybridTable::InteractionPotentialDifference(Real n, Real T, Real* Y)
+{
+  throw std::logic_error(
+    "HybridTable::InteractionPotentialDifference not currently implemented.");
+}
+
 Real HybridTable::ColdPressure(Real n)
 {
   assert(m_initialized);
