@@ -1022,7 +1022,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       Real* fcn_t = &(var_t(n,0,0,0));
 
       // ind_interior_r_op->eval(fcn_t, fcn_s);
-      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
+      ind_interior_r_op->eval_opt_nn(fcn_t, fcn_s);
     }
 
   }
@@ -1098,7 +1098,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       const Real* const fcn_s = &(var_s(n,0,0,0));
       Real* fcn_t = &(var_t(n,0,0,0));
 
-      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
+      ind_interior_r_op->eval_opt_nn(fcn_t, fcn_s);
       // ind_interior_r_op->eval(fcn_t, fcn_s);
 
       // ind_interior_r_op->eval(fcn_t, fcn_s,
@@ -1165,7 +1165,7 @@ void MeshRefinement::RestrictCellCenteredXWithInteriorValues(
       Real* fcn_t = &(var_t(n,0,0,0));
 
       // ind_interior_r_op->eval(fcn_t, fcn_s);
-      ind_interior_r_op->eval_nn(fcn_t, fcn_s);
+      ind_interior_r_op->eval_opt_nn(fcn_t, fcn_s);
 
       // ind_interior_r_op->eval(fcn_t, fcn_s,
       //                         pmb->cx_cis-NCGHOST_CX, pmb->cx_cigs-NCGHOST_CX);

@@ -380,6 +380,23 @@ class interp_nd
     inline void eval_nn(Tf* fcn_t, const Tf* const fcn_s,
                         const int il_t, const int iu_t);
 
+    // Optimized dimension-split evaluation of nn interpolant.
+    // Reduces O(W^3) per target to O(3*W) via sequential 1D contractions
+    // with pre-normalized weights. Not bit-exact with eval_nn.
+    inline void eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s);
+
+    inline void eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                            const int il_t, const int iu_t,
+                            const int jl_t, const int ju_t,
+                            const int kl_t, const int ku_t);
+
+    inline void eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                            const int il_t, const int iu_t,
+                            const int jl_t, const int ju_t);
+
+    inline void eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                            const int il_t, const int iu_t);
+
   private:
     // compute and store weights together with reciprocal factors
     inline void precompute_weights(
@@ -407,10 +424,18 @@ class interp_nd
     Tg *rwei_x1, *rwei_x2, *rwei_x3;
     Tg *rwei_nn_x1, *rwei_nn_x2, *rwei_nn_x3;
     size_t *ix_nn_x1, *ix_nn_x2, *ix_nn_x3;
-    // ----------------------------------------------------
+
+    // Pre-normalized nn weights: nwei[k + W*i] = rwei[k + W*i] / sum_k(rwei)
+    // Eliminates division from the hot loop of eval_opt_nn.
+    Tg *nwei_nn_x1, *nwei_nn_x2, *nwei_nn_x3;
 
     // weight & function of common value
     typedef typename std::common_type<Tg, Tf>::type Tr;
+
+    // Scratch buffers for dimension-split evaluation (eval_opt_nn).
+    // Allocated once at construction, sized for full target range.
+    Tr *opt_scratch1_, *opt_scratch2_;
+    // ----------------------------------------------------
 };
 
 // ============================================================================

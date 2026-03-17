@@ -675,9 +675,22 @@ interp_nd<Tg, Tf>::interp_nd(
   , rwei_x1    {new Tg[(Ns_x1+1)*(Nt_x1+1)]}
   , rwei_nn_x1 {new Tg[W*(Nt_x1+1)]}
   , ix_nn_x1   {new size_t[Nt_x1+1]}
+  , nwei_nn_x1 {new Tg[W*(Nt_x1+1)]}
+  , opt_scratch1_ {nullptr}
+  , opt_scratch2_ {nullptr}
 {
   precompute_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_x1);
   precompute_nn_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_nn_x1, ix_nn_x1);
+
+  // Pre-normalize nn weights for eval_opt_nn
+  for (int i = 0; i <= Nt_x1; ++i) {
+    Tg den = 0;
+    for (int k = 0; k < W; ++k)
+      den += rwei_nn_x1[k + W*i];
+    const Tg inv = Tg(1) / den;
+    for (int k = 0; k < W; ++k)
+      nwei_nn_x1[k + W*i] = rwei_nn_x1[k + W*i] * inv;
+  }
 }
 
 template <typename Tg, typename Tf>
@@ -722,12 +735,31 @@ interp_nd<Tg, Tf>::interp_nd(Tg* x1_t, Tg* x2_t,
   , rwei_nn_x2 {new Tg[W*(Nt_x2+1)]}
   , ix_nn_x1   {new size_t[Nt_x1+1]}
   , ix_nn_x2   {new size_t[Nt_x2+1]}
+  , nwei_nn_x1 {new Tg[W*(Nt_x1+1)]}
+  , nwei_nn_x2 {new Tg[W*(Nt_x2+1)]}
+  , opt_scratch1_ {new Tr[(Ns_x1+1)*(Nt_x2+1)]}
+  , opt_scratch2_ {nullptr}
 {
   precompute_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_x1);
   precompute_weights(x2_t, x2_s, Nt_x2, Ns_x2, rwei_x2);
 
   precompute_nn_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_nn_x1, ix_nn_x1);
   precompute_nn_weights(x2_t, x2_s, Nt_x2, Ns_x2, rwei_nn_x2, ix_nn_x2);
+
+  // Pre-normalize nn weights for eval_opt_nn
+  for (int dim = 0; dim < 2; ++dim) {
+    const int Nt = (dim == 0) ? Nt_x1 : Nt_x2;
+    const Tg* src = (dim == 0) ? rwei_nn_x1 : rwei_nn_x2;
+    Tg* dst       = (dim == 0) ? nwei_nn_x1 : nwei_nn_x2;
+    for (int i = 0; i <= Nt; ++i) {
+      Tg den = 0;
+      for (int k = 0; k < W; ++k)
+        den += src[k + W*i];
+      const Tg inv = Tg(1) / den;
+      for (int k = 0; k < W; ++k)
+        dst[k + W*i] = src[k + W*i] * inv;
+    }
+  }
 }
 
 template <typename Tg, typename Tf>
@@ -791,6 +823,11 @@ interp_nd<Tg, Tf>::interp_nd(Tg* x1_t, Tg* x2_t, Tg* x3_t,
   , ix_nn_x1   {new size_t[Nt_x1+1]}
   , ix_nn_x2   {new size_t[Nt_x2+1]}
   , ix_nn_x3   {new size_t[Nt_x3+1]}
+  , nwei_nn_x1 {new Tg[W*(Nt_x1+1)]}
+  , nwei_nn_x2 {new Tg[W*(Nt_x2+1)]}
+  , nwei_nn_x3 {new Tg[W*(Nt_x3+1)]}
+  , opt_scratch1_ {new Tr[(Ns_x1+1)*(Ns_x2+1)*(Nt_x3+1)]}
+  , opt_scratch2_ {new Tr[(Ns_x1+1)*(Nt_x2+1)*(Nt_x3+1)]}
 {
   precompute_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_x1);
   precompute_weights(x2_t, x2_s, Nt_x2, Ns_x2, rwei_x2);
@@ -799,6 +836,21 @@ interp_nd<Tg, Tf>::interp_nd(Tg* x1_t, Tg* x2_t, Tg* x3_t,
   precompute_nn_weights(x1_t, x1_s, Nt_x1, Ns_x1, rwei_nn_x1, ix_nn_x1);
   precompute_nn_weights(x2_t, x2_s, Nt_x2, Ns_x2, rwei_nn_x2, ix_nn_x2);
   precompute_nn_weights(x3_t, x3_s, Nt_x3, Ns_x3, rwei_nn_x3, ix_nn_x3);
+
+  // Pre-normalize nn weights for eval_opt_nn (division-free hot loop)
+  for (int dim = 0; dim < 3; ++dim) {
+    const int Nt = (dim == 0) ? Nt_x1 : (dim == 1) ? Nt_x2 : Nt_x3;
+    const Tg* src = (dim == 0) ? rwei_nn_x1 : (dim == 1) ? rwei_nn_x2 : rwei_nn_x3;
+    Tg* dst       = (dim == 0) ? nwei_nn_x1 : (dim == 1) ? nwei_nn_x2 : nwei_nn_x3;
+    for (int i = 0; i <= Nt; ++i) {
+      Tg den = 0;
+      for (int k = 0; k < W; ++k)
+        den += src[k + W*i];
+      const Tg inv = Tg(1) / den;
+      for (int k = 0; k < W; ++k)
+        dst[k + W*i] = src[k + W*i] * inv;
+    }
+  }
 }
 
 template <typename Tg, typename Tf>
@@ -854,6 +906,11 @@ interp_nd<Tg, Tf>::~interp_nd()
       delete[] ix_nn_x3;
       delete[] ix_nn_x2;
       delete[] ix_nn_x1;
+      delete[] nwei_nn_x3;
+      delete[] nwei_nn_x2;
+      delete[] nwei_nn_x1;
+      delete[] opt_scratch2_;
+      delete[] opt_scratch1_;
       break;
     case 2:
       delete[] rwei_x2;
@@ -862,11 +919,15 @@ interp_nd<Tg, Tf>::~interp_nd()
       delete[] rwei_nn_x1;
       delete[] ix_nn_x2;
       delete[] ix_nn_x1;
+      delete[] nwei_nn_x2;
+      delete[] nwei_nn_x1;
+      delete[] opt_scratch1_;
       break;
     default:
       delete[] rwei_x1;
       delete[] rwei_nn_x1;
       delete[] ix_nn_x1;
+      delete[] nwei_nn_x1;
   }
 
 }
@@ -1226,6 +1287,182 @@ inline void interp_nd<Tg, Tf>::eval_nn(Tf* fcn_t, const Tf* const fcn_s,
     }
 
     fcn_t[i1+ng_t] = num / den;
+  }
+}
+
+// eval_opt_nn: dimension-split optimized evaluation --------------------------
+// Reduces O(W^D) per target to O(D*W) via sequential 1D contractions
+// with pre-normalized weights. Not bit-exact with eval_nn.
+
+template <typename Tg, typename Tf>
+inline void interp_nd<Tg, Tf>::eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s)
+{
+  switch (ndim)
+  {
+    case 3:
+      eval_opt_nn(fcn_t, fcn_s, 0, Nt_x1, 0, Nt_x2, 0, Nt_x3);
+      break;
+    case 2:
+      eval_opt_nn(fcn_t, fcn_s, 0, Nt_x1, 0, Nt_x2);
+      break;
+    default:  // ndim == 1
+      eval_opt_nn(fcn_t, fcn_s, 0, Nt_x1);
+      break;
+  }
+}
+
+// 3D: three-pass dimension split (contract x3, x2, x1)
+template <typename Tg, typename Tf>
+inline void interp_nd<Tg, Tf>::eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                                           const int il_t, const int iu_t,
+                                           const int jl_t, const int ju_t,
+                                           const int kl_t, const int ku_t)
+{
+  const int Sx1 = Ns_x1 + 1 + 2*ng_s;   // source x1 stride
+  const int Sx2 = Ns_x2 + 1 + 2*ng_s;   // source x2 stride (plane = Sx1*Sx2)
+  const int Sj1 = Ns_x1 + 1;             // scratch x1 extent (source phys.)
+  const int Sj2 = Ns_x2 + 1;             // scratch x2 extent
+  const int Nt3 = ku_t - kl_t + 1;
+  const int Nt2 = ju_t - jl_t + 1;
+
+  // Pass 1: contract x3.  scratch1_[j1 + Sj1*(j2 + Sj2*ti3)]
+  for (int ti3 = 0; ti3 < Nt3; ++ti3) {
+    const int i3 = kl_t + ti3;
+    const int s1_plane = Sj1 * Sj2 * ti3;
+
+    // k3 = 0: initialize
+    {
+      const Tg w3 = nwei_nn_x3[0 + W*i3];
+      const int base3 = (static_cast<int>(ix_nn_x3[i3]) + 0 + ng_s) * Sx1 * Sx2;
+      for (int j2 = 0; j2 <= Ns_x2; ++j2) {
+        const int s1_row = s1_plane + Sj1 * j2;
+        const int fs_row = base3 + (j2 + ng_s) * Sx1 + ng_s;
+        for (int j1 = 0; j1 <= Ns_x1; ++j1)
+          opt_scratch1_[s1_row + j1] = w3 * fcn_s[fs_row + j1];
+      }
+    }
+    // k3 = 1..W-1: accumulate
+    for (int k3 = 1; k3 < W; ++k3) {
+      const Tg w3 = nwei_nn_x3[k3 + W*i3];
+      const int base3 = (static_cast<int>(ix_nn_x3[i3]) + k3 + ng_s) * Sx1 * Sx2;
+      for (int j2 = 0; j2 <= Ns_x2; ++j2) {
+        const int s1_row = s1_plane + Sj1 * j2;
+        const int fs_row = base3 + (j2 + ng_s) * Sx1 + ng_s;
+        for (int j1 = 0; j1 <= Ns_x1; ++j1)
+          opt_scratch1_[s1_row + j1] += w3 * fcn_s[fs_row + j1];
+      }
+    }
+  }
+
+  // Pass 2: contract x2.  scratch2_[j1 + Sj1*(ti2 + Nt2*ti3)]
+  for (int ti3 = 0; ti3 < Nt3; ++ti3) {
+    for (int ti2 = 0; ti2 < Nt2; ++ti2) {
+      const int i2 = jl_t + ti2;
+      const int s2_row = Sj1 * (ti2 + Nt2 * ti3);
+
+      // k2 = 0: initialize
+      {
+        const Tg w2 = nwei_nn_x2[0 + W*i2];
+        const int s1_row = Sj1 * (static_cast<int>(ix_nn_x2[i2]) + 0)
+                         + Sj1 * Sj2 * ti3;
+        for (int j1 = 0; j1 <= Ns_x1; ++j1)
+          opt_scratch2_[s2_row + j1] = w2 * opt_scratch1_[s1_row + j1];
+      }
+      // k2 = 1..W-1: accumulate
+      for (int k2 = 1; k2 < W; ++k2) {
+        const Tg w2 = nwei_nn_x2[k2 + W*i2];
+        const int s1_row = Sj1 * (static_cast<int>(ix_nn_x2[i2]) + k2)
+                         + Sj1 * Sj2 * ti3;
+        for (int j1 = 0; j1 <= Ns_x1; ++j1)
+          opt_scratch2_[s2_row + j1] += w2 * opt_scratch1_[s1_row + j1];
+      }
+    }
+  }
+
+  // Pass 3: contract x1 and write to output
+  const int Tt1 = Nt_x1 + 1 + 2*ng_t;   // target x1 stride
+  const int Tt2 = Nt_x2 + 1 + 2*ng_t;   // target x2 stride
+
+  for (int ti3 = 0; ti3 < Nt3; ++ti3) {
+    const int i3 = kl_t + ti3;
+    for (int ti2 = 0; ti2 < Nt2; ++ti2) {
+      const int i2 = jl_t + ti2;
+      const int s2_base = Sj1 * (ti2 + Nt2 * ti3);
+
+      for (int i1 = il_t; i1 <= iu_t; ++i1) {
+        Tr val = 0;
+        const int s2_off = s2_base + static_cast<int>(ix_nn_x1[i1]);
+        for (int k1 = 0; k1 < W; ++k1)
+          val += nwei_nn_x1[k1 + W*i1] * opt_scratch2_[s2_off + k1];
+
+        const int ft_ix = (i1 + ng_t)
+                        + Tt1 * ((i2 + ng_t) + Tt2 * (i3 + ng_t));
+        fcn_t[ft_ix] = val;
+      }
+    }
+  }
+}
+
+// 2D: two-pass dimension split (contract x2, x1)
+template <typename Tg, typename Tf>
+inline void interp_nd<Tg, Tf>::eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                                           const int il_t, const int iu_t,
+                                           const int jl_t, const int ju_t)
+{
+  const int Sx1 = Ns_x1 + 1 + 2*ng_s;
+  const int Sj1 = Ns_x1 + 1;
+  const int Nt2 = ju_t - jl_t + 1;
+
+  // Pass 1: contract x2.  scratch1_[j1 + Sj1*ti2]
+  for (int ti2 = 0; ti2 < Nt2; ++ti2) {
+    const int i2 = jl_t + ti2;
+    const int s1_row = Sj1 * ti2;
+
+    // k2 = 0: initialize
+    {
+      const Tg w2 = nwei_nn_x2[0 + W*i2];
+      const int fs_row = (static_cast<int>(ix_nn_x2[i2]) + 0 + ng_s) * Sx1 + ng_s;
+      for (int j1 = 0; j1 <= Ns_x1; ++j1)
+        opt_scratch1_[s1_row + j1] = w2 * fcn_s[fs_row + j1];
+    }
+    for (int k2 = 1; k2 < W; ++k2) {
+      const Tg w2 = nwei_nn_x2[k2 + W*i2];
+      const int fs_row = (static_cast<int>(ix_nn_x2[i2]) + k2 + ng_s) * Sx1 + ng_s;
+      for (int j1 = 0; j1 <= Ns_x1; ++j1)
+        opt_scratch1_[s1_row + j1] += w2 * fcn_s[fs_row + j1];
+    }
+  }
+
+  // Pass 2: contract x1 and write to output
+  const int Tt1 = Nt_x1 + 1 + 2*ng_t;
+
+  for (int ti2 = 0; ti2 < Nt2; ++ti2) {
+    const int i2 = jl_t + ti2;
+    const int s1_base = Sj1 * ti2;
+
+    for (int i1 = il_t; i1 <= iu_t; ++i1) {
+      Tr val = 0;
+      const int s1_off = s1_base + static_cast<int>(ix_nn_x1[i1]);
+      for (int k1 = 0; k1 < W; ++k1)
+        val += nwei_nn_x1[k1 + W*i1] * opt_scratch1_[s1_off + k1];
+
+      const int ft_ix = (i1 + ng_t) + Tt1 * (i2 + ng_t);
+      fcn_t[ft_ix] = val;
+    }
+  }
+}
+
+// 1D: direct weighted sum with pre-normalized weights
+template <typename Tg, typename Tf>
+inline void interp_nd<Tg, Tf>::eval_opt_nn(Tf* fcn_t, const Tf* const fcn_s,
+                                           const int il_t, const int iu_t)
+{
+  for (int i1 = il_t; i1 <= iu_t; ++i1) {
+    Tr val = 0;
+    const int src_off = ng_s + static_cast<int>(ix_nn_x1[i1]);
+    for (int k1 = 0; k1 < W; ++k1)
+      val += nwei_nn_x1[k1 + W*i1] * fcn_s[src_off + k1];
+    fcn_t[i1 + ng_t] = val;
   }
 }
 
