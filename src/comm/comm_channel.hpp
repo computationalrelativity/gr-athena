@@ -295,6 +295,12 @@ class CommChannel {
   // BoundaryBase::sarea_[2] in the old system.
   AthenaArray<Real> sarea_[2];
 
+  // Cached pointer to the target CommChannel for same-rank neighbors.
+  // Populated at Finalize() time; nullptr for off-rank or unused slots.
+  // Eliminates repeated FindMeshBlock + FindForBlock lookups during
+  // zero-copy pack and flag-setting.
+  CommChannel *target_channel_[kMaxNeighbor];
+
   // CommRegistry needs access to buffers for fusion (future).
   friend class CommRegistry;
 };

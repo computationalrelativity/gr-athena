@@ -54,35 +54,15 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
 
   Add(CONS2PRIMP, NONE, &GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical);
 
+  // All MainInt channels (hydro, field, scalars) are sent, received, and
+  // unpacked together as a group.  No per-channel tasks are needed.
   Add(SEND_HYD, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendHydro);
   Add(RECV_HYD, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveHydro);
 
   Add(SETB_HYD, RECV_HYD, &GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro);
 
-  if (NSCALARS > 0)
-  {
-    Add(SEND_SCLR, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendScalars);
-    Add(RECV_SCLR, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveScalars);
-
-    Add(SETB_SCLR, RECV_SCLR, &GRMHD_Z4c_Phase_MHD_com::SetBoundariesScalars);
-  }
-
-  if (MAGNETIC_FIELDS_ENABLED)
-  {
-    Add(SEND_FLD, CONS2PRIMP, &GRMHD_Z4c_Phase_MHD_com::SendField);
-    Add(RECV_FLD, NONE,       &GRMHD_Z4c_Phase_MHD_com::ReceiveField);
-
-    Add(SETB_FLD, RECV_FLD,   &GRMHD_Z4c_Phase_MHD_com::SetBoundariesField);
-  }
-
   // ensure all boundary buffers are set --------------------------------------
-  TaskID BLOCK_SETB = SETB_HYD | SEND_HYD;
-
-  if (NSCALARS > 0)
-    BLOCK_SETB = BLOCK_SETB | SETB_SCLR | SEND_SCLR;
-
-  if (MAGNETIC_FIELDS_ENABLED)
-    BLOCK_SETB = BLOCK_SETB | SETB_FLD | SEND_FLD;
+  const TaskID BLOCK_SETB = SETB_HYD | SEND_HYD;
   // --------------------------------------------------------------------------
 
   if (multilevel)
@@ -184,13 +164,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SendHydro(MeshBlock *pmb, int stage)
   return TaskStatus::fail;
 }
 
-TaskStatus GRMHD_Z4c_Phase_MHD_com::SendField(MeshBlock *pmb, int stage)
-{
-  // Field is sent as part of the MainInt group in SendHydro.
-  if (stage <= nstages) return TaskStatus::next;
-  return TaskStatus::fail;
-}
-
 //-----------------------------------------------------------------------------
 // Ghost-zone exchange: poll for received data.
 TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveHydro(MeshBlock *pmb, int stage)
@@ -208,13 +181,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveHydro(MeshBlock *pmb, int stage)
 }
 
 
-TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveField(MeshBlock *pmb, int stage)
-{
-  // Field is received as part of the MainInt group in ReceiveHydro.
-  if (stage <= nstages) return TaskStatus::next;
-  return TaskStatus::fail;
-}
-
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
@@ -223,37 +189,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage
     pmb->pcomm->SetBoundaries(comm::CommGroup::MainInt);
     return TaskStatus::next;
   }
-  return TaskStatus::fail;
-}
-
-
-TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesField(MeshBlock *pmb, int stage)
-{
-  // Field is unpacked as part of the MainInt group in SetBoundariesHydro.
-  if (stage <= nstages) return TaskStatus::next;
-  return TaskStatus::fail;
-}
-
-TaskStatus GRMHD_Z4c_Phase_MHD_com::SendScalars(MeshBlock *pmb, int stage)
-{
-  // Scalars are sent as part of the MainInt group in SendHydro.
-  if (stage <= nstages) return TaskStatus::next;
-  return TaskStatus::fail;
-}
-
-
-TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveScalars(MeshBlock *pmb, int stage)
-{
-  // Scalars are received as part of the MainInt group in ReceiveHydro.
-  if (stage <= nstages) return TaskStatus::next;
-  return TaskStatus::fail;
-}
-
-
-TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesScalars(MeshBlock *pmb, int stage)
-{
-  // Scalars are unpacked as part of the MainInt group in SetBoundariesHydro.
-  if (stage <= nstages) return TaskStatus::next;
   return TaskStatus::fail;
 }
 

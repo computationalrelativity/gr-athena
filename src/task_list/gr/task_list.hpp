@@ -135,16 +135,10 @@ public:
   TaskStatus PrimitivesPhysical(MeshBlock *pmb, int stage);
 
   TaskStatus SendHydro(MeshBlock *pmb, int stage);
-  TaskStatus SendField(MeshBlock *pmb, int stage);
-  TaskStatus SendScalars(MeshBlock *pmb, int stage);
 
   TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveField(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveScalars(MeshBlock *pmb, int stage);
 
   TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesScalars(MeshBlock *pmb, int stage);
 
   TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
   TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);

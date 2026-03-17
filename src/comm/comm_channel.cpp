@@ -68,6 +68,7 @@ CommChannel::CommChannel(const CommSpec &spec, MeshBlock *pmb, int channel_id)
   for (int n = 0; n < kMaxNeighbor; ++n) {
     send_buf_[n] = nullptr;
     recv_buf_[n] = nullptr;
+    target_channel_[n] = nullptr;
     recv_flag_[n].store(BoundaryStatus::waiting, std::memory_order_relaxed);
     send_flag_[n].store(BoundaryStatus::waiting, std::memory_order_relaxed);
     // Flux correction buffers
@@ -111,8 +112,10 @@ CommChannel::CommChannel(CommChannel &&other) noexcept
   for (int n = 0; n < kMaxNeighbor; ++n) {
     send_buf_[n] = other.send_buf_[n];
     recv_buf_[n] = other.recv_buf_[n];
+    target_channel_[n] = other.target_channel_[n];
     other.send_buf_[n] = nullptr;
     other.recv_buf_[n] = nullptr;
+    other.target_channel_[n] = nullptr;
     recv_flag_[n].store(other.recv_flag_[n].load(std::memory_order_relaxed),
                         std::memory_order_relaxed);
     send_flag_[n].store(other.send_flag_[n].load(std::memory_order_relaxed),
@@ -168,8 +171,10 @@ CommChannel& CommChannel::operator=(CommChannel &&other) noexcept {
     for (int n = 0; n < kMaxNeighbor; ++n) {
       send_buf_[n] = other.send_buf_[n];
       recv_buf_[n] = other.recv_buf_[n];
+      target_channel_[n] = other.target_channel_[n];
       other.send_buf_[n] = nullptr;
       other.recv_buf_[n] = nullptr;
+      other.target_channel_[n] = nullptr;
       recv_flag_[n].store(other.recv_flag_[n].load(std::memory_order_relaxed),
                           std::memory_order_relaxed);
       send_flag_[n].store(other.send_flag_[n].load(std::memory_order_relaxed),
@@ -215,6 +220,19 @@ void CommChannel::Finalize(const NeighborConnectivity &nc, int max_channel_id) {
   AllocateBuffers(nc);
   SetupPersistentMPI(nc, max_channel_id);
 
+  // Cache target CommChannel pointers for same-rank neighbors so that
+  // zero-copy pack (ResolveTargetRecvBuffer) and flag-setting (SetTargetRecvFlag)
+  // avoid repeated FindMeshBlock + FindForBlock lookups every communication cycle.
+  for (int n = 0; n < nc.num_neighbors(); ++n) {
+    const NeighborBlock &nb = nc.neighbor(n);
+    if (nb.snb.rank == Globals::my_rank) {
+      MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
+      CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
+      target_channel_[nb.bufid] = &target_reg->channel(channel_id_);
+    }
+    // Off-rank slots remain nullptr (from constructor / Reinitialize reset).
+  }
+
   // Pre-compute polar sign array from component_groups.
   // Used during Unpack() for neighbors with nb.polar == true.
   polar_signs_ = ComputeSignArray(spec_, FlipContext::Polar);
@@ -254,6 +272,9 @@ void CommChannel::Reinitialize(const NeighborConnectivity &nc, int max_channel_i
   // NewAthenaArray does not free existing data, so this prevents a leak.
   sarea_[0].DeleteAthenaArray();
   sarea_[1].DeleteAthenaArray();
+  // Reset cached target channel pointers (Finalize will repopulate them).
+  for (int n = 0; n < kMaxNeighbor; ++n)
+    target_channel_[n] = nullptr;
   finalized_ = false;
   Finalize(nc, max_channel_id);
 }
@@ -947,74 +968,28 @@ void CommChannel::StartReceiving(const NeighborConnectivity &nc,
 
 Real* CommChannel::ResolveTargetRecvBuffer(int nb_idx) {
   const NeighborBlock &nb = pmy_block_->nc().neighbor(nb_idx);
-
-  MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
-  if (ptarget == nullptr) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in CommChannel::ResolveTargetRecvBuffer\n"
-        << "Target MeshBlock gid=" << nb.snb.gid << " not found on this rank."
-        << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
-  if (target_reg == nullptr) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in CommChannel::ResolveTargetRecvBuffer\n"
-        << "No CommRegistry found for target MeshBlock gid=" << nb.snb.gid
-        << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  CommChannel &target_ch = target_reg->channel(channel_id_);
-  return target_ch.recv_buf_[nb.targetid];
+  CommChannel *tgt = target_channel_[nb.bufid];
+  return tgt->recv_buf_[nb.targetid];
 }
 
 void CommChannel::SetTargetRecvFlag(int nb_idx) {
   const NeighborBlock &nb = pmy_block_->nc().neighbor(nb_idx);
-
-  MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
-  CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
-  CommChannel &target_ch = target_reg->channel(channel_id_);
-
-  target_ch.recv_flag_[nb.targetid].store(BoundaryStatus::arrived,
-                                          std::memory_order_release);
+  CommChannel *tgt = target_channel_[nb.bufid];
+  tgt->recv_flag_[nb.targetid].store(BoundaryStatus::arrived,
+                                     std::memory_order_release);
 }
 
 Real* CommChannel::ResolveTargetFluxCorrRecvBuffer(int nb_idx) {
   const NeighborBlock &nb = pmy_block_->nc().neighbor(nb_idx);
-
-  MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
-  if (ptarget == nullptr) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in CommChannel::ResolveTargetFluxCorrRecvBuffer\n"
-        << "Target MeshBlock gid=" << nb.snb.gid << " not found on this rank."
-        << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
-  if (target_reg == nullptr) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in CommChannel::ResolveTargetFluxCorrRecvBuffer\n"
-        << "No CommRegistry found for target MeshBlock gid=" << nb.snb.gid
-        << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  CommChannel &target_ch = target_reg->channel(channel_id_);
-  return target_ch.flcor_recv_buf_[nb.targetid];
+  CommChannel *tgt = target_channel_[nb.bufid];
+  return tgt->flcor_recv_buf_[nb.targetid];
 }
 
 void CommChannel::SetTargetFluxCorrRecvFlag(int nb_idx) {
   const NeighborBlock &nb = pmy_block_->nc().neighbor(nb_idx);
-
-  MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
-  CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
-  CommChannel &target_ch = target_reg->channel(channel_id_);
-
-  target_ch.flcor_recv_flag_[nb.targetid].store(BoundaryStatus::arrived,
-                                                 std::memory_order_release);
+  CommChannel *tgt = target_channel_[nb.bufid];
+  tgt->flcor_recv_flag_[nb.targetid].store(BoundaryStatus::arrived,
+                                            std::memory_order_release);
 }
 
 //========================================================================================
