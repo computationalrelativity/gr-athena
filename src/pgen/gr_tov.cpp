@@ -23,7 +23,6 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
-#include "../bvals/bvals.hpp"              // BoundaryValues
 #include "../coordinates/coordinates.hpp"  // Coordinates
 #include "../eos/eos.hpp"                  // EquationOfState
 #include "../z4c/z4c.hpp"

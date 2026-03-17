@@ -6,12 +6,12 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../mesh/mesh.hpp"
 #include "../../wave/wave.hpp"
 #include "../../parameter_input.hpp"
 #include "../task_list.hpp"
 #include "../../trackers/extrema_tracker.hpp"
+#include "../../comm/comm_registry.hpp"
 #include "task_list.hpp"
 
 // ----------------------------------------------------------------------------
@@ -74,7 +74,6 @@ Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
 {
   Wave *pwave = pmb->pwave;
-  BoundaryValues *pbval = pmb->pbval;
 
   integrators::Initialize(stage, pmb, pwave->bt_k, pwave->u, pwave->rhs);
 
@@ -97,7 +96,8 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
     }
   }
 
-  pmb->pbval->StartReceiving(BoundaryCommSubset::all);
+  // Post persistent receives for Wave ghost exchange.
+  pmb->pcomm->StartReceiving(comm::CommGroup::Wave);
   return;
 }
 
@@ -105,7 +105,7 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::all);
+  pmb->pcomm->ClearBoundary(comm::CommGroup::Wave);
   return TaskStatus::next;
 }
 
@@ -113,7 +113,6 @@ TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
 // Functions to calculate the RHS
 TaskStatus Wave_2O::CalculateWaveRHS(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
   Wave *pwave = pmb->pwave;
 
   if (stage <= nstages)
@@ -205,23 +204,13 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Functions to communicate conserved variables between MeshBlocks
+// Pack and send Wave ghost-zone data to neighbors.
 TaskStatus Wave_2O::SendWave(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages) {
-    if (WAVE_CC_ENABLED)
-    {
-      pmb->pwave->ubvar_cc.SendBoundaryBuffers();
-    }
-    else if (WAVE_VC_ENABLED)
-    {
-      pmb->pwave->ubvar_vc.SendBoundaryBuffers();
-    }
-    else if (WAVE_CX_ENABLED)
-    {
-      pmb->pwave->ubvar_cx.SendBoundaryBuffers();
-    }
-
+    // Group-level send handles the Wave channel (CC, CX, or VC depending on
+    // compile-time config).  Restriction is embedded for multilevel.
+    pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::Wave);
   } else {
     return TaskStatus::fail;
   }
@@ -229,38 +218,16 @@ TaskStatus Wave_2O::SendWave(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Functions to receive conserved variables between MeshBlocks
+// Poll for received Wave ghost-zone data from neighbors.
 TaskStatus Wave_2O::ReceiveWave(MeshBlock *pmb, int stage)
 {
-  bool ret;
   if (stage <= nstages)
   {
-    if (WAVE_CC_ENABLED)
-    {
-      ret = pmb->pwave->ubvar_cc.ReceiveBoundaryBuffers();
-    }
-    else if (WAVE_VC_ENABLED)
-    {
-      ret = pmb->pwave->ubvar_vc.ReceiveBoundaryBuffers();
-    }
-    else if (WAVE_CX_ENABLED)
-    {
-      ret = pmb->pwave->ubvar_cx.ReceiveBoundaryBuffers();
-    }
-  }
-  else
-  {
+    bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::Wave);
+    if (done) return TaskStatus::next;
     return TaskStatus::fail;
   }
-
-  if (ret)
-  {
-    return TaskStatus::next;
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
+  return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
@@ -268,19 +235,8 @@ TaskStatus Wave_2O::SetBoundariesWave(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    if (WAVE_CC_ENABLED)
-    {
-      pmb->pwave->ubvar_cc.SetBoundaries();
-    }
-    else if (WAVE_VC_ENABLED)
-    {
-      pmb->pwave->ubvar_vc.SetBoundaries();
-    }
-    else if (WAVE_CX_ENABLED)
-    {
-      pmb->pwave->ubvar_cx.SetBoundaries();
-    }
-
+    // Unpack received data for the Wave channel into state arrays.
+    pmb->pcomm->SetBoundaries(comm::CommGroup::Wave);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -290,16 +246,25 @@ TaskStatus Wave_2O::SetBoundariesWave(MeshBlock *pmb, int stage)
 // Functions for everything else
 TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
-
   if (stage <= nstages)
   {
-    BoundaryValues *pbval = pmb->pbval;
+    Wave *pwave = pmb->pwave;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    pbval->ProlongateBoundariesWave(t_end, dt_scaled);
+    // Wave uses module-specific coarse indices from MB_info (may differ from
+    // pmb->cis/cie when the sampling mode has a different ghost width).
+    const int cil = pwave->mbi.cil, ciu = pwave->mbi.ciu;
+    const int cjl = pwave->mbi.cjl, cju = pwave->mbi.cju;
+    const int ckl = pwave->mbi.ckl, cku = pwave->mbi.cku;
+    const int cng = pwave->mbi.cng;
+
+    // Apply coarse-level physical BCs then prolongate each Wave channel.
+    pcomm->ProlongateAndApplyPhysicalBCs(
+        comm::CommGroup::Wave, t_end, dt_scaled,
+        cil, ciu, cjl, cju, ckl, cku, cng);
   }
   else
   {
@@ -312,22 +277,15 @@ TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
   if (stage <= nstages)
   {
-    BoundaryValues *pbval = pmb->pbval;
-    Wave * pwave = pmb->pwave;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    pbval->ApplyPhysicalBoundaries(
-      t_end, dt_scaled,
-      pbval->GetBvarsWave(),
-      pwave->mbi.il, pwave->mbi.iu,
-      pwave->mbi.jl, pwave->mbi.ju,
-      pwave->mbi.kl, pwave->mbi.ku,
-      pwave->mbi.ng);
+    // Apply fine-level physical BCs for every Wave channel.
+    pcomm->ApplyPhysicalBCs(comm::CommGroup::Wave, t_end, dt_scaled);
   }
   else
   {

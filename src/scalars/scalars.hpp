@@ -16,7 +16,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_aliases.hpp"
-#include "../bvals/cc/bvals_cc.hpp"
+
 // #include "../coordinates/coordinates.hpp"
 // #include "../eos/eos.hpp"
 // #include "../mesh/mesh.hpp"
@@ -31,7 +31,6 @@ class ParameterInput;
 //! \class PassiveScalars
 //  \brief
 
-// TODO(felker): consider renaming to Scalars
 class PassiveScalars {
  public:
   // TODO(felker): pin is currently only used for checking ssprk5_4, otherwise unused.
@@ -46,14 +45,11 @@ class PassiveScalars {
   AthenaArray<Real> s_flux[3];  // face-averaged flux vector
 
   // storage for SMR/AMR
-  // TODO(KGF): remove trailing underscore or revert to private:
-  AthenaArray<Real> coarse_s_, coarse_r_;
+  AthenaArray<Real> coarse_s_;
   int refinement_idx{-1};
-
-  CellCenteredBoundaryVariable sbvar;
+  int comm_channel_id{-1};  // CommRegistry channel index (assigned at registration)
 
   // public functions:
-  // KGF: use inheritance for these functions / overall class?
   void AddFluxDivergence(const Real wght, AthenaArray<Real> &s_out);
 
  public:

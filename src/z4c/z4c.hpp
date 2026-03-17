@@ -21,10 +21,6 @@
 #include "../mesh/mesh.hpp"
 #include "../utils/finite_differencing.hpp"
 
-#include "../bvals/cc/bvals_cc.hpp"
-#include "../bvals/cx/bvals_cx.hpp"
-#include "../bvals/vc/bvals_vc.hpp"
-
 #include "z4c_macro.hpp"
 
 #ifdef TWO_PUNCTURES
@@ -363,33 +359,7 @@ public:
   AA coarse_u_;
   AA coarse_a_;  // for auxiliary data (split task-list)
 
-  // boundary and grid data (associated to state-vector)
-  FCN_CC_CX_VC(
-    CellCenteredBoundaryVariable   ubvar,
-    CellCenteredXBoundaryVariable  ubvar,
-    VertexCenteredBoundaryVariable ubvar
-  );
-
-  // auxiliary data (split task-list)
-  FCN_CC_CX_VC(
-    CellCenteredBoundaryVariable   abvar,
-    CellCenteredXBoundaryVariable  abvar,
-    VertexCenteredBoundaryVariable abvar
-  );
-
-#if defined(Z4C_CX_ENABLED)
-  CellCenteredXBoundaryVariable  rbvar;
-#endif
-
-
   AA coarse_adm_;  // for auxiliary data (split task-list)
-
-  // auxiliary data (split task-list)
-  FCN_CC_CX_VC(
-    CellCenteredBoundaryVariable   * adm_abvar,
-    CellCenteredXBoundaryVariable  * adm_abvar,
-    VertexCenteredBoundaryVariable * adm_abvar
-  );
 
   int refinement_idx{-1};
 

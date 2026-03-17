@@ -23,12 +23,15 @@ template <typename T> void PackData(AthenaArray<T> &src, T *buf,
                                     int sn, int en,
                                     int si, int ei, int sj, int ej, int sk, int ek,
                                     int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int n=sn; n<=en; ++n) {
     for (int k=sk; k<=ek; k++) {
       for (int j=sj; j<=ej; j++) {
 #pragma omp simd
         for (int i=si; i<=ei; i++)
-          buf[offset++] = src(n,k,j,i);
+          buf[offset + i - si] = src(n,k,j,i);
+        offset += ni;
       }
     }
   }
@@ -42,15 +45,16 @@ template <typename T> void PackData(AthenaArray<T> &src, T *buf,
 template <typename T> void PackData(AthenaArray<T> &src, T *buf,
                                     int si, int ei, int sj, int ej, int sk, int ek,
                                     int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int k=sk; k<=ek; k++) {
     for (int j=sj; j<=ej; j++) {
 #pragma omp simd
       for (int i=si; i<=ei; i++)
-        buf[offset++] = src(k, j, i);
+        buf[offset + i - si] = src(k, j, i);
+      offset += ni;
     }
   }
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -62,17 +66,18 @@ template <typename T> void UnpackData(T *buf, AthenaArray<T> &dst,
                                       int sn, int en,
                                       int si, int ei, int sj, int ej, int sk, int ek,
                                       int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int n=sn; n<=en; ++n) {
     for (int k=sk; k<=ek; ++k) {
       for (int j=sj; j<=ej; ++j) {
 #pragma omp simd
         for (int i=si; i<=ei; ++i)
-          dst(n,k,j,i) = buf[offset++];
+          dst(n,k,j,i) = buf[offset + i - si];
+        offset += ni;
       }
     }
   }
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -83,15 +88,16 @@ template <typename T> void UnpackData(T *buf, AthenaArray<T> &dst,
 template <typename T> void UnpackData(T *buf, AthenaArray<T> &dst,
                                       int si, int ei, int sj, int ej, int sk, int ek,
                                       int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int k=sk; k<=ek; ++k) {
     for (int j=sj; j<=ej; ++j) {
 #pragma omp simd
       for (int i=si; i<=ei; ++i)
-        dst(k,j,i) = buf[offset++];
+        dst(k,j,i) = buf[offset + i - si];
+      offset += ni;
     }
   }
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -103,17 +109,18 @@ template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
                                          int sn, int en,
                                          int si, int ei, int sj, int ej, int sk, int ek,
                                          int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int n=sn; n<=en; ++n) {
     for (int k=sk; k<=ek; ++k) {
       for (int j=sj; j<=ej; ++j) {
 #pragma omp simd
         for (int i=si; i<=ei; ++i)
-          dst(n,k,j,i) += buf[offset++];
+          dst(n,k,j,i) += buf[offset + i - si];
+        offset += ni;
       }
     }
   }
-
-  return;
 }
 
 //----------------------------------------------------------------------------------------
@@ -124,15 +131,16 @@ template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
 template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
                                          int si, int ei, int sj, int ej, int sk, int ek,
                                          int &offset) {
+  // Buffer index computed from loop variables to avoid loop-carried dependency.
+  const int ni = ei - si + 1;
   for (int k=sk; k<=ek; ++k) {
     for (int j=sj; j<=ej; ++j) {
 #pragma omp simd
       for (int i=si; i<=ei; ++i)
-        dst(k,j,i) += buf[offset++];
+        dst(k,j,i) += buf[offset + i - si];
+      offset += ni;
     }
   }
-
-  return;
 }
 
 // provide explicit instantiation definitions (C++03) to allow the template definitions to

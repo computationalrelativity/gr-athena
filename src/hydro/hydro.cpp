@@ -20,6 +20,8 @@
 #include "../field/field.hpp"
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
 #include "hydro.hpp"
 
 // constructor, initializes data structures and parameters
@@ -45,11 +47,7 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     },
     coarse_cons_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
                  (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-                  AthenaArray<Real>::DataStatus::empty)),
-    coarse_prim_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
-                 (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-                  AthenaArray<Real>::DataStatus::empty)),
-    hbvar(pmb, &u, &coarse_cons_, flux, HydroBoundaryQuantity::cons)
+                  AthenaArray<Real>::DataStatus::empty))
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
@@ -150,10 +148,37 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     refinement_idx = pmy_block->pmr->AddToRefinementCC(&u, &coarse_cons_);
   }
 
-  // enroll HydroBoundaryVariable object
-  hbvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&hbvar);
-  pmb->pbval->bvars_main_int.push_back(&hbvar);
+  // Register hydro conserved variables with the new comm system.
+  // Communicates u (conserved) with coarse_cons_ as the coarse buffer.
+  // Parity: {Scalar,1} for D, {Vector,3} for S_d, {Scalar,1} for tau.
+  {
+    comm::CommSpec spec;
+    spec.label      = "hydro_cons";
+    spec.var        = &u;
+    spec.coarse_var = &coarse_cons_;
+    spec.nvar       = NHYDRO;
+    spec.sampling   = comm::Sampling::CC;
+    spec.targets    = comm::CommTarget::All;
+    spec.group      = comm::CommGroup::MainInt;
+    spec.prolong_op  = comm::ProlongOp::MinmodLinear;
+    spec.restrict_op = comm::RestrictOp::VolumeWeighted;
+    comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+    spec.component_groups = {
+      {comm::GeomType::Scalar, 1},   // D
+      {comm::GeomType::Vector, 3},   // S_d_{1,2,3}
+      {comm::GeomType::Scalar, 1}    // tau
+    };
+    // Flux correction: area-weighted restricted fluxes overwrite coarse fluxes at
+    // fine/coarse interfaces.  Only active for AMR/SMR.
+    if (pm->multilevel) {
+      spec.flx_cc[0]   = &flux[0];
+      spec.flx_cc[1]   = &flux[1];
+      spec.flx_cc[2]   = &flux[2];
+      spec.flcor_mode   = comm::FluxCorrMode::OverwriteFromFiner;
+      spec.flux_group   = comm::CommGroup::FluxCorr;
+    }
+    comm_channel_id = pmb->pcomm->Register(spec);
+  }
 
   // Allocate memory for scratch arrays
   dt1_.NewAthenaArray(nc1);

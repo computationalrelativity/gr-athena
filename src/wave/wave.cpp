@@ -20,6 +20,9 @@
 
 #include "wave.hpp"
 
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
+
 #if WAVE_CC_ENABLED
   #define WAVE_SW_CC_CX_VC(a, b, c)                                                 \
     a
@@ -76,10 +79,7 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
              AthenaArray<Real>::DataStatus::empty)),
   empty_flux{AthenaArray<Real>(),
              AthenaArray<Real>(),
-             AthenaArray<Real>()},
-  ubvar_cc(pmb, &u, &coarse_u_, empty_flux),  // dirty but safe as only _one_ is registered
-  ubvar_vc(pmb, &u, &coarse_u_, empty_flux),
-  ubvar_cx(pmb, &u, &coarse_u_, empty_flux)
+             AthenaArray<Real>()}
 {
   Mesh *pm = pmb->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -235,24 +235,31 @@ Wave::Wave(MeshBlock *pmb, ParameterInput *pin) :
 
   }
 
-  // enroll CellCenteredBoundaryVariable / VertexCenteredBoundaryVariable object
-  if (WAVE_CC_ENABLED)
+  // Register wave variables with the new comm system.
   {
-    ubvar_cc.bvar_index = pmb->pbval->bvars.size();
-    pmb->pbval->bvars.push_back(&ubvar_cc);
-    pmb->pbval->bvars_main_int.push_back(&ubvar_cc);
-  }
-  else if (WAVE_VC_ENABLED)
-  {
-    ubvar_vc.bvar_index = pmb->pbval->bvars.size();
-    pmb->pbval->bvars.push_back(&ubvar_vc);
-    pmb->pbval->bvars_main_int_vc.push_back(&ubvar_vc);
-  }
-  else if (WAVE_CX_ENABLED)
-  {
-    ubvar_cx.bvar_index = pmb->pbval->bvars.size();
-    pmb->pbval->bvars.push_back(&ubvar_cx);
-    pmb->pbval->bvars_main_int_cx.push_back(&ubvar_cx);
+    const comm::Sampling samp = WAVE_SW_CC_CX_VC(
+        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol = WAVE_SW_CC_CX_VC(
+        comm::ProlongOp::MinmodLinear,
+        comm::ProlongOp::LagrangeChildrenBC,
+        comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest = WAVE_SW_CC_CX_VC(
+        comm::RestrictOp::VolumeWeighted,
+        comm::RestrictOp::LagrangeUniform,
+        comm::RestrictOp::Injection);
+    comm::CommSpec spec;
+    spec.label       = "wave_u";
+    spec.var         = &u;
+    spec.coarse_var  = &coarse_u_;
+    spec.nvar        = NWAVE_CPT;
+    spec.sampling    = samp;
+    spec.targets     = comm::CommTarget::All;
+    spec.group       = comm::CommGroup::Wave;
+    spec.prolong_op  = prol;
+    spec.restrict_op = rest;
+    comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+    // All scalar - empty component_groups means even parity.
+    pmb->pcomm->Register(spec);
   }
 
   // Allocate memory for scratch arrays

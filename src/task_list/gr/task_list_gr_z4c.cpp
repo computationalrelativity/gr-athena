@@ -6,7 +6,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
@@ -19,6 +18,7 @@
 #endif
 #include "../../z4c/puncture_tracker.hpp"
 #include "../../parameter_input.hpp"
+#include "../../comm/comm_registry.hpp"
 #include "task_list.hpp"
 
 
@@ -98,7 +98,6 @@ GR_Z4c::GR_Z4c(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 // ----------------------------------------------------------------------------
 void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb   = pmb->pbval;
   Z4c            *pz4c = pmb->pz4c;
 
   integrators::Initialize(stage,
@@ -125,7 +124,8 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
     }
   }
 
-  pb->StartReceiving(BoundaryCommSubset::z4c);
+  // Post persistent receives for Z4c ghost exchange.
+  pmb->pcomm->StartReceiving(comm::CommGroup::Z4c);
   return;
 }
 
@@ -133,9 +133,7 @@ void GR_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus GR_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb = pmb->pbval;
-  pb->ClearBoundary(BoundaryCommSubset::z4c);
-
+  pmb->pcomm->ClearBoundary(comm::CommGroup::Z4c);
   return TaskStatus::next;
 }
 
@@ -223,52 +221,41 @@ TaskStatus GR_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
 }
 
 //-----------------------------------------------------------------------------
-// Functions to communicate conserved variables between MeshBlocks
+// Pack and send Z4c ghost-zone data to neighbors.
 TaskStatus GR_Z4c::SendZ4c(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
-
-    pz4c->ubvar.SendBoundaryBuffers();
+    // Group-level send handles all Z4c channels.
+    // Restriction into coarse buffers (for cross-level neighbors) is embedded
+    // inside SendBoundaryBuffers when mesh is multilevel.
+    pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::Z4c);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 //-----------------------------------------------------------------------------
-// Functions to receive conserved variables between MeshBlocks
+// Poll for received Z4c ghost-zone data from neighbors.
 TaskStatus GR_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
 {
-  bool ret;
-
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
-    ret = pz4c->ubvar.ReceiveBoundaryBuffers();
-  }
-  else
-  {
+    // Poll all Z4c channels.  Returns true when every channel has received
+    // all expected messages from same-level, coarser, and finer neighbors.
+    bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::Z4c);
+    if (done) return TaskStatus::next;
     return TaskStatus::fail;
   }
-
-  if (ret)
-  {
-    return TaskStatus::next;
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
+  return TaskStatus::fail;
 }
 
 TaskStatus GR_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
-
-    pz4c->ubvar.SetBoundaries();
+    // Unpack received data for all Z4c channels into state arrays.
+    pmb->pcomm->SetBoundaries(comm::CommGroup::Z4c);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -280,12 +267,23 @@ TaskStatus GR_Z4c::Prolongation(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    BoundaryValues *pbval = pmb->pbval;
+    Z4c *pz4c = pmb->pz4c;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    pbval->ProlongateBoundariesZ4c(t_end, dt_scaled);
+    // Z4c uses module-specific coarse indices from MB_info (may differ from
+    // pmb->cis/cie when the sampling mode has a different ghost width).
+    const int cil = pz4c->mbi.cil, ciu = pz4c->mbi.ciu;
+    const int cjl = pz4c->mbi.cjl, cju = pz4c->mbi.cju;
+    const int ckl = pz4c->mbi.ckl, cku = pz4c->mbi.cku;
+    const int cng = pz4c->mbi.cng;
+
+    // Apply coarse-level physical BCs then prolongate each Z4c channel.
+    pcomm->ProlongateAndApplyPhysicalBCs(
+        comm::CommGroup::Z4c, t_end, dt_scaled,
+        cil, ciu, cjl, cju, ckl, cku, cng);
   }
   else
   {
@@ -300,19 +298,13 @@ TaskStatus GR_Z4c::PhysicalBoundary(MeshBlock *pmb, int stage)
 
   if (stage <= nstages)
   {
-    BoundaryValues *pbval = pmb->pbval;
-    Z4c *pz4c = pmb->pz4c;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     const Real t_end = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-    pbval->ApplyPhysicalBoundaries(
-      t_end, dt_scaled,
-      pbval->GetBvarsZ4c(),
-      pz4c->mbi.il, pz4c->mbi.iu,
-      pz4c->mbi.jl, pz4c->mbi.ju,
-      pz4c->mbi.kl, pz4c->mbi.ku,
-      pz4c->mbi.ng);
+    // Apply fine-level physical BCs for every Z4c channel.
+    pcomm->ApplyPhysicalBCs(comm::CommGroup::Z4c, t_end, dt_scaled);
 
   }
   else

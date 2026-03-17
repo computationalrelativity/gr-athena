@@ -2911,7 +2911,7 @@ void MeshRefinement::CheckRefinementCondition() {
       for (int k=ks; k<=ke; k++) {
         for (int j=js; j<=je; j++) {
           for (int i=-1; i<=1; i++)
-            if (pmb->pbval->nblevel[k+1][j+1][i+1]>pmb->loc.level) ec++;
+            if (pmb->nc().neighbor_level(i, j, k) > pmb->loc.level) ec++;
         }
       }
       if (ec > 0) {
@@ -2976,105 +2976,9 @@ int MeshRefinement::AddToRefinementAuxCX(AthenaArray<Real> *pvar_in,
   return static_cast<int>(pvars_aux_cx_.size() - 1);
 }
 
-void MeshRefinement::SwapRefinementAux()
-{
-  std::swap(pvars_cc_, pvars_aux_cc_);
-  std::swap(pvars_fc_, pvars_aux_fc_);
-  std::swap(pvars_cx_, pvars_aux_cx_);
-  std::swap(pvars_vc_, pvars_aux_vc_);
-}
-
 int MeshRefinement::AddToRefinementM1CC(AthenaArray<Real> *pvar_in,
                                         AthenaArray<Real> *pcoarse_in)
 {
   pvars_m1_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
   return static_cast<int>(pvars_m1_cc_.size() - 1);
-}
-
-void MeshRefinement::SwapRefinementM1()
-{
-  std::swap(pvars_cc_, pvars_m1_cc_);
-}
-
-// BD: TODO - check if required
-/*
-// as above but for use with auxiliary task list
-int MeshRefinement::AddToRefinementAuxADMVC(
-  AthenaArray<Real> *pvar_in,
-  AthenaArray<Real> *pcoarse_in)
-{
-  pvars_aux_adm_vc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
-  return static_cast<int>(pvars_aux_adm_vc_.size() - 1);
-}
-
-int MeshRefinement::AddToRefinementAuxADMCC(
-  AthenaArray<Real> *pvar_in,
-  AthenaArray<Real> *pcoarse_in)
-{
-  pvars_aux_adm_cc_.push_back(std::make_tuple(pvar_in, pcoarse_in));
-  return static_cast<int>(pvars_aux_adm_cc_.size() - 1);
-}
-
-int MeshRefinement::AddToRefinementAuxADMFC(
-  FaceField *pvar_fc,
-  FaceField *pcoarse_fc)
-{
-  pvars_aux_adm_fc_.push_back(std::make_tuple(pvar_fc, pcoarse_fc));
-  return static_cast<int>(pvars_aux_adm_fc_.size() - 1);
-}
-
-int MeshRefinement::AddToRefinementAuxADMCX(
-  AthenaArray<Real> *pvar_in,
-  AthenaArray<Real> *pcoarse_in)
-{
-  pvars_aux_adm_cx_.push_back(std::make_tuple(pvar_in, pcoarse_in));
-  return static_cast<int>(pvars_aux_adm_cx_.size() - 1);
-}
-
-void MeshRefinement::SwapRefinementAuxADM()
-{
-  std::swap(pvars_cc_, pvars_aux_adm_cc_);
-  std::swap(pvars_fc_, pvars_aux_adm_fc_);
-  std::swap(pvars_cx_, pvars_aux_adm_cx_);
-  std::swap(pvars_vc_, pvars_aux_adm_vc_);
-}
-*/
-
-// Currently, only called in 2x functions in bvals_refine.cpp:
-// ----------
-// - BoundaryValues::RestrictGhostCellsOnSameLevel()--- to perform additional
-// restriction on primitive Hydro standard/coarse arrays (only for GR) without changing
-// the var_cc/coarse_buf pointer members of the HydroBoundaryVariable.
-
-// - BoundaryValues::ProlongateGhostCells()--- to ensure prolongation occurs on conserved
-// (not primitive) variable standard/coarse arrays for Hydro, PassiveScalars
-
-// Should probably consolidate this function and std::vector of tuples with
-// BoundaryVariable interface ptr members. Too much independent switching of ptrs!
-// ----------
-// Even though we currently do not have special GR functionality planned for
-// PassiveScalars::coarse_r_ like Hydro::coarse_prim_
-// (it is never transferred in Mesh::LoadBalancingAndAdaptiveMeshRefinement)
-// the physical (non-periodic) boundary functions will still apply only to the PRIMITIVE
-// scalar variable arrays, thus S/AMR demand 1) AthenaArray<Real> PassiveScalars::coarse_r
-// 2) ability to switch (s, coarse_s) and (r, coarse_r) ptrs in MeshRefinement::bvals_cc_
-
-void MeshRefinement::SetHydroRefinement(HydroBoundaryQuantity hydro_type) {
-  // TODO(felker): make more general so it can be used as SetPassiveScalarsRefinement()
-  // e.g. refer to "int Hydro::refinement_idx" instead of assuming that the correct tuple
-  // is in the first vector entry
-  Hydro *ph = pmy_block_->phydro;
-  // hard-coded assumption that, if multilevel, then Hydro is always present
-  // and enrolled in mesh refinement in the first pvars_cc_ vector entry
-  switch (hydro_type) {
-    case (HydroBoundaryQuantity::cons): {
-      pvars_cc_.front() = std::make_tuple(&ph->u, &ph->coarse_cons_);
-      break;
-    }
-    case (HydroBoundaryQuantity::prim): {
-      pvars_cc_.front() = std::make_tuple(&ph->w, &ph->coarse_prim_);
-      break;
-    }
-  }
-  return;
 }

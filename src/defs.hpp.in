@@ -64,9 +64,6 @@
 // dumps
 #define DBG_RST_WRITE_PER_MB
 
-// Push physical cell ConservedToPrimitive earlier in Mesh::Initialize?
-#define DBG_EARLY_INIT_CONSTOPRIM
-
 // Surface chunk size (mb)
 #define DBG_SURF_CHUNK 16
 

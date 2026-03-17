@@ -8,7 +8,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_aliases.hpp"
-#include "../bvals/bvals.hpp"
 #include "../globals.hpp"
 #include "mesh.hpp"
 

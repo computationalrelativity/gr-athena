@@ -18,6 +18,8 @@
 #include "../coordinates/coordinates.hpp"
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
 #include "field.hpp"
 
 // constructor, initializes data structures and parameters
@@ -40,8 +42,8 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
                  AthenaArray<Real>::DataStatus::empty)),
     coarse_b_(pmb->ncc3, pmb->ncc2, pmb->ncc1+1,
               (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-               AthenaArray<Real>::DataStatus::empty)),
-    fbvar(pmb, &b, &coarse_b_, e) {
+               AthenaArray<Real>::DataStatus::empty))
+{
   int ncells1 = pmb->ncells1, ncells2 = pmb->ncells2, ncells3 = pmb->ncells3;
   Mesh *pm = pmy_block->pmy_mesh;
 
@@ -77,10 +79,37 @@ Field::Field(MeshBlock *pmb, ParameterInput *pin) :
     refinement_idx = pmy_block->pmr->AddToRefinementFC(&b, &coarse_b_);
   }
 
-  // enroll FaceCenteredBoundaryVariable object
-  fbvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&fbvar);
-  pmb->pbval->bvars_main_int.push_back(&fbvar);
+  // Register face-centered B-field with the new comm system.
+  // Single CommSpec for the FaceField (all 3 components packed sequentially).
+  // Parity handled by hardcoded signs in FC physical BC functions, not component_groups.
+  {
+    comm::CommSpec spec;
+    spec.label      = "field_b";
+    spec.var_fc[0]     = &b.x1f;
+    spec.var_fc[1]     = &b.x2f;
+    spec.var_fc[2]     = &b.x3f;
+    spec.coarse_fc[0]  = &coarse_b_.x1f;
+    spec.coarse_fc[1]  = &coarse_b_.x2f;
+    spec.coarse_fc[2]  = &coarse_b_.x3f;
+    spec.nvar       = 3;
+    spec.sampling   = comm::Sampling::FC;
+    spec.targets    = comm::CommTarget::All;
+    spec.group      = comm::CommGroup::MainInt;
+    spec.prolong_op  = comm::ProlongOp::FaceSharedMinmod;
+    spec.restrict_op = comm::RestrictOp::AreaWeightedFace;
+    comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+    // component_groups left empty - FC sign handling is in the FC BC functions
+    // Flux correction: edge-length-weighted restricted EMFs accumulated at
+    // fine/coarse interfaces via two-phase protocol.  Only active for AMR/SMR.
+    if (pm->multilevel) {
+      spec.flx_fc[0]   = &e.x1e;
+      spec.flx_fc[1]   = &e.x2e;
+      spec.flx_fc[2]   = &e.x3e;
+      spec.flcor_mode   = comm::FluxCorrMode::AccumulateAverage;
+      spec.flux_group   = comm::CommGroup::FluxCorr;
+    }
+    comm_channel_id = pmb->pcomm->Register(spec);
+  }
 }
 
 

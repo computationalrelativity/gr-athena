@@ -2,7 +2,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"

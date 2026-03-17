@@ -20,6 +20,8 @@
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
 
 // ----------------------------------------------------------------------------
 Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
@@ -70,12 +72,7 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
   coarse_a_(N_WEY, mbi.cnn3, mbi.cnn2, mbi.cnn1,
             (pmb->pmy_mesh->multilevel ?
              AthenaArray<Real>::DataStatus::allocated :
-             AthenaArray<Real>::DataStatus::empty)),
-  ubvar(pmb, &storage.u, &coarse_u_, empty_flux),
-  abvar(pmb, &storage.weyl, &coarse_a_, empty_flux)
-#if defined(Z4C_CX_ENABLED)
-  ,rbvar(pmb, &storage.u, &coarse_u_, empty_flux)
-#endif
+             AthenaArray<Real>::DataStatus::empty))
 {
   Mesh *pm = pmy_block->pmy_mesh;
   Coordinates * pco = pmb->pcoord;
@@ -171,25 +168,95 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
       storage.u2.NewAthenaArray(N_Z4c, mbi.nn3, mbi.nn2, mbi.nn1);
   }
 
-  // enroll BoundaryVariable object
-  ubvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&ubvar);
+  // Register Z4c variables with the new comm system.
+  // Sampling, prolong, and restrict ops are selected at compile time via the
+  // CC/CX/VC build configuration.
+  {
+    const comm::Sampling samp = FCN_CC_CX_VC(
+        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol = FCN_CC_CX_VC(
+        comm::ProlongOp::MinmodLinear,
+        comm::ProlongOp::LagrangeChildrenBC,
+        comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest = FCN_CC_CX_VC(
+        comm::RestrictOp::VolumeWeighted,
+        comm::RestrictOp::LagrangeUniform,
+        comm::RestrictOp::Injection);
 
-  FCN_CC_CX_VC(
-    pmb->pbval->bvars_main_int.push_back(&ubvar),
-    pmb->pbval->bvars_main_int_cx.push_back(&ubvar),
-    pmb->pbval->bvars_main_int_vc.push_back(&ubvar)
-  );
+    // Z4c main state (22 evolved variables).
+    {
+      comm::CommSpec spec;
+      spec.label       = "z4c_u";
+      spec.var         = &storage.u;
+      spec.coarse_var  = &coarse_u_;
+      spec.nvar        = N_Z4c;
+      spec.sampling    = samp;
+      spec.targets     = comm::CommTarget::All;
+      spec.group       = comm::CommGroup::Z4c;
+      spec.prolong_op  = prol;
+      spec.restrict_op = rest;
+      comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+      // Parity: chi, g_{ij}, Khat, A_{ij}, Gamma^i, Theta, alpha, beta^i.
+      spec.component_groups = {
+        {comm::GeomType::Scalar,    1},  // chi
+        {comm::GeomType::SymTensor, 6},  // g_{ij}
+        {comm::GeomType::Scalar,    1},  // Khat
+        {comm::GeomType::SymTensor, 6},  // A_{ij}
+        {comm::GeomType::Vector,    3},  // Gamma^i
+        {comm::GeomType::Scalar,    1},  // Theta
+        {comm::GeomType::Scalar,    1},  // alpha
+        {comm::GeomType::Vector,    3}   // beta^i
+      };
+      pmb->pcomm->Register(spec);
+    }
+
+    // Weyl scalars (2 scalar variables).
+    {
+      comm::CommSpec spec;
+      spec.label       = "z4c_weyl";
+      spec.var         = &storage.weyl;
+      spec.coarse_var  = &coarse_a_;
+      spec.nvar        = N_WEY;
+      spec.sampling    = samp;
+      spec.targets     = comm::CommTarget::All;
+      spec.group       = comm::CommGroup::Aux;
+      spec.prolong_op  = prol;
+      spec.restrict_op = rest;
+      comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+      // All scalar - empty component_groups means even parity.
+      pmb->pcomm->Register(spec);
+    }
 
 #if defined(Z4C_CX_ENABLED)
-  rbvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&rbvar);
-  pmb->pbval->bvars_rbc.push_back(&rbvar);
+    // CX iterated boundary variable: same data arrays as z4c_u, but uses
+    // full-stencil Lagrange restriction (ghost data participates in restriction).
+    // Prolongation uses boundary-compatible operator (lower order near edges).
+    {
+      comm::CommSpec spec;
+      spec.label       = "z4c_rbc";
+      spec.var         = &storage.u;
+      spec.coarse_var  = &coarse_u_;
+      spec.nvar        = N_Z4c;
+      spec.sampling    = comm::Sampling::CX;
+      spec.targets     = comm::CommTarget::All;
+      spec.group       = comm::CommGroup::Iterated;
+      spec.prolong_op  = comm::ProlongOp::LagrangeChildrenBC;
+      spec.restrict_op = comm::RestrictOp::LagrangeFull;
+      comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+      spec.component_groups = {
+        {comm::GeomType::Scalar,    1},  // chi
+        {comm::GeomType::SymTensor, 6},  // g_{ij}
+        {comm::GeomType::Scalar,    1},  // Khat
+        {comm::GeomType::SymTensor, 6},  // A_{ij}
+        {comm::GeomType::Vector,    3},  // Gamma^i
+        {comm::GeomType::Scalar,    1},  // Theta
+        {comm::GeomType::Scalar,    1},  // alpha
+        {comm::GeomType::Vector,    3}   // beta^i
+      };
+      pmb->pcomm->Register(spec);
+    }
 #endif
-
-  abvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&abvar);
-  pmb->pbval->bvars_aux.push_back(&abvar);
+  }
 
   // should all be of size mbi.nn1
   dt1_.NewAthenaArray(mbi.nn1);
@@ -319,16 +386,33 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
     if (pmb->pmy_mesh->multilevel)
       coarse_adm_.NewAthenaArray(N_AUX, mbi.cnn3, mbi.cnn2, mbi.cnn1);
 
-    adm_abvar = new FCN_CC_CX_VC(
-      CellCenteredBoundaryVariable,
-      CellCenteredXBoundaryVariable,
-      VertexCenteredBoundaryVariable
-    )(pmb, &storage.aux, &coarse_adm_, empty_flux);
-
-    // register for boundary prolongation
-    adm_abvar->bvar_index = pmb->pbval->bvars.size();
-    pmb->pbval->bvars.push_back(adm_abvar);
-    pmb->pbval->bvars_aux_adm.push_back(adm_abvar);
+    // Register ADM auxiliary derivatives with new comm system.
+    {
+      const comm::Sampling samp = FCN_CC_CX_VC(
+          comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+      const comm::ProlongOp prol = FCN_CC_CX_VC(
+          comm::ProlongOp::MinmodLinear,
+          comm::ProlongOp::LagrangeChildrenBC,
+          comm::ProlongOp::LagrangeUniform);
+      const comm::RestrictOp rest = FCN_CC_CX_VC(
+          comm::RestrictOp::VolumeWeighted,
+          comm::RestrictOp::LagrangeUniform,
+          comm::RestrictOp::Injection);
+      comm::CommSpec spec;
+      spec.label       = "z4c_aux_adm";
+      spec.var         = &storage.aux;
+      spec.coarse_var  = &coarse_adm_;
+      spec.nvar        = N_AUX;
+      spec.sampling    = samp;
+      spec.targets     = comm::CommTarget::All;
+      spec.group       = comm::CommGroup::AuxADM;
+      spec.prolong_op  = prol;
+      spec.restrict_op = rest;
+      comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+      // TODO: parity specification for N_AUX (30 derivative components).
+      // For now all even parity - sign flips are TBD.
+      pmb->pcomm->Register(spec);
+    }
   }
 
 
@@ -463,11 +547,6 @@ Z4c::Z4c(MeshBlock *pmb, ParameterInput *pin) :
 Z4c::~Z4c()
 {
   delete pz4c_amr;
-
-  if (opt.communicate_aux_adm)
-  {
-    delete adm_abvar;
-  }
 }
 
 //----------------------------------------------------------------------------------------

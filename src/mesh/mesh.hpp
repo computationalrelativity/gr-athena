@@ -21,12 +21,13 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
-#include "../bvals/bvals.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
 #include "../task_list/task_list.hpp"
 #include "mesh_refinement.hpp"
+#include "mesh_topology.hpp"
 #include "meshblock_tree.hpp"
+#include "../comm/neighbor_connectivity.hpp"
 #include "../scalars/scalars.hpp"
 #include "../hydro/rescaling.hpp"
 #include "thread_cache.hpp"
@@ -36,10 +37,6 @@ class ParameterInput;
 class Mesh;
 class MeshRefinement;
 class MeshBlockTree;
-class BoundaryValues;
-class CellCenteredBoundaryVariable;
-class VertexCenteredBoundaryVariable;
-class FaceCenteredBoundaryVariable;
 class TaskList;
 struct TaskStates;
 class Coordinates;
@@ -75,6 +72,10 @@ namespace M1 {
 class M1;
 }
 
+namespace comm {
+class CommRegistry;
+}
+
 
 
 
@@ -84,10 +85,6 @@ class M1;
 
 class MeshBlock {
   friend class RestartOutput;
-  friend class BoundaryValues;
-  friend class CellCenteredBoundaryVariable;
-  friend class VertexCenteredBoundaryVariable;
-  friend class FaceCenteredBoundaryVariable;
   friend class Mesh;
   friend class Hydro;
   friend class TaskList;
@@ -224,9 +221,23 @@ public:
   AthenaArray<Real> *ruser_meshblock_data;
   AthenaArray<int> *iuser_meshblock_data;
 
+  // ---- Mesh topology data (owned by NeighborConnectivity) -----------------------
+  // Neighbor connectivity: owns block_bcs[6], neighbor[56], nneighbor, nblevel[3][3][3].
+  // Initialized by MeshBlock ctor; populated by SearchAndSetNeighbors.
+  comm::NeighborConnectivity nc_;
+  comm::NeighborConnectivity& nc() { return nc_; }
+  const comm::NeighborConnectivity& nc() const { return nc_; }
+  // Polar neighbor arrays - allocated only when the block touches a polar boundary.
+  // Indexed by azimuthal block index (lx3).
+  SimpleNeighborBlock *polar_neighbor_north;
+  SimpleNeighborBlock *polar_neighbor_south;
+  int num_north_polar_blocks;
+  int num_south_polar_blocks;
+  // --------------------------------------------------------------------------
+
   // mesh-related objects
   Coordinates *pcoord;
-  BoundaryValues *pbval;
+  comm::CommRegistry *pcomm;  // new data-driven ghost-zone comm system
   Reconstruction *precon;
   MeshRefinement *pmr;
 
@@ -252,6 +263,16 @@ public:
   int GetNumberOfMeshBlockCells() {
     return block_size.nx1*block_size.nx2*block_size.nx3; }
   void SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist, int *nslist);
+
+  // Validate that user-defined boundary functions are enrolled for all faces that
+  // require them.  Called once after ProblemGenerator.
+  void CheckUserBoundaries();
+
+  // Recompute cell-centred magnetic field (bcc) from face-centred field (b) on
+  // prolongated fine ghost-zone slabs so that bcc is divergence-consistent with the
+  // face-centred prolongation.  Only touches neighbor slabs at coarser level.
+  void CalculateCellCenteredFieldOnProlongedBoundaries();
+
   void WeightedAveCC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
                      AthenaArray<Real> &u_in2, const Real wght[3],
                      const int num_enlarge_layer=0);
@@ -314,22 +335,12 @@ public:
   // if multilevel, useful to know if nearest-neighbour blocks on same level
   inline bool NeighborBlocksSameLevel()
   {
-    bool nn_level_different = false;
-
-    for (int n=0; n<pbval->nneighbor; n++) {
-      NeighborBlock& nb = pbval->neighbor[n];
-      if (nb.snb.level != loc.level)
-      {
-        nn_level_different = true;
-        break;
-      }
+    for (int n = 0; n < nc_.num_neighbors(); n++) {
+      if (nc_.neighbor(n).snb.level != loc.level)
+        return false;
     }
-    return !nn_level_different;
+    return true;
   }
-
-  // Change boundary variable representations
-  void SetBoundaryVariablesConserved();
-  void SetBoundaryVariablesPrimitive();
 
   void DebugMeshBlock(
     const Real x, const Real y, const Real z,
@@ -407,11 +418,6 @@ class Mesh {
   friend class HistoryOutput;
   friend class MeshBlock;
   friend class MeshBlockTree;
-  friend class BoundaryBase;
-  friend class BoundaryValues;
-  friend class CellCenteredBoundaryVariable;
-  friend class VertexCenteredBoundaryVariable;
-  friend class FaceCenteredBoundaryVariable;
   friend class Coordinates;
   friend class MeshRefinement;
   friend class Hydro;
@@ -512,10 +518,6 @@ class Mesh {
   void ApplyUserWorkBeforeOutput(ParameterInput *pin);
   void ApplyUserWorkAfterOutput(ParameterInput *pin);
 
-  // function for distributing unique "phys" bitfield IDs to BoundaryVariable objects and
-  // other categories of MPI communication for generating unique MPI_TAGs
-  int ReserveTagPhysIDs(int num_phys);
-
   // defined in either the prob file or default_pgen.cpp in ../pgen/
   void DeleteTemporaryUserMeshData(); // called in main after ICs
 
@@ -529,6 +531,7 @@ class Mesh {
   void ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
 
   inline int GetRootLevel() { return root_level; }
+  inline int GetNrbx3() { return nrbx3; }
 
   bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
                              AthenaArray<Real> & x_max,
@@ -537,7 +540,6 @@ class Mesh {
                              int & max_level);
 
   void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
-  void CommunicatePrimitives(std::vector<MeshBlock*> & pmb_array);
 
   void CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array);
 
@@ -548,26 +550,18 @@ class Mesh {
   void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
                             const bool enforce_alg);
 
-  void FinalizeZ4cADM(std::vector<MeshBlock*> & pmb_array,
-                      const bool enforce_alg);
   void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
 
   void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
 
   void FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array);
 
-  void FinalizeHydroPrimRP(std::vector<MeshBlock*> & pmb_array);
   void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
 
 
   void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
-                         const bool interior_only);
-
-  void PreparePrimitivesGhosts(std::vector<MeshBlock*> & pmb_array);
-
-  // Dedicated function to communicate matter-fields
-  void ScatterMatter(std::vector<MeshBlock*> & pmb_array);
-
+                         const bool interior_only,
+                         const bool skip_physical = false);
 
   // Additional, specific, communication of data over MeshBlock objects
   void CommunicateAuxZ4c();
@@ -611,7 +605,6 @@ class Mesh {
 
 private:
   // data
-  int next_phys_id_; // next unused value for encoding final component of MPI tag bitfield
   int root_level, max_level, current_level;
   int num_mesh_threads_;
   std::vector<ThreadCache> thread_caches_;
@@ -662,8 +655,6 @@ private:
   void ResetLoadBalanceVariables();
 
   void RebuildBlockByGid();
-
-  void ReserveMeshBlockPhysIDs();
 
   // Mesh::LoadBalancingAndAdaptiveMeshRefinement() helper functions:
   void UpdateCostList();

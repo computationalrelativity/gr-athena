@@ -15,7 +15,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_aliases.hpp"
-#include "../bvals/cc/hydro/bvals_hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../eos/eos.hpp"
 #include "../reconstruct/reconstruction.hpp"
@@ -30,9 +29,6 @@ using namespace gra::aliases;
 // Riemann solver method selection (runtime)
 enum class RSolverMethod { llf, hlle };
 
-// TODO(felker): consider adding a struct FaceFlux w/ overloaded ctor in athena.hpp, or:
-// using FaceFlux = AA[3];
-
 //! \class Hydro
 //  \brief hydro data and functions
 
@@ -43,7 +39,6 @@ class Hydro {
   Hydro(MeshBlock *pmb, ParameterInput *pin);
 
   // data
-  // TODO(KGF): make this private, if possible
   MeshBlock* pmy_block;    // ptr to MeshBlock containing this Hydro
 
   // conserved and primitive variables
@@ -60,9 +55,9 @@ class Hydro {
   AA flux[3];  // face-averaged flux vector
 
   // storage for SMR/AMR
-  // TODO(KGF): remove trailing underscore or revert to private:
-  AA coarse_cons_, coarse_prim_;
+  AA coarse_cons_;
   int refinement_idx{-1};
+  int comm_channel_id{-1};  // CommRegistry channel index (assigned at registration)
 
   // Riemann solver method (runtime selection)
   RSolverMethod rsolver_method_;
@@ -72,8 +67,6 @@ class Hydro {
   bool flux_reconstruction = false;
   bool split_lr_fallback = false;
   bool flux_table_limiter = false;
-
-  HydroBoundaryVariable hbvar;
 
   struct {
     Real alpha_threshold;           // excise hydro if alpha < alpha_excision

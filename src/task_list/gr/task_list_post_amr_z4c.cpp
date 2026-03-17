@@ -2,7 +2,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
@@ -55,7 +54,7 @@ TaskStatus PostAMR_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
 
   Z4c *pz4c = pmb->pz4c;
   // Use InitializeZ4cDerivatives (guarded by z4c_derivs_initialized flag)
-  // to avoid redundant recomputation when FinalizeZ4cADM already called it.
+  // to avoid redundant recomputation when FinalizeZ4cADMGhosts already called it.
   pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
   return TaskStatus::next;
 }

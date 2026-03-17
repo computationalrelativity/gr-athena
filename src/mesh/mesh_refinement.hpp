@@ -33,18 +33,11 @@ class MeshBlock;
 class ParameterInput;
 class Coordinates;
 struct FaceField;
-class BoundaryValues;
-class FaceCenteredBoundaryVariable;
-class VertexCenteredBoundaryVariable;
-class HydroBoundaryVariable;
-
 //----------------------------------------------------------------------------------------
 //! \class MeshRefinement
 //  \brief
 
 class MeshRefinement {
-  // needs to access pcoarsec in ProlongateBoundaries() for passing to BoundaryFunc()
-  friend class BoundaryValues;
   // needs to access refine_flag_ in Mesh::AdaptiveMeshRefinement(). Make var public?
   friend class Mesh;
 
@@ -115,7 +108,7 @@ class MeshRefinement {
   void CheckRefinementCondition();
 
   // setter functions for "enrolling" variable arrays in refinement via Mesh::AMR()
-  // and/or in BoundaryValues::ProlongateBoundaries() (for SMR and AMR)
+  // and/or in comm::ProlongateBoundaries() (for SMR and AMR)
   int AddToRefinementCC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementVC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
@@ -127,31 +120,8 @@ class MeshRefinement {
   int AddToRefinementAuxCX(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
   int AddToRefinementAuxFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
 
-  // switch internal pvars_X_ <-> pvars_aux_X_
-  void SwapRefinementAux();
-
-  // BD: TODO - check if required
-  /*
-  // as above but for use with auxiliary task list
-  int AddToRefinementAuxADMCC(AthenaArray<Real> *pvar_in,
-                              AthenaArray<Real> *pcoarse_in);
-  int AddToRefinementAuxADMVC(AthenaArray<Real> *pvar_in,
-                              AthenaArray<Real> *pcoarse_in);
-  int AddToRefinementAuxADMCX(AthenaArray<Real> *pvar_in,
-                              AthenaArray<Real> *pcoarse_in);
-  int AddToRefinementAuxADMFC(FaceField *pvar_fc, FaceField *pcoarse_fc);
-
-  // switch internal pvars_X_ <-> pvars_aux_X_
-  void SwapRefinementAuxADM();
-  */
-
   // as above but for use with auxiliary task list
   int AddToRefinementM1CC(AthenaArray<Real> *pvar_in, AthenaArray<Real> *pcoarse_in);
-  void SwapRefinementM1();
-
-
-  // for switching first entry in pvars_cc_ to/from: (w, coarse_prim); (u, coarse_cons_)
-  void SetHydroRefinement(HydroBoundaryQuantity hydro_type);
 
   //SB (from matter_tracker_extrema)
   //--- BD debug: shift back to private, this is for testing wave eqn.
@@ -195,17 +165,6 @@ class MeshRefinement {
                          AthenaArray<Real> *>> pvars_aux_vc_;
   std::vector<std::tuple<AthenaArray<Real> *,
                          AthenaArray<Real> *>> pvars_aux_cx_;
-
-  // for aux. adm lists -- enrollment functions and SwapRefinementAuxADM() are
-  // commented out (see mesh_refinement.cpp L3004-3045); vectors are never
-  // populated.  Kept as comments for parity with the .cpp block.
-  // std::vector<std::tuple<AthenaArray<Real> *,
-  //                        AthenaArray<Real> *>> pvars_aux_adm_cc_;
-  // std::vector<std::tuple<FaceField *, FaceField *>> pvars_aux_adm_fc_;
-  // std::vector<std::tuple<AthenaArray<Real> *,
-  //                        AthenaArray<Real> *>> pvars_aux_adm_vc_;
-  // std::vector<std::tuple<AthenaArray<Real> *,
-  //                        AthenaArray<Real> *>> pvars_aux_adm_cx_;
 
   // for M1
   std::vector<std::tuple<AthenaArray<Real> *,

@@ -23,7 +23,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../fft/athena_fft.hpp"
@@ -42,6 +41,10 @@
 #include "../wave/wave.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../m1/m1.hpp"
+#include "../comm/comm_registry.hpp"
+#include "../comm/comm_enums.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/refinement_ops.hpp"
 
 //----------------------------------------------------------------------------------------
 // MeshBlock constructor: constructs coordinate, boundary condition, hydro, field
@@ -57,6 +60,27 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
     nreal_user_meshblock_data_(), nint_user_meshblock_data_(), cost_(1.0) {
 
   this->new_from_amr = ref_flag;
+
+  // Initialize topology via NeighborConnectivity
+  nc_.InitBoundaryFlags(input_bcs);
+  // Polar neighbor arrays - allocated on demand by SearchAndSetNeighbors caller
+  polar_neighbor_north = nullptr;
+  polar_neighbor_south = nullptr;
+  num_north_polar_blocks = 0;
+  num_south_polar_blocks = 0;
+  // Allocate polar arrays if this block touches a pole
+  if (nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar_wedge) {
+    int level = loc.level - pm->root_level;
+    num_north_polar_blocks = static_cast<int>(pm->nrbx3 * (1 << level));
+    polar_neighbor_north = new SimpleNeighborBlock[num_north_polar_blocks];
+  }
+  if (nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar_wedge) {
+    int level = loc.level - pm->root_level;
+    num_south_polar_blocks = static_cast<int>(pm->nrbx3 * (1 << level));
+    polar_neighbor_south = new SimpleNeighborBlock[num_south_polar_blocks];
+  }
 
   // BD:
   // As this needs to be done twice (here and restarts), is verbose and prone
@@ -74,8 +98,9 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // in the Hydro constructor
 
   // mesh-related objects
-  // Boundary
-  pbval  = new BoundaryValues(this, input_bcs, pin);
+
+  // New comm system - channels registered later by physics modules
+  pcomm  = new comm::CommRegistry(this);
 
   // Coordinates
   if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0)
@@ -120,7 +145,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   if (pm->multilevel) pmr = new MeshRefinement(this, pin);
 
   // physics-related, per-MeshBlock objects: may depend on Coordinates for diffusion
-  // terms, and may enroll quantities in AMR and BoundaryVariable objs. in BoundaryValues
+  // terms, and may enroll quantities in AMR via MeshRefinement
 
   // TODO(felker): prepare this section of the MeshBlock ctor to become more complicated
   // for several extensions:
@@ -132,39 +157,19 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   // etc. become runtime switches
 
   if (FLUID_ENABLED) {
-    // if (this->hydro_block)
     phydro = new Hydro(this, pin);
-    // } else
-    // }
-    // Regardless, advance MeshBlock's local counter (initialized to bvars_next_phys_id=1)
-    // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-    pbval->AdvanceCounterPhysID(HydroBoundaryVariable::max_phys_id);
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    // if (this->field_block)
     pfield = new Field(this, pin);
-    pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
   }
 
   if (NSCALARS > 0) {
-    // if (this->scalars_block)
     pscalars = new PassiveScalars(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
   if (WAVE_ENABLED) {
     pwave = new Wave(this, pin);
-
-    if (WAVE_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_VC_ENABLED)
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-
   }
 
 
@@ -177,13 +182,6 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
         pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
       }
     }
-    #if defined(Z4C_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    #elif defined(Z4C_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-    #else // VC
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-    #endif
   }
 
   if (FLUID_ENABLED) {
@@ -193,17 +191,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
-
-
-  // KGF: suboptimal solution, since developer must copy/paste BoundaryVariable derived
-  // class type that is used in each PassiveScalars, Gravity, Field, Hydro, ... etc. class
-  // in order to correctly advance the BoundaryValues::bvars_next_phys_id_ local counter.
-
-  // TODO(felker): check that local counter pbval->bvars_next_phys_id_ agrees with shared
-  // Mesh::next_phys_id_ counter (including non-BoundaryVariable / per-MeshBlock reserved
-  // values). Compare both private member variables via BoundaryValues::CheckCounterPhysID
 
 
     // must come after pvar to register variables
@@ -227,6 +215,25 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
     new_block_dt_{}, new_block_dt_hyperbolic_{}, new_block_dt_parabolic_{},
     new_block_dt_user_{},
     nreal_user_meshblock_data_(), nint_user_meshblock_data_(), cost_(icost) {
+  // Initialize topology via NeighborConnectivity
+  nc_.InitBoundaryFlags(input_bcs);
+  polar_neighbor_north = nullptr;
+  polar_neighbor_south = nullptr;
+  num_north_polar_blocks = 0;
+  num_south_polar_blocks = 0;
+  if (nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar_wedge) {
+    int level = loc.level - pm->root_level;
+    num_north_polar_blocks = static_cast<int>(pm->nrbx3 * (1 << level));
+    polar_neighbor_north = new SimpleNeighborBlock[num_north_polar_blocks];
+  }
+  if (nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar_wedge) {
+    int level = loc.level - pm->root_level;
+    num_south_polar_blocks = static_cast<int>(pm->nrbx3 * (1 << level));
+    polar_neighbor_south = new SimpleNeighborBlock[num_south_polar_blocks];
+  }
+
   // BD:
   // As this needs to be done twice (here and restarts), is verbose and prone
   // to parablepsis we collect logic..
@@ -234,8 +241,8 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
 
   // (re-)create mesh-related objects in MeshBlock
 
-  // Boundary
-  pbval = new BoundaryValues(this, input_bcs, pin);
+  // New comm system - channels registered later by physics modules
+  pcomm = new comm::CommRegistry(this);
 
   // Coordinates
   if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
@@ -264,39 +271,19 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   // (re-)create physics-related objects in MeshBlock
 
   if (FLUID_ENABLED) {
-    // if (this->hydro_block)
     phydro = new Hydro(this, pin);
-    // } else
-    // }
-    // Regardless, advance MeshBlock's local counter (initialized to bvars_next_phys_id=1)
-    // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-    pbval->AdvanceCounterPhysID(HydroBoundaryVariable::max_phys_id);
   }
 
   if (MAGNETIC_FIELDS_ENABLED) {
-    // if (this->field_block)
     pfield = new Field(this, pin);
-    pbval->AdvanceCounterPhysID(FaceCenteredBoundaryVariable::max_phys_id);
   }
 
   if (NSCALARS > 0) {
-    // if (this->scalars_block)
     pscalars = new PassiveScalars(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
   if (WAVE_ENABLED) {
     pwave = new Wave(this, pin);
-
-    if (WAVE_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_VC_ENABLED)
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-
   }
 
   if (Z4C_ENABLED) {
@@ -308,13 +295,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
         pwave_extr_loc.push_back(new WaveExtractLocal(this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
       }
     }
-    #if defined(Z4C_CC_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
-    #elif defined(Z4C_CX_ENABLED)
-      pbval->AdvanceCounterPhysID(CellCenteredXBoundaryVariable::max_phys_id);
-    #else // VC
-      pbval->AdvanceCounterPhysID(VertexCenteredBoundaryVariable::max_phys_id);
-    #endif
   }
 
   if (FLUID_ENABLED) {
@@ -324,7 +304,6 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   if (M1_ENABLED)
   {
     pm1 = new M1::M1(this, pin);
-    pbval->AdvanceCounterPhysID(CellCenteredBoundaryVariable::max_phys_id);
   }
 
 
@@ -456,8 +435,13 @@ MeshBlock::~MeshBlock() {
 
   if (M1_ENABLED) delete pm1;
 
-  // BoundaryValues should be destructed AFTER all BoundaryVariable objects are destroyed
-  delete pbval;
+  // CommRegistry destroyed before physics modules - channels may reference neighbor data
+  delete pcomm;
+
+  // Clean up topology polar arrays
+  if (polar_neighbor_north != nullptr) delete [] polar_neighbor_north;
+  if (polar_neighbor_south != nullptr) delete [] polar_neighbor_south;
+
   // delete user output variables array
   if (nuser_out_var > 0) {
     delete [] user_out_var_names_;
@@ -981,32 +965,6 @@ void MeshBlock::RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in) {
   return;
 }
 
-// TODO(felker): consider merging the MeshRefinement::pvars_cc/fc_ into the
-// MeshBlock::pvars_cc/fc_. Would need to weaken the MeshBlock std::vector to use tuples
-// of pointers instead of a std::vector of references, so that:
-// - nullptr can be passed for the second entry if multilevel==false
-// - we can rebind the pointers to Hydro for GR purposes in bvals_refine.cpp
-// If GR, etc. in the future requires additional flexiblity from non-refinement load
-// balancing, we will need to use ptrs instead of references anyways, and add:
-
-// void MeshBlock::SetHydroData(HydroBoundaryQuantity hydro_type)
-//   Hydro *ph = pmy_block_->phydro;
-//   // hard-coded assumption that, if multilevel, then Hydro is always present
-//   // and enrolled in mesh refinement in the first pvars_cc_ vector entry
-//   switch (hydro_type) {
-//     case (HydroBoundaryQuantity::cons): {
-//       pvars_cc_.front() = &ph->u;
-//       break;
-//     }
-//     case (HydroBoundaryQuantity::prim): {
-//       pvars_cc_.front() = &ph->w;
-//       break;
-//     }
-//   }
-//   return;
-// }
-
-
 //----------------------------------------------------------------------------------------
 //! \fn bool MeshBlock::PointContained(Real const x, Real const y,
 //                                     Real const z)
@@ -1147,38 +1105,6 @@ bool MeshBlock::SphereIntersects(
 
 }
 
-void MeshBlock::SetBoundaryVariablesConserved()
-{
-
-#if FLUID_ENABLED
-  Hydro *ph = phydro;
-  ph->hbvar.var_cc     = &(ph->u);
-  ph->hbvar.coarse_buf = &(ph->coarse_cons_);
-#endif
-
-#if NSCALARS > 0
-  pscalars->sbvar.var_cc     = &(pscalars->s);
-  pscalars->sbvar.coarse_buf = &(pscalars->coarse_s_);
-#endif
-
-}
-
-void MeshBlock::SetBoundaryVariablesPrimitive()
-{
-
-#if FLUID_ENABLED
-  Hydro *ph = phydro;
-  ph->hbvar.var_cc     = &(ph->w);
-  ph->hbvar.coarse_buf = &(ph->coarse_prim_);
-#endif
-
-#if NSCALARS > 0
-  pscalars->sbvar.var_cc     = &(pscalars->r);
-  pscalars->sbvar.coarse_buf = &(pscalars->coarse_r_);
-#endif
-
-}
-
 void MeshBlock::DebugMeshBlock(
   const Real x, const Real y, const Real z,
   const int ix, const int iy, const int iz,
@@ -1226,6 +1152,63 @@ void MeshBlock::ResetBlockDt() {
   new_block_dt_hyperbolic_ = real_max;
   new_block_dt_parabolic_  = real_max;
   new_block_dt_user_       = real_max;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshBlock::CheckUserBoundaries()
+//  \brief Validate that user-enrolled boundary functions exist for every face marked
+//         BoundaryFlag::user.  Called once after ProblemGenerator in Mesh::Initialize.
+
+void MeshBlock::CheckUserBoundaries() {
+  for (int i = 0; i < 6; ++i) {
+    if (nc_.boundary_flag(i) == BoundaryFlag::user) {
+      if (pmy_mesh->BoundaryFunction_[i] == nullptr) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in MeshBlock::CheckUserBoundaries" << std::endl
+            << "A user-defined boundary is specified but the actual boundary function "
+            << "is not enrolled in direction " << i << " (in [0,6])." << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshBlock::CalculateCellCenteredFieldOnProlongedBoundaries()
+//  \brief Recompute bcc from b on fine ghost-zone slabs that were filled by prolongation.
+//         Only visits neighbor slabs from coarser-level blocks, using the comm layer's
+//         prolongation index utilities to compute the fine-level index range.
+
+void MeshBlock::CalculateCellCenteredFieldOnProlongedBoundaries() {
+#if MAGNETIC_FIELDS_ENABLED
+  Field *pf = pfield;
+
+  const int mylevel = loc.level;
+
+  for (int n = 0; n < nc_.num_neighbors(); ++n) {
+    const NeighborBlock &nb = nc_.neighbor(n);
+    if (nb.snb.level >= mylevel) continue;
+
+    // Compute coarse-grid prolongation range, then convert to fine-grid indices.
+    comm::idx::IndexRange3D cr =
+        comm::ProlongationIndices(this, nb, comm::Sampling::FC);
+    comm::idx::IndexRange3D fr =
+        comm::ProlongationIndicesFine(this, cr, comm::Sampling::FC);
+
+    pf->CalculateCellCenteredField(pf->b, pf->bcc, pcoord,
+                                   fr.si, fr.ei, fr.sj, fr.ej, fr.sk, fr.ek);
+  }
+#endif
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshBlock::SearchAndSetNeighbors(...)
+//  \brief Thin wrapper delegating to the mesh_topology free function.
+//         Populates nc_.neighbor_[], nneighbor_, nblevel_[] from the tree.
+
+void MeshBlock::SearchAndSetNeighbors(MeshBlockTree &tree,
+                                      int *ranklist, int *nslist) {
+  mesh_topology::SearchAndSetNeighbors(this, tree, ranklist, nslist);
 }
 
 //

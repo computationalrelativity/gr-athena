@@ -755,7 +755,7 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot) {
 #endif
   pmb = pblock;
   while (pmb != nullptr) {
-    pmb->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
+    pmb->SearchAndSetNeighbors(tree, ranklist, nslist);
     pmb = pmb->next;
   }
   Initialize(initialize_style::regrid, pin);

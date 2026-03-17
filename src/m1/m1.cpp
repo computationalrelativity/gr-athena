@@ -16,6 +16,8 @@
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
 #include "opacities/m1_opacities.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
 
 // ============================================================================
 namespace M1 {
@@ -75,7 +77,6 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
   coarse_u_(ixn_Lab::N*N_GS, mbi.cnn3, mbi.cnn2, mbi.cnn1,
             (pmy_mesh->multilevel ? AA::DataStatus::allocated
                                   : AA::DataStatus::empty)),
-  ubvar(pmb, &storage.u, &coarse_u_, storage.flux),
   // alias storage (size specs. must match number of containers in struct)
   fluxes{
     {N_GRPS,N_SPCS},
@@ -141,9 +142,37 @@ M1::M1(MeshBlock *pmb, ParameterInput *pin) :
     pmb->pmr->AddToRefinementM1CC(&storage.u, &coarse_u_);
   }
 
-  ubvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&ubvar);
-  pmb->pbval->bvars_m1.push_back(&ubvar);
+  // Register M1 radiation variables with the new comm system.
+  // CC only (no CX/VC variant). Has flux correction (OverwriteFromFiner).
+  {
+    const int nvar = ixn_Lab::N * N_GS;  // 5 components * (groups * species)
+    comm::CommSpec spec;
+    spec.label       = "m1_u";
+    spec.var         = &storage.u;
+    spec.coarse_var  = &coarse_u_;
+    spec.nvar        = nvar;
+    spec.sampling    = comm::Sampling::CC;
+    spec.targets     = comm::CommTarget::All;
+    spec.group       = comm::CommGroup::M1;
+    spec.prolong_op  = comm::ProlongOp::MinmodLinear;
+    spec.restrict_op = comm::RestrictOp::VolumeWeighted;
+    comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+    // Parity: per group-species block of 5, {E(scalar), F_{x,y,z}(vector), nG(scalar)}.
+    for (int gs = 0; gs < N_GS; ++gs) {
+      spec.component_groups.push_back({comm::GeomType::Scalar, 1});   // E
+      spec.component_groups.push_back({comm::GeomType::Vector, 3});   // F_{x,y,z}
+      spec.component_groups.push_back({comm::GeomType::Scalar, 1});   // nG
+    }
+    // Flux correction: fine-restricted fluxes overwrite coarse at AMR interfaces.
+    if (pmy_mesh->multilevel) {
+      spec.flx_cc[0]   = &storage.flux[0];
+      spec.flx_cc[1]   = &storage.flux[1];
+      spec.flx_cc[2]   = &storage.flux[2];
+      spec.flcor_mode   = comm::FluxCorrMode::OverwriteFromFiner;
+      spec.flux_group   = comm::CommGroup::FluxCorr;
+    }
+    comm_channel_id = pmb->pcomm->Register(spec);
+  }
   // --------------------------------------------------------------------------
 
   // --------------------------------------------------------------------------

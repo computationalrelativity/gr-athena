@@ -7,7 +7,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
@@ -83,7 +82,6 @@ TaskStatus GRMHD_Z4c_Phase_Finalize::PrimitivesGhosts(
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     PassiveScalars *ps = pmb->pscalars;
-    BoundaryValues *pb = pmb->pbval;
     EquationOfState *peos = pmb->peos;
 
     int il = 0, iu = pmb->ncells1-1;

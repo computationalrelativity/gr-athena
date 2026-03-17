@@ -16,10 +16,6 @@
 #include "wave_macro.hpp"
 
 // #include "../utils/finite_differencing.hpp"
-#include "../bvals/vc/bvals_vc.hpp"
-#include "../bvals/cc/bvals_cc.hpp"
-#include "../bvals/cx/bvals_cx.hpp"
-
 #include "../utils/finite_differencing.hpp"
 
 //-----------------------------------------------------------------------------
@@ -59,11 +55,6 @@ public:
 
   bool use_Dirichlet = false;
   bool use_Sommerfeld = false;
-
-  // boundary and grid data
-  CellCenteredBoundaryVariable ubvar_cc;
-  VertexCenteredBoundaryVariable ubvar_vc;
-  CellCenteredXBoundaryVariable ubvar_cx;
 
   AthenaArray<Real> empty_flux[3];
 

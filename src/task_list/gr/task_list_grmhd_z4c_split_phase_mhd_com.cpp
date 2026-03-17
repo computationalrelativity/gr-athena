@@ -8,7 +8,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
@@ -20,6 +19,7 @@
 #include "../../reconstruct/reconstruction.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../../utils/linear_algebra.hpp"
+#include "../../comm/comm_registry.hpp"
 
 #include "task_list.hpp"
 #include "task_names.hpp"
@@ -106,9 +106,6 @@ GRMHD_Z4c_Phase_MHD_com::GRMHD_Z4c_Phase_MHD_com(ParameterInput *pin,
 // ----------------------------------------------------------------------------
 void GRMHD_Z4c_Phase_MHD_com::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb   = pmb->pbval;
-  Z4c            *pz4c = pmb->pz4c;
-
   if (stage == 1)
   {
     // Initialize time abscissae (also done in Phase_MHD; repeated here for
@@ -116,7 +113,8 @@ void GRMHD_Z4c_Phase_MHD_com::StartupTaskList(MeshBlock *pmb, int stage)
     PrepareStageAbscissae(stage, pmb);
   }
 
-  pb->StartReceiving(BoundaryCommSubset::matter);
+  // Post persistent receives for all MainInt channels (hydro, field, scalars).
+  pmb->pcomm->StartReceiving(comm::CommGroup::MainInt);
   return;
 }
 
@@ -124,10 +122,8 @@ void GRMHD_Z4c_Phase_MHD_com::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus GRMHD_Z4c_Phase_MHD_com::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb = pmb->pbval;
-  pb->ClearBoundary(BoundaryCommSubset::matter);
-
-  // pmb->DebugMeshBlock(-15,-15,-15, 2, 20, 3, "@T:MHD_com\n", "@E:MHD_com\n");
+  // Wait on outstanding sends and reset channel flags for all MainInt channels.
+  pmb->pcomm->ClearBoundary(comm::CommGroup::MainInt);
   return TaskStatus::next;
 }
 
@@ -141,7 +137,6 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
     Hydro *ph = pmb->phydro;
     Field *pf = pmb->pfield;
     PassiveScalars *ps = pmb->pscalars;
-    BoundaryValues *pb = pmb->pbval;
     EquationOfState *peos = pmb->peos;
 
     int il = pmb->is, iu = pmb->ie;
@@ -174,15 +169,15 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PrimitivesPhysical(
 }
 
 //-----------------------------------------------------------------------------
-// Functions to communicate conserved variables between MeshBlocks
+// Ghost-zone exchange: pack and send all MainInt channels (hydro, field, scalars).
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SendHydro(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Hydro * ph = pmb->phydro;
-
-    ph->hbvar.SendBoundaryBuffers();
-
+    // Group-level send handles all MainInt channels (hydro, field, scalars).
+    // Restriction into coarse buffers (for cross-level neighbors) is embedded
+    // inside SendBoundaryBuffers when mesh is multilevel.
+    pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::MainInt);
     return TaskStatus::next;
   }
 
@@ -191,61 +186,41 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SendHydro(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SendField(MeshBlock *pmb, int stage)
 {
+  // Field is sent as part of the MainInt group in SendHydro.
+  if (stage <= nstages) return TaskStatus::next;
+  return TaskStatus::fail;
+}
+
+//-----------------------------------------------------------------------------
+// Ghost-zone exchange: poll for received data.
+TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveHydro(MeshBlock *pmb, int stage)
+{
   if (stage <= nstages)
   {
-    Field * pf = pmb->pfield;
-
-    pf->fbvar.SendBoundaryBuffers();
-    return TaskStatus::next;
+    // Poll all MainInt channels.  Returns true when every channel has received
+    // all expected messages from same-level, coarser, and finer neighbors.
+    bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::MainInt);
+    if (done) return TaskStatus::next;
+    return TaskStatus::fail;
   }
 
   return TaskStatus::fail;
 }
 
-//-----------------------------------------------------------------------------
-// Functions to receive conserved variables between MeshBlocks
-TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveHydro(MeshBlock *pmb, int stage)
-{
-  bool ret;
-  if (stage <= nstages)
-  {
-    ret = pmb->phydro->hbvar.ReceiveBoundaryBuffers();
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-
-  if (ret) {
-    return TaskStatus::next;
-  } else {
-    return TaskStatus::fail;
-  }
-}
-
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveField(MeshBlock *pmb, int stage)
 {
-  bool ret;
-  if (stage <= nstages) {
-    ret = pmb->pfield->fbvar.ReceiveBoundaryBuffers();
-  } else {
-    return TaskStatus::fail;
-  }
-  if (ret) {
-    return TaskStatus::next;
-  } else {
-    return TaskStatus::fail;
-  }
+  // Field is received as part of the MainInt group in ReceiveHydro.
+  if (stage <= nstages) return TaskStatus::next;
+  return TaskStatus::fail;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Hydro * ph = pmb->phydro;
-
-    ph->hbvar.SetBoundaries();
+    // Unpack received data for all MainInt channels into state arrays.
+    pmb->pcomm->SetBoundaries(comm::CommGroup::MainInt);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -254,65 +229,31 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesHydro(MeshBlock *pmb, int stage
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesField(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
-  {
-    Field *pf = pmb->pfield;
-
-    pf->fbvar.SetBoundaries();
-    return TaskStatus::next;
-  }
+  // Field is unpacked as part of the MainInt group in SetBoundariesHydro.
+  if (stage <= nstages) return TaskStatus::next;
   return TaskStatus::fail;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SendScalars(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
-  {
-    PassiveScalars * ps = pmb->pscalars;
-
-    ps->sbvar.SendBoundaryBuffers();
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-  return TaskStatus::next;
+  // Scalars are sent as part of the MainInt group in SendHydro.
+  if (stage <= nstages) return TaskStatus::next;
+  return TaskStatus::fail;
 }
 
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::ReceiveScalars(MeshBlock *pmb, int stage)
 {
-  bool ret;
-  if (stage <= nstages)
-  {
-    PassiveScalars * ps = pmb->pscalars;
-    ret = ps->sbvar.ReceiveBoundaryBuffers();
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-
-  if (ret)
-  {
-    return TaskStatus::next;
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
+  // Scalars are received as part of the MainInt group in ReceiveHydro.
+  if (stage <= nstages) return TaskStatus::next;
+  return TaskStatus::fail;
 }
 
 
 TaskStatus GRMHD_Z4c_Phase_MHD_com::SetBoundariesScalars(MeshBlock *pmb, int stage)
 {
-  if (stage <= nstages)
-  {
-    PassiveScalars * ps = pmb->pscalars;
-
-    ps->sbvar.SetBoundaries();
-    return TaskStatus::next;
-  }
+  // Scalars are unpacked as part of the MainInt group in SetBoundariesHydro.
+  if (stage <= nstages) return TaskStatus::next;
   return TaskStatus::fail;
 }
 
@@ -322,17 +263,31 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::Prolongation_Hyd(MeshBlock *pmb, int stage)
 {
   if (stage <= nstages)
   {
-    BoundaryValues * pb = pmb->pbval;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     // For re-scatter (stage < 1): use current time and zero dt (no time
     // interpolation needed). Avoids out-of-bounds access on stage_wghts[-1].
     // Mirrors the pattern in Mesh::FinalizeHydroConsRP.
-    const Real t_end    = (stage >= 1) ? this->t_end(stage, pmb)
-                                       : pmb->pmy_mesh->time;
+    const Real t_end     = (stage >= 1) ? this->t_end(stage, pmb)
+                                        : pmb->pmy_mesh->time;
     const Real dt_scaled = (stage >= 1) ? this->dt_scaled(stage, pmb)
                                         : 0.0;
 
-    pb->ProlongateBoundariesHydro(t_end, dt_scaled);
+    // Coarse-level index range (from MeshBlock).
+    const int cis = pmb->cis, cie = pmb->cie;
+    const int cjs = pmb->cjs, cje = pmb->cje;
+    const int cks = pmb->cks, cke = pmb->cke;
+
+    // Apply coarse-level physical BCs then prolongate each MainInt channel.
+    pcomm->ProlongateAndApplyPhysicalBCs(
+        comm::CommGroup::MainInt, t_end, dt_scaled,
+        cis, cie, cjs, cje, cks, cke, NGHOST);
+
+    // Recompute cell-centred B from face-centred field on the prolongated fine
+    // ghost-zone slabs so that bcc is consistent with the divergence-preserving
+    // prolongation of B.
+    if (MAGNETIC_FIELDS_ENABLED)
+      pmb->CalculateCellCenteredFieldOnProlongedBoundaries();
 
     return TaskStatus::next;
   }
@@ -345,28 +300,20 @@ TaskStatus GRMHD_Z4c_Phase_MHD_com::PhysicalBoundary_Hyd(MeshBlock *pmb, int sta
   if (stage <= nstages)
   {
     Field *pf = pmb->pfield;
-    Hydro *ph = pmb->phydro;
-    PassiveScalars *ps = pmb->pscalars;
-    BoundaryValues *pbval = pmb->pbval;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
     // For re-scatter (stage < 1): use current time and zero dt (no time
     // interpolation needed). Avoids out-of-bounds access on stage_wghts[-1].
     // Mirrors the pattern in Mesh::FinalizeHydroConsRP.
-    const Real t_end    = (stage >= 1) ? this->t_end(stage, pmb)
-                                       : pmb->pmy_mesh->time;
+    const Real t_end     = (stage >= 1) ? this->t_end(stage, pmb)
+                                        : pmb->pmy_mesh->time;
     const Real dt_scaled = (stage >= 1) ? this->dt_scaled(stage, pmb)
                                         : 0.0;
 
-    // Apply boundary conditions on conserved variables
-    pbval->ApplyPhysicalBoundaries(
-      t_end, dt_scaled,
-      pbval->GetBvarsMatter(),
-      pmb->is, pmb->ie,
-      pmb->js, pmb->je,
-      pmb->ks, pmb->ke,
-      NGHOST);
+    // Apply fine-level physical BCs for every MainInt channel.
+    pcomm->ApplyPhysicalBCs(comm::CommGroup::MainInt, t_end, dt_scaled);
 
-    // Compute bcc globally
+    // Recompute bcc globally (ghost zones now filled by physical BCs above).
     if (MAGNETIC_FIELDS_ENABLED)
     {
       pf->CalculateCellCenteredField(pf->b,

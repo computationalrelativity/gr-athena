@@ -20,6 +20,8 @@
 #include "../eos/eos.hpp"
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
+#include "../comm/comm_spec.hpp"
+#include "../comm/comm_registry.hpp"
 #include "scalars.hpp"
 
 // constructor, initializes data structures and parameters
@@ -39,10 +41,6 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
     coarse_s_(NSCALARS, pmb->ncc3, pmb->ncc2, pmb->ncc1,
               (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
                AthenaArray<Real>::DataStatus::empty)),
-    coarse_r_(NSCALARS, pmb->ncc3, pmb->ncc2, pmb->ncc1,
-              (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-               AthenaArray<Real>::DataStatus::empty)),
-    sbvar(pmb, &s, &coarse_s_, s_flux),
     pmy_block(pmb)
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
@@ -62,10 +60,31 @@ PassiveScalars::PassiveScalars(MeshBlock *pmb, ParameterInput *pin)  :
     refinement_idx = pmy_block->pmr->AddToRefinementCC(&s, &coarse_s_);
   }
 
-  // enroll CellCenteredBoundaryVariable object
-  sbvar.bvar_index = pmb->pbval->bvars.size();
-  pmb->pbval->bvars.push_back(&sbvar);
-  pmb->pbval->bvars_main_int.push_back(&sbvar);
+  // Register passive scalars with the new comm system.
+  // All components are scalar (no parity sign flips).
+  {
+    comm::CommSpec spec;
+    spec.label      = "scalars_s";
+    spec.var        = &s;
+    spec.coarse_var = &coarse_s_;
+    spec.nvar       = NSCALARS;
+    spec.sampling   = comm::Sampling::CC;
+    spec.targets    = comm::CommTarget::All;
+    spec.group      = comm::CommGroup::MainInt;
+    spec.prolong_op  = comm::ProlongOp::MinmodLinear;
+    spec.restrict_op = comm::RestrictOp::VolumeWeighted;
+    comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
+    // component_groups left empty - all scalars, no sign flips
+    // Flux correction: area-weighted restricted fluxes overwrite coarse fluxes.
+    if (pm->multilevel) {
+      spec.flx_cc[0]   = &s_flux[0];
+      spec.flx_cc[1]   = &s_flux[1];
+      spec.flx_cc[2]   = &s_flux[2];
+      spec.flcor_mode   = comm::FluxCorrMode::OverwriteFromFiner;
+      spec.flux_group   = comm::CommGroup::FluxCorr;
+    }
+    comm_channel_id = pmb->pcomm->Register(spec);
+  }
 
   // Allocate memory for scratch arrays
   dflx_.NewAthenaArray(NSCALARS, nc1);

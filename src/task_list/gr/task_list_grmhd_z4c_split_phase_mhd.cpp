@@ -14,7 +14,6 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
@@ -26,6 +25,9 @@
 #include "../../reconstruct/reconstruction.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../../utils/linear_algebra.hpp"
+#include "../../comm/comm_registry.hpp"
+#include "../../comm/comm_enums.hpp"
+#include "../../comm/comm_channel.hpp"
 
 #include "task_list.hpp"
 #include "task_names.hpp"
@@ -76,7 +78,7 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
     Add(SEND_HYDFLX, CALC_HYDSCLRFLX,
         &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionHydro);
-    Add(RECV_HYDFLX, CALC_HYDSCLRFLX,
+    Add(RECV_HYDFLX, NONE,
         &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectHydroFlux);
   }
 
@@ -88,7 +90,7 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 
       Add(SEND_SCLRFLX, CALC_HYDSCLRFLX,
           &GRMHD_Z4c_Phase_MHD::SendScalarFlux);
-      Add(RECV_SCLRFLX, CALC_HYDSCLRFLX,
+      Add(RECV_SCLRFLX, NONE,
           &GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux);
     }
   }
@@ -108,7 +110,7 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
     // solver in CALC_HYDSCLRFLX, then integrate the magnetic field via CT
     Add(CALC_FLDFLX, CALC_HYDSCLRFLX, &GRMHD_Z4c_Phase_MHD::CalculateEMF);
     Add(SEND_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF);
-    Add(RECV_FLDFLX, CALC_FLDFLX, &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF);
+    Add(RECV_FLDFLX, NONE, &GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF);
     Add(INT_FLD,     RECV_FLDFLX, &GRMHD_Z4c_Phase_MHD::IntegrateField);
   }
 
@@ -128,9 +130,6 @@ GRMHD_Z4c_Phase_MHD::GRMHD_Z4c_Phase_MHD(ParameterInput *pin,
 // ----------------------------------------------------------------------------
 void GRMHD_Z4c_Phase_MHD::StartupTaskList(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb   = pmb->pbval;
-  Z4c            *pz4c = pmb->pz4c;
-
   if (stage == 1)
   {
     if (integrator == "ssprk5_4")
@@ -177,7 +176,17 @@ void GRMHD_Z4c_Phase_MHD::StartupTaskList(MeshBlock *pmb, int stage)
     }
   }
 
-  pb->StartReceiving(BoundaryCommSubset::matter_flux_corrected);
+  // Post persistent receives for MHD-owned flux correction channels only.
+  // Per-channel startup avoids activating M1's channel in the shared FluxCorr
+  // group, which would cause a double MPI_Start when M1 runs its own startup.
+  if (pmb->pmy_mesh->multilevel) {
+    pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->phydro->comm_channel_id);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->pfield->comm_channel_id);
+    if (NSCALARS > 0)
+      pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->pscalars->comm_channel_id);
+  }
+
   return;
 }
 
@@ -185,9 +194,15 @@ void GRMHD_Z4c_Phase_MHD::StartupTaskList(MeshBlock *pmb, int stage)
 // Functions to end MPI communication
 TaskStatus GRMHD_Z4c_Phase_MHD::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pb = pmb->pbval;
-  pb->ClearBoundary(BoundaryCommSubset::matter_flux_corrected);
-
+  // Wait on MHD-owned flux correction sends and reset channel flags.
+  // Per-channel clear avoids touching M1's channel in the shared FluxCorr group.
+  if (pmb->pmy_mesh->multilevel) {
+    pmb->pcomm->ClearFluxCorrSingleChannel(pmb->phydro->comm_channel_id);
+    if (MAGNETIC_FIELDS_ENABLED)
+      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pfield->comm_channel_id);
+    if (NSCALARS > 0)
+      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pscalars->comm_channel_id);
+  }
   return TaskStatus::next;
 }
 
@@ -337,16 +352,22 @@ TaskStatus GRMHD_Z4c_Phase_MHD::CalculateEMF(MeshBlock *pmb, int stage)
 TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionHydro(
   MeshBlock *pmb, int stage)
 {
-  Hydro *ph = pmb->phydro;
-  ph->hbvar.SendFluxCorrection();
+  // Per-channel send: hydro CC flux correction.  Scalar and EMF channels are
+  // sent separately because their data may not be ready yet (EMF requires
+  // CalculateEMF which runs concurrently).
+  int hid = pmb->phydro->comm_channel_id;
+  if (hid >= 0) pmb->pcomm->SendFluxCorrSingleChannel(hid);
+
   return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF(
   MeshBlock *pmb, int stage)
 {
-  Field *pf = pmb->pfield;
-  pf->fbvar.SendFluxCorrection();
+  // Per-channel send: field (EMF) FC flux correction.
+  int fid = pmb->pfield->comm_channel_id;
+  if (fid >= 0) pmb->pcomm->SendFluxCorrSingleChannel(fid);
+
   return TaskStatus::next;
 }
 
@@ -355,28 +376,37 @@ TaskStatus GRMHD_Z4c_Phase_MHD::SendFluxCorrectionEMF(
 TaskStatus GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectHydroFlux(
   MeshBlock *pmb, int stage)
 {
-  Hydro * ph = pmb->phydro;
+  comm::CommRegistry *pcomm = pmb->pcomm;
+  const comm::NeighborConnectivity &nc = pcomm->connectivity();
 
-  if (ph->hbvar.ReceiveFluxCorrection())
+  // Poll hydro flux correction channel.
+  int hid = pmb->phydro->comm_channel_id;
+  if (hid >= 0)
   {
-    return TaskStatus::next;
+    if (!pcomm->channel(hid).PollReceiveFluxCorr(nc)) return TaskStatus::fail;
+    pcomm->channel(hid).UnpackFluxCorr(nc);
   }
-  else
-  {
-    return TaskStatus::fail;
-  }
+
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD::ReceiveAndCorrectEMF(MeshBlock *pmb, int stage)
 {
-  Field * pf = pmb->pfield;
+  comm::CommRegistry *pcomm = pmb->pcomm;
+  const comm::NeighborConnectivity &nc = pcomm->connectivity();
 
-  if (pf->fbvar.ReceiveFluxCorrection())
+  // Poll field (EMF) flux correction channel.
+  // For FC AccumulateAverage, PollReceiveFluxCorrFC runs the two-phase
+  // state machine (same-level clear -> cross-level average) internally.
+  // UnpackFluxCorr is a no-op for FC.
+  int fid = pmb->pfield->comm_channel_id;
+  if (fid >= 0)
   {
-    return TaskStatus::next;
-  } else {
-    return TaskStatus::fail;
+    if (!pcomm->channel(fid).PollReceiveFluxCorr(nc)) return TaskStatus::fail;
+    pcomm->channel(fid).UnpackFluxCorr(nc);
   }
+
+  return TaskStatus::next;
 }
 
 //-----------------------------------------------------------------------------
@@ -445,25 +475,28 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock *pmb, int stage)
 
 TaskStatus GRMHD_Z4c_Phase_MHD::SendScalarFlux(MeshBlock *pmb, int stage)
 {
-  PassiveScalars * ps = pmb->pscalars;
+  // Per-channel send: scalar CC flux correction.
+  int sid = pmb->pscalars->comm_channel_id;
+  if (sid >= 0) pmb->pcomm->SendFluxCorrSingleChannel(sid);
 
-  ps->sbvar.SendFluxCorrection();
   return TaskStatus::next;
 }
 
 
 TaskStatus GRMHD_Z4c_Phase_MHD::ReceiveScalarFlux(MeshBlock *pmb, int stage)
 {
-  PassiveScalars * ps = pmb->pscalars;
+  comm::CommRegistry *pcomm = pmb->pcomm;
+  const comm::NeighborConnectivity &nc = pcomm->connectivity();
 
-  if (ps->sbvar.ReceiveFluxCorrection())
+  // Poll scalar flux correction channel.
+  int sid = pmb->pscalars->comm_channel_id;
+  if (sid >= 0)
   {
-    return TaskStatus::next;
+    if (!pcomm->channel(sid).PollReceiveFluxCorr(nc)) return TaskStatus::fail;
+    pcomm->channel(sid).UnpackFluxCorr(nc);
   }
-  else
-  {
-    return TaskStatus::fail;
-  }
+
+  return TaskStatus::next;
 }
 
 TaskStatus GRMHD_Z4c_Phase_MHD::IntegrateHydroScalars(MeshBlock *pmb, int stage)

@@ -28,7 +28,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../fft/athena_fft.hpp"
@@ -63,6 +62,7 @@
 
 #include "../wave/wave.hpp"
 #include "../m1/m1.hpp"
+#include "../comm/comm_registry.hpp"
 
 // MPI/OpenMP header
 #ifdef MPI_PARALLEL
@@ -109,7 +109,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     nbnew(), nbdel(),
     step_since_lb(), turb_flag(),
     // private members:
-    next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
+    num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(),
@@ -128,12 +128,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   resume_flag=false;
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
-
-#ifdef MPI_PARALLEL
-  // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
-  next_phys_id_  = 1;
-  ReserveMeshBlockPhysIDs();
-#endif
 
   // check number of OpenMP threads for mesh
   if (num_mesh_threads_ < 1) {
@@ -628,7 +622,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
       pblock->next->prev = pblock;
       pblock = pblock->next;
     }
-    pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
+    pblock->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
   pblock = pfirst;
 
@@ -694,7 +688,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     nbnew(), nbdel(),
     step_since_lb(), turb_flag(),
     // private members:
-    next_phys_id_(), num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
+    num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
     use_uniform_meshgen_fn_{true, true, true},
     nreal_user_mesh_data_(), nint_user_mesh_data_(),
@@ -713,12 +707,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   // mesh test
   if (mesh_test > 0) Globals::nranks = mesh_test;
-
-#ifdef MPI_PARALLEL
-  // reserve phys=0 for former TAG_AMR=8; now hard-coded in Mesh::CreateAMRMPITag()
-  next_phys_id_  = 1;
-  ReserveMeshBlockPhysIDs();
-#endif
 
   // check the number of OpenMP threads for mesh
   if (num_mesh_threads_ < 1) {
@@ -1109,7 +1097,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
     // }
 
-    pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
+    pblock->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
 #else
   int nbmin = nblist[0];
@@ -1162,7 +1150,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     //   pblock->pz4c->Z4cToADM(pblock->pz4c->storage.u, pblock->pz4c->storage.adm);
     // }
 
-    pblock->pbval->SearchAndSetNeighbors(tree, ranklist, nslist);
+    pblock->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
 #endif // DBG_RST_WRITE_PER_MB
 
@@ -1709,30 +1697,36 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       {
         MeshBlock *pmb = pmb_array[i];
         pmb->ProblemGenerator(pin);
-        pmb->pbval->CheckUserBoundaries();
+        pmb->CheckUserBoundaries();
       }
     }
 
-    // Create send/recv MPI_Requests for all BoundaryData objects
+    // Finalize new comm system: allocate buffers and create persistent MPI requests
+    // for all CommChannels registered during physics module construction.
+    // After AMR regrid, surviving blocks already have finalized comm state with stale
+    // MPI requests and buffer sizes - Reinitialize() tears those down first.
+    // Newly created blocks have never been finalized and need first-time Finalize().
     #pragma omp parallel for num_threads(nthreads)
     for (int i = 0; i < nmb; ++i)
     {
       MeshBlock *pmb = pmb_array[i];
-      // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
-      pmb->pbval->SetupPersistentMPI();
+      if (pmb->pcomm->is_finalized()) {
+        pmb->pcomm->Reinitialize();
+      } else {
+        pmb->pcomm->Finalize();
+      }
     }
 
     #pragma omp parallel num_threads(nthreads)
     {
-      MeshBlock *pmb;
-      BoundaryValues *pbval;
 
-#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
+#if FLUID_ENABLED && Z4C_ENABLED
+      // Early interior C2P: compute ADM metric on interior, refresh bcc,
+      // then run C2P on interior cells before ghost exchange.
       if ((init_style == initialize_style::pgen)   ||
           (init_style == initialize_style::regrid) ||
           (init_style == initialize_style::restart))
       {
-        // ADM on physical
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADMPhysical(pmb_array, enforce_alg);
 
@@ -1751,12 +1745,11 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
           }
         }
 
-        // reset_floor with PrimitiveSolver adjusts the conserved
-        // Put this here to further polish values after global regridding
+        // C2P on interior polishes conserved via reset_floor before exchange.
         static const bool interior_only = true;
         PreparePrimitives(pmb_array, interior_only);
       }
-#endif // DBG_EARLY_INIT_CONSTOPRIM
+#endif // FLUID_ENABLED && Z4C_ENABLED
 
       if ((init_style == initialize_style::pgen)   ||
           (init_style == initialize_style::regrid) ||
@@ -1794,13 +1787,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
           (init_style == initialize_style::restart))
       {
 
-#ifdef DBG_EARLY_INIT_CONSTOPRIM
         const bool enforce_alg = init_style != initialize_style::restart;
         FinalizeZ4cADMGhosts(pmb_array, enforce_alg);
-#else
-        const bool enforce_alg = init_style != initialize_style::restart;
-        FinalizeZ4cADM(pmb_array, enforce_alg);
-#endif // DBG_EARLY_INIT_CONSTOPRIM
       }
 #endif
 
@@ -1837,12 +1825,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput *pin)
       {
         FinalizeHydroConsRP(pmb_array);
 
-#if defined(DBG_EARLY_INIT_CONSTOPRIM) && FLUID_ENABLED && Z4C_ENABLED
-        PreparePrimitivesGhosts(pmb_array);
-#else
-        const bool interior_only = false;
-        PreparePrimitives(pmb_array, interior_only);
-#endif // DBG_EARLY_INIT_CONSTOPRIM
+        // C2P on full domain after prolongation. skip_physical avoids
+        // floor corrections in ghost zones when Z4c provides the metric.
+        PreparePrimitives(pmb_array, false, Z4C_ENABLED);
       }
 #endif
       // ----------------------------------------------------------------------
@@ -2124,75 +2109,6 @@ void Mesh::SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size
   block_size.x2rat = mesh_size.x2rat;
   block_size.x3rat = mesh_size.x3rat;
 
-  return;
-}
-
-// Public function for advancing next_phys_id_ counter
-// E.g. if chemistry or radiation elects to communicate additional information with MPI
-// outside the framework of the BoundaryVariable classes
-
-// Store signed, but positive, integer corresponding to the next unused value to be used
-// as unique ID for a BoundaryVariable object's single set of MPI calls (formerly "enum
-// AthenaTagMPI"). 5 bits of unsigned integer representation are currently reserved
-// for this "phys" part of the bitfield tag, making 0, ..., 31 legal values
-
-int Mesh::ReserveTagPhysIDs(int num_phys) {
-  // TODO(felker): add safety checks? input, output are positive, obey <= 31= MAX_NUM_PHYS
-  int start_id = next_phys_id_;
-  next_phys_id_ += num_phys;
-  return start_id;
-}
-
-// private member fn, called in Mesh() ctor
-
-// depending on compile- and runtime options, reserve the maximum number of "int physid"
-// that might be necessary for each MeshBlock's BoundaryValues object to perform MPI
-// communication for all BoundaryVariable objects
-
-// TODO(felker): deduplicate this logic, which combines conditionals in MeshBlock ctor
-
-void Mesh::ReserveMeshBlockPhysIDs() {
-#ifdef MPI_PARALLEL
-  if (FLUID_ENABLED) {
-    // Advance Mesh's shared counter (initialized to next_phys_id=1 if MPI)
-    // Greedy reservation of phys IDs (only 1 of 2 needed for Hydro if multilevel==false)
-    ReserveTagPhysIDs(HydroBoundaryVariable::max_phys_id);
-  }
-  if (MAGNETIC_FIELDS_ENABLED) {
-    ReserveTagPhysIDs(FaceCenteredBoundaryVariable::max_phys_id);
-  }
-  if (NSCALARS > 0) {
-    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
-  }
-
-  if (WAVE_ENABLED) {
-    if (WAVE_CC_ENABLED)
-      ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_VC_ENABLED)
-      ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
-
-    if (WAVE_CX_ENABLED)
-      ReserveTagPhysIDs(CellCenteredXBoundaryVariable::max_phys_id);
-
-  }
-
-  if (Z4C_ENABLED) {
-    #if defined(Z4C_CC_ENABLED)
-      ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
-    #elif defined(Z4C_CX_ENABLED)
-      ReserveTagPhysIDs(CellCenteredXBoundaryVariable::max_phys_id);
-    #else // VC
-      ReserveTagPhysIDs(VertexCenteredBoundaryVariable::max_phys_id);
-    #endif
-  }
-
-  if (M1_ENABLED)
-  {
-    ReserveTagPhysIDs(CellCenteredBoundaryVariable::max_phys_id);
-  }
-
-#endif
   return;
 }
 

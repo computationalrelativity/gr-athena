@@ -924,7 +924,6 @@ if args["f"]:
   makefile_options["EOS_BASE_SRC"] = "\\\n".join(aux)
 
   aux = [
-    "$(wildcard src/bvals/cc/hydro/*.cpp)",
     "$(wildcard src/field/*.cpp)",
     "$(wildcard src/hydro/*.cpp)",
     "$(wildcard src/reconstruct/recon*.cpp)",

@@ -14,7 +14,6 @@
 
 // Athena++ headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
@@ -23,6 +22,7 @@
 #include "../../z4c/z4c.hpp"
 #include "../../trackers/extrema_tracker.hpp"
 #include "../../mesh/mesh.hpp"
+#include "../../comm/comm_registry.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
 
@@ -69,7 +69,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     if (multilevel)
     {
       Add(SEND_FLUX, CALC_FLUX, &M1N0::SendFluxCorrection);
-      Add(RECV_FLUX, CALC_FLUX, &M1N0::ReceiveAndCorrectFlux);
+      Add(RECV_FLUX, NONE, &M1N0::ReceiveAndCorrectFlux);
 
       Add(CALC_UPDATE, (RECV_FLUX|ADD_FLX_DIV),
                        &M1N0::CalcUpdate);
@@ -81,7 +81,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     }
 
     Add(SEND, CALC_UPDATE, &M1N0::SendM1);
-    Add(RECV, CALC_UPDATE, &M1N0::ReceiveM1);
+    Add(RECV, NONE, &M1N0::ReceiveM1);
 
     Add(SETB, RECV, &M1N0::SetBoundaries);
 
@@ -89,7 +89,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 
     if (multilevel)
     {
-      Add(PROLONG,  SETB,    &M1N0::Prolongation);
+      Add(PROLONG,  (SEND | SETB),    &M1N0::Prolongation);
       Add(PHY_BVAL, PROLONG, &M1N0::PhysicalBoundary);
     }
     else
@@ -134,7 +134,16 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 
   // Clear the RHS
   pm1->storage.u_rhs.ZeroClear();
-  pmb->pbval->StartReceiving(BoundaryCommSubset::m1);
+
+  // Post persistent receives for M1 ghost exchange.
+  pmb->pcomm->StartReceiving(comm::CommGroup::M1);
+
+  // Post persistent receives for M1-owned flux correction channel only.
+  // Per-channel startup avoids activating MHD's channels in the shared FluxCorr
+  // group, which would double MPI_Start requests already posted by the MHD phase.
+  if (pmb->pmy_mesh->multilevel)
+    pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->pm1->comm_channel_id);
+
   return;
 }
 
@@ -143,9 +152,15 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
 {
   Mesh * pm = pmb->pmy_mesh;
-  ::M1::M1 * pm1 = pmb->pm1;
 
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
+  // Wait on M1 ghost exchange sends and reset channel flags.
+  pmb->pcomm->ClearBoundary(comm::CommGroup::M1);
+
+  // Wait on M1-owned flux correction sends and reset flags (if multilevel).
+  // Per-channel clear avoids touching MHD's channels in the shared FluxCorr group.
+  if (pm->multilevel)
+    pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pm1->comm_channel_id);
+
   return TaskStatus::next;
 }
 
@@ -403,11 +418,11 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 // Communicate fluxes between MeshBlocks for flux correction with AMR
 TaskStatus M1N0::SendFluxCorrection(MeshBlock *pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
   if (stage <= nstages)
   {
-    pm1->ubvar.SendFluxCorrection();
+    // Per-channel send: M1 CC flux correction.
+    int mid = pmb->pm1->comm_channel_id;
+    if (mid >= 0) pmb->pcomm->SendFluxCorrSingleChannel(mid);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -417,17 +432,20 @@ TaskStatus M1N0::SendFluxCorrection(MeshBlock *pmb, int stage)
 // Receive fluxes between MeshBlocks
 TaskStatus M1N0::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
   if (stage <= nstages)
   {
-    if (pm1->ubvar.ReceiveFluxCorrection())
+    comm::CommRegistry *pcomm = pmb->pcomm;
+    const comm::NeighborConnectivity &nc = pcomm->connectivity();
+
+    // Per-channel poll + unpack: M1 CC flux correction (OverwriteFromFiner).
+    int mid = pmb->pm1->comm_channel_id;
+    if (mid >= 0)
     {
-      return TaskStatus::next;
+      if (!pcomm->channel(mid).PollReceiveFluxCorr(nc)) return TaskStatus::fail;
+      pcomm->channel(mid).UnpackFluxCorr(nc);
     }
-    else {
-      return TaskStatus::fail;
-    }
+
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -553,10 +571,11 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::SendM1(MeshBlock *pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
   if (stage <= nstages)
   {
-    pm1->ubvar.SendBoundaryBuffers();
+    // Group-level send handles M1 channel.  Restriction into coarse buffers
+    // (for cross-level neighbors) is embedded inside SendBoundaryBuffers.
+    pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::M1);
   }
   else
   {
@@ -569,36 +588,24 @@ TaskStatus M1N0::SendM1(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::ReceiveM1(MeshBlock *pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
-  bool ret;
   if (stage <= nstages)
   {
-    ret = pm1->ubvar.ReceiveBoundaryBuffers();
-  }
-  else
-  {
+    // Poll all M1 channels.  Returns true when every channel has received
+    // all expected messages from same-level, coarser, and finer neighbors.
+    bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::M1);
+    if (done) return TaskStatus::next;
     return TaskStatus::fail;
   }
-
-  if (ret)
-  {
-    return TaskStatus::next;
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
+  return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
   if (stage <= nstages)
   {
-    pm1->ubvar.SetBoundaries();
+    // Unpack received data for the M1 channel into state arrays.
+    pmb->pcomm->SetBoundaries(comm::CommGroup::M1);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -607,13 +614,24 @@ TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::Prolongation(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
-  Mesh * pm = pmb->pmy_mesh;
+  if (stage <= nstages)
+  {
+    Mesh *pm = pmb->pmy_mesh;
+    comm::CommRegistry *pcomm = pmb->pcomm;
 
-  if (stage <= nstages) {
     Real const dt = pm->dt * dt_fac[stage - 1];
     Real t_end_stage = pm->time + dt;
-    pbval->ProlongateBoundariesM1(t_end_stage, dt);
+
+    // M1 is CC-only; uses standard MeshBlock coarse indices.
+    const int cis = pmb->cis, cie = pmb->cie;
+    const int cjs = pmb->cjs, cje = pmb->cje;
+    const int cks = pmb->cks, cke = pmb->cke;
+
+    // Apply coarse-level physical BCs then prolongate each M1 channel.
+    pcomm->ProlongateAndApplyPhysicalBCs(
+        comm::CommGroup::M1, t_end_stage, dt,
+        cis, cie, cjs, cje, cks, cke, NGHOST);
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -622,25 +640,22 @@ TaskStatus M1N0::Prolongation(MeshBlock *pmb, int stage)
 // ----------------------------------------------------------------------------
 TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
   // Task-list vs M1 class (need :: prefix)
   ::M1::M1 *pm1 = pmb->pm1;
-  Coordinates *pco = pmb->pcoord;
 
   if (stage <= nstages)
   {
     Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     Real t_end_stage = pmb->pmy_mesh->time + dt;
 
+    // The M1 user BC callback checks this flag to decide whether to apply.
+    // Bracket the physical BC calls so that user-enrolled M1 BCs fire.
     pm1->enable_user_bc = true;
 
-    pbval->ApplyPhysicalBoundaries(
-      t_end_stage, dt,
-      pbval->GetBvarsM1(),
-      pm1->mbi.il, pm1->mbi.iu,
-      pm1->mbi.jl, pm1->mbi.ju,
-      pm1->mbi.kl, pm1->mbi.ku,
-      pm1->mbi.ng);
+    comm::CommRegistry *pcomm = pmb->pcomm;
+
+    // Apply fine-level physical BCs for every M1 channel.
+    pcomm->ApplyPhysicalBCs(comm::CommGroup::M1, t_end_stage, dt);
 
     pm1->enable_user_bc = false;
     return TaskStatus::next;

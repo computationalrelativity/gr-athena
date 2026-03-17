@@ -23,7 +23,6 @@
 // Athena++ classes headers
 #include "../athena_aliases.hpp"
 #include "../mesh/mesh.hpp"
-#include "../bvals/cc/bvals_cc.hpp"
 #include "m1_containers.hpp"
 
 // External libraries
@@ -124,6 +123,8 @@ public:
   MeshBlock *pmy_block;
   Coordinates *pmy_coord;
 
+  int comm_channel_id{-1};  // CommRegistry channel index (assigned at registration)
+
   // Athena++ imposes BC as a monolith. This requires an awkward work-around:
   bool enable_user_bc { false };
 
@@ -158,7 +159,6 @@ public:
 
   // Variables to deal with refinement
   AthenaArray<Real> coarse_u_;
-  CellCenteredBoundaryVariable ubvar;
   int refinement_idx{-1};
 
 // configuration ==============================================================

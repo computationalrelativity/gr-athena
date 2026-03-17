@@ -29,7 +29,6 @@
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
-#include "../bvals/bvals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
 #include "../trackers/extrema_tracker.hpp"

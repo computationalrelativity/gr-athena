@@ -15,7 +15,6 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../bvals/fc/bvals_fc.hpp"
 #include "../coordinates/coordinates.hpp"
 
 class MeshBlock;
@@ -54,9 +53,8 @@ public:
   // TODO(KGF): remove trailing underscore or revert to private:
   AthenaArray<Real> coarse_bcc_;
   int refinement_idx{-1};
+  int comm_channel_id{-1};  // CommRegistry channel index (assigned at registration)
   FaceField coarse_b_;
-
-  FaceCenteredBoundaryVariable fbvar;
 
   void CalculateCellCenteredField(
       const FaceField &bf, AthenaArray<Real> &bc,
