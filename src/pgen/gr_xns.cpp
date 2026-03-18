@@ -1091,11 +1091,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     }
 
   } // BfromAphi
-
-#endif
-
-  return;
-}
 #endif
 
   return;
