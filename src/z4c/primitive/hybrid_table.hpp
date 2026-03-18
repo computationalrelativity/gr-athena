@@ -2,7 +2,7 @@
 #define HYBRID_TABLE_H
 
 //! \file hybrid_table.hpp
-//  \brief Defines EOSTable, which stores information from a 1D 
+//  \brief Defines EOSTable, which stores information from a 1D
 //         tabulated equation of state in CompOSE format.
 //
 //  Tables should be generated using
@@ -42,6 +42,9 @@ class HybridTable : public EOSPolicyInterface {
     /// Temperature from energy density
     Real TemperatureFromE(Real n, Real e, Real *Y);
 
+    /// Temperature from specific internal energy
+    Real TemperatureFromEps(Real n, Real eps, Real *Y);
+
     /// Calculate the temperature using.
     Real TemperatureFromP(Real n, Real p, Real *Y);
 
@@ -62,7 +65,7 @@ class HybridTable : public EOSPolicyInterface {
 
     /// Calculate the specific internal energy per unit mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
-    
+
     /// Calculate the baryon chemical potential
     [[ noreturn ]]
     Real BaryonChemicalPotential(Real n, Real T, Real *Y);
@@ -102,6 +105,16 @@ class HybridTable : public EOSPolicyInterface {
 
     /// Get the maximum energy at a given density and composition
     Real MaximumEnergy(Real n, Real *Y);
+
+    /// Get the minimum specific internal energy at a given density and composition
+    Real MinimumSpecificInternalEnergy(Real n, Real *Y) {
+      return MinimumEnergy(n, Y)/(mb*n) - 1.0;
+    }
+
+    /// Get the maximum specific internal energy at a given density and composition
+    Real MaximumSpecificInternalEnergy(Real n, Real *Y) {
+      return MaximumEnergy(n, Y)/(mb*n) - 1.0;
+    }
 
   public:
     /// Reads the table file.
@@ -177,13 +190,13 @@ class HybridTable : public EOSPolicyInterface {
 
     // bool to protect against access of uninitialised table, and prevent repeated reading of table
     static bool m_initialized;
-    
+
     // Auxiliary static variables to share data only available when table is open to those threads that do not open it
     // variables from EOSCompOSE
     static Real sm_id_log_nb;
     static int sm_nn;
     static Real sm_min_h;
-    
+
     // Thermal Gamma
     Real gamma_th;
     Real gamma_th_m1;

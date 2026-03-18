@@ -25,6 +25,9 @@ class IdealGas : public EOSPolicyInterface {
     Real TemperatureFromE(Real n, Real e, Real *Y);
 
     /// Calculate the temperature using the ideal gas law.
+    Real TemperatureFromEps(Real n, Real e, Real *Y);
+
+    /// Calculate the temperature using the ideal gas law.
     Real TemperatureFromP(Real n, Real p, Real *Y);
 
     /// Calculate the temperature using the entropy.
@@ -67,6 +70,9 @@ class IdealGas : public EOSPolicyInterface {
     [[ noreturn ]]
     Real ZN(Real n, Real T, Real *Y);
 
+    [[ noreturn ]]
+    Real Abar(Real n, Real T, Real *Y);
+
 
     /// Calculate the internal energy per mass
     Real SpecificInternalEnergy(Real n, Real T, Real *Y);
@@ -99,6 +105,16 @@ class IdealGas : public EOSPolicyInterface {
     /// Calculate the maximum energy density at a given density and composition
     inline Real MaximumEnergy(Real n, Real *Y) {
       return std::numeric_limits<Real>::max();
+    }
+
+    /// Calculate the minimum specific internal energy at a given density and composition
+    Real MinimumSpecificInternalEnergy(Real n, Real *Y) {
+      return MinimumEnergy(n, Y)/(mb*n) - 1.0;
+    }
+
+    /// Calculate the maximum specific internal energy at a given density and composition
+    inline Real MaximumSpecificInternalEnergy(Real n, Real *Y) {
+      return MaximumEnergy(n, Y)/(mb*n) - 1.0;
     }
 
   public:

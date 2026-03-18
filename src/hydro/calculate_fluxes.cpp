@@ -255,8 +255,53 @@ void ReconstructFields(
 
     if (NSCALARS > 0)
     {
+      // if (Yl__[0] <= 0.0) {
+      //   printf("Left state Ye is non-positive\n");
+      //   printf(" i,j,k = %d,%d,%d\n", i, j, k);
+      //   printf(" x,y,z = %e,%e,%e\n", pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+      //   for (int s = 0; s < SCNVAR; ++s) {
+      //     printf(" X%d=%.5e ", s, Yl__[s]);
+      //   }
+      //   printf("\n");
+      // }
+      // if (Yr__[0] <= 0.0) {
+      //   printf("Right state Ye is non-positive\n");
+      //   printf(" i,j,k = %d,%d,%d\n", i, j, k);
+      //   printf(" x,y,z = %e,%e,%e\n", pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+      //   for (int s = 0; s < SCNVAR; ++s) {
+      //     printf(" X%d=%.5e ", s, Yr__[s]);
+      //   }
+      //   printf("\n");
+      // }
+#if defined(USE_TRANSITION_EOS)
+      bool problem_l = abs(Yl__[SCXN] + Yl__[SCXP] + Yl__[SCXA] + Yl__[SCXH] - 1.0) > .99;
+      bool problem_r = abs(Yr__[SCXN] + Yr__[SCXP] + Yr__[SCXA] + Yr__[SCXH] - 1.0) > .99;
+      Real Yl_prev[SCNVAR];
+      Real Yr_prev[SCNVAR];
+      for (int n = 0; n < NSCALARS; ++n) {
+        Yl_prev[n] = Yl__[n];
+        Yr_prev[n] = Yr__[n];
+      }
+#endif // USE_TRANSITION_EOS
       const bool ll__ = peos->GetEOS().ApplySpeciesLimits(Yl__);
       const bool lr__ = peos->GetEOS().ApplySpeciesLimits(Yr__);
+// #if defined(USE_TRANSITION_EOS)
+//       if (problem_l) {
+//         printf("Left state species fractions did not sum to 1\n");
+//         printf(" i,j,k = %d,%d,%d\n", i, j, k);
+//         printf(" x,y,z = %e,%e,%e\n", pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+//         printf(" Prev: Xn=%.5e, Xp=%.5e, Xa=%.5e, Xh=%.5e\n", Yl_prev[SCXN], Yl_prev[SCXP], Yl_prev[SCXA], Yl_prev[SCXH]);
+//         printf(" Now:  Xn=%.5e, Xp=%.5e, Xa=%.5e, Xh=%.5e\n", Yl__[SCXN], Yl__[SCXP], Yl__[SCXA], Yl__[SCXH]);
+//       }
+
+//       if (problem_r) {
+//         printf("Right state species fractions did not sum to 1\n");
+//         printf(" i,j,k = %d,%d,%d\n", i, j, k);
+//         printf(" x,y,z = %e,%e,%e\n", pmb->pcoord->x1v(i), pmb->pcoord->x2v(j), pmb->pcoord->x3v(k));
+//         printf(" Prev: Xn=%.5e, Xp=%.5e, Xa=%.5e, Xh=%.5e\n", Yr_prev[SCXN], Yr_prev[SCXP], Yr_prev[SCXA], Yr_prev[SCXH]);
+//         printf(" Now:  Xn=%.5e, Xp=%.5e, Xa=%.5e, Xh=%.5e\n", Yr__[SCXN], Yr__[SCXP], Yr__[SCXA], Yr__[SCXH]);
+//       }
+// #endif // USE_TRANSITION_EOS
     }
 
     if (!pr->xorder_use_aux_T || peos->recompute_temperature)

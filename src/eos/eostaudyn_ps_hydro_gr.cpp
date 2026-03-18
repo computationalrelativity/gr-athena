@@ -198,6 +198,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
 
 }
 
+
 // Initialize cold eos object based on parameters
 void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
                  ParameterInput *pin) {
@@ -397,20 +398,6 @@ void EquationOfState::ConservedToPrimitive(
       // Find the primitive variables.
       Real prim_pt[NPRIM] = {0.0};
       Real b3u[NMAG] = {0.0}; // Assume no magnetic field.
-
-      // Point to the old primitive variables for the initial guess.
-      prim_pt[IDN] = prim(IDN, k, j, i)/ps.GetEOS()->GetBaryonMass();
-      prim_pt[IVX] = prim(IVX, k, j, i);
-      prim_pt[IVY] = prim(IVY, k, j, i);
-      prim_pt[IVZ] = prim(IVZ, k, j, i);
-      prim_pt[IPR] = prim(IPR, k, j, i);
-      AA temperature;
-      temperature.InitWithShallowSlice(pmy_block_->phydro->derived_ms, IX_T, 1);
-      prim_pt[ITM] = temperature(k,j,i) ;
-
-      for(int n=0; n<NSCALARS; n++){
-        prim_pt[IYF + n] = prim_scalar(n, k, j, i) ;
-      }
 
       if (is_admissible)
       {

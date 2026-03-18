@@ -32,6 +32,10 @@ Real IdealGas::TemperatureFromE(Real n, Real e, Real *Y) {
   return gammam1*(e - mb*n)/n;
 }
 
+Real IdealGas::TemperatureFromEps(Real n, Real eps, Real *Y) {
+  return gammam1*eps*mb;
+}
+
 Real IdealGas::TemperatureFromP(Real n, Real p, Real *Y) {
   return p/n;
 }
@@ -78,6 +82,10 @@ Real IdealGas::FrYh(Real n, Real s, Real *Y) {
 
 Real IdealGas::AN(Real n, Real s, Real *Y) {
   throw std::logic_error("IdealGas::AN not currently implemented.");
+}
+
+Real IdealGas::Abar(Real n, Real s, Real *Y) {
+  throw std::logic_error("IdealGas::Abar not currently implemented.");
 }
 
 Real IdealGas::ZN(Real n, Real s, Real *Y) {

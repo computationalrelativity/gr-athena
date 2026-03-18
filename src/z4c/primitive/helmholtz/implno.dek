@@ -1,3 +1,0 @@
-! implicit declarations
-      implicit none
-!      save ! this would make the code non thread safe

@@ -1151,7 +1151,6 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
   AT_N_sym sl_S_dd(pz4c->storage.mat, Z4c::I_MAT_Sxx);
 
 #if USETM
-  Real rho_atm = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   Real Y_atm[MAX_SPECIES] = {0.0};
   for (int i = 0; i < NSCALARS; i++) {
     std::stringstream ss;
@@ -1327,6 +1326,7 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
           w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
 #endif
 
+
           // Add velocity perturbation
           const Real x_kji = r_(i) / R;
           up_r = (v_amp>0) ? (0.5*v_amp*(3.0*x_kji - x_kji*x_kji*x_kji)) : 0.0;
@@ -1344,10 +1344,8 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #if USETM
             w_rho_(i) = ceos->GetDensityFromPressure(w_p_(i));
 #if NSCALARS > 0
-            for (int l=0; l<ceos->GetNSpecies(); ++l)
+            for (int l=0; l<NSCALARS; ++l)
               prim_scalar(l,i) = ceos->GetY(w_rho_(i), l);
-            for (int l=ceos->GetNSpecies(); l<NSCALARS; ++l)
-              prim_scalar(l,i) = Y_atm[l];
 #endif
 #else
             w_rho_(i) = pow(w_p_(i)/k_adi,1./gamma_adi);
@@ -1357,14 +1355,14 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         else
         {
           // Let the EOS decide how to set the atmosphere on the exterior
+          w_rho_(i) = 0.0;
+          w_p_(i) = 0.0;
           up_r      = 0.0;
 #if NSCALARS > 0
           for (int l=0; l<NSCALARS; ++l) {
             prim_scalar(l,i) = Y_atm[l];
           }
 #endif
-          w_rho_(i) = 0.0;
-          w_p_(i) = 0.0;
         }
 
         w_util_u_(0,i) = up_r*sinth*cosphi;

@@ -622,21 +622,6 @@ void EquationOfState::NuclearBinding(
     prim_scalar(SCEB,k,j,i) = (1.0 - w) * Y[SCEB] + w * cur_eb;
   }
 
-
-  Real sumX = prim_scalar(SCXN,k,j,i) + prim_scalar(SCXP,k,j,i) + prim_scalar(SCXA,k,j,i) + prim_scalar(SCXH,k,j,i);
-  if ((std::abs(sumX - 1.0) > 1e-2) and (w > 0.99)) {
-    printf("Error in composition: X_n + X_p + X_a + X_h = %e\n", sumX);
-    printf("  n=%e, T=%e, Y_e=%e w=%e\n", n, T, Y[SCYE], w);
-    printf("  X_n=%e X_p=%e X_a=%e X_h=%e A_h=%e\n", prim_scalar(SCXN, k, j, i),
-           prim_scalar(SCXP, k, j, i), prim_scalar(SCXA, k, j, i),
-           prim_scalar(SCXH, k, j, i), prim_scalar(SCAH,k,j,i));
-  }
-  // renormalize to 1.0
-  prim_scalar(SCXN,k,j,i) /= sumX;
-  prim_scalar(SCXP,k,j,i) /= sumX;
-  prim_scalar(SCXA,k,j,i) /= sumX;
-  prim_scalar(SCXH,k,j,i) /= sumX;
-
   const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
 
   hyd_der_ms(IX_HEAT, k, j, i) = activation_fac; // TODO implement RHINE

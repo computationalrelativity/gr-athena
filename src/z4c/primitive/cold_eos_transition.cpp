@@ -28,7 +28,7 @@ ColdEOSTransition::ColdEOSTransition():
   m_np(0),
   m_table(nullptr),
   m_initialized(false) {
-  n_species = 1;
+  n_species = 7;
   eos_units = &Nuclear;
 }
 

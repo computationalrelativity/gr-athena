@@ -76,6 +76,10 @@ Real HybridTable::TemperatureFromE(Real n, Real e, Real *Y) {
   return std::fmax(T,0.0);
 }
 
+Real HybridTable::TemperatureFromEps(Real n, Real eps, Real *Y) {
+  return TemperatureFromE(n, (eps + 1.0)*mb*n, Y);
+}
+
 Real HybridTable::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
   Real p_cold = ColdPressure(n);
@@ -286,8 +290,8 @@ void HybridTable::ReadTableFromFile(std::string fname) {
       for (int in = 0; in < m_nn; ++in) {
         m_table[index(ECCS, in)] = sqrt(scratch[index(0, in)]);
       }
-      
-      
+
+
       // Mark table as read
       m_initialized = true;
 
@@ -324,7 +328,7 @@ void HybridTable::ReadTableFromFile(std::string fname) {
   mb       = s_mb;
   max_n    = s_max_n;
   min_n    = s_min_n;
-  
+
   }
 
 

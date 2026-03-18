@@ -42,6 +42,9 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     Real TemperatureFromE(Real n, Real e, Real *Y);
 
     /// Calculate the temperature using the ideal gas law.
+    Real TemperatureFromEps(Real n, Real e, Real *Y);
+
+    /// Calculate the temperature using the ideal gas law.
     Real TemperatureFromP(Real n, Real p, Real *Y);
 
     /// Calculate the temperature from the entropy.
@@ -77,6 +80,8 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     Real FrYh(Real n, Real T, Real *Y);
 
     [[ noreturn ]]
+    Real Abar(Real n, Real T, Real *Y);
+    [[ noreturn ]]
     Real AN(Real n, Real T, Real *Y);
     [[ noreturn ]]
     Real ZN(Real n, Real T, Real *Y);
@@ -109,8 +114,18 @@ class PiecewisePolytrope : public EOSPolicyInterface {
     /// Calculate the minimum energy at a given density and composition
     Real MinimumEnergy(Real n, Real *Y);
 
+    /// Calculate the minimum specific internal energy at a given density and composition
+    Real MinimumSpecificInternalEnergy(Real n, Real *Y) {
+      return MinimumEnergy(n, Y)/(mb*n) - 1.0;
+    }
+
     /// Calculate the maximum energy at a given density and composition
     Real MaximumEnergy(Real n, Real *Y);
+
+    /// Calculate the maximum specific internal energy at a given density and composition
+    Real MaximumSpecificInternalEnergy(Real n, Real *Y) {
+      return MaximumEnergy(n, Y)/(mb*n) - 1.0;
+    }
 
   public:
     /// Load the EOS parameters from a file.

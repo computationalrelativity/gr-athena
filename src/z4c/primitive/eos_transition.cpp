@@ -63,23 +63,25 @@ EOSTransition::~EOSTransition() {
 
 Real EOSTransition::TemperatureFromEps(Real n, Real eps, Real *Y) {
   assert (m_initialized);
+  Real Y_norm[SCNVAR];
+  SanitizeMassFractions(Y, Y_norm);
 
-  if (n > m_helm_n_max) return compose_eos->TemperatureFromEps(n, eps, Y);
-  Real eps_min = MinimumSpecificInternalEnergy(n, Y);
-  Real eps_max = MaximumSpecificInternalEnergy(n, Y);
+  if (n > m_helm_n_max) return compose_eos->TemperatureFromEps(n, eps, Y_norm);
+  if (log(n) < trans_ln_end) return helmholtz_eos->TemperatureFromEps(n, eps, Y_norm);
+  Real eps_min = MinimumSpecificInternalEnergy(n, Y_norm);
+  Real eps_max = MaximumSpecificInternalEnergy(n, Y_norm);
   if (eps <= eps_min) return min_T;
-  if (eps <= eps_max) {
-    if (n < compose_eos->MinimumDensity())
+  if (eps >= eps_max) {
+    if (n < exp(trans_ln_start))
       return m_helm_T_max;
     else
       return max_T;
   }
-  if (log(n) < trans_ln_end) return helmholtz_eos->TemperatureFromEps(n, eps, Y);
-  Real eps_trans_end = SpecificInternalEnergy(n, trans_T_end, Y);
-  if (eps <= eps_trans_end) return helmholtz_eos->TemperatureFromEps(n, eps, Y);
-  Real eps_trans_start = SpecificInternalEnergy(n, trans_T_start, Y);
-  if ((eps >= eps_trans_start) and (log(n) > trans_ln_start)) return compose_eos->TemperatureFromEps(n, eps, Y);
-  return temperature_from_var_trans(compose_eos->ECLOGE, log(n*mb*(1+eps)), n, Y);
+  Real eps_trans_end = SpecificInternalEnergy(n, trans_T_end, Y_norm);
+  if (eps <= eps_trans_end) return helmholtz_eos->TemperatureFromEps(n, eps, Y_norm);
+  Real eps_trans_start = SpecificInternalEnergy(n, trans_T_start, Y_norm);
+  if ((eps >= eps_trans_start) and (log(n) > trans_ln_start)) return compose_eos->TemperatureFromEps(n, eps, Y_norm);
+  return temperature_from_var_trans(compose_eos->ECLOGE, log(n*mb*(1+eps)), n, Y_norm);
 }
 
 Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real *Y) {
@@ -93,22 +95,25 @@ Real EOSTransition::TemperatureFromE(Real n, Real e, Real *Y) {
 
 Real EOSTransition::TemperatureFromP(Real n, Real p, Real *Y) {
   assert (m_initialized);
+  Real Y_norm[SCNVAR];
+  SanitizeMassFractions(Y, Y_norm);
 
-  if (n > m_helm_n_max) return compose_eos->TemperatureFromP(n, p, Y);
-  Real p_min = MinimumPressure(n, Y);
-  Real p_max = MaximumPressure(n, Y);
-  if (log(n) < trans_ln_start) {
-    if (p <= p_min) return min_T;
-    if (p >= p_max) return m_helm_T_max;
-  } else {
-    if (p <= p_min) return compose_eos->MinimumDensity();
-    if (p >= p_max) return max_T;
+  if (n > m_helm_n_max) return compose_eos->TemperatureFromP(n, p, Y_norm);
+  if (log(n) < trans_ln_end) return helmholtz_eos->TemperatureFromP(n, p, Y_norm);
+  Real p_min = MinimumPressure(n, Y_norm);
+  Real p_max = MaximumPressure(n, Y_norm);
+  if (p <= p_min) return min_T;
+  if (p >= p_max) {
+    if (n < exp(trans_ln_start))
+      return m_helm_T_max;
+    else
+      return max_T;
   }
-  Real p_trans_start = Pressure(n, trans_T_start, Y);
-  Real p_trans_end = Pressure(n, trans_T_end, Y);
-  if (p >= p_trans_start) return compose_eos->TemperatureFromP(n, p, Y);
-  if (p <= p_trans_end) return helmholtz_eos->TemperatureFromP(n, p, Y);
-  return temperature_from_var_trans(compose_eos->ECLOGP, log(p), n, Y);
+  Real p_trans_end = Pressure(n, trans_T_end, Y_norm);
+  if (p <= p_trans_end) return helmholtz_eos->TemperatureFromP(n, p, Y_norm);
+  Real p_trans_start = Pressure(n, trans_T_start, Y_norm);
+  if (p >= p_trans_start) return compose_eos->TemperatureFromP(n, p, Y_norm);
+  return temperature_from_var_trans(compose_eos->ECLOGP, log(p), n, Y_norm);
 }
 
 Real EOSTransition::SanitizeMassFractions(Real *Y, Real *Y_norm) const {
@@ -138,8 +143,8 @@ Real EOSTransition::TransitionFactor(Real n, Real T) const {
       (T > m_helm_T_max)) {
     return 1.0;
   }
-  if ((n < compose_eos->MinimumDensity()) or
-      (T < compose_eos->MinimumTemperature())) {
+  if ((n < compose_eos->min_n) or
+      (T < compose_eos->min_T)) {
     return 0.0;
   }
   Real w = min(1.0, max(0.0, (T - trans_T_end)/m_trans_T_width));
@@ -333,8 +338,8 @@ Real EOSTransition::MinimumEnthalpy() {
 Real EOSTransition::MinimumPressure(Real n, Real *Y) {
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
-  if (log(n) > trans_ln_end) {
-    return Pressure(n, compose_eos->MinimumDensity(), Y_norm);
+  if (n > exp(trans_ln_end)) {
+    return Pressure(n, compose_eos->min_T, Y_norm);
   }
   return Pressure(n, min_T, Y_norm);
 }
@@ -342,7 +347,7 @@ Real EOSTransition::MinimumPressure(Real n, Real *Y) {
 Real EOSTransition::MaximumPressure(Real n, Real *Y) {
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
-  if (log(n) < trans_ln_start) {
+  if (n < exp(trans_ln_start)) {
     return Pressure(n, m_helm_T_max, Y_norm);
   }
   return Pressure(n, max_T, Y_norm);
@@ -351,8 +356,8 @@ Real EOSTransition::MaximumPressure(Real n, Real *Y) {
 Real EOSTransition::MinimumSpecificInternalEnergy(Real n, Real *Y) {
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
-  if (log(n) > trans_ln_end) {
-    return SpecificInternalEnergy(n, compose_eos->MinimumDensity(), Y_norm);
+  if (n > exp(trans_ln_end)) {
+    return SpecificInternalEnergy(n, compose_eos->min_T, Y_norm);
   }
   return SpecificInternalEnergy(n, min_T, Y_norm);
 }
@@ -360,7 +365,7 @@ Real EOSTransition::MinimumSpecificInternalEnergy(Real n, Real *Y) {
 Real EOSTransition::MaximumSpecificInternalEnergy(Real n, Real *Y) {
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
-  if (log(n) < trans_ln_start) {
+  if (n < exp(trans_ln_start)) {
     return SpecificInternalEnergy(n, m_helm_T_max, Y_norm);
   }
   return SpecificInternalEnergy(n, max_T, Y_norm);
@@ -419,7 +424,7 @@ void EOSTransition::PrintParameters() {
     printf("  Xh min, max = %e %e\n", min_Y[SCXH], max_Y[SCXH]);
     printf("  Ah min, max = %e %e\n", min_Y[SCAH], max_Y[SCAH]);
     printf("  helm n_max, t_max = %e %e\n", m_helm_n_max, m_helm_T_max);
-    printf("  comp n_min, t_min = %e %e\n", compose_eos->MinimumDensity(), compose_eos->MinimumTemperature());
+    printf("  comp n_min, t_min = %e %e\n", compose_eos->min_n, compose_eos->min_T);
     printf("  min_h = %.15e\n", m_min_h);
     printf("  mb = %.15e MeV\n", mb);
     printf("  T transition start, end = %e %e\n", trans_T_start, trans_T_end);
@@ -451,34 +456,34 @@ void EOSTransition::update_bounds() {
     printf("EOSTransition::update bounds: helmholtz max temperature = %.5e is less than "
            "transition temperature start = %.5e \n",
            m_helm_T_max, trans_T_start);
-  if (compose_eos->MinimumDensity() > exp(trans_ln_end))
+  if (compose_eos->min_n > exp(trans_ln_end))
     printf("EOSTransition::update bounds: compose min density = %.5e is greater than "
            "transition density end = %.5e \n",
-           compose_eos->MinimumDensity(), exp(trans_ln_end));
-  if (compose_eos->MinimumTemperature() > trans_T_end)
+           compose_eos->min_n, exp(trans_ln_end));
+  if (compose_eos->min_T > trans_T_end)
     printf("EOSTransition::update bounds: compose min temperature = %.5e is greater than "
            "transition temperature end = %.5e \n",
-           compose_eos->MinimumTemperature(), trans_T_end);
+           compose_eos->min_T, trans_T_end);
 
-  min_n = helmholtz_eos->MinimumDensity();
-  min_T = helmholtz_eos->MinimumTemperature();
-  max_n = compose_eos->MaximumDensity();
-  max_T = compose_eos->MaximumTemperature();
+  min_n = helmholtz_eos->min_n;
+  min_T = helmholtz_eos->min_T;
+  max_n = compose_eos->max_n;
+  max_T = compose_eos->max_T;
   min_Y[SCYE] = compose_eos->min_Y[SCYE];
   max_Y[SCYE] = compose_eos->max_Y[SCYE];
 
   comp_it_trans_start = (log(trans_T_start) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t + 1;
   comp_it_trans_end = (log(trans_T_end) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t;
-  comp_it_helm_tmax = (log(m_helm_T_max) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t + 1;
+  comp_it_helm_tmax = (log(m_helm_T_max) - compose_eos->m_log_t[0])*compose_eos->m_id_log_t;
 
-  if (isnan(m_helm_n_max)) m_helm_n_max = helmholtz_eos->MaximumDensity(); // has not been udated by user, so set to helmholtz max density
-  if (isnan(m_helm_T_max)) m_helm_T_max = helmholtz_eos->MaximumTemperature(); // has not been udated by user, so set to helmholtz max temperature
+  if (isnan(m_helm_n_max)) m_helm_n_max = helmholtz_eos->max_n; // has not been udated by user, so set to helmholtz max density
+  if (isnan(m_helm_T_max)) m_helm_T_max = helmholtz_eos->max_T; // has not been udated by user, so set to helmholtz max temperature
 }
 
 Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real *Y) {
   if (n > m_helm_n_max or T > m_helm_T_max) {
     return 0.0;
-  } else if (n < compose_eos->MinimumDensity() or T < compose_eos->MinimumTemperature()) {
+  } else if (n < compose_eos->min_n or T < compose_eos->min_T) {
     return Y[SCEB];
   } else {
     Real Y_norm[SCNVAR];
@@ -524,9 +529,7 @@ void EOSTransition::InitializeTables(std::string fname, std::string helm_fname, 
 Real EOSTransition::temperature_from_var_trans(int iv, Real var, Real n, Real *Y) const {
   int in, iy;
   Real wn0, wn1, wy0, wy1;
-  Real * Y_norm = new Real[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
-  Real Yq = Y_norm[SCYE];
+  Real Yq = Y[SCYE];
   compose_eos->weight_idx_ln(&wn0, &wn1, &in, log(n));
   compose_eos->weight_idx_yq(&wy0, &wy1, &iy, Yq);
 
@@ -534,8 +537,8 @@ Real EOSTransition::temperature_from_var_trans(int iv, Real var, Real n, Real *Y
     Real T = exp(compose_eos->m_log_t[it]);
     Real w = TransitionFactor(n, T);
     Real var_helm;
-    if (iv == compose_eos->ECLOGP) var_helm = helmholtz_eos->Pressure(n, T, Y_norm);
-    else if (iv == compose_eos->ECLOGE) var_helm = helmholtz_eos->Energy(n, T, Y_norm);
+    if (iv == compose_eos->ECLOGP) var_helm = helmholtz_eos->Pressure(n, T, Y);
+    else if (iv == compose_eos->ECLOGE) var_helm = helmholtz_eos->Energy(n, T, Y);
     else throw std::logic_error("EOSTransition::temperature_from_var_trans only implemented for log(P) and log(e).");
 
     Real var_comp =
@@ -573,7 +576,7 @@ Real EOSTransition::temperature_from_var_trans(int iv, Real var, Real n, Real *Y
     std::cout<<"iv: "<<iv<<std::endl;
     std::cout<<"var: "<<var<<std::endl;
     std::cout<<"n: "<<n<<std::endl;
-    std::cout<<"Ye, Xn, Xp, Xa, Xh, Ah: "<<Y_norm[SCYE]<<" "<<Y_norm[SCXN]<<" "<<Y_norm[SCXP]<<" "<<Y_norm[SCXA]<<" "<<Y_norm[SCXH]<<" "<<Y_norm[SCAH]<<std::endl;
+    std::cout<<"Ye, Xn, Xp, Xa, Xh, Ah: "<<Y[SCYE]<<" "<<Y[SCXN]<<" "<<Y[SCXP]<<" "<<Y[SCXA]<<" "<<Y[SCXH]<<" "<<Y[SCAH]<<std::endl;
     std::cout<<"ilo_0: "<<ilo_0<<std::endl;
     std::cout<<"ihi_0: "<<ihi_0<<std::endl;
     std::cout<<"varlo_0: "<<var - flo_<<std::endl;

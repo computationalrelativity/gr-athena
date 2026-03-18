@@ -163,8 +163,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromE(Real n, Real e, Real *Y) {
-      Real eos_e = e*code_units->EnergyConversion(*eos_units);
-      return TemperatureFromE(n, eos_e, Y) *
+      return TemperatureFromE(n, e*code_units->PressureConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
     }
 
@@ -177,8 +176,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y) {
-      Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
-      return TemperatureFromEps(n, eos_eps, Y) *
+      return TemperatureFromEps(n, eps*code_units->SpecificInternalEnergyConversion(*eos_units), Y) *
              eos_units->TemperatureConversion(*code_units);
     }
 
@@ -193,8 +191,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
       if (n<GetDensityFloor()){
         return T_atm * eos_units->TemperatureConversion(*code_units);
       } else {
-        Real eos_p = p*code_units->PressureConversion(*eos_units);
-        return TemperatureFromP(n, eos_p, Y) *
+        return TemperatureFromP(n, p*code_units->PressureConversion(*eos_units), Y) *
           eos_units->TemperatureConversion(*code_units);
       }
     }
@@ -222,7 +219,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return The energy density according to the EOS.
     inline Real GetEnergy(Real n, Real T, Real *Y) {
       return Energy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
-             eos_units->EnergyConversion(*code_units);
+             eos_units->PressureConversion(*code_units);
     }
 
     //! \fn Real GetPressure(Real n, Real T, Real *Y)
@@ -248,8 +245,8 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \return The entropy per baryon for this EOS.
     //  WC: This is entropy per unit mass
     inline Real GetEntropy(Real n, Real T, Real *Y) {
-      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y) *
-             eos_units->EntropyConversion(*code_units);
+      return Entropy(n, T*code_units->TemperatureConversion(*eos_units), Y)/mb *
+             eos_units->EntropyConversion(*code_units)/eos_units->MassConversion(*code_units);
     }
 
     //! \fn Real GetEntropyPerBaryon(Real n, Real T, Real *Y)
@@ -454,11 +451,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //
     //  \return true if the conserved variables were adjusted, false otherwise.
     inline bool ApplyConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real Bsq) {
-      return ConservedFloor(
-          D, Sd, tau, Y, n_atm * GetBaryonMass(),
-          GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq),
-          GetTauFloor(n_atm * GetBaryonMass(), Y_atm, Bsq),
-          n_species);
+      return ConservedFloor(D, Sd, tau, Y, n_atm*GetBaryonMass(),
+                            GetTauFloor(std::max(D,min_n*GetBaryonMass()), Y, Bsq),
+                            GetTauFloor(n_atm*GetBaryonMass(), Y_atm, Bsq), n_species);
     }
 
     //! \fn Real GetDensityFloor() const
@@ -493,11 +488,7 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real D, Real *Y, Real Bsq) {
       // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
-      Real n = D/GetBaryonMass();
-      Real eos_tau_floor = MinimumSpecificInternalEnergy(n, Y);
-      Real atm_tau_floor = GetSpecificInternalEnergy(n, T_atm, Y);
-      return D * std::max(eos_tau_floor, atm_tau_floor) + 0.5*Bsq;
-
+      return D*GetSpecificInternalEnergy(D/GetBaryonMass(), T_atm, Y) + 0.5*Bsq;
     }
 
     //! \fn void SetDensityFloor(Real floor)
@@ -646,9 +637,9 @@ class EOS : public EOSPolicy, public ErrorPolicy {
 
     //! \brief Limit the energy density to a specified range at a given density and composition
     inline void ApplyEnergyLimits(Real& e, Real n, Real* Y) {
-      Real e_eos = e*code_units->EnergyConversion(*eos_units);
+      Real e_eos = e*code_units->PressureConversion(*eos_units);
       EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
-      e = e_eos*eos_units->EnergyConversion(*code_units);
+      e = e_eos*eos_units->PressureConversion(*code_units);
     }
 
     //! \brief Limit the specific internal energy to a specified range at a given density and composition

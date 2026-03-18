@@ -126,10 +126,10 @@ class EOSTransition : public EOSPolicyInterface {
     }
 
     void GetTableBoundaries(Real &ld_n, Real &hd_n, Real &ld_t, Real &hd_t) {
-      ld_n = helmholtz_eos->MaximumDensity();
-      ld_t = helmholtz_eos->MaximumTemperature();
-      hd_n = compose_eos->MinimumDensity();
-      hd_t = compose_eos->MinimumTemperature();
+      ld_n = helmholtz_eos->max_n;
+      ld_t = helmholtz_eos->max_T;
+      hd_n = compose_eos->min_n;
+      hd_t = compose_eos->min_T;
     }
 
     /// Check if the EOS has been initialized properly.

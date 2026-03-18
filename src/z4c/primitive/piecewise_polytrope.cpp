@@ -76,6 +76,11 @@ Real PiecewisePolytrope::TemperatureFromE(Real n, Real e, Real *Y) {
   return (e - e_cold)*(gamma_thermal - 1.0)/n;
 }
 
+Real PiecewisePolytrope::TemperatureFromEps(Real n, Real eps, Real *Y) {
+  return TemperatureFromE(n, (eps + 1.0)*mb*n, Y);
+}
+
+
 Real PiecewisePolytrope::TemperatureFromP(Real n, Real p, Real *Y) {
   int i = FindPiece(n);
   Real p_cold = GetColdPressure(n, i);
@@ -137,6 +142,10 @@ Real PiecewisePolytrope::FrYa(Real n, Real s, Real *Y) {
 
 Real PiecewisePolytrope::FrYh(Real n, Real s, Real *Y) {
   throw std::logic_error("PiecewisePolytrope::FrYh not currently implemented.");
+}
+
+Real PiecewisePolytrope::Abar(Real n, Real s, Real *Y) {
+  throw std::logic_error("PiecewisePolytrope::Abar not currently implemented.");
 }
 
 Real PiecewisePolytrope::AN(Real n, Real s, Real *Y) {

@@ -114,25 +114,24 @@ class PrimitiveSolver {
         Real nhat = rhohat/mb;
         peos->ApplyDensityLimits(nhat);
 
-        // Estimate the specific internal energy.
-        Real What = 1.0/iWhat;
-        Real tauoverD = qbar - mu*rbarsq;
-        Real eoverD = tauoverD + 1.0;
-        Real epshat = tauoverD*What + What - 1.0;
-        peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
-        // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
-        Real That = peos->GetTemperatureFromEps(nhat, epshat, Y);
-        peos->ApplyTemperatureLimits(That);
-
-        // // Estimate the energy density.
-        // Real eoverD = qbar - mu*rbarsq + 1.0;
-        // Real ehat = D*eoverD;
-        // peos->ApplyEnergyLimits(ehat, nhat, Y);
-        // //eoverD = ehat/D;
-
+        // // Estimate the specific internal energy.
+        // Real What = 1.0/iWhat;
+        // Real tauoverD = qbar - mu*rbarsq;
+        // Real eoverD = tauoverD + 1.0;
+        // Real epshat = tauoverD*What + What - 1.0;
+        // peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
         // // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
-        // Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
-        // peos->ApplyTemperatureLimits(That);
+        // Real That = peos->GetTemperatureFromEps(nhat, epshat, Y);
+
+        // Estimate the energy density.
+        Real eoverD = qbar - mu*rbarsq + 1.0;
+        Real ehat = D*eoverD;
+        peos->ApplyEnergyLimits(ehat, nhat, Y);
+        //eoverD = ehat/D;
+        // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
+        Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
+
+        peos->ApplyTemperatureLimits(That);
 
         //ehat = peos->GetEnergy(nhat, That, Y);
         Real Phat = peos->GetPressure(nhat, That, Y);

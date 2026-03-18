@@ -2076,13 +2076,11 @@ if args["eos"] == "none":
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
-cold_policy = f'cold_{args["eospolicy"]}'
-
 files = [
   args["eospolicy"],
   args["errorpolicy"],
   "ps_error",
-  cold_policy,
+  f'cold_{args["eospolicy"]}',
 ]
 if args["eospolicy"] == "eos_transition":
     files.append("eos_compose")
@@ -2091,7 +2089,6 @@ if args["eospolicy"] == "eos_transition":
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
-print(makefile_options["EOS_FILES"])
 
 # Make substitutions
 for key, val in definitions.items():

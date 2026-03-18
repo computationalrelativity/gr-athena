@@ -76,7 +76,7 @@ struct UnitSystem {
   }
 
   inline constexpr Real SpecificInternalEnergyConversion(UnitSystem& b) const {
-    return b.c*b.c/c/c;
+    return b.energy*mass/(b.mass*energy);
   }
 };
 
