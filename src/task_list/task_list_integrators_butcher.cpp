@@ -32,7 +32,7 @@ Butcher::Butcher(ParameterInput *pin, Mesh *pm)
     bt_a[0] = {0, 0};
     bt_a[1] = {1, 0};
     bt_b    = {0, 1};
-    bt_c    = {0, 1. / 3., 2. / 3.};
+    bt_c    = {0, 1.};
   }
   else if (integrator == "bt_rk4")
   {

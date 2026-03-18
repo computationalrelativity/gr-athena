@@ -649,10 +649,10 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
   // ===================================================================================
   // Add dissipation for stability
   //
-  for(int n = 0; n < N_Z4c; ++n)
-  for(int a = 0; a < NDIM; ++a) {
+  for(int n = 0; n < N_Z4c; ++n) {
     ILOOP3(k,j,i) {
-      u_rhs(n,k,j,i) += fd->Diss(a, u(n,k,j,i), opt.diss);
+      for(int a = 0; a < NDIM; ++a)
+        u_rhs(n,k,j,i) += fd->Diss(a, u(n,k,j,i), opt.diss);
     }
   }
 
