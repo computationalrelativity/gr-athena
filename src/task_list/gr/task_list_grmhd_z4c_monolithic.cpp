@@ -415,9 +415,13 @@ TaskStatus GRMHD_Z4c_Monolithic::CalculateHydroScalarFlux(
 
     if ((xorder_use_fb) &&
         (pr->xorder_fb_dfloor_fac > 1) &&
-        (ph->ConservedDensityWithinFloorThreshold(ph->u,
-                                                  pr->xorder_fb_dfloor_fac,
-                                                  num_enlarge_layer)))
+        (pmb->peos->ConservedDensityWithinFloorThreshold(
+           ph->u,
+           pmb->pz4c->aux_extended.ms_sqrt_detgamma.array(),
+           pr->xorder_fb_dfloor_fac,
+           pmb->is - num_enlarge_layer, pmb->ie + num_enlarge_layer,
+           pmb->js - num_enlarge_layer, pmb->je + num_enlarge_layer,
+           pmb->ks - num_enlarge_layer, pmb->ke + num_enlarge_layer)))
     {
       xorder_style = pr->xorder_style_fb;
       xorder_use_fb = false;

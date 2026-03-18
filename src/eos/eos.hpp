@@ -123,6 +123,18 @@ class EquationOfState {
     const bool coarse_flag,
     Coordinates *pco);
 
+#if FLUID_ENABLED
+  // Check if conserved density is under a floor cutoff factor.
+  // Returns true when every cell in the given range satisfies the threshold.
+  bool ConservedDensityWithinFloorThreshold(
+    AA& u,
+    AA& sqrt_detgamma,
+    const Real undensitized_dfloor_fac,
+    int il, int iu,
+    int jl, int ju,
+    int kl, int ku);
+#endif
+
   // Use the same logic for slicing geometric entities to CC.
   struct geom_sliced_cc {
     // sliced

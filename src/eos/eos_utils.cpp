@@ -1160,6 +1160,40 @@ Real EquationOfState::NearestNeighborSmooth(
 }
 
 
+// ----------------------------------------------------------------------------
+// Check if conserved density is under a floor cutoff factor on the given
+// index range.  Returns true when every cell satisfies the threshold.
+#if FLUID_ENABLED
+bool EquationOfState::ConservedDensityWithinFloorThreshold(
+  AA& u,
+  AA& sqrt_detgamma,
+  const Real undensitized_dfloor_fac,
+  int il, int iu,
+  int jl, int ju,
+  int kl, int ku)
+{
+  // Undensitized conserved density floor
+  const Real mb     = GetEOS().GetBaryonMass();
+  const Real dfloor = mb * GetEOS().GetDensityFloor();
+  const Real d_fac  = undensitized_dfloor_fac * dfloor;
+
+  bool ret = true;
+
+  for (int k = kl; k <= ku; ++k)
+    for (int j = jl; j <= ju; ++j)
+      for (int i = il; i <= iu; ++i)
+      {
+        ret = ret and (sqrt_detgamma(k, j, i) * d_fac > u(IDN, k, j, i));
+
+        if (!ret)
+          break;
+      }
+
+  return ret;
+}
+#endif // FLUID_ENABLED
+
+
 //
 // :D
 //

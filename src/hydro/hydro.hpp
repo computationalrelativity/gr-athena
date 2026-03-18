@@ -70,11 +70,7 @@ class Hydro
   // Riemann solver method (runtime selection)
   RSolverMethod rsolver_method_;
 
-  // for reconstruction failure, should both states be floored?
-  bool floor_both_states   = false;
   bool flux_reconstruction = false;
-  bool split_lr_fallback   = false;
-  bool flux_table_limiter  = false;
 
   struct
   {
@@ -301,10 +297,6 @@ class Hydro
   void LimitFluxes(AA& mask_theta, AA (&hflux)[3], AA (&sflux)[3]);
 
   void EnforceFloorsLimits(AA& u, AA& s, const int num_enlarge_layer);
-
-  bool ConservedDensityWithinFloorThreshold(AA& u,
-                                            const Real undensitized_dfloor_fac,
-                                            const int num_enlarge_layer);
 
   // BD: TODO- To remove
   void CalculateFluxes_FluxReconstruction(AA& w,
