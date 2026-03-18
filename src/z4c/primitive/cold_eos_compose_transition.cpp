@@ -68,10 +68,6 @@ Real ColdEOSCompOSETransition::Enthalpy(Real n) {
   return (Pressure(n) + Energy(n))/n;
 }
 
-Real ColdEOSCompOSETransition::Entropy(Real n) {
-  return eval_at_n<0>(ECENT, n);
-}
-
 Real ColdEOSCompOSETransition::DensityFromPressure(Real P) {
   return eval_at_general(ECLOGP, ECLOGN, P);
 }

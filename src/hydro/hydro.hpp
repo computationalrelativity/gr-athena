@@ -153,6 +153,7 @@ class Hydro {
 #if EOS_POLICY_CODE == 4
       "hydro.aux.heating_rate",
       "hydro.aux.transition_w",
+      "hydro.aux.X_err",
 #endif
     };
   };

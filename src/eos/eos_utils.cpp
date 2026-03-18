@@ -595,7 +595,6 @@ void EquationOfState::NuclearBinding(
   }
   const Real T = GetEOS().GetTemperatureFromP(n, P, Y);
 
-  // Get current expansion timescale tau = r/|v|
   const Real x = pco->x1v(i);
   const Real y = pco->x2v(j);
   const Real z = pco->x3v(k);
@@ -606,34 +605,37 @@ void EquationOfState::NuclearBinding(
   const Real gyz = gsc.gamma_dd_(1,2,i);
   const Real gzz = gsc.gamma_dd_(2, 2, i);
 
-
   const Real r = std::sqrt(gxx * SQR(x) + gyy * SQR(y) + gzz * SQR(z) + 2.0*(gxy*x*y + gxz*x*z + gyz*y*z));
-
-  const Real v_abs = std::sqrt(
-    SQR(prim(IVX,k,j,i)) * gxx +
-    SQR(prim(IVY,k,j,i)) * gyy +
-    SQR(prim(IVZ,k,j,i)) * gzz +
-    2.0*(prim(IVX,k,j,i)*prim(IVY,k,j,i)*gxy +
-         prim(IVX,k,j,i)*prim(IVZ,k,j,i)*gxz +
-         prim(IVY,k,j,i)*prim(IVZ,k,j,i)*gyz)
-  );
   const Real v_r = (prim(IVX,k,j,i)*x + prim(IVY,k,j,i)*y + prim(IVZ,k,j,i)*z)/r;
 
-  //const Real cur_tau = (v_r > 0) ? r/v_abs : 0.0;
-  const Real cur_tau = (v_abs > 0) ? r/v_abs : 0.0;
-  const Real cur_ent = GetEOS().GetEntropyPerBaryon(n, T, Y);;
   const Real cur_eb = GetEOS().GetNSEBindingEnergy(n, T, Y);
 
-  // Update scalar of past Ye entr tau and freeze out time
+  // Update scalars
   const Real w = GetEOS().TransitionFactor(n, T);
   hyd_der_ms(IX_TRANS, k, j, i) = w;
-  // TODO do something proper for Abar
-  prim_scalar(SCXN,k,j,i) = GetEOS().GetYn(n, T, Y);
-  prim_scalar(SCXP,k,j,i) = GetEOS().GetYp(n, T, Y);
-  prim_scalar(SCXA,k,j,i) = GetEOS().GetYa(n, T, Y)*4.0;
-  prim_scalar(SCAH,k,j,i) = GetEOS().GetAN(n, T, Y);
-  prim_scalar(SCXH,k,j,i) = GetEOS().GetYh(n, T, Y)*prim_scalar(SCAH,k,j,i);
-  prim_scalar(SCEB,k,j,i) = (1.0 - w) * Y[SCEB] + w * cur_eb;
+  if (w > 0.0) {
+    prim_scalar(SCXN,k,j,i) = GetEOS().GetYn(n, T, Y);
+    prim_scalar(SCXP,k,j,i) = GetEOS().GetYp(n, T, Y);
+    prim_scalar(SCXA,k,j,i) = GetEOS().GetYa(n, T, Y);
+    prim_scalar(SCAH,k,j,i) = GetEOS().GetAN(n, T, Y);
+    prim_scalar(SCXH,k,j,i) = GetEOS().GetYh(n, T, Y);
+    prim_scalar(SCEB,k,j,i) = (1.0 - w) * Y[SCEB] + w * cur_eb;
+  }
+
+
+  Real sumX = prim_scalar(SCXN,k,j,i) + prim_scalar(SCXP,k,j,i) + prim_scalar(SCXA,k,j,i) + prim_scalar(SCXH,k,j,i);
+  if ((std::abs(sumX - 1.0) > 1e-2) and (w > 0.99)) {
+    printf("Error in composition: X_n + X_p + X_a + X_h = %e\n", sumX);
+    printf("  n=%e, T=%e, Y_e=%e w=%e\n", n, T, Y[SCYE], w);
+    printf("  X_n=%e X_p=%e X_a=%e X_h=%e A_h=%e\n", prim_scalar(SCXN, k, j, i),
+           prim_scalar(SCXP, k, j, i), prim_scalar(SCXA, k, j, i),
+           prim_scalar(SCXH, k, j, i), prim_scalar(SCAH,k,j,i));
+  }
+  // renormalize to 1.0
+  prim_scalar(SCXN,k,j,i) /= sumX;
+  prim_scalar(SCXP,k,j,i) /= sumX;
+  prim_scalar(SCXA,k,j,i) /= sumX;
+  prim_scalar(SCXH,k,j,i) /= sumX;
 
   const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
 

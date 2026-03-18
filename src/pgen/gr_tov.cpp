@@ -1153,9 +1153,11 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #if USETM
   Real rho_atm = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024*(FLT_MIN)));
   Real Y_atm[MAX_SPECIES] = {0.0};
-#if EOS_POLICY_CODE == 2 || EOS_POLICY_CODE == 4
-  Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");
-#endif
+  for (int i = 0; i < NSCALARS; i++) {
+    std::stringstream ss;
+    ss << "y" << i << "_atmosphere";
+    Y_atm[i] = pin->GetReal("hydro", ss.str().c_str());
+  }
 #endif
 
   // Star mass & radius
@@ -1301,13 +1303,25 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
 #if NSCALARS > 0
           prim_scalar(0,i) = ceos->GetY(w_rho_(i), 0); // Ye
 #endif
-#if EOS_POLICY_CODE == 4
+#if defined(USE_TRANSITION_EOS)
           prim_scalar(SCXN,i) = ceos->GetY(w_rho_(i), SCXN); // free neutron fraction
           prim_scalar(SCXP,i) = ceos->GetY(w_rho_(i), SCXP); // free proton fraction
           prim_scalar(SCXA,i) = ceos->GetY(w_rho_(i), SCXA); // alpha fraction
           prim_scalar(SCXH,i) = ceos->GetY(w_rho_(i), SCXH); // heavy nuclei fraction
           prim_scalar(SCAH,i) = ceos->GetY(w_rho_(i), SCAH); // average heavy nuclei mass number
-          prim_scalar(SCEB,i) = 0.0; // binding energy ber baryon mass relative to Fe56 should be set by eos durign runtime
+          prim_scalar(SCEB,i) = 0.0; // binding energy ber baryon mass relative to Fe56 should be set by eos during runtime
+          Real sumX = prim_scalar(SCXN,i) + prim_scalar(SCXP,i) + prim_scalar(SCXA,i) + prim_scalar(SCXH,i);
+          if (std::abs(sumX - 1.0) > 1e-2) {
+            printf("Warning: composition in tov pgen does not add to 1\n");
+            printf("  X_n + X_p + X_a + X_h = %e at rho=%e\n", sumX, w_rho_(i));
+            printf("  X_n=%e X_p=%e X_a=%e X_h=%e A_h=%e\n",
+                   prim_scalar(SCXN,i), prim_scalar(SCXP,i), prim_scalar(SCXA,i), prim_scalar(SCXH,i), prim_scalar(SCAH,i));
+          }
+          // renormalize to 1.0
+          prim_scalar(SCXN,i) /= sumX;
+          prim_scalar(SCXP,i) /= sumX;
+          prim_scalar(SCXA,i) /= sumX;
+          prim_scalar(SCXH,i) /= sumX;
 #endif
 #else
           w_p_(i) = k_adi*pow(w_rho_(i),gamma_adi);
@@ -1343,19 +1357,14 @@ void TOV_populate(MeshBlock *pmb, ParameterInput *pin)
         else
         {
           // Let the EOS decide how to set the atmosphere on the exterior
-#if USETM
-          w_rho_(i) = ceos->GetDensityFloor();
-          w_p_(i)   = ceos->GetPressure(w_rho_(i));
           up_r      = 0.0;
 #if NSCALARS > 0
           for (int l=0; l<NSCALARS; ++l) {
             prim_scalar(l,i) = Y_atm[l];
           }
 #endif
-#else
-          w_rho_(i) = 0.0; //rho_atm;
-          w_p_(i) = 0.0; //k_adi*pow(w_rho_(i),gamma_adi);
-#endif
+          w_rho_(i) = 0.0;
+          w_p_(i) = 0.0;
         }
 
         w_util_u_(0,i) = up_r*sinth*cosphi;

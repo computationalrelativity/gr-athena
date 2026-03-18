@@ -28,10 +28,9 @@ class ColdEOSTransition {
       ECLOGP  = 1,  //! log (pressure / 1 MeV fm^-3)
       ECLOGE  = 2,  //! log (total energy density / 1 MeV fm^-3)
       ECDPDN  = 3,  //! Derivative of pressure wrt. number density
-      ECENT   = 4,  //! entropy per baryon [kb]
-      ECH     = 5,  //! enthapy per baryon [MeV]
-      ECY     = 6,  //! Passive scalars, available are ECY + {SCYE, SCXN, SCXP, SCXA, SCXH, SCAH}
-      ECNVARS = 12
+      ECH     = 4,  //! enthapy per baryon [MeV]
+      ECY     = 5,  //! Passive scalars, available are ECY + {SCYE, SCXN, SCXP, SCXA, SCXH, SCAH}
+      ECNVARS = 11
     };
 
   protected:
@@ -55,9 +54,6 @@ class ColdEOSTransition {
 
     /// Calculate the abundance of species iy from the number density
     Real Y(Real n, int iy);
-
-    /// Calculate the specific entropy from the number density
-    Real Entropy(Real n);
 
     /// Calculate the specific enthalpy from the number density
     Real Enthalpy(Real n);

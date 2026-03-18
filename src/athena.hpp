@@ -183,7 +183,8 @@ enum HydroDerivedIndex {
 #if EOS_POLICY_CODE == 4
   IX_HEAT=10, // heating rate per unit volume (erg/cm^3/s)
   IX_TRANS=11, // eos transition factor
-  NDRV_HYDRO=12};
+  IX_XERR=12, // mass fraction error (sum of mass fractions - 1)
+  NDRV_HYDRO=13};
 #else
   NDRV_HYDRO=10};
 #endif

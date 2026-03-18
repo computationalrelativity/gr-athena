@@ -29,10 +29,23 @@ using namespace std;
 EOSHelmholtz::EOSHelmholtz():
   m_id_log_ne(numeric_limits<Real>::quiet_NaN()),
   m_id_log_t(numeric_limits<Real>::quiet_NaN()),
-  m_nn(0), m_nt(0),
-  m_min_h(numeric_limits<Real>::max()) {
+  m_nn(0), m_nt(0) {
   n_species = 1;
   eos_units = &Nuclear;
+
+  min_Y[SCYE] = 0.0; // will be overwritten by ReadTableFromFile
+  min_Y[SCXN] = 0.0;
+  min_Y[SCXP] = 0.0;
+  min_Y[SCXA] = 0.0;
+  min_Y[SCXH] = 0.0;
+  min_Y[SCAH] = 1.0;
+
+  max_Y[SCYE] = 1.0; // will be overwritten by ReadTableFromFile
+  max_Y[SCXN] = 1.0;
+  max_Y[SCXP] = 1.0;
+  max_Y[SCXA] = 1.0;
+  max_Y[SCXH] = 1.0;
+  max_Y[SCAH] = 500.0;
 }
 
 EOSHelmholtz::~EOSHelmholtz() {
@@ -49,8 +62,6 @@ Real EOSHelmholtz::sm_id_log_t = numeric_limits<Real>::quiet_NaN();
 
 int EOSHelmholtz::sm_nn = 0;
 int EOSHelmholtz::sm_nt = 0;
-
-Real EOSHelmholtz::sm_min_h = numeric_limits<Real>::max();
 
 Real EOSHelmholtz::s_max_n = numeric_limits<Real>::quiet_NaN();
 Real EOSHelmholtz::s_min_n = numeric_limits<Real>::quiet_NaN();
@@ -299,18 +310,6 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
       delete[] scratch;
       H5Fclose(file_id);
 
-      // Compute minimum enthalpy
-      // -------------------------------------------------------------------------
-      for (int in = 0; in < m_nn; ++in) {
-        Real const ne = exp(m_log_ne[in]);
-        for (int it = 0; it < m_nt; ++it) {
-          Real const t = exp(m_log_t[it]);
-          Real Y[MAX_SPECIES] = {0};
-          Y[SCYE] = 0.5; // the minimum enthalpy is achieved at Ye=0.5 for the Helmholtz EOS
-          m_min_h = min(m_min_h, Enthalpy(ne, t, Y));
-        }
-      }
-
       // Now that we have read everything locally, we must populate
       // the aux static variables to share this data with other threads
       sm_id_log_ne = m_id_log_ne;
@@ -319,14 +318,12 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
       sm_nn = m_nn;
       sm_nt = m_nt;
 
-      sm_min_h = m_min_h;
-
       s_max_n = max_n;
       s_min_n = min_n;
       s_max_T = max_T;
       s_min_T = min_T;
 
-    } // if (sm_initialized==false)
+    } // if (m_initialized==false)
   } // omp critical (EOSHelmholtz_ReadTable)
 
   // Disseminate applicable static variables to local memory
@@ -336,28 +333,16 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
   m_nn = sm_nn;
   m_nt = sm_nt;
 
-  m_min_h = sm_min_h;
-
-  max_n    = s_max_n;
-  min_n    = s_min_n;
-  max_T    = s_max_T;
-  min_T    = s_min_T;
+  max_n = s_max_n;
+  min_n = s_min_n;
+  max_T = s_max_T;
+  min_T = s_min_T;
   max_Y[SCYE] = max_Ye;
   min_Y[SCYE] = min_Ye;
 
 }
 
 void EOSHelmholtz::SetBaryonMass(Real new_mb) {
-  Real mb_ratio = new_mb/mb;
-  for (int in = 0; in < m_nn; ++in) {
-    Real ln = m_log_ne[in];
-    for (int it = 0; it < m_nt; ++it) {
-      Real lT = m_log_t[it];
-      Real eps = m_table[index(ECEPS, in, it)];
-      Real new_eps = mb_ratio*(eps + 1.0) - 1.0;
-      m_table[index(ECEPS, in, it)] = new_eps;
-    }
-  }
   mb = new_mb;
 }
 
@@ -391,6 +376,7 @@ Real EOSHelmholtz::temperature_from_var(int iv, Real var, Real n, Real *Y) const
     Real flo_ = f(0);
     Real fhi_ = f(m_nt-1);
 
+    std::cout<<"EOSHelmholtz::temperature_from_var failed to bracket root."<<std::endl;
     std::cout<<"iv: "<<iv<<std::endl;
     std::cout<<"var: "<<var<<std::endl;
     std::cout<<"n: "<<n<<std::endl;
@@ -446,18 +432,18 @@ Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real *Y) const 
       Real Yh = Y[SCXH]/Y[SCAH];
       Real mbar = mb*(1+Y[SCEB]);
       Real mh = (mbar - Yn*mn - Yp*mp - Ya*ma) / Yh;
-      Real sn = Yn * (2.5 - log(n*Yn/2*pow(sac_const/(mn*T), 1.5)));
-      Real sp = Yp * (2.5 - log(n*Yp/2*pow(sac_const/(mp*T), 1.5)));
-      Real sa = Ya * (2.5 - log(n*Ya*pow(sac_const/(mp*T), 1.5)));
-      Real sh = Yh * (2.5 - log(n*Yh*pow(sac_const/(mh*T), 1.5)));
+      Real sn = Yn * (2.5 - log(n*Yn/g_n*pow(sac_const/(mn*T), 1.5)));
+      Real sp = Yp * (2.5 - log(n*Yp/g_n*pow(sac_const/(mp*T), 1.5)));
+      Real sa = Ya * (2.5 - log(n*Ya/g_a*pow(sac_const/(ma*T), 1.5)));
+      Real sh = Yh * (2.5 - log(n*Yh/g_h*pow(sac_const/(mh*T), 1.5)));
       return var + srad + sn + sp + sa + sh;
      }
-     // Real sion = (2.5 + y) / Abar ;
     case ECEPS:
     {
-      Real erad = asol * T*T*T*T / n;
-      Real eion = 1.5 * T * inverse_abar(Y);
-      return var + erad + eion;
+      Real erad = asol * T*T*T*T / (n*mb);
+      Real eion = 1.5 * T * inverse_abar(Y) / mb;
+      Real ebind = Y[SCEB];
+      return var + erad + eion + ebind;
     }
     case ECDEPSDT:
     {

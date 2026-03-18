@@ -218,6 +218,13 @@ Real EOSCompOSE::MaximumEnergy(Real n, Real *Y) {
   return Energy(n, max_T, Y);
 }
 
+Real EOSCompOSE::MinimumSpecificInternalEnergy(Real n, Real *Y) {
+  return MaximumEnergy(n, Y)/(mb*n) - 1.0;
+}
+
+Real EOSCompOSE::MaximumSpecificInternalEnergy(Real n, Real *Y) {
+  return MaximumEnergy(n, Y)/(mb*n) - 1.0;
+}
 
 Real EOSCompOSE::MinimumEntropy(Real n, Real *Y) {
   return Entropy(n, min_T, Y);
@@ -356,7 +363,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       for (int in = 0; in < m_nn; ++in) {
       for (int iy = 0; iy < m_ny; ++iy) {
       for (int it = 0; it < m_nt; ++it) {
-        m_table[index(ECYN, in, iy, it)] = scratch[index(0, in, iy, it)];
+        m_table[index(ECYN, in, iy, it)] = max(0.0, min(scratch[index(0, in, iy, it)], 1.0));
       }}}
 
       ierr = H5LTread_dataset_double(file_id, "Y[p]", scratch);
@@ -364,15 +371,53 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       for (int in = 0; in < m_nn; ++in) {
       for (int iy = 0; iy < m_ny; ++iy) {
       for (int it = 0; it < m_nt; ++it) {
-        m_table[index(ECYP, in, iy, it)] = scratch[index(0, in, iy, it)];
+        m_table[index(ECYP, in, iy, it)] = max(0.0, min(scratch[index(0, in, iy, it)], 1.0));
       }}}
+
+      ierr = H5LTread_dataset_double(file_id, "Y[H2]", scratch);
+      if (ierr == 0) {
+        for (int in = 0; in < m_nn; ++in) {
+        for (int iy = 0; iy < m_ny; ++iy) {
+        for (int it = 0; it < m_nt; ++it) {
+          // convert from abundance to mass fraction
+          m_table[index(ECYP, in, iy, it)] += max(0.0, min(scratch[index(0, in, iy, it)]*2.0, 1.0));
+        }}}
+      }
+
+      ierr = H5LTread_dataset_double(file_id, "Y[H3]", scratch);
+      if (ierr == 0) {
+        for (int in = 0; in < m_nn; ++in) {
+        for (int iy = 0; iy < m_ny; ++iy) {
+        for (int it = 0; it < m_nt; ++it) {
+          // convert from abundance to mass fraction
+          m_table[index(ECYP, in, iy, it)] += max(0.0, min(scratch[index(0, in, iy, it)]*3.0, 1.0));
+        }}}
+      }
+
+      ierr = H5LTread_dataset_double(file_id, "Y[He4]", scratch);
+        MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        m_table[index(ECYA, in, iy, it)] = max(0.0, min(scratch[index(0, in, iy, it)]*4.0, 1.0));
+      }}}
+
+      ierr = H5LTread_dataset_double(file_id, "Y[He3]", scratch);
+      if (ierr == 0) {
+        for (int in = 0; in < m_nn; ++in) {
+        for (int iy = 0; iy < m_ny; ++iy) {
+        for (int it = 0; it < m_nt; ++it) {
+          // convert from abundance to mass fraction
+          m_table[index(ECYA, in, iy, it)] += max(0.0, min(scratch[index(0, in, iy, it)]*3.0, 1.0));
+        }}}
+      }
 
       ierr = H5LTread_dataset_double(file_id, "A[N]", scratch);
         MYH5CHECK(ierr);
       for (int in = 0; in < m_nn; ++in) {
       for (int iy = 0; iy < m_ny; ++iy) {
       for (int it = 0; it < m_nt; ++it) {
-        m_table[index(ECAN, in, iy, it)] = scratch[index(0, in, iy, it)];
+        m_table[index(ECAN, in, iy, it)] = max(1.0, scratch[index(0, in, iy, it)]);
       }}}
 
       ierr = H5LTread_dataset_double(file_id, "Z[N]", scratch);
@@ -380,7 +425,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       for (int in = 0; in < m_nn; ++in) {
       for (int iy = 0; iy < m_ny; ++iy) {
       for (int it = 0; it < m_nt; ++it) {
-        m_table[index(ECZN, in, iy, it)] = scratch[index(0, in, iy, it)];
+        m_table[index(ECZN, in, iy, it)] = max(0.0, scratch[index(0, in, iy, it)]);
       }}}
 
       // The following requires Abar?:
@@ -393,7 +438,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
         const Real YN = scratch[index(0, in, iy, it)];
         const Real AN = m_table[index(ECAN, in, iy, it)];
 
-        m_table[index(ECYH, in, iy, it)] = AN * YN;
+        m_table[index(ECYH, in, iy, it)] = max(0.0, min(AN * YN, 1.0));
       }}}
 
       // couple of final constants
@@ -406,6 +451,24 @@ void EOSCompOSE::ReadTableFromFile(std::string fname) {
       ierr = H5LTread_dataset_double(file_id, "mp", scratch);
         MYH5CHECK(ierr);
       mp = scratch[0];
+
+      // normalize sum of mass fractions to 1
+      for (int in = 0; in < m_nn; ++in) {
+      for (int iy = 0; iy < m_ny; ++iy) {
+      for (int it = 0; it < m_nt; ++it) {
+        Real SumX = m_table[index(ECYN, in, iy, it)] +
+                    m_table[index(ECYP, in, iy, it)] +
+                    m_table[index(ECYA, in, iy, it)] +
+                    m_table[index(ECYH, in, iy, it)];
+        if ((abs(SumX - 1.0) > 1e-2) and (Globals::my_rank == 0)) {
+          printf("Warning: sum of mass fractions at (in, iy, it)=(%d, %d, %d) is %e, normalizing to 1\n", in, iy, it, SumX);
+        }
+        m_table[index(ECYN, in, iy, it)] /= SumX;
+        m_table[index(ECYP, in, iy, it)] /= SumX;
+        m_table[index(ECYA, in, iy, it)] /= SumX;
+        m_table[index(ECYH, in, iy, it)] /= SumX;
+      }}}
+
 
       // Mark table as read
       m_initialized = true;
@@ -506,6 +569,7 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const {
     Real flo_ = f(0);
     Real fhi_ = f(m_nt-1);
 
+    std::cout<<"EOSCompOSE::temperature_from_var failed to bracket root."<<std::endl;
     std::cout<<"iv: "<<iv<<std::endl;
     std::cout<<"var: "<<var<<std::endl;
     std::cout<<"n: "<<n<<std::endl;

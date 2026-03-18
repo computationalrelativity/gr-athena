@@ -125,25 +125,20 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   std::string compose_table = pin->GetString("hydro", "table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
   std::string heating_table = pin->GetString("hydro", "heating_table");
+  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 930.4117); // Fe56 mass/baryon in MeV
+  Real trans_n_start = pin->GetReal("hydro", "trans_n_start"); // upper density border of transition region
+  Real trans_n_end = pin->GetReal("hydro", "trans_n_end"); // lower density border of transition region
+  Real trans_T_start = pin->GetReal("hydro", "trans_t_start"); // upper temperature border of transition region
+  Real trans_T_end = pin->GetReal("hydro", "trans_t_end"); // lower temperature border of transition region
+  Real helm_n_max = pin->GetOrAddReal("hydro", "helm_n_max", 0.0); // always use compose above this density
+  Real helm_T_max = pin->GetOrAddReal("hydro", "helm_T_max", 0.0); // always use compose above this temperature
 
-  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 930.411832325152); // Fe56 mass/baryon in MeV
-
-  Real trans_n_start = pin->GetOrAddReal("hydro", "trans_n_start", 0.0);
-  Real trans_n_end = pin->GetOrAddReal("hydro", "trans_n_end", 0.0);
-  Real trans_T_start = pin->GetOrAddReal("hydro", "trans_t_start", 0.0);
-  Real trans_T_end = pin->GetOrAddReal("hydro", "trans_t_end", 0.0);
-
-  if (trans_n_start >= 0.0 &&
-      trans_n_end >= 0.0 &&
-      trans_T_start >= 0.0 &&
-      trans_T_end >= 0.0) {
-    if (not eos.IsInitialized())
-      eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
-  }
-
+  eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
+  if (helm_n_max > 0.0) eos.SetHelmholtzNMax(helm_n_max);
+  if (helm_T_max > 0.0) eos.SetHelmholtzTMax(helm_T_max);
   eos.InitializeTables(compose_table, helmholtz_table, heating_table, baryon_mass);
-
   Real mb = eos.GetBaryonMass();
+  // transfer eos boundaries to ResetFloorTransition
   Real ld_n, hd_n, ld_t, hd_t;
   eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
   eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
@@ -214,7 +209,7 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY> *eos,
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
 
 #if defined(USE_TRANSITION_EOS)
-  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 929.4); // slightly below Fe56 mass/baryon in MeV
+  Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 930.4117); // slightly below Fe56 mass/baryon in MeV
   eos->UpdateBaryonMass(baryon_mass);
 #endif
 
@@ -538,6 +533,8 @@ void EquationOfState::ConservedToPrimitive(
 
 #if defined(USE_TRANSITION_EOS)
       NuclearBinding(prim, prim_scalar, pco, gsc, pmy_block_->phydro->derived_ms, k, j, i);
+      ph->derived_ms(IX_XERR,k,j,i) = prim_scalar(SCXN,k,j,i) + prim_scalar(SCXP,k,j,i) +
+                                      prim_scalar(SCXA,k,j,i) + prim_scalar(SCXH,k,j,i) - 1;
 #endif // USE_TRANSITION_EOS
     }
 

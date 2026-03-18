@@ -2,6 +2,7 @@
 //  \brief Implementation of the ResetFloorTransition policy
 
 #include <cmath>
+#include <algorithm>
 
 #include "reset_floor_transition.hpp"
 #include "ps_error.hpp"
@@ -23,10 +24,11 @@ ResetFloorTransition::ResetFloorTransition() {
 
 /// Floor for the primitive variables
 bool ResetFloorTransition::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species) {
+  bool adjusted = false;
+
   if ((n < hd_n_min) and (T > ld_t_max)) {
     n = hd_n_min;
-    printf("Reset at low n, high T: n=%.5e, T=%.5e\n", n, T);
-    return true;
+    adjusted = true;
   }
   if (n < n_atm*n_threshold) {
     n = n_atm;
@@ -37,26 +39,27 @@ bool ResetFloorTransition::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, 
     for (int i = 0; i < n_species; i++) {
       Y[i] = Y_atm[i];
     }
-    // printf("Reset at atm n: n=%.5e, T=%.5e\n", n, T);
-    return true;
+    adjusted = true;
   }
   if ((T < hd_t_min) and (n > ld_n_max)) {
     T = hd_t_min;
-    printf("Reset at high n, low T: n=%.5e, T=%.5e\n", n, T);
-    return true;
+    adjusted = true;
   }
   if (T < T_atm) {
     T = T_atm;
     // printf("Reset at atm T: n=%.5e, T=%.5e\n", n, T);
-    return true;
+    adjusted = true;
   }
-  return false;
+  return adjusted;
 }
 
 /// Floor for the conserved variables
 /// FIXME: Take a closer look at how the tau floor is performed.
 bool ResetFloorTransition::ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *Y, Real D_floor,
       Real tau_floor, Real tau_abs_floor, int n_species) {
+
+  bool adjusted = false;
+
   if (D < D_floor*n_threshold) {
     D = D_floor;
     Sd[0] = 0.0;
@@ -67,14 +70,14 @@ bool ResetFloorTransition::ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *
       Y[i] = Y_atm[i];
     }
     // printf("Reset conserved at atm D: D=%.5e, tau=%.5e\n", D, tau);
-    return true;
+    adjusted = true;
   }
   else if (tau < tau_floor) {
     tau = tau_floor;
     // printf("Reset conserved at tau floor: D=%.5e, tau=%.5e tau_floor=%.5e\n", D, tau, tau_floor);
-    return true;
+    adjusted = true;
   }
-  return false;
+  return adjusted;
 }
 
 /// Reset excess magnetization

@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <string>
 
+#include "../../globals.hpp"
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
 
@@ -111,6 +112,12 @@ class EOSCompOSE : public EOSPolicyInterface {
 
     /// Get the maximum energy at a given density and composition
     Real MaximumEnergy(Real n, Real *Y);
+
+    /// Get the minimum specific internal energy at a given density and composition
+    Real MinimumSpecificInternalEnergy(Real n, Real *Y);
+
+    /// Get the maximum specific internal energy at a given density and composition
+    Real MaximumSpecificInternalEnergy(Real n, Real *Y);
 
     /// Get the minimum entropy per baryon at a given density and composition
     Real MinimumEntropy(Real n, Real *Y);

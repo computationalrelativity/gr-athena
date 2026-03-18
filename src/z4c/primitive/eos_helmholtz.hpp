@@ -146,7 +146,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
 
   private:
     inline Real inverse_abar(Real *Y) const {
-      return Y[SCXN] + Y[SCXP] + Y[SCXA]/4 + Y[SCXH]/Y[SCAH];
+      return Y[SCXN] + Y[SCXP] + Y[SCXA]/4 + ((Y[SCXH] > 0.0) ? Y[SCXH]/Y[SCAH]: 0.0);
     }
 
     /// Low level function, not intended for outside use
@@ -169,7 +169,7 @@ class EOSHelmholtz : public EOSPolicyInterface {
     // Table size
     int m_nn, m_nt;
     // Minimum enthalpy per baryon
-    Real m_min_h;
+    const Real m_min_h = 0.0;
 
     // Table storage, care should be made to store these data on the GPU later
     // Static pointers used to share access to single instance of table in memory (per MPI process)
@@ -184,21 +184,24 @@ class EOSHelmholtz : public EOSPolicyInterface {
     // variables from EOSHelmholtz
     static Real sm_id_log_ne, sm_id_log_t;
     static int sm_nn, sm_nt;
-    static Real sm_min_h;
 
     // variables from EOSPolicy
     static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T;
     // these correspond to defined but unused vars in EOSPolicy
     // static Real s_max_P, s_min_P, s_max_e, s_min_e;
-    const Real hbarc = 197.3269804; // MeV fm
+    static constexpr Real hbarc = 197.3269804; // MeV fm
     // const Real asol = 8.563456312967042e-08; // pi**2/(15*hbarc^3) (MeV fm)^-3
-    const Real asol = M_PI*M_PI/(15.0*hbarc*hbarc*hbarc); // (MeV fm)^-3
+    static constexpr Real asol = M_PI*M_PI/(15.0*hbarc*hbarc*hbarc); // (MeV fm)^-3
     // const Real sac_const = 244654.27090035815; // h^2/(2*pi) in (MeV fm)^2
-    const Real sac_const = hbarc*hbarc*2.0*M_PI; // (MeV fm)^2
-    const Real me = 0.5109989461; // MeV
-    const Real mn = 939.5654133; // MeV
-    const Real mp = 938.2720813; // MeV
-    const Real ma = 3727.379378; // MeV
+    static constexpr Real sac_const = hbarc*hbarc*2.0*M_PI; // (MeV fm)^2
+    static constexpr Real me = 0.5109989461; // MeV
+    static constexpr Real mn = 939.5654133; // MeV
+    static constexpr Real mp = 938.2720813; // MeV
+    static constexpr Real ma = 3727.379378; // MeV
+    static constexpr int g_n = 2; // neutron spin degeneracy
+    static constexpr int g_p = 2; // proton spin degeneracy
+    static constexpr int g_a = 1; // alpha particle spin degeneracy set to 1 as in Just+ 2023
+    static constexpr int g_h = 1; // heavy nuclei spin degeneracy set to 1 as in Just+ 2023
 };
 
 } // namespace Primitive

@@ -67,10 +67,6 @@ Real ColdEOSTransition::Enthalpy(Real n) {
   return (Pressure(n) + Energy(n))/n;
 }
 
-Real ColdEOSTransition::Entropy(Real n) {
-  return eval_at_n<0>(ECENT, n);
-}
-
 Real ColdEOSTransition::DensityFromPressure(Real P) {
   return eval_at_general(ECLOGP, ECLOGN, P);
 }
@@ -151,10 +147,6 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
       log(scratch[in]) + m_table[index(ECLOGN, in)];
   }
 
-  ierr = H5LTread_dataset_double(grp_id, "Q2", scratch);
-    MYH5CHECK(ierr);
-  copy(&scratch[0], &scratch[m_np], &m_table[index(ECENT, 0)]);
-
   ierr = H5LTread_dataset_double(grp_id, "Q7", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
@@ -171,33 +163,58 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   ierr = H5LTread_dataset_double(grp_id, "Y[n]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCXN, in)] = scratch[in];
+    m_table[index(ECY+SCXN, in)] = max(0.0, min(scratch[in], 1.0));
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[p]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCXP, in)] = scratch[in];
+    m_table[index(ECY+SCXP, in)] = max(0.0, min(scratch[in], 1.0));
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[H2]", scratch);
+  if (ierr == 0) {
+    for (int in = 0; in < m_np; ++in) {
+      // convert from abundance to mass fraction
+      m_table[index(ECY+SCXP, in)] += max(0.0, min(scratch[in]*2.0, 1.0));
+    }
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[H3]", scratch);
+  if (ierr == 0) {
+    for (int in = 0; in < m_np; ++in) {
+      // convert from abundance to mass fraction
+      m_table[index(ECY+SCXP, in)] += max(0.0, min(scratch[in]*3.0, 1.0));
+    }
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[He4]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
     // convert from abundance to mass fraction
-    m_table[index(ECY+SCXA, in)] = scratch[in]*4.0;
+    m_table[index(ECY+SCXA, in)] = max(0.0, min(scratch[in]*4.0, 1.0));
+  }
+
+  ierr = H5LTread_dataset_double(grp_id, "Y[He3]", scratch);
+  if (ierr == 0) {
+    for (int in = 0; in < m_np; ++in) {
+      // convert from abundance to mass fraction
+      m_table[index(ECY+SCXA, in)] += max(0.0, min(scratch[in]*3.0, 1.0));
+    }
   }
 
   ierr = H5LTread_dataset_double(grp_id, "A[N]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCAH, in)] = scratch[in];
+    m_table[index(ECY+SCAH, in)] = max(1.0, scratch[in]);
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[N]", scratch);
     MYH5CHECK(ierr);
   for (int in = 0; in < m_np; ++in) {
     // convert from abundance to mass fraction
-    m_table[index(ECY + SCXH, in)] = scratch[in] * m_table[index(ECY + SCAH, in)];
+    Real Xh = scratch[in] * m_table[index(ECY + SCAH, in)];
+    m_table[index(ECY + SCXH, in)] = max(0.0, min(Xh, 1.0));
   }
 
   //  fill enthalpy
@@ -209,6 +226,18 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   D0_x_2(&m_table[index(ECLOGP, 0)], &m_table[index(ECLOGN, 0)], m_np, &m_table[index(ECDPDN, 0)]);
   for (int in = 1; in < m_np; ++in) {
     m_table[index(ECDPDN, in)] *= exp(m_table[index(ECLOGP, in)] - m_table[index(ECLOGN, in)]);
+  }
+
+  // normalize sum of mass fractions to 1
+  for (int in = 1; in < m_np; ++in) {
+    Real SumX = m_table[index(ECY+SCXN, in)] + m_table[index(ECY+SCXP, in)] + m_table[index(ECY+SCXA, in)] + m_table[index(ECY+SCXH, in)];
+    if ((abs(SumX - 1.0) > 1e-2) and (Globals::my_rank == 0)) {
+      printf("Warning: sum of mass fractions at index %d is %e, normalizing to 1\n", in, SumX);
+    }
+    m_table[index(ECY+SCXN, in)] /= SumX;
+    m_table[index(ECY+SCXP, in)] /= SumX;
+    m_table[index(ECY+SCXA, in)] /= SumX;
+    m_table[index(ECY+SCXH, in)] /= SumX;
   }
 
   // Cleanup
