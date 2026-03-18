@@ -24,10 +24,65 @@
 #include "comm_spec.hpp"
 #include "neighbor_connectivity.hpp"
 
+#ifdef DBG_FUSED_COMM
+#include <atomic>
+#ifdef MPI_PARALLEL
+#include <mpi.h>
+#endif
+#endif
+
 // forward declarations
 class MeshBlock;
 
 namespace comm {
+
+#ifdef DBG_FUSED_COMM
+//----------------------------------------------------------------------------------------
+//! \struct FusedGroupState
+//  \brief Per-group fused communication buffers and MPI state.
+//
+//  When active, all channels in the group pack sequentially into a single contiguous
+//  buffer per neighbor, and a single MPI message is sent/received instead of one per
+//  channel.  Same-rank neighbors use zero-copy: the sender packs directly into the
+//  target's recv_buf, then sets recv_flag atomically.
+
+struct FusedGroupState {
+  // Per-neighbor fused send/recv buffers.  nullptr for same-rank (zero-copy).
+  Real *send_buf[kMaxNeighbor]{};
+  Real *recv_buf[kMaxNeighbor]{};
+
+  // Per-neighbor allocation size (max over all possible send sizes).
+  int buf_alloc_size[kMaxNeighbor]{};
+
+  // Per-neighbor status flags.  Atomic for same-rank zero-copy concurrency.
+  std::atomic<BoundaryStatus> recv_flag[kMaxNeighbor];
+  std::atomic<BoundaryStatus> send_flag[kMaxNeighbor];
+
+#ifdef MPI_PARALLEL
+  MPI_Request req_send[kMaxNeighbor];
+  MPI_Request req_recv[kMaxNeighbor];
+#endif
+
+  // Zero-copy target: for same-rank neighbors, points to the target block's
+  // FusedGroupState so the sender can pack directly into target->recv_buf[targetid].
+  FusedGroupState *target_fused[kMaxNeighbor]{};
+
+  // True if this group has >= 2 channels and fused comm is worthwhile.
+  // Groups with < 2 channels fall through to the per-channel path.
+  bool active = false;
+
+  FusedGroupState() {
+    for (int n = 0; n < kMaxNeighbor; n++) {
+      recv_flag[n].store(BoundaryStatus::waiting, std::memory_order_relaxed);
+      send_flag[n].store(BoundaryStatus::waiting, std::memory_order_relaxed);
+#ifdef MPI_PARALLEL
+      req_send[n] = MPI_REQUEST_NULL;
+      req_recv[n] = MPI_REQUEST_NULL;
+#endif
+    }
+  }
+};
+#endif // DBG_FUSED_COMM
 
 //----------------------------------------------------------------------------------------
 //! \class CommRegistry
@@ -162,6 +217,39 @@ class CommRegistry {
 
   // Rebuild NeighborConnectivity from the MeshBlock's topology data.
   void RebuildConnectivity();
+
+#ifdef DBG_FUSED_COMM
+  // --- Fused communication state (one per group) ---
+  FusedGroupState fused_[static_cast<int>(CommGroup::NumGroups)];
+
+  // Allocate fused buffers and set up persistent MPI for all active groups.
+  // Called at the end of Finalize() after per-channel setup is complete.
+  void FinalizeFused();
+
+  // Teardown + rebuild fused state after regrid.
+  void ReinitializeFused();
+
+  // Cleanup helpers.
+  void FreeFusedBuffers(int g);
+  void FreeFusedMPIRequests(int g);
+
+  // --- Fused implementations of the 5 group-level communication methods ---
+
+  // Pack all channels in the group sequentially into fused send_buf, then send.
+  void SendBoundaryBuffersFused(CommGroup group, CommTarget target_filter);
+
+  // Poll fused recv_flag / MPI_Test.  Returns true when all neighbors done.
+  bool ReceiveBoundaryBuffersFused(CommGroup group, CommTarget target_filter);
+
+  // VC zero-ghost, then unpack per-channel from fused recv_buf, then VC divide.
+  void SetBoundariesFused(CommGroup group, CommTarget target_filter);
+
+  // MPI_Wait on sends, reset flags.
+  void ClearBoundaryFused(CommGroup group, CommTarget target_filter);
+
+  // MPI_Start on persistent recv requests.
+  void StartReceivingFused(CommGroup group, CommTarget target_filter);
+#endif // DBG_FUSED_COMM
 
   // Global registry of all CommRegistry instances, keyed by MeshBlock pointer.
   // Enables same-process buffer copy to find the target block's channels.

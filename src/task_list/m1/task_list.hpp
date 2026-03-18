@@ -18,7 +18,8 @@ namespace TaskLists::M1 {
 class M1N0 : public TaskList, TaskLists::Integrators::LowStorage
 {
 public:
-  M1N0(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
+  M1N0(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs,
+       bool embed_mhd_rescatter = false);
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
 
@@ -52,6 +53,22 @@ public:
 
   TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
+
+  // MHD re-scatter tasks embedded in the M1N0 DAG.
+  // Active only when monolithic GRMHD path is selected (embed_mhd_rescatter).
+  // These replace the external MHD_com + Finalize DoTaskListOneStage calls,
+  // allowing MHD ghost exchange to overlap with M1 analysis/userwork.
+#if Z4C_ENABLED && FLUID_ENABLED
+  TaskStatus PrimitivesPhysicalHyd(MeshBlock *pmb, int stage);
+  TaskStatus SendHydro(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
+  TaskStatus ProlongationHyd(MeshBlock *pmb, int stage);
+  TaskStatus PhysicalBoundaryHyd(MeshBlock *pmb, int stage);
+  TaskStatus PrimitivesGhostsHyd(MeshBlock *pmb, int stage);
+  TaskStatus UpdateSourceHyd(MeshBlock *pmb, int stage);
+  TaskStatus ClearMainInt(MeshBlock *pmb, int stage);
+#endif
 public:
   using TaskList::nstages;
 
@@ -62,6 +79,9 @@ private:
 
   // Particular to M1N0
   Real const dt_fac[2]{0.5, 1.0}; // timestep factor for each stage
+
+  // Whether MHD re-scatter tasks are embedded in this DAG (monolithic path).
+  bool embed_mhd_rescatter_;
 
 private:
   gra::triggers::Triggers & trgs;

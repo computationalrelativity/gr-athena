@@ -140,6 +140,67 @@ const TaskID FLAG_AMR(39);
 
 }  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Split
 
+// ---------------------------------------------------------------------------
+// Monolithic GRMHD+Z4c task list - single DAG per substep, no internal
+// barriers.  All four split phases (MHD, Z4c, MHD_com, Finalize) are fused
+// into one task graph with explicit data-flow dependencies.
+// ---------------------------------------------------------------------------
+namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Monolithic {
+
+const TaskID NONE(0);
+
+// -- MHD compute branch (bits 1-12) ----------------------------------------
+const TaskID INT_HYDSCLR(1);
+const TaskID CALC_HYDSCLRFLX(2);
+const TaskID RECV_HYDFLX(3);      // flux correction recv [multilevel]
+const TaskID RECV_SCLRFLX(4);     // scalar flux recv     [multilevel + scalars]
+const TaskID SEND_HYDFLX(5);      // flux correction send [multilevel]
+const TaskID SEND_SCLRFLX(6);     // scalar flux send     [multilevel + scalars]
+const TaskID ADD_FLX_DIV(7);
+const TaskID SRCTERM_HYD(8);
+const TaskID CALC_FLDFLX(9);      // EMF corner calc      [B-field]
+const TaskID SEND_FLDFLX(10);     // EMF flux correction   [B-field]
+const TaskID RECV_FLDFLX(11);     // EMF flux recv         [B-field]
+const TaskID INT_FLD(12);         // CT field integration  [B-field]
+
+// -- Z4c compute branch (bits 13-24) ---------------------------------------
+const TaskID INIT_Z4C_DERIV(13);
+const TaskID CALC_Z4CRHS(14);
+const TaskID INT_Z4C(15);
+const TaskID SEND_Z4C(16);
+const TaskID RECV_Z4C(17);
+const TaskID SETB_Z4C(18);
+const TaskID PROLONG_Z4C(19);     // [multilevel]
+const TaskID PHY_BVAL_Z4C(20);
+const TaskID ALG_CONSTR(21);
+const TaskID PREP_Z4C_DERIV(22);
+const TaskID Z4C_TO_ADM(23);
+const TaskID CCE_DUMP(24);        // [CCE_ENABLED]
+
+// -- MHD ghost-zone send + C2P (bits 25-32) --------------------------------
+const TaskID SEND_HYD(25);        // conserved send - fires before C2P
+const TaskID CLEAR_FLXCORR(26);   // wait on flux-correction sends [multilevel]
+const TaskID CONS2PRIMP(27);      // C2P on physical interior
+const TaskID RECV_HYD(28);        // ghost-zone recv (polls from NONE)
+const TaskID SETB_HYD(29);
+const TaskID PROLONG_HYD(30);     // [multilevel]
+const TaskID PHY_BVAL_HYD(31);
+
+// -- Finalize (bits 32-40) -------------------------------------------------
+const TaskID CONS2PRIMG(32);      // C2P on ghost zones
+const TaskID UPDATE_SRC(33);      // GetMatter (re-couple ADM sources)
+const TaskID ADM_CONSTR(34);
+const TaskID Z4C_WEYL(35);
+const TaskID USERWORK(36);
+const TaskID NEW_DT(37);
+const TaskID FLAG_AMR(38);        // [adaptive]
+
+// -- Cleanup (bits 39-40) --------------------------------------------------
+const TaskID CLEAR_Z4C(39);       // wait on Z4c ghost sends
+const TaskID CLEAR_MAININT(40);   // wait on MainInt ghost sends
+
+}  // namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Monolithic
+
 
 namespace TaskNames::GeneralRelativity::Aux_Z4c {
 

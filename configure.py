@@ -1904,6 +1904,7 @@ if args["z"]:
     src_aux.append(
       "src/task_list/gr/task_list_grmhd_z4c_split_phase_finalize.cpp"
     )
+    src_aux.append("src/task_list/gr/task_list_grmhd_z4c_monolithic.cpp")
   else:
     src_aux.append("src/task_list/gr/task_list_gr_z4c.cpp")
 

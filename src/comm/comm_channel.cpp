@@ -2658,4 +2658,262 @@ void CommChannel::ClearFluxCorr(const NeighborConnectivity &nc) {
   }
 }
 
+#ifdef DBG_FUSED_COMM
+//========================================================================================
+// Fused-comm helpers: called by CommRegistry for group-level buffer fusion.
+// These methods pack/unpack a single neighbor's data into/from an external buffer
+// at a given offset, without touching send/recv flags or MPI requests.
+//========================================================================================
+
+//----------------------------------------------------------------------------------------
+//! \fn int CommChannel::PackInto(Real *buf, int offset,
+//!                                const NeighborBlock &nb, int mylevel) const
+//  \brief Pack one neighbor's ghost exchange data into an external buffer.
+//
+//  Packs the same payload as PackAndSend() for the given neighbor, starting at
+//  buf[offset].  Returns the new offset after packing (offset + packed_size).
+//  Does NOT set any flags or start any MPI - the caller (CommRegistry) handles that.
+//
+//  Preconditions:
+//    - RestrictInterior has already been called if needed (handled by CommRegistry).
+//    - buf has enough space at [offset, ...).
+
+int CommChannel::PackInto(Real *buf, int offset,
+                          const NeighborBlock &nb, int mylevel) const {
+  MeshBlock *pmb = pmy_block_;
+  const int nvar = spec_.nvar;
+  const int ngh = spec_.nghost;
+  const Sampling samp = spec_.sampling;
+  int p = offset;
+
+  if (samp == Sampling::FC) {
+    // --- FC path: 3 face components packed sequentially ---
+    AthenaArray<Real> *face[3] = {spec_.var_fc[0], spec_.var_fc[1], spec_.var_fc[2]};
+
+    if (nb.snb.level == mylevel) {
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::LoadSameLevel(pmb, nb.ni, ngh, false, samp, sa);
+        BufferUtility::PackData(*face[sa], buf,
+                                r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_fc[0] != nullptr
+          && !nb.neighbor_all_same_level) {
+        AthenaArray<Real> *cface[3] = {spec_.coarse_fc[0], spec_.coarse_fc[1],
+                                        spec_.coarse_fc[2]};
+        for (int sa = 0; sa < 3; ++sa) {
+          idx::IndexRange3D cr = idx::LoadSameLevel(pmb, nb.ni, ngh, true, samp, sa);
+          BufferUtility::PackData(*cface[sa], buf,
+                                  cr.si, cr.ei, cr.sj, cr.ej, cr.sk, cr.ek, p);
+        }
+      }
+    } else if (nb.snb.level < mylevel) {
+      AthenaArray<Real> *cface[3] = {spec_.coarse_fc[0], spec_.coarse_fc[1],
+                                      spec_.coarse_fc[2]};
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::LoadToCoarser(pmb, nb.ni, ngh, samp, sa);
+        BufferUtility::PackData(*cface[sa], buf,
+                                r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+    } else {
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::LoadToFiner(pmb, nb.ni, ngh, samp, sa);
+        BufferUtility::PackData(*face[sa], buf,
+                                r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+    }
+  } else {
+    // --- CC/VC/CX path: single 4D array ---
+    AthenaArray<Real> &var = *spec_.var;
+
+    if (nb.snb.level == mylevel) {
+      idx::IndexRange3D r = idx::LoadSameLevel(pmb, nb.ni, ngh, false, samp);
+      BufferUtility::PackData(var, buf, 0, nvar - 1,
+                              r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_var != nullptr
+          && !nb.neighbor_all_same_level) {
+        AthenaArray<Real> &cvar = *spec_.coarse_var;
+        idx::IndexRange3D cr = idx::LoadSameLevel(pmb, nb.ni, ngh, true, samp);
+        BufferUtility::PackData(cvar, buf, 0, nvar - 1,
+                                cr.si, cr.ei, cr.sj, cr.ej, cr.sk, cr.ek, p);
+      }
+    } else if (nb.snb.level < mylevel) {
+      AthenaArray<Real> &cvar = *spec_.coarse_var;
+      idx::IndexRange3D r = idx::LoadToCoarser(pmb, nb.ni, ngh, samp);
+      BufferUtility::PackData(cvar, buf, 0, nvar - 1,
+                              r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+    } else {
+      idx::IndexRange3D r = idx::LoadToFiner(pmb, nb.ni, ngh, samp);
+      BufferUtility::PackData(var, buf, 0, nvar - 1,
+                              r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+    }
+  }
+
+  return p;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn int CommChannel::UnpackFrom(Real *buf, int offset,
+//!                                  const NeighborBlock &nb, int mylevel)
+//  \brief Unpack one neighbor's ghost exchange data from an external buffer.
+//
+//  Mirrors the Unpack() method's per-neighbor logic, reading from buf[offset].
+//  Returns the new offset after unpacking.  Does NOT set any flags - the caller
+//  (CommRegistry) handles flag management.
+//
+//  VC additive unpack, polar reversal, and degenerate-dimension copies are all
+//  handled exactly as in Unpack().
+
+int CommChannel::UnpackFrom(Real *buf, int offset,
+                            const NeighborBlock &nb, int mylevel) {
+  MeshBlock *pmb = pmy_block_;
+  const int nvar = spec_.nvar;
+  const int ngh = spec_.nghost;
+  const Sampling samp = spec_.sampling;
+  int p = offset;
+
+  if (samp == Sampling::FC) {
+    // --- FC path ---
+    AthenaArray<Real> *face[3] = {spec_.var_fc[0], spec_.var_fc[1], spec_.var_fc[2]};
+    const Real fc_polar_sign[3] = {1.0, -1.0, -1.0};
+    const bool nx2_degen = (pmb->block_size.nx2 == 1);
+    const bool nx3_degen = (pmb->block_size.nx3 == 1);
+
+    if (nb.snb.level == mylevel) {
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::SetSameLevel(pmb, nb.ni, ngh, 1, samp, sa);
+        if (nb.polar) {
+          UnpackPolarFC(buf, *face[sa], fc_polar_sign[sa],
+                        r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+        } else {
+          BufferUtility::UnpackData(buf, *face[sa],
+                                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+        }
+        if (sa == 1 && nx2_degen)
+          DegenerateCopyX2f(*face[1], r.si, r.ei, r.sj, r.sk);
+        if (sa == 2 && nx3_degen)
+          DegenerateCopyX3f(*face[2], r.si, r.ei, r.sj, r.ej, r.sk);
+      }
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_fc[0] != nullptr
+          && !pmb->NeighborBlocksSameLevel()) {
+        AthenaArray<Real> *cface[3] = {spec_.coarse_fc[0], spec_.coarse_fc[1],
+                                        spec_.coarse_fc[2]};
+        for (int sa = 0; sa < 3; ++sa) {
+          idx::IndexRange3D cr = idx::SetSameLevel(pmb, nb.ni, ngh, 2, samp, sa);
+          BufferUtility::UnpackData(buf, *cface[sa],
+                                    cr.si, cr.ei, cr.sj, cr.ej, cr.sk, cr.ek, p);
+          if (sa == 1 && nx2_degen)
+            DegenerateCopyX2f(*cface[1], cr.si, cr.ei, cr.sj, cr.sk);
+          if (sa == 2 && nx3_degen)
+            DegenerateCopyX3f(*cface[2], cr.si, cr.ei, cr.sj, cr.ej, cr.sk);
+        }
+      }
+    } else if (nb.snb.level < mylevel) {
+      AthenaArray<Real> *cface[3] = {spec_.coarse_fc[0], spec_.coarse_fc[1],
+                                      spec_.coarse_fc[2]};
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::SetFromCoarser(pmb, nb.ni, ngh, samp, sa);
+        if (nb.polar) {
+          UnpackPolarFC(buf, *cface[sa], fc_polar_sign[sa],
+                        r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+        } else {
+          BufferUtility::UnpackData(buf, *cface[sa],
+                                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+          if (sa == 1 && nx2_degen)
+            DegenerateCopyX2f(*cface[1], r.si, r.ei, r.sj, r.sk);
+          if (sa == 2 && nx3_degen)
+            DegenerateCopyX3f(*cface[2], r.si, r.ei, r.sj, r.ej, r.sk);
+        }
+      }
+    } else {
+      for (int sa = 0; sa < 3; ++sa) {
+        idx::IndexRange3D r = idx::SetFromFiner(pmb, nb.ni, ngh, samp, sa);
+        if (nb.polar) {
+          UnpackPolarFC(buf, *face[sa], fc_polar_sign[sa],
+                        r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+        } else {
+          BufferUtility::UnpackData(buf, *face[sa],
+                                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+        }
+        if (sa == 1 && nx2_degen)
+          DegenerateCopyX2f(*face[1], r.si, r.ei, r.sj, r.sk);
+        if (sa == 2 && nx3_degen)
+          DegenerateCopyX3f(*face[2], r.si, r.ei, r.sj, r.ej, r.sk);
+      }
+    }
+  } else {
+    // --- CC/VC/CX path ---
+    const bool additive = (samp == Sampling::VC);
+    AthenaArray<Real> &var = *spec_.var;
+
+    if (nb.snb.level == mylevel) {
+      idx::IndexRange3D r = idx::SetSameLevel(pmb, nb.ni, ngh, 1, samp);
+      if (nb.polar) {
+        UnpackPolar(buf, var, nvar, polar_signs_,
+                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      } else if (additive) {
+        BufferUtility::UnpackDataAdd(buf, var, 0, nvar - 1,
+                                     r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      } else {
+        BufferUtility::UnpackData(buf, var, 0, nvar - 1,
+                                  r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_var != nullptr
+          && !pmb->NeighborBlocksSameLevel()) {
+        AthenaArray<Real> &cvar = *spec_.coarse_var;
+        idx::IndexRange3D cr = idx::SetSameLevel(pmb, nb.ni, ngh, 2, samp);
+        if (additive) {
+          BufferUtility::UnpackDataAdd(buf, cvar, 0, nvar - 1,
+                                       cr.si, cr.ei, cr.sj, cr.ej, cr.sk, cr.ek, p);
+        } else {
+          BufferUtility::UnpackData(buf, cvar, 0, nvar - 1,
+                                    cr.si, cr.ei, cr.sj, cr.ej, cr.sk, cr.ek, p);
+        }
+      }
+    } else if (nb.snb.level < mylevel) {
+      AthenaArray<Real> &cvar = *spec_.coarse_var;
+      idx::IndexRange3D r = idx::SetFromCoarser(pmb, nb.ni, ngh, samp);
+      if (nb.polar) {
+        UnpackPolar(buf, cvar, nvar, polar_signs_,
+                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      } else {
+        BufferUtility::UnpackData(buf, cvar, 0, nvar - 1,
+                                  r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+    } else {
+      idx::IndexRange3D r = idx::SetFromFiner(pmb, nb.ni, ngh, samp);
+      if (nb.polar) {
+        UnpackPolar(buf, var, nvar, polar_signs_,
+                    r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      } else if (additive) {
+        BufferUtility::UnpackDataAdd(buf, var, 0, nvar - 1,
+                                     r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      } else {
+        BufferUtility::UnpackData(buf, var, 0, nvar - 1,
+                                  r.si, r.ei, r.sj, r.ej, r.sk, r.ek, p);
+      }
+    }
+  }
+
+  return p;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn int CommChannel::PackSizeForNeighbor(const NeighborBlock &nb,
+//!                                          bool skip_coarse) const
+//  \brief Compute the actual pack/unpack size (in Reals) for one neighbor.
+//
+//  When skip_coarse is false, returns the full allocation size (same as
+//  ComputeBufferSizeFromRanges).  When skip_coarse is true, omits the coarse
+//  payload for same-level neighbors (matching ComputeMPIBufferSize semantics).
+
+int CommChannel::PackSizeForNeighbor(const NeighborBlock &nb,
+                                     bool skip_coarse) const {
+  return idx::ComputeMPIBufferSize(pmy_block_, nb.ni,
+                                   spec_.nvar, spec_.nghost,
+                                   spec_.sampling, skip_coarse);
+}
+#endif // DBG_FUSED_COMM
+
 } // namespace comm

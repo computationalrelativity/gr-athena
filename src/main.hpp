@@ -658,10 +658,17 @@ struct Collection
   gra::triggers::Triggers & trgs;
   TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c       = nullptr;
 
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD   * grmhd_z4c_MHD;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com   * grmhd_z4c_MHD_com;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Z4c   * grmhd_z4c_Z4c;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Finalize   * grmhd_z4c_Fin;
+  // Monolithic GRMHD+Z4c: single-DAG task list (default, no internal barriers)
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Monolithic * grmhd_z4c_mono = nullptr;
+
+  // Split 4-phase GRMHD+Z4c: selected by hydro/use_split_grmhd_z4c = true
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD      * grmhd_z4c_MHD     = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com  * grmhd_z4c_MHD_com = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Z4c      * grmhd_z4c_Z4c     = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Finalize * grmhd_z4c_Fin     = nullptr;
+
+  // Whether to use the split (4-phase) task list instead of monolithic
+  bool use_split_grmhd_z4c = false;
 
   TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c      = nullptr;
   TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c  = nullptr;
@@ -684,11 +691,24 @@ inline void PopulateCollection(Collection &ptlc,
 
       if (FLUID_ENABLED)
       {
-        // GR(M)HD [split]
-        ptlc.grmhd_z4c_MHD = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
-        ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
-        ptlc.grmhd_z4c_Z4c = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
-        ptlc.grmhd_z4c_Fin = new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
+        // Runtime selection between monolithic and split task lists.
+        // Default is monolithic (single DAG, no inter-phase barriers).
+        ptlc.use_split_grmhd_z4c =
+            pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false);
+
+        if (ptlc.use_split_grmhd_z4c)
+        {
+          // GR(M)HD [split 4-phase]
+          ptlc.grmhd_z4c_MHD     = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_Z4c     = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_Fin     = new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
+        }
+        else
+        {
+          // GR(M)HD [monolithic - fused single DAG]
+          ptlc.grmhd_z4c_mono = new GRMHD_Z4c_Monolithic(pin, pm, ptlc.trgs);
+        }
       }
       else
       {
@@ -703,7 +723,16 @@ inline void PopulateCollection(Collection &ptlc,
     if (M1_ENABLED)
     {
       using namespace TaskLists::M1;
-      ptlc.m1n0 = new M1N0(pin, pm, ptlc.trgs);
+
+      // When the monolithic GRMHD path is active (use_split_grmhd_z4c=false),
+      // embed MHD re-scatter tasks directly in the M1N0 DAG so that MHD
+      // ghost exchange overlaps with M1 analysis/userwork.  When the split
+      // path is active, the M1N0 driver calls MHD_com + Finalize externally.
+      const bool embed_mhd = (Z4C_ENABLED && FLUID_ENABLED)
+                              ? !ptlc.use_split_grmhd_z4c
+                              : false;
+
+      ptlc.m1n0 = new M1N0(pin, pm, ptlc.trgs, embed_mhd);
       ptlc.postamr_m1n0 = new PostAMR_M1N0(pin, pm, ptlc.trgs);
     }
 
@@ -730,11 +759,19 @@ inline void TearDown(Collection &ptlc)
   {
     if (FLUID_ENABLED)
     {
-      // GR(M)HD [split]
-      delete ptlc.grmhd_z4c_MHD;
-      delete ptlc.grmhd_z4c_MHD_com;
-      delete ptlc.grmhd_z4c_Z4c;
-      delete ptlc.grmhd_z4c_Fin;
+      if (ptlc.use_split_grmhd_z4c)
+      {
+        // GR(M)HD [split 4-phase]
+        delete ptlc.grmhd_z4c_MHD;
+        delete ptlc.grmhd_z4c_MHD_com;
+        delete ptlc.grmhd_z4c_Z4c;
+        delete ptlc.grmhd_z4c_Fin;
+      }
+      else
+      {
+        // GR(M)HD [monolithic]
+        delete ptlc.grmhd_z4c_mono;
+      }
     }
     else
     {
@@ -782,31 +819,58 @@ inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
 inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
                       Mesh *pmesh)
 {
-  for (int stage=1; stage<=ptlc.grmhd_z4c_MHD->nstages; ++stage)
+  if (ptlc.use_split_grmhd_z4c)
   {
-    ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
-    ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
-
-    // Iterate bnd comm. as required
-    pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
-
-    ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage);
-    ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage);
-
-    // Rescale as required
-#if FLUID_ENABLED
-    if (pmesh->presc->opt.apply_on_substeps ||
-        (stage == ptlc.grmhd_z4c_MHD->nstages))
+    // ----- Split 4-phase path (legacy, selected by hydro/use_split_grmhd_z4c = true)
+    for (int stage=1; stage<=ptlc.grmhd_z4c_MHD->nstages; ++stage)
     {
-      const Real time_end_stage   = pmesh->time+pmesh->dt;
-      const Real ncycle_end_stage = pmesh->ncycle+1;
+      ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
+      ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
 
-      pmesh->presc->Apply();
-      pmesh->presc->OutputWrite(ncycle_end_stage,
-                                time_end_stage,
-                                stage);
-    }
+      // Iterate bnd comm. as required
+      pmesh->CommunicateIteratedZ4c(Z4C_CX_NUM_RBC);
+
+      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage);
+      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage);
+
+      // Rescale as required
+#if FLUID_ENABLED
+      if (pmesh->presc->opt.apply_on_substeps ||
+          (stage == ptlc.grmhd_z4c_MHD->nstages))
+      {
+        const Real time_end_stage   = pmesh->time+pmesh->dt;
+        const Real ncycle_end_stage = pmesh->ncycle+1;
+
+        pmesh->presc->Apply();
+        pmesh->presc->OutputWrite(ncycle_end_stage,
+                                  time_end_stage,
+                                  stage);
+      }
 #endif
+    }
+  }
+  else
+  {
+    // ----- Monolithic path (default) - single DAG, no inter-phase barriers
+    for (int stage=1; stage<=ptlc.grmhd_z4c_mono->nstages; ++stage)
+    {
+      ptlc.grmhd_z4c_mono->DoTaskListOneStage(pmesh, stage);
+
+      // Rescale as required
+#if FLUID_ENABLED
+      if (pmesh->presc->opt.apply_on_substeps ||
+          (stage == ptlc.grmhd_z4c_mono->nstages))
+      {
+        const Real time_end_stage   = pmesh->time+pmesh->dt;
+        const Real ncycle_end_stage = pmesh->ncycle+1;
+
+        pmesh->presc->Apply();
+        pmesh->presc->OutputWrite(ncycle_end_stage,
+                                  time_end_stage,
+                                  stage);
+      }
+#endif
+    }
   }
 
 }
@@ -974,13 +1038,15 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
     // Last stage performs Con2Prim, scatter this, call GetMatter
     if (Z4C_ENABLED && FLUID_ENABLED && (stage == ptlc.m1n0->nstages))
     {
-      // recycle the matter task-based send -----------------------------------
-
-      // If we set stage 0 then no auxiliary quantities (e.g Weyl/ADM cons.)
-      // are computed and hence we only do communication + ADM matter pop.
-      static const int stage_dummy = 0;
-      ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
-      ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage_dummy);
+      if (ptlc.use_split_grmhd_z4c)
+      {
+        // Split path: MHD re-scatter via external task lists (stage=0).
+        static const int stage_dummy = 0;
+        ptlc.grmhd_z4c_MHD_com->DoTaskListOneStage(pmesh, stage_dummy);
+        ptlc.grmhd_z4c_Fin->DoTaskListOneStage(pmesh, stage_dummy);
+      }
+      // Monolithic path: MHD re-scatter is embedded in the M1N0 DAG
+      // (CONS2PRIMP_HYD ... CLEAR_MAININT).  No external calls needed.
 
 #if FLUID_ENABLED
       // Rescale as required

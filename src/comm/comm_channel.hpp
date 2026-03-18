@@ -142,6 +142,22 @@ class CommChannel {
   // Compute the buffer size (in Reals) for one neighbor direction.
   int ComputeBufferSize(const NeighborConnectivity &nc, int nb_idx) const;
 
+#ifdef DBG_FUSED_COMM
+  // --- Fused-comm helpers (called by CommRegistry for group-level fusion) ---
+
+  // Pack one neighbor's data into an external buffer starting at offset.
+  // Returns the new offset after packing.  No send, no flag update.
+  int PackInto(Real *buf, int offset, const NeighborBlock &nb, int mylevel) const;
+
+  // Unpack one neighbor's data from an external buffer starting at offset.
+  // Returns the new offset after unpacking.  No flag update.
+  int UnpackFrom(Real *buf, int offset, const NeighborBlock &nb, int mylevel);
+
+  // Compute the actual pack size (in Reals) for one neighbor.
+  // Delegates to idx::ComputeBufferSizeFromRanges / ComputeMPIBufferSize.
+  int PackSizeForNeighbor(const NeighborBlock &nb, bool skip_coarse) const;
+#endif
+
   // Same-rank direct copy: write directly into the target block's recv buffer.
   // NOTE: CopyBufferSameProcess is commented out - superseded by zero-copy
   // optimization that packs directly into the target's recv buffer.

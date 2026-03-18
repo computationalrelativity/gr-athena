@@ -67,6 +67,9 @@
 // Surface chunk size (mb)
 #define DBG_SURF_CHUNK 16
 
+// Fuse all channels within a CommGroup into a single MPI message per neighbor
+#define DBG_FUSED_COMM
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

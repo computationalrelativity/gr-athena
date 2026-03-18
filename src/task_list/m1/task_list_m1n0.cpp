@@ -35,9 +35,11 @@ using namespace gra::triggers;
 typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
-M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
+M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs,
+           bool embed_mhd_rescatter)
   : LowStorage(pin, pm),
-    trgs(trgs)
+    trgs(trgs),
+    embed_mhd_rescatter_(embed_mhd_rescatter)
 {
   // Fix the number of stages based on internal M1+N0 method
   nstages = 2;
@@ -114,6 +116,58 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     }
 
 
+    // -----------------------------------------------------------------------
+    // MHD re-scatter tasks (monolithic GRMHD path only).
+    // After UpdateCoupling modifies ph->u and ps->s, we need to:
+    //  1. Recover primitives on the physical interior (CONS2PRIMP_HYD)
+    //  2. Communicate conserved variables to neighbors (SEND/RECV_HYD)
+    //  3. Unpack, prolongate, apply physical BCs (SETB/PROLONG/PHY_BVAL_HYD)
+    //  4. Recover primitives on ghost zones (CONS2PRIMG_HYD)
+    //  5. Recouple ADM matter sources from fresh primitives (UPDATE_SRC_HYD)
+    //  6. Clear MPI send state (CLEAR_MAININT)
+    //
+    // RECV_HYD fires from NONE so that receive polling overlaps with M1's
+    // ANALYSIS, USERWORK, and NEW_DT tasks.
+    // -----------------------------------------------------------------------
+#if Z4C_ENABLED && FLUID_ENABLED
+    if (embed_mhd_rescatter_)
+    {
+      Add(CONS2PRIMP_HYD, UPDATE_COUPLING, &M1N0::PrimitivesPhysicalHyd);
+
+      Add(SEND_HYD, CONS2PRIMP_HYD, &M1N0::SendHydro);
+      Add(RECV_HYD, NONE,           &M1N0::ReceiveHydro);
+
+      Add(SETB_HYD, RECV_HYD, &M1N0::SetBoundariesHydro);
+
+      const TaskID BLOCK_SETB_HYD = SETB_HYD | SEND_HYD;
+
+      if (multilevel)
+      {
+        Add(PROLONG_HYD,  BLOCK_SETB_HYD,
+            &M1N0::ProlongationHyd);
+        Add(PHY_BVAL_HYD, PROLONG_HYD,
+            &M1N0::PhysicalBoundaryHyd);
+      }
+      else
+      {
+        Add(PHY_BVAL_HYD, BLOCK_SETB_HYD,
+            &M1N0::PhysicalBoundaryHyd);
+      }
+
+      // C2P on full domain (ghost zones) - needs both physical BCs filled
+      // and w1 set by CONS2PRIMP_HYD.
+      Add(CONS2PRIMG_HYD, (PHY_BVAL_HYD | CONS2PRIMP_HYD),
+          &M1N0::PrimitivesGhostsHyd);
+
+      // Recouple ADM matter sources from fresh primitives.
+      Add(UPDATE_SRC_HYD, CONS2PRIMG_HYD, &M1N0::UpdateSourceHyd);
+
+      // Clear MainInt MPI sends.
+      Add(CLEAR_MAININT, PHY_BVAL_HYD, &M1N0::ClearMainInt);
+    }
+#endif
+
+
   } // namespace
 }
 
@@ -143,6 +197,16 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
   // group, which would double MPI_Start requests already posted by the MHD phase.
   if (pmb->pmy_mesh->multilevel)
     pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->pm1->comm_channel_id);
+
+  // When MHD re-scatter tasks are embedded in this DAG (monolithic path),
+  // post persistent receives for all MainInt channels on the last stage so
+  // that RECV_HYD can begin polling immediately.
+#if Z4C_ENABLED && FLUID_ENABLED
+  if (embed_mhd_rescatter_ && (stage == nstages))
+  {
+    pmb->pcomm->StartReceiving(comm::CommGroup::MainInt);
+  }
+#endif
 
   return;
 }
@@ -710,3 +774,242 @@ TaskStatus M1N0::CheckRefinement(MeshBlock *pmb, int stage)
   pmb->pmr->CheckRefinementCondition();
   return TaskStatus::next;
 }
+
+// ============================================================================
+// MHD re-scatter tasks (embedded in M1N0 DAG for monolithic GRMHD path).
+//
+// These replicate the functionality of the split-phase MHD_com (stage=0) and
+// Finalize (stage=0) task lists.  All tasks gate on stage == nstages; on
+// earlier stages they immediately return next (the M1 DAG already has its
+// own useful work to do on those stages).
+//
+// Re-scatter timing: t_end = pmesh->time, dt_scaled = 0 (no time
+// interpolation - the conserved vars represent the end-of-step state after
+// M1 coupling has been applied).
+// ============================================================================
+
+#if Z4C_ENABLED && FLUID_ENABLED
+
+// ----------------------------------------------------------------------------
+// C2P on physical interior: recover primitives from conserved variables
+// that were modified by UpdateCoupling (M1 source terms applied to ph->u).
+TaskStatus M1N0::PrimitivesPhysicalHyd(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  Hydro *ph = pmb->phydro;
+  Field *pf = pmb->pfield;
+  PassiveScalars *ps = pmb->pscalars;
+  EquationOfState *peos = pmb->peos;
+
+  int il = pmb->is, iu = pmb->ie;
+  int jl = pmb->js, ju = pmb->je;
+  int kl = pmb->ks, ku = pmb->ke;
+
+  // Recompute cell-centred B from the (already updated) face-centred field
+  // on the physical interior so that C2P sees a bcc consistent with the
+  // current stage.
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    pf->CalculateCellCenteredField(pf->b, pf->bcc, pmb->pcoord,
+                                    il, iu, jl, ju, kl, ku);
+  }
+
+  static const int coarseflag = 0;
+  peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
+                              ps->s, ps->r,
+                              pf->bcc, pmb->pcoord,
+                              il, iu, jl, ju, kl, ku,
+                              coarseflag);
+
+  // Update w1 to have the state of w
+  ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Ghost-zone exchange: pack and send all MainInt channels.
+TaskStatus M1N0::SendHydro(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::MainInt);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Ghost-zone exchange: poll for received data.
+TaskStatus M1N0::ReceiveHydro(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::MainInt);
+  if (done) return TaskStatus::next;
+  return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+// Unpack received boundary data for all MainInt channels.
+TaskStatus M1N0::SetBoundariesHydro(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  pmb->pcomm->SetBoundaries(comm::CommGroup::MainInt);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Prolongation for multilevel (SMR/AMR).
+// Re-scatter timing: t_end = current time, dt_scaled = 0.
+TaskStatus M1N0::ProlongationHyd(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  comm::CommRegistry *pcomm = pmb->pcomm;
+
+  // Re-scatter: use current time and zero dt (no time interpolation).
+  const Real t_end     = pmb->pmy_mesh->time;
+  const Real dt_scaled = 0.0;
+
+  const int cis = pmb->cis, cie = pmb->cie;
+  const int cjs = pmb->cjs, cje = pmb->cje;
+  const int cks = pmb->cks, cke = pmb->cke;
+
+  pcomm->ProlongateAndApplyPhysicalBCs(
+      comm::CommGroup::MainInt, t_end, dt_scaled,
+      cis, cie, cjs, cje, cks, cke, NGHOST);
+
+  // Recompute cell-centred B on prolongated fine ghost-zone slabs.
+  if (MAGNETIC_FIELDS_ENABLED)
+    pmb->CalculateCellCenteredFieldOnProlongedBoundaries();
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Fine-level physical boundary conditions for all MainInt channels.
+TaskStatus M1N0::PhysicalBoundaryHyd(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  Field *pf = pmb->pfield;
+  comm::CommRegistry *pcomm = pmb->pcomm;
+
+  // Re-scatter: use current time and zero dt.
+  const Real t_end     = pmb->pmy_mesh->time;
+  const Real dt_scaled = 0.0;
+
+  pcomm->ApplyPhysicalBCs(comm::CommGroup::MainInt, t_end, dt_scaled);
+
+  // Recompute bcc globally (ghost zones now filled by physical BCs).
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    pf->CalculateCellCenteredField(pf->b,
+                                    pf->bcc,
+                                    pmb->pcoord,
+                                    0, pmb->ncells1-1,
+                                    0, pmb->ncells2-1,
+                                    0, pmb->ncells3-1);
+  }
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// C2P on full domain (including ghost zones) after boundary exchange.
+TaskStatus M1N0::PrimitivesGhostsHyd(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  Hydro *ph = pmb->phydro;
+  Field *pf = pmb->pfield;
+  PassiveScalars *ps = pmb->pscalars;
+  EquationOfState *peos = pmb->peos;
+
+  int il = 0, iu = pmb->ncells1-1;
+  int jl = 0, ju = pmb->ncells2-1;
+  int kl = 0, ku = pmb->ncells3-1;
+
+  static const int coarseflag = 0;
+  static const bool skip_physical = true;
+  peos->ConservedToPrimitive(ph->u, ph->w1, ph->w,
+                              ps->s, ps->r,
+                              pf->bcc, pmb->pcoord,
+                              il, iu, jl, ju, kl, ku,
+                              coarseflag, skip_physical);
+
+  // Temperature smoothing (nn avg) if enabled.
+  if (peos->smooth_temperature)
+  {
+    const bool exclude_first_extrema = true;
+
+    AA src;
+    AA tar;
+
+    src.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
+    tar.InitWithShallowSlice(ph->w1, 0, 1);
+
+    peos->NearestNeighborSmooth(tar, src, il, iu, jl, ju, kl, ku,
+                                exclude_first_extrema);
+
+    CC_GLOOP3(k,j,i)
+    {
+      ph->derived_ms(IX_T,k,j,i) = tar(k,j,i);
+    }
+
+    // Recompute enthalpy if requested.
+    if (peos->recompute_enthalpy)
+    CC_GLOOP3(k,j,i)
+    {
+      Real Y[MAX_SPECIES] = {0.0};
+      for (int l=0; l<NSCALARS; l++)
+      {
+        Y[l] = ps->r(l,k,j,i);
+      }
+
+      Real mb = peos->GetEOS().GetBaryonMass();
+      const Real n = ph->w(IDN,k,j,i) / mb;
+
+      ph->derived_ms(IX_ETH,k,j,i) = peos->GetEOS().GetEnthalpy(
+        n, ph->derived_ms(IX_T,k,j,i), Y
+      );
+    }
+  }
+
+  // Update w1 to have the state of w
+  ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Recouple ADM matter sources from fresh primitives.
+TaskStatus M1N0::UpdateSourceHyd(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  Z4c   *pz4c = pmb->pz4c;
+  Hydro *ph   = pmb->phydro;
+  Field *pf   = pmb->pfield;
+  PassiveScalars *ps = pmb->pscalars;
+
+  pz4c->GetMatter(pz4c->storage.mat,
+                   pz4c->storage.adm,
+                   ph->w,
+                   ps->r,
+                   pf->bcc);
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Wait on MainInt sends and reset channel flags.
+TaskStatus M1N0::ClearMainInt(MeshBlock *pmb, int stage)
+{
+  if (stage != nstages) return TaskStatus::next;
+
+  pmb->pcomm->ClearBoundary(comm::CommGroup::MainInt);
+  return TaskStatus::next;
+}
+
+#endif  // Z4C_ENABLED && FLUID_ENABLED
