@@ -48,8 +48,6 @@ namespace XNS {
   
 #define CHECK_V2 (1) // just a check on v^2 computation
 #define DEBUG (0) // to dump some data and info
-#define MAG_INIT_METHOD (0) //0 to initialize A-field procedure (|div_B|~1e-19), 1 to initialize face-centered B-fields (|div_B|~1e-8). 
-                            //The latter method is not recommended, as an initial |div_B|<1e-15 is desirable.
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -90,7 +88,8 @@ namespace XNS {
   class XNSData {
   public:
 
-    int NTH, NR; // XNS grid points
+    // XNS grid points
+    int NTH, NR; 
     
     // Unit conversion from XNS code to CGS
     Real b_units; // B-field
@@ -163,7 +162,7 @@ namespace XNS {
 	  readIntAttr("NR", NR);
 	  readIntAttr("NTH", NTH);
 	  readRealAttr("bfield_unit", b_units);
-    readRealAttr("afield_unit", a_units);
+          readRealAttr("afield_unit", a_units);
 	  readRealAttr("length_unit", r_units);
 	  readRealAttr("massdens_unit", rho_units);
 	  
@@ -225,7 +224,7 @@ namespace XNS {
 	  _b_units = b_units;
 	  _r_units = r_units;
 	  _rho_units = rho_units;
-    _a_units = a_units;
+          _a_units = a_units;
 
 	} // if (initialized==false)
       } // omp critical (ReadData)
@@ -346,6 +345,7 @@ namespace XNS {
       // if (unit == LENGHT) uconv = r_units; // Geom to Km
       // if (unit == MDENST) uconv = rho_units; // Geom to g
       // if (unit == BFIELD) uconv = b_units; // Geom to Gauss
+      // if (unit == AFIELD) uconv = a_units; 
         
       if (order == metric_interp_order) {
         return uconv * pinterp2_metric->eval(&(xnsdata[var](0,0))); 
@@ -468,7 +468,7 @@ namespace XNS {
                          Real &A_x, Real &A_y, Real &A_z) {
       // Given the non-zero component \Tilde{A}_\phi = A_\phi/(r sin\theta) (which is A_phi in the code for simplicity) and conf. fact.
       // returns Cartesian components of the 3-covector and modulus.
-      // As a consequence of this, we can only obtain poloidal bfields with this method. To obtain the toroidal component, one should check
+      //TODO As a consequence of this, we can only obtain poloidal bfields with this method. To obtain the toroidal component, one should check
       // XNS documentation and the following reference https://arxiv.org/pdf/1412.4036 to implement a divergence-free way of importing 
       // the "current function".
 
@@ -531,7 +531,7 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
     // Set XNS HDF5 filename 
     h5_fname = pin->GetOrAddString("problem", "filename", "xns.hdf5");
     
-    // In case XNS data is not produced with ComnpOSE,
+    // In case XNS data is not produced with CompOSE,
     // one might need to rescale the baryon mass (code commented below)
     // initial_data_mb = pin->GetOrAddReal("problem", "initial_data_mb_MeV", 939.565)
 
@@ -635,14 +635,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pz4c->z4c.beta_u.Fill(NAN);
   pz4c->z4c.g_dd.Fill(NAN);
   pz4c->z4c.A_dd.Fill(NAN);
-
-  /*
-  pz4c->con.C.Fill(NAN);
-  pz4c->con.H.Fill(NAN);
-  pz4c->con.M.Fill(NAN);
-  pz4c->con.Z.Fill(NAN);
-  pz4c->con.M_d.Fill(NAN);
-  */
 #endif
 
   const int matter_interp_order = XNS.matter_interp_order;
@@ -653,8 +645,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   
   if(verbose)
     std::cout << "Interpolating ADM metric on current MeshBlock." << std::endl;
-
-  //pz4c->storage.adm.ZeroClear();
 
   for (int k=0; k<mbi->nn3; ++k)
   for (int j=0; j<mbi->nn2; ++j)
@@ -812,10 +802,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 
 #if USETM
-//#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-//    // In case XNS EOS is not from CompOSE
-//    rho *= ceos->mb/initial_data_mb; // adjust for baryon mass 
-//#endif
+// #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+//    // In case XNS EOS is not from CompOSE, adjust for baryon mass 
+//    rho *= ceos->mb/initial_data_mb; 
+// #endif
     if (rho < rho_atm) {
       rho = rho_min;
       Real pres_eos = ceos->GetPressure(rho);
@@ -895,6 +885,8 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   
 #if MAGNETIC_FIELDS_ENABLED
 
+  bool BfromAphi = pin->GetOrAddBoolean("problem", "init_BfromAphi", true);
+  
   // --------------------------------------------------------------------------
   // Initialize magnetic fields
   
@@ -903,15 +895,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
 
-  //Afield curl method. Recommended and used method
-  #if MAG_INIT_METHOD == 0
+  if (BfromAphi) {
+    // Afield curl method from A_phi
+    // Recommended and used method
+    
     AthenaArray<Real> Acc(NFIELD,ncells3,ncells2,ncells1);
   
-    // Construct cell centred B field 
-    /* for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
-      for(int j=pmb->js-1; j<=pmb->je+1; j++)
-      for(int i=pmb->is-1; i<=pmb->ie+1; i++)
-    */
+    // Construct cell centred A field 
     for (int k=0; k<ncells3; k++)
     for (int j=0; j<ncells2; j++)
     for (int i=0; i<ncells1; i++)
@@ -945,7 +935,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       Acc(0,k,j,i) = A_x;
       Acc(1,k,j,i) = A_y;
-      Acc(2,k,j,i) = A_z; // 0.0
+      Acc(2,k,j,i) = A_z; // = 0.0
     
     }
 
@@ -990,8 +980,11 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                                   pfield->bcc(2,k,j,i));
     }
 
-  //Bfield import method. Not recommended: not divergence-free up to the desired precision
-  #elif MAG_INIT_METHOD == 1
+  } else {
+    // Bfield import method.
+    // Not recommended: not divergence-free up to the desired precision
+
+    // face-centered B-field
     for (int k=ks; k<=ke;   k++)
     for (int j=js; j<=je;   j++)
     for (int i=is; i<=ie+1; i++)
@@ -1017,7 +1010,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
 
       Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
-      bx *= sqrtdetgam;  //densitized field
+      bx *= sqrtdetgam;  // densitized field
 
       pfield->b.x1f(k,j,i) = bx;
     }
@@ -1047,7 +1040,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
 
       Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
-      by *= sqrtdetgam;  //densitized field
+      by *= sqrtdetgam;  // densitized field
 
       pfield->b.x2f(k,j,i) = by;
     }
@@ -1077,7 +1070,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
 
       Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
-      bz *= sqrtdetgam;  //densitized field
+      bz *= sqrtdetgam;  // densitized field
 
       pfield->b.x3f(k,j,i) = bz;
     }
@@ -1097,10 +1090,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                                     pfield->b.x3f(k+1,j,i));
     }
 
-  #else
-    #error "Invalid MAG_INT_METHOD"
-
-  #endif
+  } // BfromAphi
 
 #endif
 
