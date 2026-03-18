@@ -48,6 +48,8 @@ namespace XNS {
   
 #define CHECK_V2 (1) // just a check on v^2 computation
 #define DEBUG (0) // to dump some data and info
+#define MAG_INIT_METHOD (0) //0 to initialize A-field procedure (|div_B|~1e-19), 1 to initialize face-centered B-fields (|div_B|~1e-8). 
+                            //The latter method is not recommended, as an initial |div_B|<1e-15 is desirable.
   
   // Names of XNS 2D fields (HDF5 Datasets) 
   static constexpr char const * const XNS_dataset[] = {
@@ -94,7 +96,7 @@ namespace XNS {
     Real b_units; // B-field
     Real r_units; // length
     Real rho_units; // mass density
-    Real a_units;
+    Real a_units; //A-field
 
     static const int matter_interp_order = 2;
     static const int metric_interp_order = 2*NGHOST-1;
@@ -304,7 +306,7 @@ namespace XNS {
       origin[1] = xns_theta(0); 
       origin[0] = xns_radius(0);
 
-      // NB Assumes uniform spacing!
+      // NB Assumes uniform spacing! 
       delta[1] = xns_theta(1)-xns_theta(0);
       delta[0] = xns_radius(1)-xns_radius(0);
       
@@ -400,7 +402,7 @@ namespace XNS {
       Real cosphi = 0.0;
       Real rcylp2 = SQR(xp) + SQR(yp);
       if (rcylp2>0.0) {
-        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        rcylp = std::sqrt(rcylp2); // = r sin(\theta)
         sinphi = yp/rcylp;
         cosphi = xp/rcylp;
       } else {
@@ -445,7 +447,7 @@ namespace XNS {
       Real cosphi = 0.0;
       Real rcylp2 = SQR(xp) + SQR(yp);
       if (rcylp2>0.0) {
-        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        rcylp = std::sqrt(rcylp2); // = r sin(\theta)
         sinphi = yp/rcylp;
         cosphi = xp/rcylp;
       } else {
@@ -464,15 +466,18 @@ namespace XNS {
                          Real psi4,
                          Real xp, Real yp, Real zp,
                          Real &A_x, Real &A_y, Real &A_z) {
-      // Given the non-zero component \Tilde{A}_\phi = A_\phi/(r*sin\theta) (which is A_phi in the code for simplicity) and conf. fact.
-      // returns Cartesian components of the 3-covector and modulus
+      // Given the non-zero component \Tilde{A}_\phi = A_\phi/(r sin\theta) (which is A_phi in the code for simplicity) and conf. fact.
+      // returns Cartesian components of the 3-covector and modulus.
+      // As a consequence of this, we can only obtain poloidal bfields with this method. To obtain the toroidal component, one should check
+      // XNS documentation and the following reference https://arxiv.org/pdf/1412.4036 to implement a divergence-free way of importing 
+      // the "current function".
 
       Real rcylp = 0.0;
       Real sinphi = 0.0;
       Real cosphi = 0.0;
       Real rcylp2 = SQR(xp) + SQR(yp);
       if (rcylp2>0.0) {
-        rcylp = std::sqrt(rcylp2); // = r sin(theta)
+        rcylp = std::sqrt(rcylp2); // = r sin(\theta)
         sinphi = yp/rcylp;
         cosphi = xp/rcylp;
       } else {
@@ -481,8 +486,8 @@ namespace XNS {
         cosphi = 0.0;
       }
       
-      A_x = - A_phi * sinphi; 
-      A_y =   A_phi * cosphi;
+      A_x = - A_phi * sinphi; //d\phi/dx=-sin\phi/(r sin\theta) : A_x =-sin\phi\Tilde{A}_\phi
+      A_y =   A_phi * cosphi; //d\phi/dy= cos\phi/(r sin\theta) : A_y = cos\phi\Tilde{A}_\phi
       A_z = 0.0;
       return (SQR(A_x) + SQR(A_y)) / psi4;
     }     
@@ -725,7 +730,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 #if USETM
   Real rho_min = pin->GetReal("hydro", "dfloor");
-  Real rho_atm = pin->GetReal("hydro", "rho_atm");
+  Real rho_atm = pin->GetOrAddReal("hydro", "rho_atm", 1.0e-10);
 #endif
 
   for (int k=0; k<ncells3; ++k)
@@ -786,13 +791,13 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     Real v_y = psi4 * vy;
     Real v_z = psi4 * vz;
     Real _v2 = v_x*vx + v_y*vy + v_z*vz;
-    assert(std::abs(v2-_v2)<1e-12); // Some formulas are wrong
+    assert(std::abs(v2-_v2)<1e-12);
 
     v_x = gxx*vx + gxy*vy + gxz*vz;
     v_y = gxy*vx + gyy*vy + gyz*vz;
     v_z = gxz*vx + gyz*vy + gzz*vz; 
     _v2 = v_x*vx + v_y*vy + v_z*vz;
-    assert(std::abs(v2-_v2)<1e-12); // Some formulas are wrong
+    assert(std::abs(v2-_v2)<1e-12);
 #endif
     
     // Lorentz factor
@@ -892,131 +897,215 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Initialize magnetic fields
-
-  // The following assumes B^i is defined at cc //TODO: check!
   
   pfield->b.x1f.ZeroClear();
   pfield->b.x2f.ZeroClear();
   pfield->b.x3f.ZeroClear();
   pfield->bcc.ZeroClear();
 
-  AthenaArray<Real> Acc(NFIELD,ncells3,ncells2,ncells1);
+  //Afield curl method. Recommended and used method
+  #if MAG_INIT_METHOD == 0
+    AthenaArray<Real> Acc(NFIELD,ncells3,ncells2,ncells1);
   
-  // Construct cell centred B field 
-  /* for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
-     for(int j=pmb->js-1; j<=pmb->je+1; j++)
-     for(int i=pmb->is-1; i<=pmb->ie+1; i++)
-  */
-  for (int k=0; k<ncells3; k++)
-  for (int j=0; j<ncells2; j++)
-  for (int i=0; i<ncells1; i++)
-  {
-    // Coordinates
-    Real xp = pcoord->x1v(i);
-    Real yp = pcoord->x2v(j);
-    Real zp = pcoord->x3v(k);
+    // Construct cell centred B field 
+    /* for(int k=pmb->ks-1; k<=pmb->ke+1; k++)
+      for(int j=pmb->js-1; j<=pmb->je+1; j++)
+      for(int i=pmb->is-1; i<=pmb->ie+1; i++)
+    */
+    for (int k=0; k<ncells3; k++)
+    for (int j=0; j<ncells2; j++)
+    for (int i=0; i<ncells1; i++)
+    {
+      // Coordinates
+      Real xp = pcoord->x1v(i);
+      Real yp = pcoord->x2v(j);
+      Real zp = pcoord->x3v(k);
 
-    // Interpolate A cc
-    XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
+      // Interpolate A cc
+      XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
     
-    //Real Br = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
-    //Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
-    //Real Bphi = XNS.Interp(IXNS_b3, matter_interp_order, BFIELD);
-    Real A_phi = XNS.Interp(IXNS_aphi, matter_interp_order, AFIELD);
+      Real A_phi = XNS.Interp(IXNS_aphi, matter_interp_order, AFIELD);
 
-    XNS.FreeInterp(matter_interp_order);
+      XNS.FreeInterp(matter_interp_order);
     
-    // Interpolate conf. fact.
-    XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
+      // Interpolate conf. fact.
+      XNS.PrepareInterp(xp,yp,zp, metric_interp_order);
 
-    Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
-    Real psi4 = std::pow(psi, 4);
+      Real psi = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
+      Real psi4 = std::pow(psi, 4);
 
-    XNS.FreeInterp(metric_interp_order);
+      XNS.FreeInterp(metric_interp_order);
 
-    Real A_x = 0.0; 
-    Real A_y = 0.0; 
-    Real A_z = 0.0;
-    Real A2 = XNS.CartesianVector_A(A_phi, psi4,
-                                  xp,yp,zp,
-                                  A_x, A_y, A_z);
+      Real A_x = 0.0; 
+      Real A_y = 0.0; 
+      Real A_z = 0.0;
+      Real A2 = XNS.CartesianVector_A(A_phi, psi4,
+                                    xp,yp,zp,
+                                    A_x, A_y, A_z);
 
-    Acc(0,k,j,i) = A_x;
-    Acc(1,k,j,i) = A_y;
-    Acc(2,k,j,i) = A_z;
-
-    // Interpolate B cc
-    //XNS.PrepareInterp(xp,yp,zp, matter_interp_order);
+      Acc(0,k,j,i) = A_x;
+      Acc(1,k,j,i) = A_y;
+      Acc(2,k,j,i) = A_z; // 0.0
     
-    //Real Br = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
-    //Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
-    //Real Bphi = XNS.Interp(IXNS_b3, matter_interp_order, BFIELD);
+    }
 
-    //XNS.FreeInterp(matter_interp_order);
+    for(int k=ks-1; k<=ke+1; k++)
+    for(int j=js-1; j<=je+1; j++)
+    for(int i=is-1; i<=ie+1; i++)
+    {
+      Real dx1 = pcoord->dx1v(i);
+      Real dx2 = pcoord->dx2v(j);
+      Real dx3 = pcoord->dx3v(k);
 
-    // Cartesian components
-    //Real bccx = 0.0;
-    //Real bccy = 0.0;
-    //Real bccz = 0.0;
+      // Cartesian curl of A_i
+      pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
+      pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
+      pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
+                               (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
 
+    }
 
-    //Real B2 = XNS.CartesianVector(Br, Btheta, Bphi,
-    //                              psi4, 
-    //                              xp,yp,zp,
-    //                              bccx, bccy, bccz);
+    // Initialise face centred field by averaging cc field
+    for(int k=ks; k<=ke;   k++)
+    for(int j=js; j<=je;   j++)
+    for(int i=is; i<=ie+1; i++)
+    {
+      pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
+                                  pfield->bcc(0,k,j,i));
+    }
 
-    //pfield->bcc(0,k,j,i) = bccx;
-    //pfield->bcc(1,k,j,i) = bccy;
-    //pfield->bcc(2,k,j,i) = bccz;
+    for(int k=ks; k<=ke;   k++)
+    for(int j=js; j<=je+1; j++)
+    for(int i=is; i<=ie;   i++)
+    {
+      pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
+                                  pfield->bcc(1,k,j,i));
+    }
 
-    // Densitize B field
-    //Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
-    //pfield->bcc(0,k,j,i) *= sqrtdetgam;
-    //pfield->bcc(1,k,j,i) *= sqrtdetgam;
-    //pfield->bcc(2,k,j,i) *= sqrtdetgam;
-    
-  }
+    for(int k=ks; k<=ke+1; k++)
+    for(int j=js; j<=je;   j++)
+    for(int i=is; i<=ie;   i++)
+    {
+      pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
+                                  pfield->bcc(2,k,j,i));
+    }
 
-  for(int k=ks-1; k<=ke+1; k++)
-  for(int j=js-1; j<=je+1; j++)
-  for(int i=is-1; i<=ie+1; i++)
-  {
-    Real dx1 = pcoord->dx1v(i);
-    Real dx2 = pcoord->dx2v(j);
-    Real dx3 = pcoord->dx3v(k);
+  //Bfield import method. Not recommended: not divergence-free up to the desired precision
+  #elif MAG_INIT_METHOD == 1
+    for (int k=ks; k<=ke;   k++)
+    for (int j=js; j<=je;   j++)
+    for (int i=is; i<=ie+1; i++)
+    {
+      Real xp = pcoord->x1f(i);   // face-centered
+      Real yp = pcoord->x2v(j);
+      Real zp = pcoord->x3v(k);
 
-    pfield->bcc(0,k,j,i) = -((Acc(1,k+1,j,i) - Acc(1,k-1,j,i))/(2.0*dx3));
-    pfield->bcc(1,k,j,i) =  ((Acc(0,k+1,j,i) - Acc(0,k-1,j,i))/(2.0*dx3));
-    pfield->bcc(2,k,j,i) =  ((Acc(1,k,j,i+1) - Acc(1,k,j,i-1))/(2.0*dx1) -
-                             (Acc(0,k,j+1,i) - Acc(0,k,j-1,i))/(2.0*dx2));
+      XNS.PrepareInterp(xp, yp, zp, matter_interp_order);
 
-  }
+      Real Br     = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
+      Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
+      Real Bphi   = XNS.Interp(IXNS_b3,    matter_interp_order, BFIELD);
 
-  // Initialise face centred field by averaging cc field
-  for(int k=ks; k<=ke;   k++)
-  for(int j=js; j<=je;   j++)
-  for(int i=is; i<=ie+1; i++)
-  {
-    pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
-                                pfield->bcc(0,k,j,i));
-  }
+      XNS.FreeInterp(matter_interp_order);
 
-  for(int k=ks; k<=ke;   k++)
-  for(int j=js; j<=je+1; j++)
-  for(int i=is; i<=ie;   i++)
-  {
-    pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
-                                pfield->bcc(1,k,j,i));
-  }
+      XNS.PrepareInterp(xp, yp, zp, metric_interp_order);
+      Real psi  = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
+      Real psi4 = std::pow(psi,4);
+      XNS.FreeInterp(metric_interp_order);
 
-  for(int k=ks; k<=ke+1; k++)
-  for(int j=js; j<=je;   j++)
-  for(int i=is; i<=ie;   i++)
-  {
-    pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
-                                pfield->bcc(2,k,j,i));
-  }
+      Real bx, by, bz;
+      XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
 
+      Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
+      bx *= sqrtdetgam;  //densitized field
+
+      pfield->b.x1f(k,j,i) = bx;
+    }
+
+    for (int k=ks; k<=ke;   k++)
+    for (int j=js; j<=je+1; j++)
+    for (int i=is; i<=ie;   i++)
+    {
+      Real xp = pcoord->x1v(i);
+      Real yp = pcoord->x2f(j);   // face-centered
+      Real zp = pcoord->x3v(k);
+
+      XNS.PrepareInterp(xp, yp, zp, matter_interp_order);
+
+      Real Br     = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
+      Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
+      Real Bphi   = XNS.Interp(IXNS_b3,    matter_interp_order, BFIELD);
+
+      XNS.FreeInterp(matter_interp_order);
+
+      XNS.PrepareInterp(xp, yp, zp, metric_interp_order);
+      Real psi  = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
+      Real psi4 = std::pow(psi,4);
+      XNS.FreeInterp(metric_interp_order);
+
+      Real bx, by, bz;
+      XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
+
+      Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
+      by *= sqrtdetgam;  //densitized field
+
+      pfield->b.x2f(k,j,i) = by;
+    }
+
+    for (int k=ks; k<=ke+1; k++)
+    for (int j=js; j<=je;   j++)
+    for (int i=is; i<=ie;   i++)
+    {
+      Real xp = pcoord->x1v(i);
+      Real yp = pcoord->x2v(j);   
+      Real zp = pcoord->x3f(k);   // face-centered
+
+      XNS.PrepareInterp(xp, yp, zp, matter_interp_order);
+
+      Real Br     = XNS.Interp(IXNS_bpolr, matter_interp_order, BFIELD);
+      Real Btheta = XNS.Interp(IXNS_bpolt, matter_interp_order, BFIELD);
+      Real Bphi   = XNS.Interp(IXNS_b3,    matter_interp_order, BFIELD);
+
+      XNS.FreeInterp(matter_interp_order);
+
+      XNS.PrepareInterp(xp, yp, zp, metric_interp_order);
+      Real psi  = XNS.Interp(IXNS_psi, metric_interp_order, DIMLESS);
+      Real psi4 = std::pow(psi,4);
+      XNS.FreeInterp(metric_interp_order);
+
+      Real bx, by, bz;
+      XNS.CartesianVector(Br, Btheta, Bphi, psi4, xp, yp, zp, bx, by, bz);
+
+      Real sqrtdetgam = std::pow(psi4, 1.5); // = sqrt(det(gamma))
+      bz *= sqrtdetgam;  //densitized field
+
+      pfield->b.x3f(k,j,i) = bz;
+    }
+
+    for (int k=ks; k<=ke; k++)
+    for (int j=js; j<=je; j++)
+    for (int i=is; i<=ie; i++)
+    {
+      // Obtain cell-centered from face-centered fields
+      pfield->bcc(0,k,j,i) = 0.5 * (pfield->b.x1f(k,j,i) +
+                                    pfield->b.x1f(k,j,i+1));
+
+      pfield->bcc(1,k,j,i) = 0.5 * (pfield->b.x2f(k,j,i) +
+                                    pfield->b.x2f(k,j+1,i));
+
+      pfield->bcc(2,k,j,i) = 0.5 * (pfield->b.x3f(k,j,i) +
+                                    pfield->b.x3f(k+1,j,i));
+    }
+
+  #else
+    #error "Invalid MAG_INT_METHOD"
+
+  #endif
+
+#endif
+
+  return;
+}
 #endif
 
   return;
