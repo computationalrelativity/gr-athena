@@ -161,21 +161,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] e  The energy density
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
-    //  \param[in] Tguess An optional initial guess for the temperature if EOSPolicy supports it.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromE(Real n, Real e, Real *Y) {
       Real eos_e = e*code_units->EnergyConversion(*eos_units);
       return TemperatureFromE(n, eos_e, Y) *
              eos_units->TemperatureConversion(*code_units);
     }
-    #if EOS_TGUESS
-    inline Real GetTemperatureFromE(Real n, Real e, Real *Y, Real Tguess) {
-      Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
-      Real eos_e = e*code_units->EnergyConversion(*eos_units);
-      return TemperatureFromE(n, eos_e, Y, eos_Tguess) *
-             eos_units->TemperatureConversion(*code_units);
-    }
-    #endif
 
     //! \fn Real GetTemperatureFromEps(Real n, Real e, Real *Y)
     //  \brief Calculate the temperature from number density, specific internal energy, and
@@ -184,21 +175,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] eps The specific internal energy
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
-    //  \param[in] Tguess An optinal initial guess for the temperature if EOSPolicy supports it.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y) {
       Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
       return TemperatureFromEps(n, eos_eps, Y) *
              eos_units->TemperatureConversion(*code_units);
     }
-    #if EOS_TGUESS
-    inline Real GetTemperatureFromEps(Real n, Real eps, Real *Y, Real Tguess) {
-      Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
-      Real eos_eps = eps*code_units->SpecificInternalEnergyConversion(*eos_units);
-      return TemperatureFromEps(n, eos_eps, Y, eos_Tguess) *
-              eos_units->TemperatureConversion(*code_units);
-    }
-    #endif
 
     //! \fn Real GetTemperatureFromP(Real n, Real p, Real *Y)
     //  \brief Calculate the temperature from number density, pressure, and
@@ -206,7 +188,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] n  The number density
     //  \param[in] p  The pressure
     //  \param[in] Y  An array of particle fractions, expected to be of size n_species.
-    //  \param[in] Tguess An optional initial guess for the temperature if EOSPolicy supports it.
     //  \return The temperature according to the EOS.
     inline Real GetTemperatureFromP(Real n, Real p, Real *Y) {
       if (n<GetDensityFloor()){
@@ -217,18 +198,6 @@ class EOS : public EOSPolicy, public ErrorPolicy {
           eos_units->TemperatureConversion(*code_units);
       }
     }
-    #if EOS_TGUESS
-    inline Real GetTemperatureFromP(Real n, Real p, Real *Y, Real Tguess) {
-      if (n<GetDensityFloor()){
-        return T_atm * eos_units->TemperatureConversion(*code_units);
-      } else {
-        Real eos_Tguess = Tguess*code_units->TemperatureConversion(*eos_units);
-        Real eos_p = p*code_units->PressureConversion(*eos_units);
-        return TemperatureFromP(n, eos_p, Y, eos_Tguess) *
-               eos_units->TemperatureConversion(*code_units);
-      }
-    }
-    #endif
 
     //! \fn Real GetTemperatureFromEntropy(Real n, Real s, Real *Y)
     //  \brief Calculate the temperature from number density, entropy, and

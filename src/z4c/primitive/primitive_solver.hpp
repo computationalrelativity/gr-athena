@@ -121,12 +121,7 @@ class PrimitiveSolver {
         Real epshat = tauoverD*What + What - 1.0;
         peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
         // Now we can get an estimate of the temperature, and from that, the pressure and enthalpy.
-        #if EOS_TGUESS
-        // assume that T contains the guess for the temperature
-        Real That = peos->GetTemperatureFromEps(nhat, epshat, Y, *T);
-        #else
         Real That = peos->GetTemperatureFromEps(nhat, epshat, Y);
-        #endif
         peos->ApplyTemperatureLimits(That);
 
         // // Estimate the energy density.
@@ -548,11 +543,6 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(Real prim
   // TODO: This should be done with something like TOMS748 once it's
   // available.
   Real n, P, T, mu;
-
-#ifdef EOS_TGUESS
-  // assume prim[ITM] contains a guess for the temperature
-  T = prim[ITM];
-#endif
 
   bool result;
   if (use_toms_748)

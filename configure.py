@@ -855,7 +855,6 @@ definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
   "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
 )
 
-definitions['EOS_TGUESS'] = '0'
 if args["eos"] == "adiabatictaudyn_rep":
   definitions["NHYDRO_VARIABLES"] = "5"
   makefile_options["GENERAL_EOS_FILE"] = "ideal"
@@ -882,7 +881,6 @@ elif args["eos"] == "eostaudyn_ps":
   elif args['eospolicy'] == 'eos_transition':
     definitions['EOS_POLICY'] = 'EOSTransition'
     definitions['EOS_POLICY_CODE'] = '4'
-    #definitions['EOS_TGUESS'] = '1'
     definitions["COLDEOS_POLICY"] = "ColdEOSTransition"
   else:
     definitions["EOS_POLICY"] = ""

@@ -131,9 +131,6 @@
 // Switch off adjust_conserved in `reset_floor` for less aggressive flooring
 #define @PRIMITIVE_SOLVER_ADJUST_CONSERVED@
 
-// Use temperature as initial guess for primitive solver
-#define EOS_TGUESS @EOS_TGUESS@
-
 // Maximum supported species by PrimitiveSolver
 // FIXME: Should be added as an argument later.
 #define MAX_SPECIES 7
