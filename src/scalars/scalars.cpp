@@ -107,6 +107,10 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
       spec.flux_group = comm::CommGroup::FluxCorr;
     }
     comm_channel_id = pmb->pcomm->Register(spec);
+#if M1_ENABLED
+    // M1 re-scatter needs scalar ghost exchange without B-field overhead.
+    pmb->pcomm->AddToGroup(comm_channel_id, comm::CommGroup::M1Rescatter);
+#endif
   }
 
   // Allocate memory for scratch arrays
