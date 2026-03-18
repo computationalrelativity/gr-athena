@@ -6,7 +6,6 @@
 PROBLEM_FILE = @PROBLEM_FILE@
 COORDINATES_FILE = @COORDINATES_FILE@
 EOS_FILE = @EOS_FILE@
-MPIFFT_FILE = @MPIFFT_FILE@
 CCE_FILE    = @CCE_FILE@
 
 # General compiler specifications
@@ -28,7 +27,6 @@ SRC_FILES := \
 		$(wildcard src/coordinates/*.cpp) \
 		@HYDRO_DEPENDENT_SRC@ \
 		@EOS_BASE_SRC@ \
-		@FFT_SRC@ \
 		$(wildcard src/inputs/*.cpp) \
 		$(wildcard src/mesh/*.cpp) \
 		$(wildcard src/outputs/*.cpp) \
@@ -42,8 +40,7 @@ SRC_FILES := \
 		$(CCE_FILE) \
 		@WAVE_SRC@ \
 		@M1_SRC@ \
-		@EJECTA_SRC@ \
-		$(MPIFFT_FILE)
+		@EJECTA_SRC@
 OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR),$(notdir $(SRC_FILES:.cpp=.o)))
 GCOV_FILES := $(notdir $(addsuffix .gcov,$(SRC_FILES)))

@@ -30,8 +30,6 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
-#include "../fft/athena_fft.hpp"
-#include "../fft/turbulence.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
@@ -107,7 +105,7 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     nbnew(), nbdel(),
-    step_since_lb(), turb_flag(),
+    step_since_lb(),
     // private members:
     num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -629,13 +627,6 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   RebuildBlockByGid();
   ResetLoadBalanceVariables();
 
-  if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
-  {
-#ifdef FFT
-    ptrbd = new TurbulenceDriver(this, pin);
-#endif // FFT
-  }
-
 #if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);
 #endif
@@ -686,7 +677,7 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     ncycle_out(pin->GetOrAddInteger("time", "ncycle_out", 1)),
     dt_diagnostics(pin->GetOrAddInteger("time", "dt_diagnostics", -1)),
     nbnew(), nbdel(),
-    step_since_lb(), turb_flag(),
+    step_since_lb(),
     // private members:
     num_mesh_threads_(pin->GetOrAddInteger("mesh", "num_threads", 1)),
     tree(this),
@@ -1167,13 +1158,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
 
   ResetLoadBalanceVariables();
 
-  if (turb_flag > 0) // TurbulenceDriver depends on the MeshBlock ctor
-  {
-#ifdef FFT
-    ptrbd = new TurbulenceDriver(this, pin);
-#endif // FFT
-  }
-
 #if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);
 #endif
@@ -1205,10 +1189,6 @@ Mesh::~Mesh() {
   delete [] ranklist;
   delete [] costlist;
   delete [] loclist;
-
-#ifdef FFT
-  if (turb_flag > 0) delete ptrbd;
-#endif // FFT
 
   if (Z4C_ENABLED) {
     for (auto pwextr : pwave_extr) {

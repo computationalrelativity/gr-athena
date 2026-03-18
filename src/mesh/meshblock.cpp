@@ -25,7 +25,6 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
-#include "../fft/athena_fft.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"

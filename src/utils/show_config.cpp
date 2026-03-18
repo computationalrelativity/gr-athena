@@ -83,12 +83,6 @@ void ShowConfig() {
   std::cout<<"  OpenMP parallelism:         OFF" << std::endl;
 #endif
 
-#ifdef FFT
-  std::cout<<"  FFT:                        ON" << std::endl;
-#else
-  std::cout<<"  FFT:                        OFF" << std::endl;
-#endif
-
 #ifdef HDF5OUTPUT
   std::cout<<"  HDF5 output:                ON" << std::endl;
   if (H5_DOUBLE_PRECISION_ENABLED) {

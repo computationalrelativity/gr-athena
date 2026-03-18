@@ -45,10 +45,7 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class EquationOfState;
-#ifdef FFT
-class FFTDriver;
-class TurbulenceDriver;
-#endif // FFT
+
 class Wave;
 class Z4c;
 class WaveExtract;
@@ -358,7 +355,7 @@ private:
   Real new_block_dt_, new_block_dt_hyperbolic_, new_block_dt_parabolic_,
     new_block_dt_user_;
   // TODO(felker): make global TaskList a member of MeshBlock, store TaskStates in list
-  // shared by main integrator + FFT gravity task lists. Multigrid has separate TaskStates
+  // shared by main integrator task lists
   TaskStates tasks;
   int nreal_user_meshblock_data_, nint_user_meshblock_data_;
   std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cc_;
@@ -421,8 +418,7 @@ class Mesh {
   friend class Coordinates;
   friend class MeshRefinement;
   friend class Hydro;
-  friend class FFTDriver;
-  friend class TurbulenceDriver;
+
 #ifdef HDF5OUTPUT
   friend class ATHDF5Output;
 #endif
@@ -456,14 +452,9 @@ class Mesh {
   int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
 
   int step_since_lb;
-  int turb_flag; // turbulence flag
 
   // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
   MeshBlock *pblock = nullptr;
-
-#ifdef FFT
-  TurbulenceDriver *ptrbd;
-#endif // FFT
 
   std::vector<WaveExtract *> pwave_extr;
   std::vector<WaveExtractRWZ *> pwave_extr_rwz;

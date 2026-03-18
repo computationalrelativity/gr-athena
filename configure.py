@@ -31,8 +31,6 @@
 #   -omp                enable parallelization with OpenMP
 #   -hdf5               enable HDF5 output (requires the HDF5 library)
 #   --hdf5_path=path    path to HDF5 libraries (requires the HDF5 library)
-#   -fft                enable FFT (requires the FFTW library)
-#   --fftw_path=path    path to FFTW libraries (requires the FFTW library)
 #   -gsl                enable GNU scientific library (requires the gsl library)
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
@@ -500,17 +498,6 @@ parser.add_argument(
   default=False,
   help="enable parallelization with OpenMP",
 )
-
-# -fft argument
-parser.add_argument(
-  "-fft",
-  action="store_true",
-  default=False,
-  help="enable FFT",
-)
-
-# --fftw_path argument
-parser.add_argument("--fftw_path", default="", help="path to FFTW libraries")
 
 # -hdf5 argument
 parser.add_argument(
@@ -1502,32 +1489,6 @@ else:
     #   3180: pragma omp not recognized
     makefile_options["COMPILER_FLAGS"] += " -diag-disable 3180"
 
-# -fft argument
-makefile_options["MPIFFT_FILE"] = " "
-definitions["FFT_OPTION"] = "NO_FFT"
-if args["fft"]:
-  definitions["FFT_OPTION"] = "FFT"
-  if args["fftw_path"] != "":
-    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/include".format(
-      args["fftw_path"]
-    )
-    makefile_options["LINKER_FLAGS"] += " -L{}/lib".format(args["fftw_path"])
-
-    if args["rpath"]:
-      makefile_options["LINKER_FLAGS"] += " -Wl,-rpath {}/lib".format(
-        args["fftw_path"]
-      )
-  if args["omp"]:
-    makefile_options["LIBRARY_FLAGS"] += " -lfftw3_omp"
-  if args["mpi"]:
-    makefile_options["MPIFFT_FILE"] = " $(wildcard src/fft/plimpton/*.cpp)"
-  makefile_options["LIBRARY_FLAGS"] += " -lfftw3"
-
-  aux = ["$(wildcard src/fft/*.cpp)"]
-  makefile_options["FFT_SRC"] = "\\\n".join(aux)
-else:
-  makefile_options["FFT_SRC"] = ""
-
 # -hdf5 argument
 if args["hdf5"]:
   definitions["HDF5_OPTION"] = "HDF5OUTPUT"
@@ -2078,7 +2039,6 @@ print(
 )
 print("  MPI parallelism:              " + ("ON" if args["mpi"] else "OFF"))
 print("  OpenMP parallelism:           " + ("ON" if args["omp"] else "OFF"))
-print("  FFT:                          " + ("ON" if args["fft"] else "OFF"))
 print("  HDF5 output:                  " + ("ON" if args["hdf5"] else "OFF"))
 if args["hdf5"]:
   print(

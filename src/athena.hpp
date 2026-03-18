@@ -115,7 +115,7 @@ struct EdgeField {
 
 // TODO(felker): C++ Core Guidelines Enum.5: Don’t use ALL_CAPS for enumerators
 // (avoid clashes with preprocessor macros). Enumerated type definitions in this file and:
-// athena_fft.hpp, io_wrapper.hpp, bvals.hpp,
+// io_wrapper.hpp, bvals.hpp,
 // task_list.hpp, ???
 
 //------------------
