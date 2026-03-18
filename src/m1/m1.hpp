@@ -29,19 +29,20 @@
 #if defined(GSL)
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
-#include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
+#include <gsl/gsl_roots.h>
 #include <gsl/gsl_vector.h>
-#endif // defined(GSL)
+#endif  // defined(GSL)
 
 // Forward declarations
-namespace M1::Opacities {
+namespace M1::Opacities
+{
 class Opacities;
 }
 
-
 // ============================================================================
-namespace M1 {
+namespace M1
+{
 // ============================================================================
 
 // M1 settings ----------------------------------------------------------------
@@ -50,64 +51,78 @@ namespace M1 {
 
 class M1
 {
-
-// internal solver data =======================================================
-public:
+  // internal solver data
+  // =======================================================
+  public:
 #if defined(GSL)
-  gsl_root_fsolver   * gsl_brent_solver;
-  gsl_root_fdfsolver * gsl_newton_solver;
+  gsl_root_fsolver* gsl_brent_solver;
+  gsl_root_fdfsolver* gsl_newton_solver;
 
   // Pre-allocated multiroot solvers for implicit integrators (reused per cell)
   static constexpr size_t GSL_N_SYS = 1 + M1_NDIM;  // E + F_d (= 4)
-  gsl_multiroot_fsolver   * gsl_hybrids_solver;   // FD Jacobian
-  gsl_multiroot_fdfsolver * gsl_hybridsj_solver;  // analytic Jacobian
-  gsl_vector              * gsl_U_i;              // scratch vector
-#endif // defined(GSL)
+  gsl_multiroot_fsolver* gsl_hybrids_solver;        // FD Jacobian
+  gsl_multiroot_fdfsolver* gsl_hybridsj_solver;     // analytic Jacobian
+  gsl_vector* gsl_U_i;                              // scratch vector
+#endif                                              // defined(GSL)
 
-// methods ====================================================================
-public:
-  M1(MeshBlock *pmb, ParameterInput *pin);
+  // methods
+  // ====================================================================
+  public:
+  M1(MeshBlock* pmb, ParameterInput* pin);
   ~M1();
 
   void CalcFiducialVelocity();
-  void CalcClosure(AA & u);
-  void CalcFiducialFrame(AA & u);
-  void CalcOpacity(Real const dt, AA & u);
+  void CalcClosure(AA& u);
+  void CalcFiducialFrame(AA& u);
+  void CalcOpacity(Real const dt, AA& u);
   void CalcUpdate(const int stage,
                   Real const dt,
-                  AA & u_pre,
-                  AA & u_cur,
-		              AA & u_inh,
-                  AA & sources,
-                  const int kl, const int ku,
-                  const int jl, const int ju,
-                  const int il, const int iu,
+                  AA& u_pre,
+                  AA& u_cur,
+                  AA& u_inh,
+                  AA& sources,
+                  const int kl,
+                  const int ku,
+                  const int jl,
+                  const int ju,
+                  const int il,
+                  const int iu,
                   const bool fallback_mode,
                   const bool dispatch_shortcircuit);
 
-  void CalcFluxes(AA & u, const bool use_lo);
-  void CalcFluxLimiter(AA & u);
+  void CalcFluxes(AA& u, const bool use_lo);
+  void CalcFluxLimiter(AA& u);
 
-  void MulAddFluxDivergence(AA & u_inh, const Real fac,
-                            const int kl, const int ku,
-                            const int jl, const int ju,
-                            const int il, const int iu);
-  void SubFluxDivergence(AA & u_inh,
-                         const int kl, const int ku,
-                         const int jl, const int ju,
-                         const int il, const int iu);
-  void AddFluxDivergence(AA & u_inh,
-                         const int kl, const int ku,
-                         const int jl, const int ju,
-                         const int il, const int iu);
+  void MulAddFluxDivergence(AA& u_inh,
+                            const Real fac,
+                            const int kl,
+                            const int ku,
+                            const int jl,
+                            const int ju,
+                            const int il,
+                            const int iu);
+  void SubFluxDivergence(AA& u_inh,
+                         const int kl,
+                         const int ku,
+                         const int jl,
+                         const int ju,
+                         const int il,
+                         const int iu);
+  void AddFluxDivergence(AA& u_inh,
+                         const int kl,
+                         const int ku,
+                         const int jl,
+                         const int ju,
+                         const int il,
+                         const int iu);
 
-  void AddSourceGR(AA & u, AA & u_inh);
+  void AddSourceGR(AA& u, AA& u_inh);
 
   Real NewBlockTimeStep();
 
-  void CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd);
-  void CoupleSourcesHydro(AA &cons);
-  void CoupleSourcesYe(const Real mb, AA &ps);
+  void CoupleSourcesADM(AT_C_sca& A_rho, AT_N_vec& A_S_d, AT_N_sym& A_S_dd);
+  void CoupleSourcesHydro(AA& cons);
+  void CoupleSourcesYe(const Real mb, AA& ps);
 
   void EnforceSourcesFinite();
   bool AreSourcesFinite(const int k, const int j, const int i);
@@ -115,18 +130,21 @@ public:
 
   void PerformAnalysis();
 
-// data =======================================================================
-public:
+  // data
+  // =======================================================================
+  public:
   // Mesh->MeshBlock->M1
-  M1 *pm1;
-  Mesh *pmy_mesh;
-  MeshBlock *pmy_block;
-  Coordinates *pmy_coord;
+  M1* pm1;
+  Mesh* pmy_mesh;
+  MeshBlock* pmy_block;
+  Coordinates* pmy_coord;
 
-  int comm_channel_id{-1};  // CommRegistry channel index (assigned at registration)
+  int comm_channel_id{
+    -1
+  };  // CommRegistry channel index (assigned at registration)
 
   // Athena++ imposes BC as a monolith. This requires an awkward work-around:
-  bool enable_user_bc { false };
+  bool enable_user_bc{ false };
 
   // M1-indicial information
   MB_info mbi;
@@ -138,17 +156,17 @@ public:
 
   struct
   {
-    AA u;          // solution of M1 evolution system
-    AA u1;         // solution at intermediate steps
+    AA u;   // solution of M1 evolution system
+    AA u1;  // solution at intermediate steps
     // AA u2;         // candidate solution
-    AA flux[3];    // flux in the 3 directions
-    AA flux_lo[3]; // flux in the 3 directions
-    AA u_rhs;      // M1 rhs
-    AA u_lab_aux;  // lab frame auxiliaries
-    AA u_rad;      // fluid frame variables
+    AA flux[3];     // flux in the 3 directions
+    AA flux_lo[3];  // flux in the 3 directions
+    AA u_rhs;       // M1 rhs
+    AA u_lab_aux;   // lab frame auxiliaries
+    AA u_rad;       // fluid frame variables
     AA u_sources;
-    AA radmat;     // radiation-matter fields
-    AA diagno;     // analysis buffers
+    AA radmat;  // radiation-matter fields
+    AA diagno;  // analysis buffers
     // "internals": fiducial velocity, netabs, ..
     // N.B. these do not have group dimension!
     AA intern;
@@ -159,41 +177,65 @@ public:
 
   // Variables to deal with refinement
   AthenaArray<Real> coarse_u_;
-  int refinement_idx{-1};
 
-// configuration ==============================================================
-public:
+  // configuration
+  // ==============================================================
+  public:
   // BD: TODO - after refactor remove extraneous named..
-  enum class opt_integration_strategy { do_nothing,
-                                        full_explicit,
-                                        explicit_approximate_semi_implicit,
-                                        semi_implicit_Hybrids,
-                                        semi_implicit_HybridsJ,
-                                        semi_implicit_custom_N};
-  enum class opt_fiducial_velocity { fluid, mixed, zero, none };
+  enum class opt_integration_strategy
+  {
+    do_nothing,
+    full_explicit,
+    explicit_approximate_semi_implicit,
+    semi_implicit_Hybrids,
+    semi_implicit_HybridsJ,
+    semi_implicit_custom_N
+  };
+  enum class opt_fiducial_velocity
+  {
+    fluid,
+    mixed,
+    zero,
+    none
+  };
 
-  enum class opt_flux_variety { HybridizeMinModA,
-                                HybridizeMinModB,
-                                HybridizeMinModC,
-                                HybridizeMinModD,
-                                HybridizeMinModE,
-                                HybridizeMinMod,
-                                LO,
-                                HO,
-                                RiemannHLLEmod };
+  enum class opt_flux_variety
+  {
+    HybridizeMinModA,
+    HybridizeMinModB,
+    HybridizeMinModC,
+    HybridizeMinModD,
+    HybridizeMinModE,
+    HybridizeMinMod,
+    LO,
+    HO,
+    RiemannHLLEmod
+  };
 
-  enum class opt_characteristics_variety { approximate,
-                                           mixed,
-                                           exact_thin,
-                                           exact_thick,
-                                           exact_closure };
-  enum class opt_closure_variety { thin,
-                                   thick,
-                                   Minerbo,
-                                   Kershaw };
+  enum class opt_characteristics_variety
+  {
+    approximate,
+    mixed,
+    exact_thin,
+    exact_thick,
+    exact_closure
+  };
+  enum class opt_closure_variety
+  {
+    thin,
+    thick,
+    Minerbo,
+    Kershaw
+  };
 
-  enum class opt_closure_method {
-    none, gsl_Brent, gsl_Newton, custom_NB, custom_NAB, custom_ONAB
+  enum class opt_closure_method
+  {
+    none,
+    gsl_Brent,
+    gsl_Newton,
+    custom_NB,
+    custom_NAB,
+    custom_ONAB
   };
 
   struct
@@ -285,7 +327,8 @@ public:
 
   struct
   {
-    struct {
+    struct
+    {
       // opt_integration_strategy do_nothing;
       opt_integration_strategy non_stiff;
       opt_integration_strategy stiff;
@@ -355,14 +398,15 @@ public:
 
   struct
   {
-    bool excise_m1_damping;   // state vector based damping inside ahf
-    Real m1_damping_factor;   // state vector factor
-    bool m1_disable_ahf_eql;  // overwrite eql flag within horizon
-    bool m1_disable_ahf_opac; // zero opacities in horizon
+    bool excise_m1_damping;    // state vector based damping inside ahf
+    Real m1_damping_factor;    // state vector factor
+    bool m1_disable_ahf_eql;   // overwrite eql flag within horizon
+    bool m1_disable_ahf_opac;  // zero opacities in horizon
   } opt_excision;
 
-// variable alias / storage ===================================================
-public:
+  // variable alias / storage
+  // ===================================================
+  public:
   // Conventions for fields:
   // sc: (s)calar-(f)ield
   // sp: (sp)atial
@@ -378,7 +422,8 @@ public:
   vars_Flux fluxes, fluxes_lo;
 
   // Eulerian (Lab) variables and RHS
-  struct vars_Lab {
+  struct vars_Lab
+  {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
     GroupSpeciesContainer<AT_C_sca> sc_E;
@@ -388,7 +433,8 @@ public:
   vars_Lab lab, rhs;
 
   // Eulerian (Lab) variables: not directly evolved
-  struct vars_LabAux {
+  struct vars_LabAux
+  {
     // N.B.
     // These quantities should be viewed as \sqrt(\gamma) densitized
     // GroupSpeciesContainer<AT_N_sym> sp_P_dd;  // retain for output
@@ -456,13 +502,14 @@ public:
   {
     GroupSpeciesContainer<AT_C_sca> sc_radflux_0;
     GroupSpeciesContainer<AT_C_sca> sc_radflux_1;
-    GroupSpeciesContainer<AT_C_sca> sc_y;        // neutrino fractions
-    GroupSpeciesContainer<AT_C_sca> sc_z;        // neutrino energies
+    GroupSpeciesContainer<AT_C_sca> sc_y;  // neutrino fractions
+    GroupSpeciesContainer<AT_C_sca> sc_z;  // neutrino energies
   };
   vars_Diag rdiag;
 
   // fiducial vel. variables (no group dependency)
-  struct vars_Fidu {
+  struct vars_Fidu
+  {
     AT_N_vec sp_v_u;
     AT_N_vec sp_v_d;
 
@@ -471,14 +518,16 @@ public:
   vars_Fidu fidu;
 
   // net heat and abs (no group dependency)
-  struct vars_Net {
+  struct vars_Net
+  {
     AT_C_sca abs;
     AT_C_sca heat;
   };
   vars_Net net;
 
   // geometric quantities (storage)
-  struct vars_Geom {
+  struct vars_Geom
+  {
     // (sc)alar fields
     AT_C_sca sc_alpha;
 
@@ -500,7 +549,8 @@ public:
   vars_Geom geom;
 
   // hydrodynamical quantities (storage)
-  struct vars_Hydro {
+  struct vars_Hydro
+  {
     // (sc)alar fields
     AT_C_sca sc_w_rho;
     AT_C_sca sc_w_Ye;
@@ -514,7 +564,8 @@ public:
   vars_Hydro hydro;
 
   // various persistent scratch quantities not fitting elsewhere
-  struct vars_Scratch {
+  struct vars_Scratch
+  {
     // ------------------------------------------------------------------------
 
     // ------------------------------------------------------------------------
@@ -562,14 +613,14 @@ public:
   };
   vars_Scratch scratch;
 
-private:
+  private:
   // called during ctor for scratch (see descriptions in vars_Scratch)
-  void InitializeScratch(vars_Scratch & scratch,
-                         vars_Lab     & lab,
-                         vars_Rad     & rad,
-                         vars_Geom    & geom,
-                         vars_Hydro   & hydro,
-                         vars_Fidu    & fidu)
+  void InitializeScratch(vars_Scratch& scratch,
+                         vars_Lab& lab,
+                         vars_Rad& rad,
+                         vars_Geom& geom,
+                         vars_Hydro& hydro,
+                         vars_Fidu& fidu)
   {
     // general scratch --------------------------------------------------------
 
@@ -602,39 +653,50 @@ private:
     scratch.sp_F_u_.NewAthenaTensor(mbi.nn1);
 
     // flux-related -----------------------------------------------------------
-    scratch.F_sca.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
-    scratch.F_vec.NewAthenaTensor( mbi.nn3,mbi.nn2,mbi.nn1);
-    scratch.lambda.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.F_sca.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    scratch.F_vec.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    scratch.lambda.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     scratch.dflx_.NewAthenaArray(N_GRPS, N_SPCS, ixn_Lab::N, mbi.nn1);
 
     // generic quantities (dense) ---------------------------------------------
-    scratch.sc_A.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
-    scratch.sc_B.NewAthenaTensor(mbi.nn3,mbi.nn2,mbi.nn1);
+    scratch.sc_A.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    scratch.sc_B.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   }
 
-// idx & constants ============================================================
-public:
-
+  // idx & constants
+  // ============================================================
+  public:
   // Lab frame variables
   struct ixn_Lab
   {
-    enum { E, F_x, F_y, F_z, nG, N };
-    static constexpr char const * const names[] = {
-      "M1.lab.E",
-      "M1.lab.F_d_x",
-      "M1.lab.F_d_y",
-      "M1.lab.F_d_z",
-      "M1.lab.nG"
+    enum
+    {
+      E,
+      F_x,
+      F_y,
+      F_z,
+      nG,
+      N
     };
+    static constexpr char const* const names[] = { "M1.lab.E",
+                                                   "M1.lab.F_d_x",
+                                                   "M1.lab.F_d_y",
+                                                   "M1.lab.F_d_z",
+                                                   "M1.lab.nG" };
   };
 
   // Lab frame variables
   struct ixn_Lab_aux
   {
     // enum { P_xx, P_xy, P_xz, P_yy, P_yz, P_zz, chi, xi, N };
-    enum { chi, xi, N };
-    static constexpr char const * const names[] = {
+    enum
+    {
+      chi,
+      xi,
+      N
+    };
+    static constexpr char const* const names[] = {
       // "M1.lab_aux.Pxx", "M1.lab_aux.Pxy", "M1.lab_aux.Pxz",
       // "M1.lab_aux.Pyy", "M1.lab_aux.Pyz", "M1.lab_aux.Pzz",
       "M1.lab_aux.chi",
@@ -649,16 +711,15 @@ public:
     {
       n,
       J,
-      st_H_u_t, st_H_u_x, st_H_u_y, st_H_u_z,
+      st_H_u_t,
+      st_H_u_x,
+      st_H_u_y,
+      st_H_u_z,
       N
     };
-    static constexpr char const * const names[] = {
-      "M1.rad.n",
-      "M1.rad.J",
-      "M1.rad.st_H_u_t",
-      "M1.rad.st_H_u_x",
-      "M1.rad.st_H_u_y",
-      "M1.rad.st_H_u_z"
+    static constexpr char const* const names[] = {
+      "M1.rad.n",        "M1.rad.J",        "M1.rad.st_H_u_t",
+      "M1.rad.st_H_u_x", "M1.rad.st_H_u_y", "M1.rad.st_H_u_z"
     };
   };
 
@@ -669,18 +730,17 @@ public:
     {
       sc_nG,
       sc_E,
-      sp_F_0, sp_F_1, sp_F_2,
+      sp_F_0,
+      sp_F_1,
+      sp_F_2,
       N
     };
-    static constexpr char const * const names[] = {
-      "M1.src.sc_nG",
-      "M1.src.sc_E",
-      "M1.src.sp_F_d_0",
-      "M1.src.sp_F_d_1",
-      "M1.src.sp_F_d_2"
-    };
+    static constexpr char const* const names[] = { "M1.src.sc_nG",
+                                                   "M1.src.sc_E",
+                                                   "M1.src.sp_F_d_0",
+                                                   "M1.src.sp_F_d_1",
+                                                   "M1.src.sp_F_d_2" };
   };
-
 
   // Radiation-matter variables
   struct ixn_RaM
@@ -699,7 +759,7 @@ public:
       // nueave,
       N
     };
-    static constexpr char const * const names[] = {
+    static constexpr char const* const names[] = {
       "M1.radmat.sc_eta_0",
       "M1.radmat.sc_kap_a_0",
       "M1.radmat.sc_eta",
@@ -722,7 +782,7 @@ public:
       sc_n,
       N
     };
-    static constexpr char const * const names[] = {
+    static constexpr char const* const names[] = {
       "M1.eql.sc_J",
       "M1.eql.sc_n",
     };
@@ -739,7 +799,7 @@ public:
       z,
       N
     };
-    static constexpr char const * const names[] = {
+    static constexpr char const* const names[] = {
       "M1.rdia.radial_flux_0",
       "M1.rdia.radial_flux_1",
       "M1.rdia.y",
@@ -752,19 +812,21 @@ public:
   {
     enum
     {
-      fidu_v_u_x, fidu_v_u_y, fidu_v_u_z,
-      fidu_v_d_x, fidu_v_d_y, fidu_v_d_z,
+      fidu_v_u_x,
+      fidu_v_u_y,
+      fidu_v_u_z,
+      fidu_v_d_x,
+      fidu_v_d_y,
+      fidu_v_d_z,
       fidu_W,
       netabs,
       netheat,
       N
     };
-    static constexpr char const * const names[] = {
+    static constexpr char const* const names[] = {
       "M1.fidu.v_u_x", "M1.fidu.v_u_y", "M1.fidu.v_u_z",
       "M1.fidu.v_d_x", "M1.fidu.v_d_y", "M1.fidu.v_d_z",
-      "M1.fidu.W",
-      "M1.net.abs",
-      "M1.net.heat"
+      "M1.fidu.W",     "M1.net.abs",    "M1.net.heat"
     };
   };
 
@@ -794,34 +856,45 @@ public:
   };
   */
 
-// opacities ==================================================================
-public:
-  Opacities::Opacities * popac;
+  // opacities
+  // ==================================================================
+  public:
+  Opacities::Opacities* popac;
 
-// solver / source treatment dispatch =========================================
-public:
-  struct evolution_strategy {
-    enum class opt_solution_regime {noop,
-                                    non_stiff,
-                                    stiff,
-                                    scattering,
-                                    equilibrium,
-                                    equilibrium_wr,
-                                    N};
-    enum class opt_source_treatment {noop,
-                                     full,
-                                     set_zero,
-                                     N};
-    struct {
-      AthenaArray<opt_solution_regime>  solution_regime;
+  // solver / source treatment dispatch
+  // =========================================
+  public:
+  struct evolution_strategy
+  {
+    enum class opt_solution_regime
+    {
+      noop,
+      non_stiff,
+      stiff,
+      scattering,
+      equilibrium,
+      equilibrium_wr,
+      N
+    };
+    enum class opt_source_treatment
+    {
+      noop,
+      full,
+      set_zero,
+      N
+    };
+    struct
+    {
+      AthenaArray<opt_solution_regime> solution_regime;
       // AthenaArray<opt_source_treatment> source_treatment;
-      AA_B                 excised;
-      AA                                flux_limiter;
-      AA                                pp;
-      AA_B                 compute_point;
+      AA_B excised;
+      AA flux_limiter;
+      AA pp;
+      AA_B compute_point;
     } masks;
 
-    struct {
+    struct
+    {
       int num_lo_reversions;
       int num_opac_failures;
       int num_opac_fixes;
@@ -837,42 +910,44 @@ public:
 
         // this is primarily for weakrates
         num_opac_failures = 0;
-        num_opac_fixes = 0;
+        num_opac_fixes    = 0;
         num_equi_failures = 0;
-        num_equi_fixes = 0;
-        num_equi_ignored = 0;
-        num_radmat_zero = 0;
+        num_equi_fixes    = 0;
+        num_equi_ignored  = 0;
+        num_radmat_zero   = 0;
       }
     } status;
 
     bool substep_shortcircuit;
   } ev_strat;
 
-  typedef evolution_strategy::opt_solution_regime  t_sln_r;
+  typedef evolution_strategy::opt_solution_regime t_sln_r;
   typedef evolution_strategy::opt_source_treatment t_src_t;
 
   inline bool IsEquilibrium(const int k, const int j, const int i)
   {
     // if in eql all species are in eql, just take the val from ix 0
     t_sln_r cur_r = GetMaskSolutionRegime(0, 0, k, j, i);
-    return (
-      (cur_r == t_sln_r::equilibrium) ||
-      (cur_r == t_sln_r::equilibrium_wr)
-    );
+    return ((cur_r == t_sln_r::equilibrium) ||
+            (cur_r == t_sln_r::equilibrium_wr));
   }
 
-  inline bool IsEquilibrium(const int ix_s, const int k, const int j, const int i)
+  inline bool IsEquilibrium(const int ix_s,
+                            const int k,
+                            const int j,
+                            const int i)
   {
     // if in eql all species are in eql, just take the val from ix 0
     t_sln_r cur_r = GetMaskSolutionRegime(0, ix_s, k, j, i);
-    return (
-      (cur_r == t_sln_r::equilibrium) ||
-      (cur_r == t_sln_r::equilibrium_wr)
-    );
+    return ((cur_r == t_sln_r::equilibrium) ||
+            (cur_r == t_sln_r::equilibrium_wr));
   }
 
-  inline t_sln_r GetMaskSolutionRegime(const int ix_g, const int ix_s,
-                                       const int k, const int j, const int i)
+  inline t_sln_r GetMaskSolutionRegime(const int ix_g,
+                                       const int ix_s,
+                                       const int k,
+                                       const int j,
+                                       const int i)
   {
     if (opt_solver.solver_reduce_to_common)
     {
@@ -885,8 +960,11 @@ public:
   }
 
   inline void SetMaskSolutionRegime(t_sln_r sol_r,
-                                    const int ix_g, const int ix_s,
-                                    const int k, const int j, const int i)
+                                    const int ix_g,
+                                    const int ix_s,
+                                    const int k,
+                                    const int j,
+                                    const int i)
   {
     if (opt_solver.solver_reduce_to_common)
     {
@@ -907,45 +985,45 @@ public:
                                 const Real kap_s,
                                 const Real rho,
                                 const Real T,
-                                t_sln_r & mask_sln_r);
+                                t_sln_r& mask_sln_r);
   void PrepareEvolutionStrategyCommon(const Real dt);
   void PrepareEvolutionStrategy(const Real dt);
 
-// additional methods =========================================================
-public:
-  void HybridizeLOFlux(AA & mask_hyb,
-                       vars_Flux & fluxes_ho,
-                       vars_Flux & fluxes_lo);
-  void UpdateGeometry(vars_Geom  & geom,
-                      vars_Scratch & scratch);
-  void UpdateHydro(vars_Hydro & hydro,
-                   vars_Geom & geom,
-                   vars_Scratch & scratch);
+  // additional methods
+  // =========================================================
+  public:
+  void HybridizeLOFlux(AA& mask_hyb,
+                       vars_Flux& fluxes_ho,
+                       vars_Flux& fluxes_lo);
+  void UpdateGeometry(vars_Geom& geom, vars_Scratch& scratch);
+  void UpdateHydro(vars_Hydro& hydro, vars_Geom& geom, vars_Scratch& scratch);
 
-  void CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca & lambda);
+  void CalcCharacteristicSpeedApproximate(const int dir, AT_C_sca& lambda);
 
   void CalcCharacteristicSpeed(const int dir,
-                               const AT_C_sca & sc_E,
-                               const AT_N_vec & sp_F_d,
-                               const AT_C_sca & sc_chi,
-                               AT_C_sca & lambda);
+                               const AT_C_sca& sc_E,
+                               const AT_N_vec& sp_F_d,
+                               const AT_C_sca& sc_chi,
+                               AT_C_sca& lambda);
 
   inline void MaskSet(const bool is_enabled,
-                      const int k, const int j, const int i)
+                      const int k,
+                      const int j,
+                      const int i)
   {
-    ev_strat.masks.excised(k,j,i) = !is_enabled;
+    ev_strat.masks.excised(k, j, i) = !is_enabled;
 
     if (!is_enabled)
-    for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-    for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-    {
-      lab.sc_E( ix_g,ix_s)(k,j,i) = 0.0;
-      lab.sc_nG(ix_g,ix_s)(k,j,i) = 0.0;
-      for (int a=0; a<N; ++a)
-      {
-        lab.sp_F_d(ix_g,ix_s)(a,k,j,i) = 0.0;
-      }
-    }
+      for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+        for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+        {
+          lab.sc_E(ix_g, ix_s)(k, j, i)  = 0.0;
+          lab.sc_nG(ix_g, ix_s)(k, j, i) = 0.0;
+          for (int a = 0; a < N; ++a)
+          {
+            lab.sp_F_d(ix_g, ix_s)(a, k, j, i) = 0.0;
+          }
+        }
   }
 
   inline void MaskThreshold(const int k, const int j, const int i)
@@ -973,113 +1051,114 @@ public:
 
   inline bool MaskGet(const int k, const int j, const int i)
   {
-    return !(ev_strat.masks.excised(k,j,i));
+    return !(ev_strat.masks.excised(k, j, i));
   }
 
   inline bool MaskGetHybridize(const int ix_s,
-                               const int k, const int j, const int i)
+                               const int k,
+                               const int j,
+                               const int i)
   {
     if (!opt.flux_lo_fallback)
       return true;
 
-    const int ix_ms = (opt.flux_lo_fallback_species)
-      ? ix_s
-      : 0;
-    return ev_strat.masks.compute_point(ix_ms,k,j,i);
+    const int ix_ms = (opt.flux_lo_fallback_species) ? ix_s : 0;
+    return ev_strat.masks.compute_point(ix_ms, k, j, i);
   }
 
   inline void MaskSetHybridize(const bool value,
                                const int ix_s,
-                               const int k, const int j, const int i)
+                               const int k,
+                               const int j,
+                               const int i)
   {
-    const int ix_ms = (opt.flux_lo_fallback_species)
-      ? ix_s
-      : 0;
-    ev_strat.masks.compute_point(ix_ms,k,j,i) = value;
+    const int ix_ms = (opt.flux_lo_fallback_species) ? ix_s : 0;
+    ev_strat.masks.compute_point(ix_ms, k, j, i) = value;
   }
 
-public:
+  public:
   // These manipulate internal M1 mem-state; don't call external to class
   //
   // Exposed for pgen
-  void InitializeGeometry(vars_Geom & geom,
-                          vars_Scratch & scratch);
-  void DerivedGeometry(vars_Geom & geom,
-                       vars_Scratch & scratch);
+  void InitializeGeometry(vars_Geom& geom, vars_Scratch& scratch);
+  void DerivedGeometry(vars_Geom& geom, vars_Scratch& scratch);
 
-  void InitializeHydro(vars_Hydro & hydro,
-                       vars_Geom & geom,
-                       vars_Scratch & scratch);
-  void DerivedHydro(vars_Hydro & hydro,
-                    vars_Geom & geom,
-                    vars_Scratch & scratch);
+  void InitializeHydro(vars_Hydro& hydro,
+                       vars_Geom& geom,
+                       vars_Scratch& scratch);
+  void DerivedHydro(vars_Hydro& hydro, vars_Geom& geom, vars_Scratch& scratch);
 
-public:
+  public:
   // aliases ------------------------------------------------------------------
-  template<typename A_tar>
-  inline void SetVarAlias(A_tar & tar, AA & src,
-                          const int ix_g, // group
-                          const int ix_s, // species
-                          const int ix_v, // variable idx in src
-                          const int Nv)   // number of vars in src
+  template <typename A_tar>
+  inline void SetVarAlias(A_tar& tar,
+                          AA& src,
+                          const int ix_g,  // group
+                          const int ix_s,  // species
+                          const int ix_v,  // variable idx in src
+                          const int Nv)    // number of vars in src
   {
     // Warning: strange bug-
     //
     // Do not write support fcn for N_gs calc. with such template.
     const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * Nv;
-    tar(ix_g,ix_s).InitWithShallowSlice(src, N_gs+ix_v);
+    tar(ix_g, ix_s).InitWithShallowSlice(src, N_gs + ix_v);
   }
 
-  template<typename A_tar>
-  inline void SetVarAlias(A_tar & tar, AA (&src)[M1_NDIM],
-                          const int ix_g, // group
-                          const int ix_s, // species
-                          const int ix_f, // flux direction
-                          const int ix_v, // variable idx in src
-                          const int Nv)   // number of vars in src
+  template <typename A_tar>
+  inline void SetVarAlias(A_tar& tar,
+                          AA (&src)[M1_NDIM],
+                          const int ix_g,  // group
+                          const int ix_s,  // species
+                          const int ix_f,  // flux direction
+                          const int ix_v,  // variable idx in src
+                          const int Nv)    // number of vars in src
   {
     const int N_gs = (ix_s + N_SPCS * (ix_g + 0)) * Nv;
-    tar(ix_g,ix_s,ix_f).InitWithShallowSlice(src[ix_f], N_gs+ix_v);
+    tar(ix_g, ix_s, ix_f).InitWithShallowSlice(src[ix_f], N_gs + ix_v);
   }
 
-  void SetVarAliasesFluxes(AA (&u_fluxes)[M1_NDIM], vars_Flux   & fluxes);
-  void SetVarAliasesLab(   AA  &u,                  vars_Lab    & lab);
-  void SetVarAliasesSource(AA  &sources,            vars_Source & src);
-  void SetVarAliasesLabAux(AA  &u,                  vars_LabAux & lab_aux);
-  void SetVarAliasesRad(   AA  &r,                  vars_Rad    & rad);
-  void SetVarAliasesRadMat(AA  &radmat,             vars_RadMat & rmat);
-  void SetVarAliasesEql(   AA  &eql,                vars_Eql    & eq);
-  void SetVarAliasesDiag(  AA  &diagno,             vars_Diag   & rdia);
-  void SetVarAliasesFidu(  AA  &intern,             vars_Fidu   & fid);
-  void SetVarAliasesNet(   AA  &intern,             vars_Net    & net);
+  void SetVarAliasesFluxes(AA (&u_fluxes)[M1_NDIM], vars_Flux& fluxes);
+  void SetVarAliasesLab(AA& u, vars_Lab& lab);
+  void SetVarAliasesSource(AA& sources, vars_Source& src);
+  void SetVarAliasesLabAux(AA& u, vars_LabAux& lab_aux);
+  void SetVarAliasesRad(AA& r, vars_Rad& rad);
+  void SetVarAliasesRadMat(AA& radmat, vars_RadMat& rmat);
+  void SetVarAliasesEql(AA& eql, vars_Eql& eq);
+  void SetVarAliasesDiag(AA& diagno, vars_Diag& rdia);
+  void SetVarAliasesFidu(AA& intern, vars_Fidu& fid);
+  void SetVarAliasesNet(AA& intern, vars_Net& net);
 
+  // internal methods
+  // ===========================================================
+  private:
+  void PopulateOptions(ParameterInput* pin);
+  void PopulateOptionsClosure(ParameterInput* pin);
+  void PopulateOptionsSolver(ParameterInput* pin);
+  void PopulateOptionsOpacities(ParameterInput* pin);
 
-// internal methods ===========================================================
-private:
-  void PopulateOptions(         ParameterInput *pin);
-  void PopulateOptionsClosure(  ParameterInput *pin);
-  void PopulateOptionsSolver(   ParameterInput *pin);
-  void PopulateOptionsOpacities(ParameterInput *pin);
-
-// internal data ==============================================================
-private:
+  // internal data
+  // ==============================================================
+  private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
 
-// debug ======================================================================
-public:
-  void StatePrintPoint(
-    const std::string & tag,
-    const int ix_g, const int ix_s,
-    const int k, const int j, const int i,
-    const bool terminate=true);
-
+  // debug
+  // ======================================================================
+  public:
+  void StatePrintPoint(const std::string& tag,
+                       const int ix_g,
+                       const int ix_s,
+                       const int k,
+                       const int j,
+                       const int i,
+                       const bool terminate = true);
 };
 
 // ============================================================================
-} // namespace M1
+}  // namespace M1
 // ============================================================================
 
-#endif // M1_HPP
+#endif  // M1_HPP
 
 //
 // :D

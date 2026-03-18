@@ -1,7 +1,8 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file hydro.cpp
 //  \brief implementation of functions in class Hydro
@@ -15,62 +16,77 @@
 #include <vector>
 
 // Athena++ headers
+#include "../comm/amr_registry.hpp"
+#include "../comm/amr_spec.hpp"
+#include "../comm/comm_registry.hpp"
+#include "../comm/comm_spec.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../mesh/mesh.hpp"
 #include "../reconstruct/reconstruction.hpp"
-#include "../comm/comm_spec.hpp"
-#include "../comm/comm_registry.hpp"
 #include "hydro.hpp"
 
 // constructor, initializes data structures and parameters
 
-Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
-    pmy_block(pmb),
-    u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    derived_ms(NDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    derived_int(NIDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
-    // C++11: nested brace-init-list in Hydro member initializer list = aggregate init. of
-    // flux[3] array --> direct list init. of each array element --> direct init. via
-    // constructor overload resolution of non-aggregate class type AthenaArray<Real>
-    flux{ {NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1+1},
-          {NHYDRO, pmb->ncells3, pmb->ncells2+1, pmb->ncells1,
-           (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated :
-            AthenaArray<Real>::DataStatus::empty)},
-          {NHYDRO, pmb->ncells3+1, pmb->ncells2, pmb->ncells1,
-           (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated :
-            AthenaArray<Real>::DataStatus::empty)}
-    },
-    coarse_cons_(NHYDRO, pmb->ncc3, pmb->ncc2, pmb->ncc1,
-                 (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated :
-                  AthenaArray<Real>::DataStatus::empty))
+Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
+    : pmy_block(pmb),
+      u(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      w(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      u1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      w1(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      derived_ms(NDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      derived_int(NIDRV_HYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1),
+      // C++11: nested brace-init-list in Hydro member initializer list =
+      // aggregate init. of flux[3] array --> direct list init. of each array
+      // element --> direct init. via constructor overload resolution of
+      // non-aggregate class type AthenaArray<Real>
+      flux{ { NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1 + 1 },
+            { NHYDRO,
+              pmb->ncells3,
+              pmb->ncells2 + 1,
+              pmb->ncells1,
+              (pmb->pmy_mesh->f2 ? AthenaArray<Real>::DataStatus::allocated
+                                 : AthenaArray<Real>::DataStatus::empty) },
+            { NHYDRO,
+              pmb->ncells3 + 1,
+              pmb->ncells2,
+              pmb->ncells1,
+              (pmb->pmy_mesh->f3 ? AthenaArray<Real>::DataStatus::allocated
+                                 : AthenaArray<Real>::DataStatus::empty) } },
+      coarse_cons_(
+        NHYDRO,
+        pmb->ncc3,
+        pmb->ncc2,
+        pmb->ncc1,
+        (pmb->pmy_mesh->multilevel ? AthenaArray<Real>::DataStatus::allocated
+                                   : AthenaArray<Real>::DataStatus::empty))
 {
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
-  Mesh *pm = pmy_block->pmy_mesh;
-
-  pmb->RegisterMeshBlockDataCC(u);
+  Mesh* pm = pmy_block->pmy_mesh;
 
   floor_both_states = pin->GetOrAddBoolean("time", "floor_both_states", false);
-  flux_reconstruction = pin->GetOrAddBoolean(
-    "hydro", "flux_reconstruction", false);
-  split_lr_fallback = pin->GetOrAddBoolean(
-    "hydro", "split_lr_fallback", false);
+  flux_reconstruction =
+    pin->GetOrAddBoolean("hydro", "flux_reconstruction", false);
+  split_lr_fallback =
+    pin->GetOrAddBoolean("hydro", "split_lr_fallback", false);
 
-  flux_table_limiter = pin->GetOrAddBoolean(
-    "hydro", "flux_table_limiter", false);
+  flux_table_limiter =
+    pin->GetOrAddBoolean("hydro", "flux_table_limiter", false);
 
   // Riemann solver method (runtime selection)
   {
     std::string rsolver_str = pin->GetOrAddString("hydro", "rsolver", "llf");
-    if (rsolver_str == "llf") {
+    if (rsolver_str == "llf")
+    {
       rsolver_method_ = RSolverMethod::llf;
-    } else if (rsolver_str == "hlle") {
+    }
+    else if (rsolver_str == "hlle")
+    {
       rsolver_method_ = RSolverMethod::hlle;
-    } else {
+    }
+    else
+    {
       std::stringstream msg;
       msg << "### FATAL ERROR in Hydro constructor" << std::endl
           << "[hydro] rsolver=" << rsolver_str
@@ -80,61 +96,59 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   }
 
   opt_excision.alpha_threshold =
-      pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
+    pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
   opt_excision.horizon_based =
-      pin->GetOrAddBoolean("excision", "horizon_based", false);
+    pin->GetOrAddBoolean("excision", "horizon_based", false);
   opt_excision.horizon_factor =
-      pin->GetOrAddReal("excision", "horizon_factor", 1.0);
+    pin->GetOrAddReal("excision", "horizon_factor", 1.0);
 
   opt_excision.hybrid_hydro =
-      pin->GetOrAddBoolean("excision", "hybrid_hydro", false);
+    pin->GetOrAddBoolean("excision", "hybrid_hydro", false);
 
   opt_excision.hybrid_fac_min_alpha =
-      pin->GetOrAddReal("excision", "hybrid_fac_min_alpha", 1.5);
+    pin->GetOrAddReal("excision", "hybrid_fac_min_alpha", 1.5);
 
   opt_excision.use_taper =
-      pin->GetOrAddBoolean("excision", "use_taper", false);
+    pin->GetOrAddBoolean("excision", "use_taper", false);
 
   opt_excision.excise_hydro_damping =
-      pin->GetOrAddBoolean("excision", "excise_hydro_damping", false);
+    pin->GetOrAddBoolean("excision", "excise_hydro_damping", false);
 
   opt_excision.hydro_damping_factor =
-      pin->GetOrAddReal("excision", "hydro_damping_factor", 0.69);
+    pin->GetOrAddReal("excision", "hydro_damping_factor", 0.69);
 
   opt_excision.excise_flux =
-      pin->GetOrAddBoolean("excision", "excise_flux", true);
+    pin->GetOrAddBoolean("excision", "excise_flux", true);
 
   opt_excision.excise_c2p =
-      pin->GetOrAddBoolean("excision", "excise_c2p", true);
+    pin->GetOrAddBoolean("excision", "excise_c2p", true);
 
   if (opt_excision.use_taper || opt_excision.excise_hydro_damping)
   {
-    excision_mask.NewAthenaArray(nc3,nc2,nc1);
+    excision_mask.NewAthenaArray(nc3, nc2, nc1);
     excision_mask.Fill(1);
   }
 
-  opt_excision.taper_pow =
-      pin->GetOrAddReal("excision", "taper_pow", 1.0);
+  opt_excision.taper_pow = pin->GetOrAddReal("excision", "taper_pow", 1.0);
 
-  opt_excision.taper_min =
-      pin->GetOrAddReal("excision", "taper_min", 0.0);
+  opt_excision.taper_min = pin->GetOrAddReal("excision", "taper_min", 0.0);
 
   opt_excision.taper_dt_response =
-      pin->GetOrAddReal("excision", "taper_dt_response", 0.0);
+    pin->GetOrAddReal("excision", "taper_dt_response", 0.0);
 
   opt_excision.excise_hydro_freeze_evo =
-      pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
+    pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
 
   opt_excision.excise_hydro_taper =
-      pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
-
+    pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
 
   if (pmb->precon->xorder_use_fb)
   {
     fallback_mask.NewAthenaArray(nc3, nc2, nc1);
   }
 
-  // If user-requested time integrator is type 3S*, allocate additional memory registers
+  // If user-requested time integrator is type 3S*, allocate additional memory
+  // registers
   std::string integrator = pin->GetOrAddString("time", "integrator", "vl2");
   if (integrator == "ssprk5_4" ||
       (pmb->precon->xorder_use_fb && pmb->precon->xorder_use_dmp))
@@ -143,9 +157,19 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
     u2.NewAthenaArray(NHYDRO, nc3, nc2, nc1);
   }
 
-  // "Enroll" in S/AMR by adding to vector of tuples of pointers in MeshRefinement class
-  if (pm->multilevel) {
-    refinement_idx = pmy_block->pmr->AddToRefinementCC(&u, &coarse_cons_);
+  // Register with AMR redistribution system (new comm layer).
+  if (pm->multilevel)
+  {
+    comm::AMRSpec amr;
+    amr.label       = "hydro_cons";
+    amr.var         = &u;
+    amr.coarse_var  = &coarse_cons_;
+    amr.nvar        = NHYDRO;
+    amr.sampling    = comm::Sampling::CC;
+    amr.group       = comm::AMRGroup::Main;
+    amr.prolong_op  = comm::ProlongOp::MinmodLinear;
+    amr.restrict_op = comm::RestrictOp::VolumeWeighted;
+    pmb->pamr->Register(amr);
   }
 
   // Register hydro conserved variables with the new comm system.
@@ -153,29 +177,30 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   // Parity: {Scalar,1} for D, {Vector,3} for S_d, {Scalar,1} for tau.
   {
     comm::CommSpec spec;
-    spec.label      = "hydro_cons";
-    spec.var        = &u;
-    spec.coarse_var = &coarse_cons_;
-    spec.nvar       = NHYDRO;
-    spec.sampling   = comm::Sampling::CC;
-    spec.targets    = comm::CommTarget::All;
-    spec.group      = comm::CommGroup::MainInt;
+    spec.label       = "hydro_cons";
+    spec.var         = &u;
+    spec.coarse_var  = &coarse_cons_;
+    spec.nvar        = NHYDRO;
+    spec.sampling    = comm::Sampling::CC;
+    spec.targets     = comm::CommTarget::All;
+    spec.group       = comm::CommGroup::MainInt;
     spec.prolong_op  = comm::ProlongOp::MinmodLinear;
     spec.restrict_op = comm::RestrictOp::VolumeWeighted;
     comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
     spec.component_groups = {
-      {comm::GeomType::Scalar, 1},   // D
-      {comm::GeomType::Vector, 3},   // S_d_{1,2,3}
-      {comm::GeomType::Scalar, 1}    // tau
+      { comm::GeomType::Scalar, 1 },  // D
+      { comm::GeomType::Vector, 3 },  // S_d_{1,2,3}
+      { comm::GeomType::Scalar, 1 }   // tau
     };
-    // Flux correction: area-weighted restricted fluxes overwrite coarse fluxes at
-    // fine/coarse interfaces.  Only active for AMR/SMR.
-    if (pm->multilevel) {
-      spec.flx_cc[0]   = &flux[0];
-      spec.flx_cc[1]   = &flux[1];
-      spec.flx_cc[2]   = &flux[2];
-      spec.flcor_mode   = comm::FluxCorrMode::OverwriteFromFiner;
-      spec.flux_group   = comm::CommGroup::FluxCorr;
+    // Flux correction: area-weighted restricted fluxes overwrite coarse fluxes
+    // at fine/coarse interfaces.  Only active for AMR/SMR.
+    if (pm->multilevel)
+    {
+      spec.flx_cc[0]  = &flux[0];
+      spec.flx_cc[1]  = &flux[1];
+      spec.flx_cc[2]  = &flux[2];
+      spec.flcor_mode = comm::FluxCorrMode::OverwriteFromFiner;
+      spec.flux_group = comm::CommGroup::FluxCorr;
     }
     comm_channel_id = pmb->pcomm->Register(spec);
   }
@@ -214,12 +239,12 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
   const int nn1 = pmy_block->nverts1;
 
   sqrt_detgamma_.NewAthenaTensor(nn1);
-  detgamma_.NewAthenaTensor(     nn1);
-  oo_detgamma_.NewAthenaTensor(  nn1);
+  detgamma_.NewAthenaTensor(nn1);
+  oo_detgamma_.NewAthenaTensor(nn1);
 
-  alpha_.NewAthenaTensor(   nn1);
+  alpha_.NewAthenaTensor(nn1);
   oo_alpha_.NewAthenaTensor(nn1);
-  beta_u_.NewAthenaTensor(  nn1);
+  beta_u_.NewAthenaTensor(nn1);
   gamma_dd_.NewAthenaTensor(nn1);
   gamma_uu_.NewAthenaTensor(nn1);
 
@@ -280,55 +305,55 @@ Hydro::Hydro(MeshBlock *pmb, ParameterInput *pin) :
 
   bi_d_l_.NewAthenaTensor(nn1);
   bi_d_r_.NewAthenaTensor(nn1);
-#endif // MAGNETIC_FIELDS_ENABLED
+#endif  // MAGNETIC_FIELDS_ENABLED
 
 #endif
-
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt)
+//! \fn Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx,
+//! Real dt)
 //  \brief Calculate the weighting factor for the constrained transport method
 
-Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt) {
-  Real v_over_c = (1024.0)* dt * dflx / (dx * (rhol + rhor));
-  Real tmp_min = std::min(static_cast<Real>(0.5), v_over_c);
+Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt)
+{
+  Real v_over_c = (1024.0) * dt * dflx / (dx * (rhol + rhor));
+  Real tmp_min  = std::min(static_cast<Real>(0.5), v_over_c);
   return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
 }
 
-
-// Check if conserved density is under a floor cutoff factor on the current MeshBlock
+// Check if conserved density is under a floor cutoff factor on the current
+// MeshBlock
 bool Hydro::ConservedDensityWithinFloorThreshold(
-  AA &u,
+  AA& u,
   const Real undensitized_dfloor_fac,
-  const int num_enlarge_layer
-)
+  const int num_enlarge_layer)
 {
-  MeshBlock *pmb = pmy_block;
+  MeshBlock* pmb = pmy_block;
 
   // Undensitized conserved density floor
-  const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+  const Real mb     = pmb->peos->GetEOS().GetBaryonMass();
   const Real dfloor = mb * pmb->peos->GetEOS().GetDensityFloor();
-  const Real d_fac = undensitized_dfloor_fac * dfloor;
-  AA & sqrt_detgamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma.array();
+  const Real d_fac  = undensitized_dfloor_fac * dfloor;
+  AA& sqrt_detgamma = pmb->pz4c->aux_extended.ms_sqrt_detgamma.array();
 
   bool ret = true;
 
-  int il = pmb->is-num_enlarge_layer;
-  int iu = pmb->ie+num_enlarge_layer;
-  int jl = pmb->js-num_enlarge_layer;
-  int ju = pmb->je+num_enlarge_layer;
-  int kl = pmb->ks-num_enlarge_layer;
-  int ku = pmb->ke+num_enlarge_layer;
-  for (int k=kl; k<=ku; ++k)
-  for (int j=jl; j<=ju; ++j)
-  for (int i=il; i<=iu; ++i)
-  {
-    ret = ret and (sqrt_detgamma(k,j,i) * d_fac > u(IDN,k,j,i));
+  int il = pmb->is - num_enlarge_layer;
+  int iu = pmb->ie + num_enlarge_layer;
+  int jl = pmb->js - num_enlarge_layer;
+  int ju = pmb->je + num_enlarge_layer;
+  int kl = pmb->ks - num_enlarge_layer;
+  int ku = pmb->ke + num_enlarge_layer;
+  for (int k = kl; k <= ku; ++k)
+    for (int j = jl; j <= ju; ++j)
+      for (int i = il; i <= iu; ++i)
+      {
+        ret = ret and (sqrt_detgamma(k, j, i) * d_fac > u(IDN, k, j, i));
 
-    if (!ret)
-      break;
-  }
+        if (!ret)
+          break;
+      }
 
   return ret;
 }

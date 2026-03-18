@@ -2,13 +2,14 @@
 #define MESH_MESH_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file mesh.hpp
 //  \brief defines Mesh and MeshBlock classes, and various structs used in them
-//  The Mesh is the overall grid structure, and MeshBlocks are local patches of data
-//  (potentially on different levels) that tile the entire domain.
+//  The Mesh is the overall grid structure, and MeshBlocks are local patches of
+//  data (potentially on different levels) that tile the entire domain.
 
 // C headers
 
@@ -21,15 +22,15 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
+#include "../comm/neighbor_connectivity.hpp"
+#include "../hydro/rescaling.hpp"
 #include "../outputs/io_wrapper.hpp"
 #include "../parameter_input.hpp"
+#include "../scalars/scalars.hpp"
 #include "../task_list/task_list.hpp"
 #include "mesh_refinement.hpp"
 #include "mesh_topology.hpp"
 #include "meshblock_tree.hpp"
-#include "../comm/neighbor_connectivity.hpp"
-#include "../scalars/scalars.hpp"
-#include "../hydro/rescaling.hpp"
 #include "thread_cache.hpp"
 
 // Forward declarations
@@ -61,26 +62,28 @@ class WaveExtractLocal;
 class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
-namespace gra::mesh::surfaces {
+namespace gra::mesh::surfaces
+{
 class Surfaces;
 }
 
-namespace M1 {
+namespace M1
+{
 class M1;
 }
 
-namespace comm {
+namespace comm
+{
 class CommRegistry;
-}
-
-
-
+class AMRRegistry;
+}  // namespace comm
 
 //----------------------------------------------------------------------------------------
 //! \class MeshBlock
 //  \brief data/functions associated with a single block
 
-class MeshBlock {
+class MeshBlock
+{
   friend class RestartOutput;
   friend class Mesh;
   friend class Hydro;
@@ -92,25 +95,37 @@ class MeshBlock {
   friend class Wave;
   friend class M1::M1;
 
-public:
-  MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_size,
-            BoundaryFlag *input_bcs, Mesh *pm, ParameterInput *pin,
+  public:
+  MeshBlock(int igid,
+            int ilid,
+            LogicalLocation iloc,
+            RegionSize input_size,
+            BoundaryFlag* input_bcs,
+            Mesh* pm,
+            ParameterInput* pin,
             bool ref_flag = false);
-  MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin, LogicalLocation iloc,
-            RegionSize input_block, BoundaryFlag *input_bcs, double icost,
-            char *mbdata);
+  MeshBlock(int igid,
+            int ilid,
+            Mesh* pm,
+            ParameterInput* pin,
+            LogicalLocation iloc,
+            RegionSize input_block,
+            BoundaryFlag* input_bcs,
+            double icost,
+            char* mbdata);
   ~MeshBlock();
 
   // data
-  Mesh *pmy_mesh;  // ptr to Mesh containing this MeshBlock
+  Mesh* pmy_mesh;  // ptr to Mesh containing this MeshBlock
   LogicalLocation loc;
   RegionSize block_size;
 
   int ng, cng;  // distinct ghost specification allowed
   int rcng;     // ghosts that may be restricted [minimise communication]
 
-  // for convenience: "max" # of real+ghost cells along each dir for allocating "standard"
-  // sized MeshBlock arrays, depending on ndim (i.e. ncells2=nx2+2*NGHOST if nx2>1)
+  // for convenience: "max" # of real+ghost cells along each dir for allocating
+  // "standard" sized MeshBlock arrays, depending on ndim (i.e.
+  // ncells2=nx2+2*NGHOST if nx2>1)
   int ncells1, ncells2, ncells3;
   // on 1x coarser level MeshBlock (i.e. ncc2=nx2/2 + 2*NGHOST, if nx2>1)
   int ncc1, ncc2, ncc3;
@@ -120,71 +135,70 @@ public:
   int cis, cie, cjs, cje, cks, cke, cnghost;
 
   // convenience for vertices
-  int nverts1, nverts2, nverts3;   // number of vertices (cells + 1)
-  int ncv1, ncv2, ncv3;            // coarse analogue
+  int nverts1, nverts2, nverts3;  // number of vertices (cells + 1)
+  int ncv1, ncv2, ncv3;           // coarse analogue
 
-  int ims, ime, ips, ipe;          // -/+ (communication) ghost-zone idx
-  int ivs, ive;                    // shared vertices
-  int igs, ige;                    // shared to ghost
+  int ims, ime, ips, ipe;  // -/+ (communication) ghost-zone idx
+  int ivs, ive;            // shared vertices
+  int igs, ige;            // shared to ghost
 
-  int imp;                         // mid-point idx
+  int imp;  // mid-point idx
 
-  int jms, jme, jps, jpe;          // -/+ (communication) ghost-zone idx
-  int jvs, jve;                    // shared vertices
-  int jgs, jge;                    // shared to ghost
+  int jms, jme, jps, jpe;  // -/+ (communication) ghost-zone idx
+  int jvs, jve;            // shared vertices
+  int jgs, jge;            // shared to ghost
 
-  int jmp;                         // mid-point idx
+  int jmp;  // mid-point idx
 
-  int kms, kme, kps, kpe;          // -/+ (communication) ghost-zone idx
-  int kvs, kve;                    // shared vertices
-  int kgs, kge;                    // shared to ghost
+  int kms, kme, kps, kpe;  // -/+ (communication) ghost-zone idx
+  int kvs, kve;            // shared vertices
+  int kgs, kge;            // shared to ghost
 
-  int kmp;                         // mid-point idx
+  int kmp;  // mid-point idx
 
   // for multi-level
-  int cims, cime, cips, cipe;          // -/+ (communication) ghost-zone idx
-  int civs, cive;                      // shared vertices
-  int cigs, cige;                      // shared to ghost
+  int cims, cime, cips, cipe;  // -/+ (communication) ghost-zone idx
+  int civs, cive;              // shared vertices
+  int cigs, cige;              // shared to ghost
 
-  int cimp;                            // mid-point idx
+  int cimp;  // mid-point idx
 
-  int cjms, cjme, cjps, cjpe;          // -/+ (communication) ghost-zone idx
-  int cjvs, cjve;                      // shared vertices
-  int cjgs, cjge;                      // shared to ghost
+  int cjms, cjme, cjps, cjpe;  // -/+ (communication) ghost-zone idx
+  int cjvs, cjve;              // shared vertices
+  int cjgs, cjge;              // shared to ghost
 
-  int cjmp;                            // mid-point idx
+  int cjmp;  // mid-point idx
 
-  int ckms, ckme, ckps, ckpe;          // -/+ (communication) ghost-zone idx
-  int ckvs, ckve;                      // shared vertices
-  int ckgs, ckge;                      // shared to ghost
+  int ckms, ckme, ckps, ckpe;  // -/+ (communication) ghost-zone idx
+  int ckvs, ckve;              // shared vertices
+  int ckgs, ckge;              // shared to ghost
 
-  int ckmp;                            // mid-point idx
+  int ckmp;  // mid-point idx
 
   // cell-centered extended ---------------------------------------------------
-  int cx_ncc1, cx_ncc2, cx_ncc3;       // number of coarse cells
-  int cx_dng;                          // NCGHOST_CX - NGHOST
+  int cx_ncc1, cx_ncc2, cx_ncc3;  // number of coarse cells
+  int cx_dng;                     // NCGHOST_CX - NGHOST
 
   int cx_ims, cx_ime, cx_ips, cx_ipe;  // -/+ (communication) ghost-zone idx
   int cx_is, cx_ie;                    // first physical idx
 
-  int cx_igs, cx_ige;                  // shared to ghosts
-                                       // [is, ..., igs] to nn-ghosts leftward
-                                       // [ige, ..., ie] to nn-ghosts rightward
+  int cx_igs, cx_ige;  // shared to ghosts
+                       // [is, ..., igs] to nn-ghosts leftward
+                       // [ige, ..., ie] to nn-ghosts rightward
 
   int cx_jms, cx_jme, cx_jps, cx_jpe;  // -/+ (communication) ghost-zone idx
   int cx_js, cx_je;                    // first physical idx
 
-  int cx_jgs, cx_jge;                  // shared to ghosts
-                                       // [is, ..., igs] to nn-ghosts leftward
-                                       // [ige, ..., ie] to nn-ghosts rightward
+  int cx_jgs, cx_jge;  // shared to ghosts
+                       // [is, ..., igs] to nn-ghosts leftward
+                       // [ige, ..., ie] to nn-ghosts rightward
 
   int cx_kms, cx_kme, cx_kps, cx_kpe;  // -/+ (communication) ghost-zone idx
   int cx_ks, cx_ke;                    // first physical idx
 
-  int cx_kgs, cx_kge;                  // shared to ghosts
-                                       // [is, ..., igs] to nn-ghosts leftward
-                                       // [ige, ..., ie] to nn-ghosts rightward
-
+  int cx_kgs, cx_kge;  // shared to ghosts
+                       // [is, ..., igs] to nn-ghosts leftward
+                       // [ige, ..., ie] to nn-ghosts rightward
 
   // for multi-level (labeling analogous)
   int cx_cims, cx_cime, cx_cips, cx_cipe;
@@ -203,95 +217,110 @@ public:
   int cx_ckgs, cx_ckge;
   // --------------------------------------------------------------------------
 
-  // At every cycle n, hydro and field registers (u, b) are advanced from t^n -> t^{n+1},
-  // the time-integration scheme may partially substep several storage register pairs
-  // (u,b), (u1,b1), (u2, b2), ..., (um, bm) through the dt interval. Track their time
-  // abscissae at the end of each stage (1<=l<=nstage) as (dt_m^l) relative to t^n
-  Real stage_abscissae[MAX_NSTAGE+1][MAX_NREGISTER];
+  // At every cycle n, hydro and field registers (u, b) are advanced from t^n
+  // -> t^{n+1}, the time-integration scheme may partially substep several
+  // storage register pairs (u,b), (u1,b1), (u2, b2), ..., (um, bm) through the
+  // dt interval. Track their time abscissae at the end of each stage
+  // (1<=l<=nstage) as (dt_m^l) relative to t^n
+  Real stage_abscissae[MAX_NSTAGE + 1][MAX_NREGISTER];
 
   // user output variables for analysis
   int nuser_out_var;
   AthenaArray<Real> user_out_var;
-  std::string *user_out_var_names_;
+  std::string* user_out_var_names_;
 
   // user MeshBlock data that can be stored in restart files
-  AthenaArray<Real> *ruser_meshblock_data;
-  AthenaArray<int> *iuser_meshblock_data;
+  AthenaArray<Real>* ruser_meshblock_data;
+  AthenaArray<int>* iuser_meshblock_data;
 
-  // ---- Mesh topology data (owned by NeighborConnectivity) -----------------------
-  // Neighbor connectivity: owns block_bcs[6], neighbor[56], nneighbor, nblevel[3][3][3].
-  // Initialized by MeshBlock ctor; populated by SearchAndSetNeighbors.
+  // ---- Mesh topology data (owned by NeighborConnectivity)
+  // ----------------------- Neighbor connectivity: owns block_bcs[6],
+  // neighbor[56], nneighbor, nblevel[3][3][3]. Initialized by MeshBlock ctor;
+  // populated by SearchAndSetNeighbors.
   comm::NeighborConnectivity nc_;
-  comm::NeighborConnectivity& nc() { return nc_; }
-  const comm::NeighborConnectivity& nc() const { return nc_; }
-  // Polar neighbor arrays - allocated only when the block touches a polar boundary.
-  // Indexed by azimuthal block index (lx3).
-  SimpleNeighborBlock *polar_neighbor_north;
-  SimpleNeighborBlock *polar_neighbor_south;
+  comm::NeighborConnectivity& nc()
+  {
+    return nc_;
+  }
+  const comm::NeighborConnectivity& nc() const
+  {
+    return nc_;
+  }
+  // Polar neighbor arrays - allocated only when the block touches a polar
+  // boundary. Indexed by azimuthal block index (lx3).
+  SimpleNeighborBlock* polar_neighbor_north;
+  SimpleNeighborBlock* polar_neighbor_south;
   int num_north_polar_blocks;
   int num_south_polar_blocks;
   // --------------------------------------------------------------------------
 
   // mesh-related objects
-  Coordinates *pcoord;
-  comm::CommRegistry *pcomm;  // new data-driven ghost-zone comm system
-  Reconstruction *precon;
-  MeshRefinement *pmr;
+  Coordinates* pcoord;
+  comm::CommRegistry* pcomm;  // new data-driven ghost-zone comm system
+  comm::AMRRegistry* pamr =
+    nullptr;  // data-driven AMR redistribution registry
+  Reconstruction* precon;
+  MeshRefinement* pmr;
 
   // physics-related objects (possibly containing their derived bvals classes)
-  Hydro *phydro = nullptr;
-  Field *pfield = nullptr;
-  PassiveScalars *pscalars = nullptr;
-  EquationOfState *peos = nullptr;
+  Hydro* phydro            = nullptr;
+  Field* pfield            = nullptr;
+  PassiveScalars* pscalars = nullptr;
+  EquationOfState* peos    = nullptr;
 
-  Wave *pwave;
+  Wave* pwave;
 
-  Z4c *pz4c;
-  std::vector<WaveExtractLocal *> pwave_extr_loc;
+  Z4c* pz4c;
+  std::vector<WaveExtractLocal*> pwave_extr_loc;
 
-  ExtremaTrackerLocal * ptracker_extrema_loc;
+  ExtremaTrackerLocal* ptracker_extrema_loc;
 
-  M1::M1 *pm1;
+  M1::M1* pm1;
 
   MeshBlock *prev, *next;
 
   // functions
   std::size_t GetBlockSizeInBytes();
-  int GetNumberOfMeshBlockCells() {
-    return block_size.nx1*block_size.nx2*block_size.nx3; }
-  void SearchAndSetNeighbors(MeshBlockTree &tree, int *ranklist, int *nslist);
+  int GetNumberOfMeshBlockCells()
+  {
+    return block_size.nx1 * block_size.nx2 * block_size.nx3;
+  }
+  void SearchAndSetNeighbors(MeshBlockTree& tree, int* ranklist, int* nslist);
 
-  // Validate that user-defined boundary functions are enrolled for all faces that
-  // require them.  Called once after ProblemGenerator.
+  // Validate that user-defined boundary functions are enrolled for all faces
+  // that require them.  Called once after ProblemGenerator.
   void CheckUserBoundaries();
 
   // Recompute cell-centred magnetic field (bcc) from face-centred field (b) on
-  // prolongated fine ghost-zone slabs so that bcc is divergence-consistent with the
-  // face-centred prolongation.  Only touches neighbor slabs at coarser level.
+  // prolongated fine ghost-zone slabs so that bcc is divergence-consistent
+  // with the face-centred prolongation.  Only touches neighbor slabs at
+  // coarser level.
   void CalculateCellCenteredFieldOnProlongedBoundaries();
 
-  void WeightedAveCC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                     AthenaArray<Real> &u_in2, const Real wght[3],
-                     const int num_enlarge_layer=0);
-  void WeightedAveVC(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                     AthenaArray<Real> &u_in2, const Real wght[3]);
-  void WeightedAveFC(FaceField &b_out, FaceField &b_in1, FaceField &b_in2,
+  void WeightedAveCC(AthenaArray<Real>& u_out,
+                     AthenaArray<Real>& u_in1,
+                     AthenaArray<Real>& u_in2,
+                     const Real wght[3],
+                     const int num_enlarge_layer = 0);
+  void WeightedAveVC(AthenaArray<Real>& u_out,
+                     AthenaArray<Real>& u_in1,
+                     AthenaArray<Real>& u_in2,
                      const Real wght[3]);
-  void WeightedAveCX(AthenaArray<Real> &u_out, AthenaArray<Real> &u_in1,
-                     AthenaArray<Real> &u_in2, const Real wght[3]);
-
-  // inform MeshBlock which arrays contained in member Hydro, Field, Particles,
-  // ... etc. classes are the "primary" representations of a quantity. when registered,
-  // that data are used for (1) load balancing (2) (future) dumping to restart file
-  void RegisterMeshBlockDataCC(AthenaArray<Real> &pvar_in);
-  void RegisterMeshBlockDataVC(AthenaArray<Real> &pvar_in);
-  void RegisterMeshBlockDataFC(FaceField &pvar_fc);
-  void RegisterMeshBlockDataCX(AthenaArray<Real> &pvar_in);
+  void WeightedAveFC(FaceField& b_out,
+                     FaceField& b_in1,
+                     FaceField& b_in2,
+                     const Real wght[3]);
+  void WeightedAveCX(AthenaArray<Real>& u_out,
+                     AthenaArray<Real>& u_in1,
+                     AthenaArray<Real>& u_in2,
+                     const Real wght[3]);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
-  void UserWorkBeforeOutput(ParameterInput *pin); // called in Mesh fn (friend class)
-  void UserWorkInLoop();                          // called in TimeIntegratorTaskList
-  void UserWorkAfterOutput(ParameterInput *pin);  // called in Mesh fn (friend class)
+  void UserWorkBeforeOutput(
+    ParameterInput* pin);  // called in Mesh fn (friend class)
+  void UserWorkInLoop();   // called in TimeIntegratorTaskList
+  void UserWorkAfterOutput(
+    ParameterInput* pin);  // called in Mesh fn (friend class)
 
   // This is a quick fix to prevent multiple calls to 'UserWorkInLoop' if
   // TimeIntegratorTaskList and Z4cIntegratorTaskList are both running..
@@ -299,7 +328,7 @@ public:
   void M1UserWorkInLoop();
 
   // Introduce work that can be registered to execute before postamr hooks
-  void UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
+  void UserWorkMeshUpdatedPrePostAMRHooks(ParameterInput* pin);
   bool PointContained(Real const x, Real const y, Real const z);
   bool PointContainedExclusive(Real const x, Real const y, Real const z);
 
@@ -307,7 +336,9 @@ public:
   bool PointContainedExtended(Real const x, Real const y, Real const z);
 
   Real PointCentralDistanceSquared(Real const x, Real const y, Real const z);
-  bool SphereIntersects(Real const Sx0, Real const Sy0, Real const Sz0,
+  bool SphereIntersects(Real const Sx0,
+                        Real const Sy0,
+                        Real const Sz0,
                         Real const radius);
 
   bool IsNewFromAMR()
@@ -317,74 +348,82 @@ public:
 
   inline bool IsPhysicalIndex_cc(const int k, const int j, const int i)
   {
-    return (is <= i) && (i <= ie) &&
-           (js <= j) && (j <= je) &&
-           (ks <= k) && (k <= ke);
+    return (is <= i) && (i <= ie) && (js <= j) && (j <= je) && (ks <= k) &&
+           (k <= ke);
   }
 
   inline bool IsPhysicalIndex_vc(const int k, const int j, const int i)
   {
-    return (ivs <= i) && (i <= ive) &&
-           (jvs <= j) && (j <= jve) &&
+    return (ivs <= i) && (i <= ive) && (jvs <= j) && (j <= jve) &&
            (kvs <= k) && (k <= kve);
   }
 
   // if multilevel, useful to know if nearest-neighbour blocks on same level
   inline bool NeighborBlocksSameLevel()
   {
-    for (int n = 0; n < nc_.num_neighbors(); n++) {
+    for (int n = 0; n < nc_.num_neighbors(); n++)
+    {
       if (nc_.neighbor(n).snb.level != loc.level)
         return false;
     }
     return true;
   }
 
-  void DebugMeshBlock(
-    const Real x, const Real y, const Real z,
-    const int ix, const int iy, const int iz,
-    std::string txt_head, std::string txt_tail);
+  void DebugMeshBlock(const Real x,
+                      const Real y,
+                      const Real z,
+                      const int ix,
+                      const int iy,
+                      const int iz,
+                      std::string txt_head,
+                      std::string txt_tail);
 
   // Reset per-block timestep to sentinel (max) before NewBlockTimeStep calls.
   // Must be called once per cycle before any subsystem computes its CFL dt.
   void ResetBlockDt();
 
-private:
+  private:
   // if AMR *just* created this block, useful to know.
   bool new_from_amr = false;
 
   Real new_block_dt_, new_block_dt_hyperbolic_, new_block_dt_parabolic_,
     new_block_dt_user_;
-  // TODO(felker): make global TaskList a member of MeshBlock, store TaskStates in list
-  // shared by main integrator task lists
+  // TODO(felker): make global TaskList a member of MeshBlock, store TaskStates
+  // in list shared by main integrator task lists
   TaskStates tasks;
   int nreal_user_meshblock_data_, nint_user_meshblock_data_;
-  std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cc_;
-  std::vector<std::reference_wrapper<FaceField>> vars_fc_;
-  std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_vc_;
-  std::vector<std::reference_wrapper<AthenaArray<Real>>> vars_cx_;
 
   // functions
   // helper functions for assigning / testing indices (inlined on definition)
   void SetAllIndicialParameters();
   void SetIndicialParameters(int num_ghost,
                              int block_size,
-                             int &ix_s, int &ix_e,
-                             int &ncells,                 // CC end
-                             int &ix_vs, int &ix_ve,      // bnd vert
-                             int &ix_ms, int &ix_me,      // neg
-                             int &ix_ps, int &ix_pe,      // pos
-                             int &ix_gs, int &ix_ge,      // int. g
-                             int &ix_mp,
-                             int &nverts,                 // VC end
+                             int& ix_s,
+                             int& ix_e,
+                             int& ncells,  // CC end
+                             int& ix_vs,
+                             int& ix_ve,  // bnd vert
+                             int& ix_ms,
+                             int& ix_me,  // neg
+                             int& ix_ps,
+                             int& ix_pe,  // pos
+                             int& ix_gs,
+                             int& ix_ge,  // int. g
+                             int& ix_mp,
+                             int& nverts,  // VC end
                              bool populate_ix,
                              bool is_dim_nontrivial);
   void SetIndicialParametersCX(int num_ghost,
                                int block_size,
-                               int &ncells,                 // CC end
-                               int &ix_is, int &ix_ie,      // bnd vert
-                               int &ix_ms, int &ix_me,      // neg
-                               int &ix_ps, int &ix_pe,      // pos
-                               int &ix_gs, int &ix_ge,      // int. g
+                               int& ncells,  // CC end
+                               int& ix_is,
+                               int& ix_ie,  // bnd vert
+                               int& ix_ms,
+                               int& ix_me,  // neg
+                               int& ix_ps,
+                               int& ix_pe,  // pos
+                               int& ix_gs,
+                               int& ix_ge,  // int. g
                                bool populate_ix,
                                bool is_dim_nontrivial);
   //---------------------------------------------------------------------------
@@ -392,12 +431,12 @@ private:
   void AllocateRealUserMeshBlockDataField(int n);
   void AllocateIntUserMeshBlockDataField(int n);
   void AllocateUserOutputVariables(int n);
-  void SetUserOutputVariableName(int n, const char *name);
+  void SetUserOutputVariableName(int n, const char* name);
   void SetCostForLoadBalancing(double cost);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
-  void ProblemGenerator(ParameterInput *pin);
-  void InitUserMeshBlockData(ParameterInput *pin);
+  void ProblemGenerator(ParameterInput* pin);
+  void InitUserMeshBlockData(ParameterInput* pin);
 
   // functions and variables for automatic load balancing based on timing
   double cost_, lb_time_;
@@ -410,7 +449,8 @@ private:
 //! \class Mesh
 //  \brief data/functions associated with the overall mesh
 
-class Mesh {
+class Mesh
+{
   friend class RestartOutput;
   friend class HistoryOutput;
   friend class MeshBlock;
@@ -426,75 +466,93 @@ class Mesh {
   friend class PunctureTracker;
   friend class ExtremaTracker;
 
- public:
+  public:
   // 2x function overloads of ctor: normal and restarted simulation
-  explicit Mesh(ParameterInput *pin, int test_flag=0);
-  Mesh(ParameterInput *pin, IOWrapper &resfile, int test_flag=0);
+  explicit Mesh(ParameterInput* pin, int test_flag = 0);
+  Mesh(ParameterInput* pin, IOWrapper& resfile, int test_flag = 0);
   ~Mesh();
 
   // accessors
-  int GetNumMeshBlocksThisRank(int my_rank) {return nblist[my_rank];}
-  int GetNumMeshThreads() const {return num_mesh_threads_;}
-  ThreadCache& thread_cache(int tid) { return thread_caches_[tid]; }
-  std::int64_t GetTotalCells() {return static_cast<std::int64_t> (nbtotal)*
-        pblock->block_size.nx1*pblock->block_size.nx2*pblock->block_size.nx3;}
+  int GetNumMeshBlocksThisRank(int my_rank)
+  {
+    return nblist[my_rank];
+  }
+  int GetNumMeshThreads() const
+  {
+    return num_mesh_threads_;
+  }
+  ThreadCache& thread_cache(int tid)
+  {
+    return thread_caches_[tid];
+  }
+  std::int64_t GetTotalCells()
+  {
+    return static_cast<std::int64_t>(nbtotal) * pblock->block_size.nx1 *
+           pblock->block_size.nx2 * pblock->block_size.nx3;
+  }
   // FZ: Add this parameter to deal with initial data generation
-  bool resume_flag=true;
+  bool resume_flag = true;
   // data
   RegionSize mesh_size;
   BoundaryFlag mesh_bcs[6];
-  const bool f2, f3; // flags indicating (at least) 2D or 3D Mesh
+  const bool f2, f3;  // flags indicating (at least) 2D or 3D Mesh
   const int ndim;     // number of dimensions
   const bool adaptive, multilevel;
-  Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user, cfl_number;
+  Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user,
+    cfl_number;
   Real evo_rate;
   int nlim, ncycle, ncycle_out, dt_diagnostics;
-  int nbtotal, nbnew, nbdel; // note: nbnew and nbdel are accumulative quantities
+  int nbtotal, nbnew,
+    nbdel;  // note: nbnew and nbdel are accumulative quantities
 
   int step_since_lb;
 
-  // ptr to first MeshBlock (node) in linked list of blocks belonging to this MPI rank:
-  MeshBlock *pblock = nullptr;
+  // ptr to first MeshBlock (node) in linked list of blocks belonging to this
+  // MPI rank:
+  MeshBlock* pblock = nullptr;
 
-  std::vector<WaveExtract *> pwave_extr;
-  std::vector<WaveExtractRWZ *> pwave_extr_rwz;
-  std::vector<AHF *> pah_finder;
+  std::vector<WaveExtract*> pwave_extr;
+  std::vector<WaveExtractRWZ*> pwave_extr_rwz;
+  std::vector<AHF*> pah_finder;
 #ifdef EJECTA_ENABLED
-  std::vector<Ejecta *> pej_extract;
+  std::vector<Ejecta*> pej_extract;
 #endif
 #if CCE_ENABLED
-  std::vector<CCE *> pcce;
+  std::vector<CCE*> pcce;
 #endif
-  std::vector<PunctureTracker *> pz4c_tracker;
-  ExtremaTracker * ptracker_extrema;
+  std::vector<PunctureTracker*> pz4c_tracker;
+  ExtremaTracker* ptracker_extrema;
 
-  std::vector<gra::mesh::surfaces::Surfaces *> psurfs;
+  std::vector<gra::mesh::surfaces::Surfaces*> psurfs;
 
-  AthenaArray<Real> *ruser_mesh_data;
-  AthenaArray<int> *iuser_mesh_data;
+  AthenaArray<Real>* ruser_mesh_data;
+  AthenaArray<int>* iuser_mesh_data;
 
-  gra::hydro::rescaling::Rescaling * presc = nullptr;
+  gra::hydro::rescaling::Rescaling* presc = nullptr;
 
   // functions ----------------------------------------------------------------
 
-  void GetMeshBlocksMyRank(std::vector<MeshBlock*> & pmb_array);
+  void GetMeshBlocksMyRank(std::vector<MeshBlock*>& pmb_array);
 
-  enum class initialize_style { pgen, regrid, restart };
-  void Initialize(initialize_style init_style, ParameterInput *pin);
+  enum class initialize_style
+  {
+    pgen,
+    regrid,
+    restart
+  };
+  void Initialize(initialize_style init_style, ParameterInput* pin);
 
   // Additional initialization logic:
   // This is called after "Initialize" in the InitMeshData call
   void InitializePostFirstInitialize(initialize_style init_style,
-                                     ParameterInput *pin);
+                                     ParameterInput* pin);
   // This is called after LoadBalancingAndAdaptiveMeshRefinement returns true
   // in main integration loop
-  void InitializePostMainUpdatedMesh(ParameterInput *pin);
+  void InitializePostMainUpdatedMesh(ParameterInput* pin);
 
-  // Reconcile shared boundary faces of face-centered B after pgen init.
-  void ReconcileSharedFacesFC(std::vector<MeshBlock*> &pmb_array);
-
-  void SetBlockSizeAndBoundaries(LogicalLocation loc, RegionSize &block_size,
-                                 BoundaryFlag *block_bcs);
+  void SetBlockSizeAndBoundaries(LogicalLocation loc,
+                                 RegionSize& block_size,
+                                 BoundaryFlag* block_bcs);
 
   void NewTimeStep(bool limit_dt_growth);
   void NewTimeStep();
@@ -502,55 +560,59 @@ class Mesh {
   void OutputCycleDiagnostics();
 
   // returns true when Mesh changes, false otherwise
-  bool LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin);
+  bool LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin);
 
-  int CreateAMRMPITag(int lid, int ox1, int ox2, int ox3);
   MeshBlock* FindMeshBlock(int tgid);
-  void ApplyUserWorkBeforeOutput(ParameterInput *pin);
-  void ApplyUserWorkAfterOutput(ParameterInput *pin);
+  void ApplyUserWorkBeforeOutput(ParameterInput* pin);
+  void ApplyUserWorkAfterOutput(ParameterInput* pin);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
-  void DeleteTemporaryUserMeshData(); // called in main after ICs
+  void DeleteTemporaryUserMeshData();  // called in main after ICs
 
   // called in main loop
-  void UserWorkAfterLoop(ParameterInput *pin);
+  void UserWorkAfterLoop(ParameterInput* pin);
   // called in main before each cycle, after potential trigger dt adjustment
-  void UserWorkBeforeLoop(ParameterInput *pin);
+  void UserWorkBeforeLoop(ParameterInput* pin);
   // called in main after each cycle
   void UserWorkInLoop();
   // Apply at level of MeshBlock
-  void ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput *pin);
+  void ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput* pin);
 
-  inline int GetRootLevel() { return root_level; }
-  inline int GetNrbx3() { return nrbx3; }
+  inline int GetRootLevel()
+  {
+    return root_level;
+  }
+  inline int GetNrbx3()
+  {
+    return nrbx3;
+  }
 
-  bool GetGlobalGridGeometry(AthenaArray<Real> & x_min,
-                             AthenaArray<Real> & x_max,
-                             AthenaArray<Real> & dx_min,
-                             AthenaArray<Real> & dx_max,
-                             int & max_level);
+  bool GetGlobalGridGeometry(AthenaArray<Real>& x_min,
+                             AthenaArray<Real>& x_max,
+                             AthenaArray<Real>& dx_min,
+                             AthenaArray<Real>& dx_max,
+                             int& max_level);
 
-  void CommunicateConserved(std::vector<MeshBlock*> & pmb_array);
+  void CommunicateConserved(std::vector<MeshBlock*>& pmb_array);
 
-  void CommunicateConservedMatter(std::vector<MeshBlock*> & pmb_array);
+  void CommunicateConservedMatter(std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeWave(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeWave(std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*> & pmb_array,
+  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*>& pmb_array,
                               const bool enforce_alg);
-  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*> & pmb_array,
+  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*>& pmb_array,
                             const bool enforce_alg);
 
-  void FinalizeZ4cADM_Matter(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeZ4cADM_Matter(std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeM1(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeM1(std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeHydro_pgen(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeHydro_pgen(std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeHydroConsRP(std::vector<MeshBlock*> & pmb_array);
+  void FinalizeHydroConsRP(std::vector<MeshBlock*>& pmb_array);
 
-
-  void PreparePrimitives(std::vector<MeshBlock*> & pmb_array,
+  void PreparePrimitives(std::vector<MeshBlock*>& pmb_array,
                          const bool interior_only,
                          const bool skip_physical = false);
 
@@ -563,19 +625,20 @@ class Mesh {
   void FinalizePostAMR();
 
   // for convenience store some global geometric quantities
-  struct {
+  struct
+  {
     AthenaArray<Real> x_min;
     AthenaArray<Real> x_max;
     AthenaArray<Real> dx_min;
     AthenaArray<Real> dx_max;
     int max_level;
   } M_info;
-  bool diagnostic_grid_updated; // set to false in  OutputCycleDiagnostics
+  bool diagnostic_grid_updated;  // set to false in  OutputCycleDiagnostics
 
-  void DebugMesh(
-    const Real x3__, const Real x2__, const Real x1__);
+  void DebugMesh(const Real x3__, const Real x2__, const Real x1__);
 
-  struct {
+  struct
+  {
     Real min_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
     Real max_adm_alpha    = std::numeric_limits<Real>::quiet_NaN();
     Real min_hydro_cons_D = std::numeric_limits<Real>::quiet_NaN();
@@ -594,13 +657,13 @@ class Mesh {
   // compute initial z4c diagnostics
   void CalculateZ4cInitDiagnostics();
 
-private:
+  private:
   // data
   int root_level, max_level, current_level;
   int num_mesh_threads_;
   std::vector<ThreadCache> thread_caches_;
   int *nslist, *ranklist, *nblist;
-  double *costlist;
+  double* costlist;
   // 8x arrays used exclusively for AMR (not SMR):
   int *nref, *nderef;
   int *rdisp, *ddisp;
@@ -612,13 +675,15 @@ private:
   std::vector<MeshBlock*> block_by_gid_;
   int gid_base_ = 0;  // = nslist[Globals::my_rank], i.e. first local gid
 
-  LogicalLocation *loclist;
+  LogicalLocation* loclist;
   MeshBlockTree tree;
   // number of MeshBlocks in the x1, x2, x3 directions of the root grid:
-  // (unlike LogicalLocation.lxi, nrbxi don't grow w/ AMR # of levels, so keep 32-bit int)
+  // (unlike LogicalLocation.lxi, nrbxi don't grow w/ AMR # of levels, so keep
+  // 32-bit int)
   int nrbx1, nrbx2, nrbx3;
-  // TODO(felker) find unnecessary static_cast<> ops. from old std::int64_t type in 2018:
-  //std::int64_t nrbx1, nrbx2, nrbx3;
+  // TODO(felker) find unnecessary static_cast<> ops. from old std::int64_t
+  // type in 2018:
+  // std::int64_t nrbx1, nrbx2, nrbx3;
 
   // flags are false if using non-uniform or user meshgen function
   bool use_uniform_meshgen_fn_[3];
@@ -642,34 +707,23 @@ private:
   void AllocateRealUserMeshDataField(int n);
   void AllocateIntUserMeshDataField(int n);
   void OutputMeshStructure(int dim);
-  void CalculateLoadBalance(double *clist, int *rlist, int *slist, int *nlist, int nb);
+  void CalculateLoadBalance(double* clist,
+                            int* rlist,
+                            int* slist,
+                            int* nlist,
+                            int nb);
   void ResetLoadBalanceVariables();
 
   void RebuildBlockByGid();
 
   // Mesh::LoadBalancingAndAdaptiveMeshRefinement() helper functions:
   void UpdateCostList();
-  void UpdateMeshBlockTree(int &nnew, int &ndel);
+  void UpdateMeshBlockTree(int& nnew, int& ndel);
   bool GatherCostListAndCheckBalance();
-  void RedistributeAndRefineMeshBlocks(ParameterInput *pin, int ntot);
-
-  // Mesh::RedistributeAndRefineMeshBlocks() helper functions:
-  // step 6: send
-  void PrepareSendSameLevel(MeshBlock* pb, Real *sendbuf);
-  void PrepareSendCoarseToFineAMR(MeshBlock* pb, Real *sendbuf, LogicalLocation &lloc);
-  void PrepareSendFineToCoarseAMR(MeshBlock* pb, Real *sendbuf);
-  // step 7: create new MeshBlock list (same MPI rank but diff level: create new block)
-  void FillSameRankFineToCoarseAMR(MeshBlock* pob, MeshBlock* pmb,
-                                   LogicalLocation &loc);
-  void FillSameRankCoarseToFineAMR(MeshBlock* pob, MeshBlock* pmb,
-                                   LogicalLocation &newloc);
-  // step 8: receive
-  void FinishRecvSameLevel(MeshBlock *pb, Real *recvbuf);
-  void FinishRecvFineToCoarseAMR(MeshBlock *pb, Real *recvbuf, LogicalLocation &lloc);
-  void FinishRecvCoarseToFineAMR(MeshBlock *pb, Real *recvbuf);
+  void RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot);
 
   // defined in either the prob file or default_pgen.cpp in ../pgen/
-  void InitUserMeshData(ParameterInput *pin);
+  void InitUserMeshData(ParameterInput* pin);
 
   // often used (not defined) in prob file in ../pgen/
   void EnrollUserBoundaryFunction(BoundaryFace face, BValFunc my_func);
@@ -677,131 +731,172 @@ private:
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
-  void EnrollUserHistoryOutput(HistoryOutputFunc my_func, const char *name,
-                               UserHistoryOperation op=UserHistoryOperation::sum);
-  void EnrollUserHistoryOutput(std::function<Real(MeshBlock*, int)> my_func,
-                               const char *name,
-                               UserHistoryOperation op=UserHistoryOperation::sum);
+  void EnrollUserHistoryOutput(
+    HistoryOutputFunc my_func,
+    const char* name,
+    UserHistoryOperation op = UserHistoryOperation::sum);
+  void EnrollUserHistoryOutput(
+    std::function<Real(MeshBlock*, int)> my_func,
+    const char* name,
+    UserHistoryOperation op = UserHistoryOperation::sum);
 
-  void EnrollUserStandardHydro(ParameterInput * pin);
-  void EnrollUserStandardField(ParameterInput * pin);
-  void EnrollUserStandardZ4c(ParameterInput * pin);
-  void EnrollUserStandardM1(ParameterInput * pin);
+  void EnrollUserStandardHydro(ParameterInput* pin);
+  void EnrollUserStandardField(ParameterInput* pin);
+  void EnrollUserStandardZ4c(ParameterInput* pin);
+  void EnrollUserStandardM1(ParameterInput* pin);
 };
 
 // collect sampling information into struct
-struct MB_info {
-  bool f1, f2, f3;                      // dimensionality flags
-  int il, iu, jl, ju, kl, ku;           // local block iter.
-  int nn1, nn2, nn3;                    // total number of nodes (w. ghosts)
-  int cil, ciu, cjl, cju, ckl, cku;     // coarse analogue ^
+struct MB_info
+{
+  bool f1, f2, f3;                   // dimensionality flags
+  int il, iu, jl, ju, kl, ku;        // local block iter.
+  int nn1, nn2, nn3;                 // total number of nodes (w. ghosts)
+  int cil, ciu, cjl, cju, ckl, cku;  // coarse analogue ^
   int cnn1, cnn2, cnn3;
-  int ng, cng;                          // number of ghosts
+  int ng, cng;  // number of ghosts
   int ndim;
 
-  AthenaArray<Real> x1, x2, x3;         // deal with (fund.) coordinates
-  AthenaArray<Real> dx1, dx2, dx3;      // & spacings
+  AthenaArray<Real> x1, x2, x3;     // deal with (fund.) coordinates
+  AthenaArray<Real> dx1, dx2, dx3;  // & spacings
 };
 
 //----------------------------------------------------------------------------------------
 // \!fn Real ComputeMeshGeneratorX(std::int64_t index, std::int64_t nrange,
 //                                 bool sym_interval)
-// \brief wrapper fn to compute Real x logical location for either [0., 1.] or [-0.5, 0.5]
-//        real cell ranges for MeshGenerator_[] functions (default/user vs. uniform)
+// \brief wrapper fn to compute Real x logical location for either [0., 1.] or
+// [-0.5, 0.5]
+//        real cell ranges for MeshGenerator_[] functions (default/user vs.
+//        uniform)
 
-inline Real ComputeMeshGeneratorX(std::int64_t index, std::int64_t nrange,
-                                  bool sym_interval) {
+inline Real ComputeMeshGeneratorX(std::int64_t index,
+                                  std::int64_t nrange,
+                                  bool sym_interval)
+{
   // index is typically 0, ... nrange for non-ghost boundaries
-  if (!sym_interval) {
-    // to map to fractional logical position [0.0, 1.0], simply divide by # of faces
-    return static_cast<Real>(index)/static_cast<Real>(nrange);
-  } else {
-    // to map to a [-0.5, 0.5] range, rescale int indices around 0 before FP conversion
-    // if nrange is even, there is an index at center x=0.0; map it to (int) 0
-    // if nrange is odd, the center x=0.0 is between two indices; map them to -1, 1
-    std::int64_t noffset = index - (nrange)/2;
-    std::int64_t noffset_ceil = index - (nrange+1)/2; // = noffset if nrange is even
-    //std::cout << "noffset, noffset_ceil = " << noffset << ", " << noffset_ceil << "\n";
-    // average the (possibly) biased integer indexing
-    return static_cast<Real>(noffset + noffset_ceil)/(2.0*nrange);
+  if (!sym_interval)
+  {
+    // to map to fractional logical position [0.0, 1.0], simply divide by # of
+    // faces
+    return static_cast<Real>(index) / static_cast<Real>(nrange);
+  }
+  else
+  {
+    // to map to a [-0.5, 0.5] range, rescale int indices around 0 before FP
+    // conversion if nrange is even, there is an index at center x=0.0; map it
+    // to (int) 0 if nrange is odd, the center x=0.0 is between two indices;
+    // map them to -1, 1
+    std::int64_t noffset = index - (nrange) / 2;
+    std::int64_t noffset_ceil =
+      index - (nrange + 1) / 2;  // = noffset if nrange is even
+    // std::cout << "noffset, noffset_ceil = " << noffset << ", " <<
+    // noffset_ceil << "\n";
+    //  average the (possibly) biased integer indexing
+    return static_cast<Real>(noffset + noffset_ceil) / (2.0 * nrange);
   }
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real DefaultMeshGeneratorX1(Real x, RegionSize rs)
-// \brief x1 mesh generator function, x is the logical location; x=i/nx1, real in [0., 1.]
+// \brief x1 mesh generator function, x is the logical location; x=i/nx1, real
+// in [0., 1.]
 
-inline Real DefaultMeshGeneratorX1(Real x, RegionSize rs) {
+inline Real DefaultMeshGeneratorX1(Real x, RegionSize rs)
+{
   Real lw, rw;
-  if (rs.x1rat==1.0) {
-    rw=x, lw=1.0-x;
-  } else {
-    Real ratn=std::pow(rs.x1rat,rs.nx1);
-    Real rnx=std::pow(rs.x1rat,x*rs.nx1);
-    lw=(rnx-ratn)/(1.0-ratn);
-    rw=1.0-lw;
+  if (rs.x1rat == 1.0)
+  {
+    rw = x, lw = 1.0 - x;
   }
-  // linear interp, equally weighted from left (x(xmin)=0.0) and right (x(xmax)=1.0)
-  return rs.x1min*lw+rs.x1max*rw;
+  else
+  {
+    Real ratn = std::pow(rs.x1rat, rs.nx1);
+    Real rnx  = std::pow(rs.x1rat, x * rs.nx1);
+    lw        = (rnx - ratn) / (1.0 - ratn);
+    rw        = 1.0 - lw;
+  }
+  // linear interp, equally weighted from left (x(xmin)=0.0) and right
+  // (x(xmax)=1.0)
+  return rs.x1min * lw + rs.x1max * rw;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real DefaultMeshGeneratorX2(Real x, RegionSize rs)
-// \brief x2 mesh generator function, x is the logical location; x=j/nx2, real in [0., 1.]
+// \brief x2 mesh generator function, x is the logical location; x=j/nx2, real
+// in [0., 1.]
 
-inline Real DefaultMeshGeneratorX2(Real x, RegionSize rs) {
+inline Real DefaultMeshGeneratorX2(Real x, RegionSize rs)
+{
   Real lw, rw;
-  if (rs.x2rat==1.0) {
-    rw=x, lw=1.0-x;
-  } else {
-    Real ratn=std::pow(rs.x2rat,rs.nx2);
-    Real rnx=std::pow(rs.x2rat,x*rs.nx2);
-    lw=(rnx-ratn)/(1.0-ratn);
-    rw=1.0-lw;
+  if (rs.x2rat == 1.0)
+  {
+    rw = x, lw = 1.0 - x;
   }
-  return rs.x2min*lw+rs.x2max*rw;
+  else
+  {
+    Real ratn = std::pow(rs.x2rat, rs.nx2);
+    Real rnx  = std::pow(rs.x2rat, x * rs.nx2);
+    lw        = (rnx - ratn) / (1.0 - ratn);
+    rw        = 1.0 - lw;
+  }
+  return rs.x2min * lw + rs.x2max * rw;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real DefaultMeshGeneratorX3(Real x, RegionSize rs)
-// \brief x3 mesh generator function, x is the logical location; x=k/nx3, real in [0., 1.]
+// \brief x3 mesh generator function, x is the logical location; x=k/nx3, real
+// in [0., 1.]
 
-inline Real DefaultMeshGeneratorX3(Real x, RegionSize rs) {
+inline Real DefaultMeshGeneratorX3(Real x, RegionSize rs)
+{
   Real lw, rw;
-  if (rs.x3rat==1.0) {
-    rw=x, lw=1.0-x;
-  } else {
-    Real ratn=std::pow(rs.x3rat,rs.nx3);
-    Real rnx=std::pow(rs.x3rat,x*rs.nx3);
-    lw=(rnx-ratn)/(1.0-ratn);
-    rw=1.0-lw;
+  if (rs.x3rat == 1.0)
+  {
+    rw = x, lw = 1.0 - x;
   }
-  return rs.x3min*lw+rs.x3max*rw;
+  else
+  {
+    Real ratn = std::pow(rs.x3rat, rs.nx3);
+    Real rnx  = std::pow(rs.x3rat, x * rs.nx3);
+    lw        = (rnx - ratn) / (1.0 - ratn);
+    rw        = 1.0 - lw;
+  }
+  return rs.x3min * lw + rs.x3max * rw;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real UniformMeshGeneratorX1(Real x, RegionSize rs)
-// \brief x1 mesh generator function, x is the logical location; real cells in [-0.5, 0.5]
+// \brief x1 mesh generator function, x is the logical location; real cells in
+// [-0.5, 0.5]
 
-inline Real UniformMeshGeneratorX1(Real x, RegionSize rs) {
-  // linear interp, equally weighted from left (x(xmin)=-0.5) and right (x(xmax)=0.5)
-  return static_cast<Real>(0.5)*(rs.x1min+rs.x1max) + (x*rs.x1max - x*rs.x1min);
+inline Real UniformMeshGeneratorX1(Real x, RegionSize rs)
+{
+  // linear interp, equally weighted from left (x(xmin)=-0.5) and right
+  // (x(xmax)=0.5)
+  return static_cast<Real>(0.5) * (rs.x1min + rs.x1max) +
+         (x * rs.x1max - x * rs.x1min);
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real UniformMeshGeneratorX2(Real x, RegionSize rs)
-// \brief x2 mesh generator function, x is the logical location; real cells in [-0.5, 0.5]
+// \brief x2 mesh generator function, x is the logical location; real cells in
+// [-0.5, 0.5]
 
-inline Real UniformMeshGeneratorX2(Real x, RegionSize rs) {
-  return static_cast<Real>(0.5)*(rs.x2min+rs.x2max) + (x*rs.x2max - x*rs.x2min);
+inline Real UniformMeshGeneratorX2(Real x, RegionSize rs)
+{
+  return static_cast<Real>(0.5) * (rs.x2min + rs.x2max) +
+         (x * rs.x2max - x * rs.x2min);
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real UniformMeshGeneratorX3(Real x, RegionSize rs)
-// \brief x3 mesh generator function, x is the logical location; real cells in [-0.5, 0.5]
+// \brief x3 mesh generator function, x is the logical location; real cells in
+// [-0.5, 0.5]
 
-inline Real UniformMeshGeneratorX3(Real x, RegionSize rs) {
-  return static_cast<Real>(0.5)*(rs.x3min+rs.x3max) + (x*rs.x3max - x*rs.x3min);
+inline Real UniformMeshGeneratorX3(Real x, RegionSize rs)
+{
+  return static_cast<Real>(0.5) * (rs.x3min + rs.x3max) +
+         (x * rs.x3max - x * rs.x3min);
 }
 
 #endif  // MESH_MESH_HPP_
