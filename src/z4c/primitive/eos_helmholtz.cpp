@@ -77,7 +77,7 @@ Real EOSHelmholtz::TemperatureFromEps(Real n, Real eps, Real *Y) {
   Real eps_min = MinimumInternalEnergy(n, Y);
   Real eps_max = MaximumInternalEnergy(n, Y);
 //  return temperature_from_var(ECE, e, n, Y);
-  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : temperature_from_var(ECEPS, eps, n, Y);
+  return (eps <= eps_min) ? min_T : (eps >= eps_max) ? max_T : temperature_from_var(ECLOGEPS, log(eps), n, Y);
 }
 
 Real EOSHelmholtz::TemperatureFromP(Real n, Real p, Real *Y) {
@@ -86,7 +86,7 @@ Real EOSHelmholtz::TemperatureFromP(Real n, Real p, Real *Y) {
   Real p_max = MaximumPressure(n,Y);
 
   return (p <= p_min) ? min_T : (p >= p_max) ? max_T :
-    temperature_from_var(ECP, p, n, Y);
+    temperature_from_var(ECLOGP, log(p), n, Y);
 }
 
 Real EOSHelmholtz::TemperatureFromEntropy(Real n, Real s, Real *Y) {
@@ -100,7 +100,7 @@ Real EOSHelmholtz::TemperatureFromEntropy(Real n, Real s, Real *Y) {
 
 Real EOSHelmholtz::SpecificInternalEnergy(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECEPS, n, T, Y);
+  return exp(eval_at_nty(ECLOGEPS, n, T, Y));
 }
 
 Real EOSHelmholtz::Energy(Real n, Real T, Real *Y) {
@@ -110,7 +110,7 @@ Real EOSHelmholtz::Energy(Real n, Real T, Real *Y) {
 
 Real EOSHelmholtz::Pressure(Real n, Real T, Real *Y) {
   assert (m_initialized);
-  return eval_at_nty(ECP, n, T, Y);
+  return exp(eval_at_nty(ECLOGP, n, T, Y));
 }
 
 Real EOSHelmholtz::Abar(Real n, Real T, Real *Y) {
@@ -276,7 +276,10 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
       // -------------------------------------------------------------------------
       ierr = H5LTread_dataset_double(file_id, "p", scratch);
         MYH5CHECK(ierr);
-      copy(&scratch[0], &scratch[m_nn*m_nt], &m_table[index(ECP, 0, 0)]);
+      for (int i = 0; i < m_nn*m_nt; ++i) {
+        m_table[index(ECLOGP, 0, 0) + i] = log(scratch[i]);
+      }
+
 
       ierr = H5LTread_dataset_double(file_id, "s", scratch);
         MYH5CHECK(ierr);
@@ -284,7 +287,13 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye
 
       ierr = H5LTread_dataset_double(file_id, "eps", scratch);
         MYH5CHECK(ierr);
-      copy(&scratch[0], &scratch[m_nn*m_nt], &m_table[index(ECEPS, 0, 0)]);
+      // copy(&scratch[0], &scratch[m_nn*m_nt], &m_table[index(ECEPS, 0, 0)]);
+      for (int i = 0; i < m_nn*m_nt; ++i) {
+        if (scratch[i] <= 0.0) {
+          throw runtime_error("Error reading EOS table: eps dataset contains non-positive value, cannot take log");
+        }
+        m_table[index(ECLOGEPS, 0, 0) + i] = log(scratch[i]);
+      }
 
       ierr = H5LTread_dataset_double(file_id, "eta", scratch);
         MYH5CHECK(ierr);
@@ -416,11 +425,11 @@ Real EOSHelmholtz::temperature_from_var(int iv, Real var, Real n, Real *Y) const
 
 Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real *Y) const {
   switch (vi) {
-    case ECP:
+    case ECLOGP:
     {
       Real prad = asol / 3.0 * T*T*T*T;
       Real pion = n * inverse_abar(Y) * T;
-      return var + prad + pion;
+      return log(exp(var) + prad + pion);
     }
     case ECENT:
     {
@@ -438,12 +447,12 @@ Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real *Y) const 
       Real sh = Yh * (2.5 - log(n*Yh/g_h*pow(sac_const/(mh*T), 1.5)));
       return var + srad + sn + sp + sa + sh;
      }
-    case ECEPS:
+    case ECLOGEPS:
     {
       Real erad = asol * T*T*T*T / (n*mb);
       Real eion = 1.5 * T * inverse_abar(Y) / mb;
       Real ebind = Y[SCEB];
-      return var + erad + eion + ebind;
+      return log(exp(var) + erad + eion + ebind);
     }
     case ECDEPSDT:
     {

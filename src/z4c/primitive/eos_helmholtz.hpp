@@ -21,9 +21,9 @@ class EOSHelmholtz : public EOSPolicyInterface {
   friend class EOSTransition;
   public:
     enum TableVariables {
-      ECP      = 0,  //! pressure / 1 MeV fm^-3
+      ECLOGP   = 0,  //! logo of pressure / 1 MeV fm^-3
       ECENT    = 1,  //! entropy per baryon [kb]
-      ECEPS    = 2,  //! specific internal energy
+      ECLOGEPS = 2,  //! log of specific internal energy
       ECETA    = 3,  //! electron degeneracy parameter
       ECDEPSDT = 4,
       ECDPDN   = 5,

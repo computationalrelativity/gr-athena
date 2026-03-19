@@ -90,6 +90,7 @@ Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real *Y) {
 
 Real EOSTransition::TemperatureFromE(Real n, Real e, Real *Y) {
   assert (m_initialized);
+  if (n > m_helm_n_max) return compose_eos->TemperatureFromE(n, e, Y);
   return TemperatureFromEps(n, e/(mb*n) - 1.0, Y);
 }
 
