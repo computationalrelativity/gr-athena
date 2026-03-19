@@ -2,23 +2,24 @@
 // Write as column data
 
 // c/c++
+#include <unistd.h>
+
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <iomanip>
-#include <stdexcept>
-#include <sstream>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
 #include <string>
-#include <unistd.h>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
 
 // Athena++
-#include "extrema_tracker.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "extrema_tracker.hpp"
 
 // for registration of control field..
 #if M1_ENABLED
@@ -43,18 +44,20 @@
 
 // ----------------------------------------------------------------------------
 
-namespace {
+namespace
+{
 
 // Interpolator type for the compile-time dimension
-typedef LagrangeInterpND<2*(NGHOST-1), NDIM> InterpCC;
+typedef LagrangeInterpND<2 * (NGHOST - 1), NDIM> InterpCC;
+typedef LagrangeInterpND<2 * (NGHOST - 1), NDIM> InterpVC;
 
 // Build the interpolator for a given MeshBlock and target point.
 // Returned object encodes all stencil weights; call eval() with different
 // field data pointers to interpolate many variables at the same point.
-InterpCC BuildInterpolatorCC(
-  MeshBlock * pmb,
-  const Real x, const Real y, const Real z
-)
+InterpCC BuildInterpolatorCC(MeshBlock* pmb,
+                             const Real x,
+                             const Real y,
+                             const Real z)
 {
   Real origin[NDIM];
   Real ds[NDIM];
@@ -62,77 +65,132 @@ InterpCC BuildInterpolatorCC(
   Real coord[NDIM];
 
   // populate salient data in this block (uniform grid spacing assumed)
-  if constexpr (NDIM >= 3) {
+  if constexpr (NDIM >= 3)
+  {
     origin[2] = pmb->pcoord->x3v(0);
-    sz[2] = pmb->ncells3;
-    ds[2] = pmb->pcoord->dx3v(0);
-    coord[2] = z;
+    sz[2]     = pmb->ncells3;
+    ds[2]     = pmb->pcoord->dx3v(0);
+    coord[2]  = z;
   }
-  if constexpr (NDIM >= 2) {
+  if constexpr (NDIM >= 2)
+  {
     origin[1] = pmb->pcoord->x2v(0);
-    sz[1] = pmb->ncells2;
-    ds[1] = pmb->pcoord->dx2v(0);
-    coord[1] = y;
+    sz[1]     = pmb->ncells2;
+    ds[1]     = pmb->pcoord->dx2v(0);
+    coord[1]  = y;
   }
   origin[0] = pmb->pcoord->x1v(0);
-  sz[0] = pmb->ncells1;
-  ds[0] = pmb->pcoord->dx1v(0);
-  coord[0] = x;
+  sz[0]     = pmb->ncells1;
+  ds[0]     = pmb->pcoord->dx1v(0);
+  coord[0]  = x;
 
   return InterpCC(origin, ds, sz, coord);
 }
 
+// Build the interpolator for VC (vertex-centered) data on a given MeshBlock
+// and target point. Uses the Z4c module's mbi which automatically adapts to
+// the active grid sampling (CC/CX/VC) via the SW_CCX_VC macro at init time.
+#if Z4C_ENABLED
+InterpVC BuildInterpolatorVC(Z4c* pz4c,
+                             const Real x,
+                             const Real y,
+                             const Real z)
+{
+  Real origin[NDIM];
+  Real ds[NDIM];
+  int sz[NDIM];
+  Real coord[NDIM];
+
+  if constexpr (NDIM >= 3)
+  {
+    origin[2] = pz4c->mbi.x3(0);
+    sz[2]     = pz4c->mbi.nn3;
+    ds[2]     = pz4c->mbi.dx3(0);
+    coord[2]  = z;
+  }
+  if constexpr (NDIM >= 2)
+  {
+    origin[1] = pz4c->mbi.x2(0);
+    sz[1]     = pz4c->mbi.nn2;
+    ds[1]     = pz4c->mbi.dx2(0);
+    coord[1]  = y;
+  }
+  origin[0] = pz4c->mbi.x1(0);
+  sz[0]     = pz4c->mbi.nn1;
+  ds[0]     = pz4c->mbi.dx1(0);
+  coord[0]  = x;
+
+  return InterpVC(origin, ds, sz, coord);
+}
+#endif  // Z4C_ENABLED
+
 // Evaluate a single component of a CC field using a pre-built interpolator.
-Real EvalInterpolateCC(
-  const InterpCC & interp,
-  AA & field_cc,
-  const int n
-)
+Real EvalInterpolateCC(const InterpCC& interp, AA& field_cc, const int n)
 {
   AA slice_cc;
   slice_cc.InitWithShallowSlice(field_cc, n, 1);
-  if constexpr (NDIM >= 2) {
-    return interp.eval(&(slice_cc(0,0,0)));
-  } else {
+  if constexpr (NDIM >= 2)
+  {
+    return interp.eval(&(slice_cc(0, 0, 0)));
+  }
+  else
+  {
     return interp.eval(&(slice_cc(0)));
   }
 }
 
+// Evaluate a single component of a VC field using a pre-built interpolator.
+#if Z4C_ENABLED
+Real EvalInterpolateVC(const InterpVC& interp, AA& field_vc, const int n)
+{
+  AA slice_vc;
+  slice_vc.InitWithShallowSlice(field_vc, n, 1);
+  if constexpr (NDIM >= 2)
+  {
+    return interp.eval(&(slice_vc(0, 0, 0)));
+  }
+  else
+  {
+    return interp.eval(&(slice_vc(0)));
+  }
 }
+#endif  // Z4C_ENABLED
+
+}  // namespace
 
 // ----------------------------------------------------------------------------
 
 // Interpolate everything that is possible to interpolate
-void ExtremaTracker::TryInterpolateAndWriteFields(
-  MeshBlock * pmb,
-  int num_tracker, int iter, Real time
-)
+void ExtremaTracker::TryInterpolateAndWriteFields(MeshBlock* pmb,
+                                                  int num_tracker,
+                                                  int iter,
+                                                  Real time)
 {
   const int n = num_tracker;
 
   // if no evaluation or point not contained in current MeshBlock do nothing
-  if (!evaluate_fields(n-1) ||
-      !pmb->PointContainedExclusive(c_x1(n-1), c_x2(n-1), c_x3(n-1)))
+  if (!evaluate_fields(n - 1) ||
+      !pmb->PointContainedExclusive(c_x1(n - 1), c_x2(n - 1), c_x3(n - 1)))
   {
     return;
   }
 
   // tracker in current MeshBlock and we want to interpolate then dump data ---
-  const Real x = c_x1(n-1);
-  const Real y = c_x2(n-1);
-  const Real z = c_x3(n-1);
+  const Real x = c_x1(n - 1);
+  const Real y = c_x2(n - 1);
+  const Real z = c_x3(n - 1);
 
   // Build interpolator once - reused for all ~80 field evaluations below.
   // All fields share the same MeshBlock geometry and target point.
   const InterpCC interp = BuildInterpolatorCC(pmb, x, y, z);
 
-  Hydro * ph = pmb->phydro;
-  PassiveScalars * ps = pmb->pscalars;
-  Field * pf = pmb->pfield;
-  Z4c * pz4c = pmb->pz4c;
+  Hydro* ph          = pmb->phydro;
+  PassiveScalars* ps = pmb->pscalars;
+  Field* pf          = pmb->pfield;
+  Z4c* pz4c          = pmb->pz4c;
 
   // try access file ----------------------------------------------------------
-  bool new_file = true;
+  bool new_file  = true;
   std::string fn = output_filename + std::to_string(n) + ".evf.txt";
   if (access(fn.c_str(), F_OK) == 0)
   {
@@ -154,7 +212,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
   // push interpolated values to this stream ----------------------------------
   int ix_var = 0;
-  std::ostringstream oss_header; // only needed if file doesn't exist
+  std::ostringstream oss_header;  // only needed if file doesn't exist
 
   if (new_file)
   {
@@ -196,15 +254,15 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
   push_num_int(iter);
   push_num_Real(time);
-  push_num_Real(c_x1(n-1));
-  push_num_Real(c_x2(n-1));
-  push_num_Real(c_x3(n-1));
+  push_num_Real(c_x1(n - 1));
+  push_num_Real(c_x2(n - 1));
+  push_num_Real(c_x3(n - 1));
 
   // Use macros to suppress things safeley
 #if FLUID_ENABLED
   // if (FLUID_ENABLED)
   {
-    for (int ix=0; ix<Hydro::ixn_cons::N; ++ix)
+    for (int ix = 0; ix < Hydro::ixn_cons::N; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, ph->u, ix);
       push_num_Real(interp_val);
@@ -216,7 +274,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<Hydro::ixn_prim::N; ++ix)
+    for (int ix = 0; ix < Hydro::ixn_prim::N; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, ph->w, ix);
       push_num_Real(interp_val);
@@ -228,7 +286,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<HydroDerivedIndex::NDRV_HYDRO; ++ix)
+    for (int ix = 0; ix < HydroDerivedIndex::NDRV_HYDRO; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, ph->derived_ms, ix);
       push_num_Real(interp_val);
@@ -240,12 +298,12 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
   }
-#endif // FLUID_ENABLED
+#endif  // FLUID_ENABLED
 
 #if NSCALARS > 0
   // if (NSCALARS > 0)
   {
-    for (int ix=0; ix<NSCALARS; ++ix)
+    for (int ix = 0; ix < NSCALARS; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, ps->s, ix);
       push_num_Real(interp_val);
@@ -257,7 +315,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<NSCALARS; ++ix)
+    for (int ix = 0; ix < NSCALARS; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, ps->r, ix);
       push_num_Real(interp_val);
@@ -269,12 +327,12 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
   }
-#endif // NSCALARS > 0
+#endif  // NSCALARS > 0
 
 #if MAGNETIC_FIELDS_ENABLED
   // if (MAGNETIC_FIELDS_ENABLED)
   {
-    for (int ix=0; ix<Field::ixn_cc::N; ++ix)
+    for (int ix = 0; ix < Field::ixn_cc::N; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, pf->bcc, ix);
       push_num_Real(interp_val);
@@ -286,7 +344,7 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<FieldDerivedIndex::NDRV_FIELD; ++ix)
+    for (int ix = 0; ix < FieldDerivedIndex::NDRV_FIELD; ++ix)
     {
       const Real interp_val = EvalInterpolateCC(interp, pf->derived_ms, ix);
       push_num_Real(interp_val);
@@ -298,20 +356,25 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
   }
-#endif // MAGNETIC_FIELDS_ENABLED
+#endif  // MAGNETIC_FIELDS_ENABLED
 
 #if Z4C_ENABLED
   // if (Z4C_ENABLED)
   {
 #if defined(Z4C_VC_ENABLED)
-    // support could be extended for this, would require VC interp.
-    assert(false);
+    // Z4c fields live on the vertex-centered grid; build a VC interpolator.
+    const InterpVC interp_vc = BuildInterpolatorVC(pz4c, x, y, z);
 #endif
 
     // z4c state-vector variables
-    for (int ix=0; ix<Z4c::N_Z4c; ++ix)
+    for (int ix = 0; ix < Z4c::N_Z4c; ++ix)
     {
+#if defined(Z4C_VC_ENABLED)
+      const Real interp_val =
+        EvalInterpolateVC(interp_vc, pz4c->storage.u, ix);
+#else
       const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.u, ix);
+#endif
       push_num_Real(interp_val);
 
       if (new_file)
@@ -321,9 +384,14 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<Z4c::N_ADM; ++ix)
+    for (int ix = 0; ix < Z4c::N_ADM; ++ix)
     {
+#if defined(Z4C_VC_ENABLED)
+      const Real interp_val =
+        EvalInterpolateVC(interp_vc, pz4c->storage.adm, ix);
+#else
       const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.adm, ix);
+#endif
       push_num_Real(interp_val);
 
       if (new_file)
@@ -333,9 +401,14 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<Z4c::N_CON; ++ix)
+    for (int ix = 0; ix < Z4c::N_CON; ++ix)
     {
+#if defined(Z4C_VC_ENABLED)
+      const Real interp_val =
+        EvalInterpolateVC(interp_vc, pz4c->storage.con, ix);
+#else
       const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.con, ix);
+#endif
       push_num_Real(interp_val);
 
       if (new_file)
@@ -347,9 +420,15 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
 
     if (FLUID_ENABLED)
     {
-      for (int ix=0; ix<Z4c::N_MAT; ++ix)
+      for (int ix = 0; ix < Z4c::N_MAT; ++ix)
       {
-        const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.mat, ix);
+#if defined(Z4C_VC_ENABLED)
+        const Real interp_val =
+          EvalInterpolateVC(interp_vc, pz4c->storage.mat, ix);
+#else
+        const Real interp_val =
+          EvalInterpolateCC(interp, pz4c->storage.mat, ix);
+#endif
         push_num_Real(interp_val);
 
         if (new_file)
@@ -360,9 +439,15 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
       }
     }
 
-    for (int ix=0; ix<Z4c::N_AUX_EXTENDED; ++ix)
+    for (int ix = 0; ix < Z4c::N_AUX_EXTENDED; ++ix)
     {
-      const Real interp_val = EvalInterpolateCC(interp, pz4c->storage.aux_extended, ix);
+#if defined(Z4C_VC_ENABLED)
+      const Real interp_val =
+        EvalInterpolateVC(interp_vc, pz4c->storage.aux_extended, ix);
+#else
+      const Real interp_val =
+        EvalInterpolateCC(interp, pz4c->storage.aux_extended, ix);
+#endif
       push_num_Real(interp_val);
 
       if (new_file)
@@ -371,9 +456,8 @@ void ExtremaTracker::TryInterpolateAndWriteFields(
         oss_header << Z4c::Aux_Extended_names[ix];
       }
     }
-
   }
-#endif // Z4C_ENABLED
+#endif  // Z4C_ENABLED
 
   if (new_file)
   {
