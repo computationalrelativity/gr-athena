@@ -578,6 +578,7 @@ void EquationOfState::SetEuclideanCC(geom_sliced_cc & gsc, const int i)
 #if defined(USE_TRANSITION_EOS)
 void EquationOfState::NuclearBinding(
   AA &prim, AA &prim_scalar,
+  AA &cons, AA &cons_scalar,
   Coordinates *pco,
   geom_sliced_cc & gsc,
   AA &hyd_der_ms,
@@ -594,37 +595,43 @@ void EquationOfState::NuclearBinding(
     Y[l] = prim_scalar(l,k,j,i);
   }
   const Real T = GetEOS().GetTemperatureFromP(n, P, Y);
-
-  const Real x = pco->x1v(i);
-  const Real y = pco->x2v(j);
-  const Real z = pco->x3v(k);
-  const Real gxx = gsc.gamma_dd_(0,0,i);
-  const Real gxy = gsc.gamma_dd_(0,1,i);
-  const Real gxz = gsc.gamma_dd_(0,2,i);
-  const Real gyy = gsc.gamma_dd_(1,1,i);
-  const Real gyz = gsc.gamma_dd_(1,2,i);
-  const Real gzz = gsc.gamma_dd_(2, 2, i);
-
-  const Real r = std::sqrt(gxx * SQR(x) + gyy * SQR(y) + gzz * SQR(z) + 2.0*(gxy*x*y + gxz*x*z + gyz*y*z));
-  const Real v_r = (prim(IVX,k,j,i)*x + prim(IVY,k,j,i)*y + prim(IVZ,k,j,i)*z)/r;
-
-  const Real cur_eb = GetEOS().GetNSEBindingEnergy(n, T, Y);
-
-  // Update scalars
   const Real w = GetEOS().TransitionFactor(n, T);
   hyd_der_ms(IX_TRANS, k, j, i) = w;
-  if (w > 0.0) {
+
+  if (w < 1.0) {
+      const Real x = pco->x1v(i);
+      const Real y = pco->x2v(j);
+      const Real z = pco->x3v(k);
+      const Real gxx = gsc.gamma_dd_(0,0,i);
+      const Real gxy = gsc.gamma_dd_(0,1,i);
+      const Real gxz = gsc.gamma_dd_(0,2,i);
+      const Real gyy = gsc.gamma_dd_(1,1,i);
+      const Real gyz = gsc.gamma_dd_(1,2,i);
+      const Real gzz = gsc.gamma_dd_(2, 2, i);
+
+      const Real r = std::sqrt(gxx * SQR(x) + gyy * SQR(y) + gzz * SQR(z) + 2.0*(gxy*x*y + gxz*x*z + gyz*y*z));
+      const Real v_r = (prim(IVX,k,j,i)*x + prim(IVY,k,j,i)*y + prim(IVZ,k,j,i)*z)/r;
+
+      const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
+      hyd_der_ms(IX_HEAT, k, j, i) = activation_fac; // TODO implement RHINE
+  } else {
+    // Update scalars
+    const Real cur_eb = GetEOS().GetNSEBindingEnergy(n, T, Y);
     prim_scalar(SCXN,k,j,i) = GetEOS().GetYn(n, T, Y);
     prim_scalar(SCXP,k,j,i) = GetEOS().GetYp(n, T, Y);
     prim_scalar(SCXA,k,j,i) = GetEOS().GetYa(n, T, Y);
     prim_scalar(SCAH,k,j,i) = GetEOS().GetAN(n, T, Y);
     prim_scalar(SCXH,k,j,i) = GetEOS().GetYh(n, T, Y);
-    prim_scalar(SCEB,k,j,i) = (1.0 - w) * Y[SCEB] + w * cur_eb;
+    prim_scalar(SCEB,k,j,i) = cur_eb;
+    hyd_der_ms(IX_HEAT, k, j, i) = 0.0;
+    // update conserved scalars with new fractions
+    cons_scalar(SCXN,k,j,i) = prim_scalar(SCXN,k,j,i) * cons(IDN,k,j,i);
+    cons_scalar(SCXP,k,j,i) = prim_scalar(SCXP,k,j,i) * cons(IDN,k,j,i);
+    cons_scalar(SCXA,k,j,i) = prim_scalar(SCXA,k,j,i) * cons(IDN,k,j,i);
+    cons_scalar(SCXH,k,j,i) = prim_scalar(SCXH,k,j,i) * cons(IDN,k,j,i);
   }
-
-  const Real activation_fac = (hyd_der_ms(IX_HU_d_0,k,j,i) < -1.0 && v_r > 0) ? (1.0 - w) : 0.0;
-
-  hyd_der_ms(IX_HEAT, k, j, i) = activation_fac; // TODO implement RHINE
+  hyd_der_ms(IX_XERR,k,j,i) = prim_scalar(SCXN,k,j,i) + prim_scalar(SCXP,k,j,i) +
+                                  prim_scalar(SCXA,k,j,i) + prim_scalar(SCXH,k,j,i) - 1;
 }
 #endif // USE_TRANSITION_EOS
 
@@ -711,6 +718,11 @@ void EquationOfState::DerivedQuantities(
       hyd_der_ms(IX_CS2,k,j,i), max_cs2
     );
     hyd_der_ms(IX_OM,k,j,i) = (y*vWx - x*vWy)/std::sqrt(SQR(x) + SQR(y));
+
+
+#if defined(USE_TRANSITION_EOS)
+    NuclearBinding(prim, prim_scalar, cons, cons_scalar, pco, gsc, pmy_block_->phydro->derived_ms, k, j, i);
+#endif // USE_TRANSITION_EOS
 
 
 #if MAGNETIC_FIELDS_ENABLED

@@ -356,6 +356,8 @@ class EquationOfState {
   void NuclearBinding(
       AA &prim,
       AA &prim_scalar,
+      AA &cons,
+      AA &cons_scalar,
       Coordinates *pco,
       geom_sliced_cc & gsc,
       AA &hyd_der_int,

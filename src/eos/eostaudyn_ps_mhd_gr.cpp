@@ -514,12 +514,6 @@ void EquationOfState::ConservedToPrimitive(
           alpha * oo_W * prim(IVX+a,k,j,i) - gsc.beta_u_(a,i)
         );
       }
-
-#if defined(USE_TRANSITION_EOS)
-      NuclearBinding(prim, prim_scalar, pco, gsc, pmy_block_->phydro->derived_ms, k, j, i);
-      ph->derived_ms(IX_XERR,k,j,i) = prim_scalar(SCXN,k,j,i) + prim_scalar(SCXP,k,j,i) +
-                                      prim_scalar(SCXA,k,j,i) + prim_scalar(SCXH,k,j,i) - 1;
-#endif // USE_TRANSITION_EOS
     }
 
     // derived quantities -----------------------------------------------------

@@ -488,7 +488,12 @@ class EOS : public EOSPolicy, public ErrorPolicy {
     //  \param[in] Y A n_species-sized array of particle fractions.
     inline Real GetTauFloor(Real D, Real *Y, Real Bsq) {
       // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
-      return D*GetSpecificInternalEnergy(D/GetBaryonMass(), T_atm, Y) + 0.5*Bsq;
+      Real n = D/GetBaryonMass();
+      Real minEps = std::max(
+          GetSpecificInternalEnergy(n, T_atm, Y),
+          MinimumSpecificInternalEnergy(n, Y)
+      );
+      return D*minEps + 0.5*Bsq;
     }
 
     //! \fn void SetDensityFloor(Real floor)

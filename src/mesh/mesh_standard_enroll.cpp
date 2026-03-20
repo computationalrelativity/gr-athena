@@ -191,6 +191,22 @@ Real num_c2p_fail(MeshBlock *pmb, int iout)
   return sum_;
 }
 
+#if defined(USE_TRANSITION_EOS)
+Real max_abs_Xsum_err(MeshBlock *pmb, int iout)
+{
+  Real max_err = 0.0;
+  AA xerr;
+  xerr.InitWithShallowSlice(pmb->phydro->derived_ms, IX_XERR, 1);
+
+  CC_ILOOP3(k, j, i)
+  {
+    max_err = std::max(max_err, std::abs(xerr(k,j,i)));
+  }
+  return max_err;
+}
+#endif // USE_TRANSITION_EOS
+
+
 Real E_int(MeshBlock *pmb, int iout)
 {
   Real sum_Q = 0;
@@ -270,6 +286,10 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
                           UserHistoryOperation::max);
   EnrollUserHistoryOutput(num_c2p_fail, "num_c2p_fail",
                           UserHistoryOperation::max);
+#if defined(USE_TRANSITION_EOS)
+  EnrollUserHistoryOutput(max_abs_Xsum_err, "max_abs_Xsum_err",
+                          UserHistoryOperation::max);
+#endif // USE_TRANSITION_EOS
 
   // Enroll all average [windowed] quantities ---------------------------------
   InputBlock *pib = pin->pfirst_block;

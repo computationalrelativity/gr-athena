@@ -26,10 +26,6 @@ ResetFloorTransition::ResetFloorTransition() {
 bool ResetFloorTransition::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, int n_species) {
   bool adjusted = false;
 
-  if ((n < hd_n_min) and (T > ld_t_max)) {
-    n = hd_n_min;
-    adjusted = true;
-  }
   if (n < n_atm*n_threshold) {
     n = n_atm;
     v[0] = 0.0;
@@ -39,15 +35,18 @@ bool ResetFloorTransition::PrimitiveFloor(Real& n, Real v[3], Real& T, Real *Y, 
     for (int i = 0; i < n_species; i++) {
       Y[i] = Y_atm[i];
     }
-    adjusted = true;
-  }
-  if ((T < hd_t_min) and (n > ld_n_max)) {
-    T = hd_t_min;
-    adjusted = true;
+    return true;
   }
   if (T < T_atm) {
     T = T_atm;
-    // printf("Reset at atm T: n=%.5e, T=%.5e\n", n, T);
+    adjusted = true;
+  }
+  if ((T > ld_t_max) and (n < hd_n_min)) {
+    n = hd_n_min;
+    adjusted = true;
+  }
+  if ((n > ld_n_max) and (T < hd_t_min)) {
+    T = hd_t_min;
     adjusted = true;
   }
   return adjusted;
@@ -69,12 +68,10 @@ bool ResetFloorTransition::ConservedFloor(Real& D, Real Sd[3], Real& tau, Real *
     for (int i = 0; i < n_species; i++) {
       Y[i] = Y_atm[i];
     }
-    // printf("Reset conserved at atm D: D=%.5e, tau=%.5e\n", D, tau);
     adjusted = true;
   }
   else if (tau < tau_floor) {
     tau = tau_floor;
-    // printf("Reset conserved at tau floor: D=%.5e, tau=%.5e tau_floor=%.5e\n", D, tau, tau_floor);
     adjusted = true;
   }
   return adjusted;
