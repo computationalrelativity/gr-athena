@@ -510,7 +510,7 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real *Y) {
   }
 }
 
-void EOSTransition::InitializeTables(std::string fname, std::string helm_fname, std::string heating_fname, Real baryon_mass) {
+void EOSTransition::InitializeTables(std::string fname, std::string helm_fname, Real baryon_mass) {
   if (not m_initialized) {
     compose_eos->ReadTableFromFile(fname);
     helmholtz_eos->ReadTableFromFile(helm_fname, compose_eos->min_Y[SCYE], compose_eos->max_Y[SCYE]);

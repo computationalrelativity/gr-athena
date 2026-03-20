@@ -100,7 +100,7 @@ class EOSTransition : public EOSPolicyInterface {
 
   public:
     /// Calls the individual initialization functions
-    void InitializeTables(std::string fname, std::string helm_fname, std::string heating_fname, Real baryon_mass);
+    void InitializeTables(std::string fname, std::string helm_fname, Real baryon_mass);
 
     /// Some setters for parameters
     void SetTransition(Real n_start, Real n_end, Real T_start, Real T_end);

@@ -124,7 +124,6 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
   std::string compose_table = pin->GetString("hydro", "table");
   std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
-  std::string heating_table = pin->GetString("hydro", "heating_table");
   Real baryon_mass = pin->GetOrAddReal("hydro", "bmass", 930.4117); // Fe56 mass/baryon in MeV
   Real trans_n_start = pin->GetReal("hydro", "trans_n_start"); // upper density border of transition region
   Real trans_n_end = pin->GetReal("hydro", "trans_n_end"); // lower density border of transition region
@@ -136,7 +135,7 @@ EquationOfState::EquationOfState(MeshBlock *pmb, ParameterInput *pin) : ps{&eos}
   eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
   if (helm_n_max > 0.0) eos.SetHelmholtzNMax(helm_n_max);
   if (helm_T_max > 0.0) eos.SetHelmholtzTMax(helm_T_max);
-  eos.InitializeTables(compose_table, helmholtz_table, heating_table, baryon_mass);
+  eos.InitializeTables(compose_table, helmholtz_table, baryon_mass);
   Real mb = eos.GetBaryonMass();
   // transfer eos boundaries to ResetFloorTransition
   Real ld_n, hd_n, ld_t, hd_t;
