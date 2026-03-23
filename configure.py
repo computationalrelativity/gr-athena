@@ -1181,7 +1181,7 @@ if args["cxx"] == "g++-simd":
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -std=c++17 -fwhole-program -flto=auto "
-    "-fno-strict-aliasing "
+    # "-fno-strict-aliasing "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
     # '-Wunknown-pragmas '
