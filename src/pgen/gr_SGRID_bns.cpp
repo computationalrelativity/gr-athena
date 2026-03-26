@@ -408,8 +408,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", false);
 
   // Initialize the data reader
-  DNS_init_sgrid(pin);
-  DNS_parameters(pin);
+  bool initialized_sgrid = false;
+  #pragma omp critical
+  {
+    if (! initialized_sgrid) {
+      // initialize the SGRID library and read the data once
+      DNS_init_sgrid(pin);
+      DNS_parameters(pin);
+
+      // Prepare SGRID interpolator
+      if (verbose) std::printf("Initializing SGRID_DNSdata_Interpolate_ADMvars_to_xyz\n");
+      SGRID_DNSdata_Interpolate_ADMvars_to_xyz(NULL, NULL, 1);
+      initialized_sgrid = true;
+    }
+  }
 
   //
   // Get settings for SGRID lib
@@ -436,10 +448,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   //int set_lapse = 1;
   //int set_shift = 1;
   //int set_hydro = 1;
-
-  // Prepare SGRID interpolator
-  if (verbose) std::printf("Initializing SGRID_DNSdata_Interpolate_ADMvars_to_xyz\n");
-  SGRID_DNSdata_Interpolate_ADMvars_to_xyz(NULL, NULL, 1);
 
   // Initial data variables at one point 
   // 20 values for the fields at (x_i,y_j,z_k) ordered as:
