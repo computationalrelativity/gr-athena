@@ -75,6 +75,22 @@ int ColdPiecewisePolytrope::FindPieceFromP(Real P) const {
   return n_pieces - 1;
 }
 
+int ColdPiecewisePolytrope::FindPieceFromE(Real e) const {
+  // Throw an error if the polytrope hasn't been initialized yet.
+  if (!initialized) {
+    throw std::runtime_error("ColdPiecewisePolytrope::FindPieceFromE - EOS not initialized.");
+  }
+
+
+  for (int i = 0; i < n_pieces-1; ++i) {
+    if (e < mb*density_pieces[i+1]*(1.0 + eps_pieces[i+1])) {
+      return i;
+    }
+  }
+
+  return n_pieces - 1;
+}
+
 Real ColdPiecewisePolytrope::DensityFromPressure(Real P) {
   assert (IsInitialized());
   if (T > 1e-10) {
@@ -83,4 +99,44 @@ Real ColdPiecewisePolytrope::DensityFromPressure(Real P) {
 
   int p = FindPieceFromP(P);
   return density_pieces[p] * std::pow(P/pressure_pieces[p], 1.0/gamma_pieces[p]);
+}
+
+Real ColdPiecewisePolytrope::DensityFromEnergy(Real e) {
+  assert (IsInitialized());
+  if (T > 1e-10) {
+    throw std::runtime_error("ColdPiecewisePolytrope::DensityFromEnergy only implemented for T=0");
+  }
+  // Unfortunately, e(rho) cannot be inverted simply. Therefore, we use a Newton-Raphson
+  // solver to get this instead.
+  int p = FindPieceFromE(e);
+  Real lb = density_pieces[p];
+  Real ub = density_pieces[p+1];
+  auto f = [&](Real n) -> Real {
+    return GetColdEnergy(n, p) - e;
+  };
+  auto df = [&](Real n) -> Real {
+    return mb*(1.0 + eps_pieces[p]) +
+      gamma_pieces[p]*GetColdPressure(n, p)/(n*(gamma_pieces[p] - 1.0));
+  };
+  Real flb = f(lb);
+  Real fub = f(ub);
+  Real x = (fub*lb - flb*ub)/(fub - flb);
+  Real fx = f(x);
+  const Real tol = 1e-15;
+  while (abs(fx) > e*tol) {
+    Real xnew = x - fx/df(x);
+    // If the guess is no good, throw it away and use bisection instead.
+    if (xnew > ub || xnew < lb) {
+      xnew = 0.5*(ub + lb);
+    }
+    fx = f(xnew);
+    if (fx > 0) {
+      ub = xnew;
+    } else {
+      lb = xnew;
+    }
+    x = xnew;
+  }
+
+  return x;
 }

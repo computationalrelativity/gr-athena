@@ -44,8 +44,14 @@ namespace Primitive {
     /// Find the index of the piece that the pressure aligns with.
     int FindPieceFromP(Real P) const;
 
+    /// Find the index of the piece that the energy aligns with.
+    int FindPieceFromE(Real e) const;
+
     /// Calculate the number density from the pressure
     Real DensityFromPressure(Real P);
+
+    /// Calculate the number density from the energy density
+    Real DensityFromEnergy(Real e);
 
     /// temperature of the slice
     Real T;
