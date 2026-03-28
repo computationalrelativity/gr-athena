@@ -97,8 +97,7 @@ Ejecta::Ejecta(Mesh* pmesh, ParameterInput* pin, int n)
     ATHENA_ERROR(msg);
   }
 
-  verbose = pin->GetOrAddBoolean("ejecta", "verbose", false);
-  bitant  = pin->GetOrAddBoolean("mesh", "bitant", false);
+  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
 
   parname = "radius_";
   parname += n_str;

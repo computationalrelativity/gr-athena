@@ -2,8 +2,9 @@
 #define AHF_HPP
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file ahf.hpp
 //  \brief definitions for the AHF class
@@ -22,15 +23,15 @@ class Mesh;
 class MeshBlock;
 class ParameterInput;
 
-#define INTERP_ORDER_2 (0) // Default: 2*NGHOST-1
+#define INTERP_ORDER_2 (0)  // Default: 2*NGHOST-1
 
 //! \class AHF
 //! \brief Apparent Horizon Finder
-class AHF {
-
-public:
+class AHF
+{
+  public:
   //! Creates the AHF object
-  AHF(Mesh * pmesh, ParameterInput * pin, int nh);
+  AHF(Mesh* pmesh, ParameterInput* pin, int nh);
   //! Destructor (will close output file)
   ~AHF();
   //!
@@ -39,7 +40,9 @@ public:
   void Write(int iter, Real time);
 
   Real GetHorizonRadius() const
-  { return ah_prop[hmeanradius];}
+  {
+    return ah_prop[hmeanradius];
+  }
   //! Horizon found
   bool ah_found;
   //! Time horizon _first_ found
@@ -65,7 +68,7 @@ public:
   //! n surface follows the puncture tracker if use_puncture[n] > 0
   int use_puncture;
   //! n surface uses the punctures' mass-weighted center
-  //bool use_puncture_massweighted_center[NHORIZON];
+  // bool use_puncture_massweighted_center[NHORIZON];
   bool use_puncture_massweighted_center;
 
   //! n surface follows the extrema tracker if use_extrema[n] > 0
@@ -80,7 +83,7 @@ public:
   //! compute every n iterations
   int compute_every_iter;
 
-private:
+  private:
   int npunct;
   int lmax1;
   int lmpoints;
@@ -88,21 +91,22 @@ private:
   bool wait_until_punc_are_close;
   bool bitant;
   //! Number of horizons
-  int nstart, nhorizon;
+  int nhorizon;
   //! Arrays for the grid and quadrature weights
   AthenaArray<Real> th_grid, ph_grid, weights;
 #if (INTERP_ORDER_2)
   static const int metric_interp_order = 2;
 #else
-  static const int metric_interp_order = 2*NGHOST-1;
+  static const int metric_interp_order = 2 * NGHOST - 1;
 #endif
-  int fastflow_iter=0;
+  int fastflow_iter = 0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
   //! Arrays of sphericasl harmonics and drvts
   AthenaArray<Real> Y0, Yc, Ys;
   AthenaArray<Real> dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
-  AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2, dYsdph2;
+  AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2,
+    dYsdph2;
   //! Arrays for spectral coefs
   AthenaArray<Real> a0;
   AthenaArray<Real> ac;
@@ -116,23 +120,30 @@ private:
   // Array computed in SurfaceIntegrals
   AthenaArray<Real> rho;
   //! Indexes of surface integrals
-  enum {
+  enum
+  {
     iarea,
     icoarea,
     ihrms,
     ihmean,
-    iSx, iSy, iSz,
+    iSx,
+    iSy,
+    iSz,
     invar
   };
   //! Array of surface integrals
   Real integrals[invar];
   //! Indexes of horizon quantities
-  enum {
+  enum
+  {
     harea,
     hcoarea,
     hhrms,
     hhmean,
-    hSx, hSy, hSz, hS,
+    hSx,
+    hSy,
+    hSz,
+    hS,
     hmass,
     hmeanradius,
     hminradius,
@@ -144,7 +155,7 @@ private:
   //! Flag points
   AthenaArray<int> havepoint;
 
-  void MetricInterp(MeshBlock * pmb);
+  void MetricInterp(MeshBlock* pmb);
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
@@ -155,29 +166,32 @@ private:
   void ComputeLegendre(const Real theta);
   int lmindex(const int l, const int m);
   int tpindex(const int i, const int j);
-  void GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n);
+  void GLQuad_Nodes_Weights(const Real a,
+                            const Real b,
+                            Real* x,
+                            Real* w,
+                            const int n);
   void SetGridWeights(std::string method);
-  void factorial_list(Real * fac, const int maxn);
+  void factorial_list(Real* fac, const int maxn);
 
-  Mesh const * pmesh;
-  ParameterInput * pin;
+  Mesh const* pmesh;
+  ParameterInput* pin;
 
   int root;
   int ioproc;
   std::string ofname_summary;
   std::string ofname_shape;
   std::string ofname_verbose;
-  FILE * pofile_summary;
-  FILE * pofile_shape;
-  FILE * pofile_verbose;
+  FILE* pofile_summary;
+  FILE* pofile_shape;
+  FILE* pofile_verbose;
 
   // Functions to interface with puncture tracker
   Real PuncMaxDistance();
   Real PuncMaxDistance(const int pix);
   Real PuncSumMasses();
-  void PuncWeightedMassCentralPoint(Real *xc, Real *yc, Real *zc);
+  void PuncWeightedMassCentralPoint(Real* xc, Real* yc, Real* zc);
   bool PuncAreClose();
-
 };
 
 #endif
