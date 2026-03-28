@@ -20,6 +20,11 @@
 #include <string>
 #include <vector>
 
+// MPI/OpenMP headers
+#ifdef MPI_PARALLEL
+#include <mpi.h>
+#endif
+
 // Athena++ headers
 #include "../athena_aliases.hpp"
 #include "../comm/neighbor_connectivity.hpp"
@@ -501,6 +506,13 @@ class Mesh
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user,
     cfl_number;
   Real evo_rate;
+
+  // Staging buffer and request for non-blocking NewTimeStep (Begin/Finish).
+  Real dt_reduce_buf_[4]{};
+#ifdef MPI_PARALLEL
+  MPI_Request dt_reduce_req_ = MPI_REQUEST_NULL;
+#endif
+
   int nlim, ncycle, ncycle_out, dt_diagnostics;
   int nbtotal, nbnew,
     nbdel;  // note: nbnew and nbdel are accumulative quantities
@@ -563,6 +575,13 @@ class Mesh
 
   void NewTimeStep(bool limit_dt_growth);
   void NewTimeStep();
+
+  // Non-blocking split of NewTimeStep: Begin posts MPI_Iallreduce, Finish
+  // waits for completion and applies the tlim clamp.  Work placed between
+  // the two calls (e.g. file I/O) overlaps with the reduction.
+  void NewTimeStepBegin(bool limit_dt_growth);
+  void NewTimeStepFinish();
+
   void ResetAllBlockDt();
   void OutputCycleDiagnostics();
 

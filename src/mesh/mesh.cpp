@@ -1788,6 +1788,89 @@ void Mesh::NewTimeStep()
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void Mesh::NewTimeStepBegin(bool limit_dt_growth)
+// \brief Non-blocking first half of NewTimeStep.
+//
+//  Computes the rank-local minimum of per-block timesteps and posts a
+//  non-blocking MPI_Iallreduce (MPI_MIN) over all ranks.  The caller should
+//  perform unrelated work (e.g. file I/O) and then call NewTimeStepFinish()
+//  to complete the reduction and apply the tlim clamp.
+//
+//  Without MPI the function behaves identically to NewTimeStep() (the
+//  reduction is trivially local and Finish is a no-op apart from the clamp).
+
+void Mesh::NewTimeStepBegin(bool limit_dt_growth)
+{
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+
+  MeshBlock* pmb0 = pmb_array[0];
+
+  if (limit_dt_growth)
+  {
+    dt = static_cast<Real>(2.0) * dt;
+    dt = std::min(dt, pmb0->new_block_dt_);
+  }
+  else
+  {
+    dt = pmb0->new_block_dt_;
+  }
+
+  dt_hyperbolic = pmb0->new_block_dt_hyperbolic_;
+  dt_parabolic  = pmb0->new_block_dt_parabolic_;
+  dt_user       = pmb0->new_block_dt_user_;
+
+  for (int i = 1; i < nmb; ++i)
+  {
+    MeshBlock* pmb = pmb_array[i];
+    dt             = std::min(dt, pmb->new_block_dt_);
+    dt_hyperbolic  = std::min(dt_hyperbolic, pmb->new_block_dt_hyperbolic_);
+    dt_parabolic   = std::min(dt_parabolic, pmb->new_block_dt_parabolic_);
+    dt_user        = std::min(dt_user, pmb->new_block_dt_user_);
+  }
+
+#ifdef MPI_PARALLEL
+  // Pack local minima into the staging buffer and post a non-blocking
+  // allreduce.  The result is collected in NewTimeStepFinish().
+  dt_reduce_buf_[0] = dt;
+  dt_reduce_buf_[1] = dt_hyperbolic;
+  dt_reduce_buf_[2] = dt_parabolic;
+  dt_reduce_buf_[3] = dt_user;
+
+  MPI_Iallreduce(MPI_IN_PLACE,
+                 dt_reduce_buf_,
+                 4,
+                 MPI_ATHENA_REAL,
+                 MPI_MIN,
+                 MPI_COMM_WORLD,
+                 &dt_reduce_req_);
+#endif
+}
+
+//----------------------------------------------------------------------------------------
+// \!fn void Mesh::NewTimeStepFinish()
+// \brief Non-blocking second half of NewTimeStep.
+//
+//  Waits for the MPI_Iallreduce posted by NewTimeStepBegin(), unpacks the
+//  global minima, and applies the tlim clamp.  Without MPI, only the clamp
+//  is applied (the local reduction was already complete in Begin).
+
+void Mesh::NewTimeStepFinish()
+{
+#ifdef MPI_PARALLEL
+  MPI_Wait(&dt_reduce_req_, MPI_STATUS_IGNORE);
+
+  dt            = dt_reduce_buf_[0];
+  dt_hyperbolic = dt_reduce_buf_[1];
+  dt_parabolic  = dt_reduce_buf_[2];
+  dt_user       = dt_reduce_buf_[3];
+#endif
+
+  if (time < tlim && (tlim - time) < dt)
+    dt = tlim - time;
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn void Mesh::ResetAllBlockDt()
 //  \brief Reset new_block_dt_ on every MeshBlock to the maximum sentinel
 //  value.

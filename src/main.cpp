@@ -1,26 +1,29 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
-/////////////////////////////////// Athena++ Main Program ////////////////////////////////
+/////////////////////////////////// Athena++ Main Program
+///////////////////////////////////
 //! \file main.cpp
 //  \brief Athena++ main program
 //
-// Based on the Athena MHD code (Cambridge version), originally written in 2002-2005 by
-// Jim Stone, Tom Gardiner, and Peter Teuben, with many important contributions by many
-// other developers after that, i.e. 2005-2014.
+// Based on the Athena MHD code (Cambridge version), originally written in
+// 2002-2005 by Jim Stone, Tom Gardiner, and Peter Teuben, with many important
+// contributions by many other developers after that, i.e. 2005-2014.
 //
-// Athena++ was started in Jan 2014.  The core design was finished during 4-7/2014 at the
-// KITP by Jim Stone.  GR was implemented by Chris White and AMR by Kengo Tomida during
-// 2014-2016.  Contributions from many others have continued to the present.
+// Athena++ was started in Jan 2014.  The core design was finished during
+// 4-7/2014 at the KITP by Jim Stone.  GR was implemented by Chris White and
+// AMR by Kengo Tomida during 2014-2016.  Contributions from many others have
+// continued to the present.
 //========================================================================================
 
 // C headers
 
 // C++ headers
-#include <cmath>      // sqrt()
-#include <csignal>    // ISO C/C++ signal() and sigset_t, sigemptyset() POSIX C extensions
+#include <cmath>  // sqrt()
+#include <csignal>  // ISO C/C++ signal() and sigset_t, sigemptyset() POSIX C extensions
 #include <cstdint>    // int64_t
 #include <cstdio>     // sscanf()
 #include <cstdlib>    // strtol
@@ -34,22 +37,22 @@
 
 // Athena++ headers
 #include "defs.hpp"
-#include "main.hpp"
 #include "globals.hpp"
+#include "main.hpp"
 #include "main_triggers.hpp"
 
 //-----------------------------------------------------------------------------
 //! \fn int main(int argc, char *argv[])
 //  \brief Athena++ main program
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
   gra::Pathing Pathing;
   gra::Flags Flags;
-  Flags.res  = 0;
-  Flags.narg = 0;
-  Flags.iarg = 0;
-  Flags.mesh = 0;
+  Flags.res   = 0;
+  Flags.narg  = 0;
+  Flags.iarg  = 0;
+  Flags.mesh  = 0;
   Flags.wtlim = 0;
 
   std::uint64_t mbcnt = 0;
@@ -78,14 +81,14 @@ int main(int argc, char *argv[])
   // using MPI-IO.
   gra::PrintRankZero("Step 03: Parsing inputs...");
 
-  ParameterInput *pinput = new ParameterInput;
+  ParameterInput* pinput = new ParameterInput;
   IOWrapper infile, restartfile;
   gra::ParseInputs(argc, argv, &Pathing, &Flags, pinput, infile, restartfile);
 
   //--- Step 4. ---------------------------------------------------------------
   // Construct and initialize Mesh
   gra::PrintRankZero("Step 04: Initializing Mesh...");
-  Mesh *pmesh = gra::InitMesh(&Flags, pinput, restartfile);
+  Mesh* pmesh = gra::InitMesh(&Flags, pinput, restartfile);
 
   //--- Step 5. ---------------------------------------------------------------
   // Set initial conditions by calling problem generator, or reading
@@ -96,7 +99,7 @@ int main(int argc, char *argv[])
   //--- Step 6. ---------------------------------------------------------------
   // Change to run directory, initialize outputs object, and make output of ICs
   gra::PrintRankZero("Step 06: Initializing Outputs...");
-  Outputs *pouts = gra::InitOutputs(&Flags, &Pathing, pinput, pmesh);
+  Outputs* pouts = gra::InitOutputs(&Flags, &Pathing, pinput, pmesh);
 
   //--- Step 7. ---------------------------------------------------------------
   // Construct and initialize Triggers / TaskLists
@@ -109,7 +112,7 @@ int main(int argc, char *argv[])
 
   Triggers trgs(pmesh, pinput, pouts);
   const bool allow_rescale_dt =
-      pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
+    pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
 
   // deal uniquely with hst
   trgs.Add(ovar::hst, true, allow_rescale_dt);
@@ -120,14 +123,14 @@ int main(int argc, char *argv[])
   trgs.Add(tvar::Z4c_tracker_punctures, ovar::user, true, allow_rescale_dt);
 #endif
 
-  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst,  true, allow_rescale_dt);
+  trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst, true, allow_rescale_dt);
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_Weyl, ovar::user, false, allow_rescale_dt);
   trgs.Add(tvar::Z4c_Weyl, ovar::data, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_AHF, ovar::user, true, allow_rescale_dt);
-  
+
   trgs.Add(tvar::Z4c_RWZ, ovar::user, true, allow_rescale_dt);
 
 #if CCE_ENABLED
@@ -143,29 +146,26 @@ int main(int argc, char *argv[])
   gra::mesh::surfaces::InitSurfaceTriggers(trgs, pmesh->psurfs);
 
   // now populate requisite task-lists
-  gra::tasklist::Collection ptlc { trgs };
+  gra::tasklist::Collection ptlc{ trgs };
   gra::tasklist::PopulateCollection(ptlc, pmesh, pinput);
 
   //=== Step 8. === START OF MAIN INTEGRATION LOOP ============================
   // For performance, there is no error handler protecting this step
   // (except outputs)
   gra::PrintRankZero("Step 08: Entering main integration loop...");
-  gra::timing::Clocks * pclk = new gra::timing::Clocks(pmesh);
+  gra::timing::Clocks* pclk = new gra::timing::Clocks(pmesh);
 
-  const bool trgs_can_adjust_mesh_dt = pinput->GetOrAddBoolean(
-    "task_triggers", "adjust_mesh_dt", true
-  );
+  const bool trgs_can_adjust_mesh_dt =
+    pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
 
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
   {
-
     // Adjust pmesh->dt if allowed by trigger, record if it happens.
     // This is to allow increase of pmesh->NewTimeStep to be unlimited & avoid
     // getting stuck
-    bool mesh_dt_adjusted = (trgs_can_adjust_mesh_dt)
-      ? trgs.AdjustFromAny_mesh_dt()
-      : false;
+    bool mesh_dt_adjusted =
+      (trgs_can_adjust_mesh_dt) ? trgs.AdjustFromAny_mesh_dt() : false;
 
     // Any Mesh-level logic to be called prior to next iter of integration loop
     pmesh->UserWorkBeforeLoop(pinput);
@@ -175,7 +175,8 @@ int main(int argc, char *argv[])
       // pmesh->evo_rate = (
       //   pmesh->time - pmesh->start_time
       // ) / pclk->Elapsed_hours();
-      // pmesh->evo_rate = std::isfinite(pmesh->evo_rate) ? pmesh->evo_rate : 0;
+      // pmesh->evo_rate = std::isfinite(pmesh->evo_rate) ? pmesh->evo_rate :
+      // 0;
 
       pmesh->evo_rate = pclk->evo_rate();
       pmesh->OutputCycleDiagnostics();
@@ -228,9 +229,9 @@ int main(int argc, char *argv[])
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
-    pmesh->step_since_lb++;   // steps since load-balance
+    pmesh->step_since_lb++;  // steps since load-balance
 
-    pclk->Elapsed_pause(); // ignore regrid time in evo/hr estimate
+    pclk->Elapsed_pause();  // ignore regrid time in evo/hr estimate
 
     bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
     if (mesh_updated)
@@ -275,18 +276,24 @@ int main(int argc, char *argv[])
       // pclk->evo_rate_reset();
     }
 
-    pclk->Elapsed_resume(); // finish timer suspension
+    pclk->Elapsed_resume();  // finish timer suspension
 
-    // If a trigger adjusted pmesh->dt then do not limit dt rescaling
-    pmesh->NewTimeStep(!mesh_dt_adjusted);
+    // If a trigger adjusted pmesh->dt then do not limit dt rescaling.
+    // Begin posts MPI_Iallreduce (non-blocking); the reduction overlaps
+    // with file I/O below.  Finish waits for the result and clamps to tlim.
+    pmesh->NewTimeStepBegin(!mesh_dt_adjusted);
     mesh_dt_adjusted = false;
 
     // Dump all the outputs ---------------------------------------------------
+    // (MPI_Iallreduce for dt progresses in the background)
     if (pmesh->time < pmesh->tlim)
     {
       const bool is_final = false;
       gra::MakeOutputs(is_final, pinput, pmesh, pouts);
     }
+
+    // Complete the non-blocking dt reduction before next cycle.
+    pmesh->NewTimeStepFinish();
 
     // signals (i.e. -t) ------------------------------------------------------
     if (SignalHandler::CheckSignalFlags() != 0)
@@ -294,7 +301,8 @@ int main(int argc, char *argv[])
       break;
     }
 
-  } // END OF MAIN INTEGRATION LOOP ===========================================
+  }  // END OF MAIN INTEGRATION LOOP
+     // ===========================================
 
   if (Globals::my_rank == 0 && Flags.wtlim > 0)
     SignalHandler::CancelWallTimeAlarm();
@@ -313,7 +321,8 @@ int main(int argc, char *argv[])
 #ifdef TWO_PUNCTURES
   // In case of two punctures this function has to be called only if not
   // restarting simulation
-  if (!Flags.res) pmesh->UserWorkAfterLoop(pinput);
+  if (!Flags.res)
+    pmesh->UserWorkAfterLoop(pinput);
 #else
   pmesh->UserWorkAfterLoop(pinput);
 #endif
@@ -335,5 +344,5 @@ int main(int argc, char *argv[])
   gra::tasklist::TearDown(ptlc);
   gra::parallelism::Teardown();
 
-  return(0);
+  return (0);
 }
