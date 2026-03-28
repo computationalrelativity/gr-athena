@@ -348,20 +348,24 @@ void CommRegistry::SetBoundaries(CommGroup group, CommTarget target_filter)
 //----------------------------------------------------------------------------------------
 // Clear boundary for a group.
 
-void CommRegistry::ClearBoundary(CommGroup group, CommTarget target_filter)
+bool CommRegistry::ClearBoundary(CommGroup group,
+                                 CommTarget target_filter,
+                                 bool wait)
 {
   int g = static_cast<int>(group);
 #ifdef DBG_FUSED_COMM
   if (fused_[g].active)
   {
-    ClearBoundaryFused(group, target_filter);
-    return;
+    return ClearBoundaryFused(group, target_filter, wait);
   }
 #endif
+  bool all_clear = true;
   for (int id : group_channels_[g])
   {
-    channels_[id].Clear(nc_, target_filter);
+    if (!channels_[id].Clear(nc_, target_filter, wait))
+      all_clear = false;
   }
+  return all_clear;
 }
 
 //----------------------------------------------------------------------------------------
@@ -420,9 +424,9 @@ void CommRegistry::StartReceivingFluxCorrSingleChannel(int channel_id)
 //----------------------------------------------------------------------------------------
 // Wait on flux correction sends and reset flags for a single channel.
 
-void CommRegistry::ClearFluxCorrSingleChannel(int channel_id)
+bool CommRegistry::ClearFluxCorrSingleChannel(int channel_id, bool wait)
 {
-  channels_[channel_id].ClearFluxCorr(nc_);
+  return channels_[channel_id].ClearFluxCorr(nc_, wait);
 }
 
 //----------------------------------------------------------------------------------------
@@ -988,32 +992,58 @@ void CommRegistry::SetBoundariesFused(CommGroup group,
 }
 
 //----------------------------------------------------------------------------------------
-// ClearBoundaryFused: wait on outstanding sends, reset fused flags.
+// ClearBoundaryFused: test (or wait on) outstanding sends, reset fused flags.
 
-void CommRegistry::ClearBoundaryFused(CommGroup group,
-                                      CommTarget target_filter)
+bool CommRegistry::ClearBoundaryFused(CommGroup group,
+                                      CommTarget target_filter,
+                                      bool wait)
 {
   MeshBlock* pmb      = pmy_block_;
   const int mylevel   = pmb->loc.level;
   int g               = static_cast<int>(group);
   FusedGroupState& fs = fused_[g];
 
-  for (int n = 0; n < nc_.num_neighbors(); ++n)
+  // Helper: returns true if this neighbor is active in any channel of the
+  // group under the given target filter.
+  auto IsNeighborActive = [&](const NeighborBlock& nb) -> bool
   {
-    const NeighborBlock& nb = nc_.neighbor(n);
-    CommTarget nbt          = FusedNeighborTarget(mylevel, nb.snb.level);
-
-    bool any_active = false;
+    CommTarget nbt = FusedNeighborTarget(mylevel, nb.snb.level);
     for (int id : group_channels_[g])
     {
       CommTarget eff = channels_[id].spec().targets & target_filter;
       if (HasTarget(eff, nbt))
+        return true;
+    }
+    return false;
+  };
+
+  // When wait=false, first check that all off-rank sends have completed
+  // before touching any flags.  This avoids premature flag resets.
+#ifdef MPI_PARALLEL
+  if (!wait)
+  {
+    for (int n = 0; n < nc_.num_neighbors(); ++n)
+    {
+      const NeighborBlock& nb = nc_.neighbor(n);
+      if (!IsNeighborActive(nb))
+        continue;
+      if (nb.snb.rank != Globals::my_rank)
       {
-        any_active = true;
-        break;
+        int flag;
+        MPI_Test(&fs.req_send[nb.bufid], &flag, MPI_STATUS_IGNORE);
+        if (!flag)
+          return false;  // at least one send still pending - retry later
       }
     }
-    if (!any_active)
+    // All sends confirmed complete - fall through to reset flags below.
+  }
+#endif
+
+  // Reset all participating flags and (when wait=true) block on sends.
+  for (int n = 0; n < nc_.num_neighbors(); ++n)
+  {
+    const NeighborBlock& nb = nc_.neighbor(n);
+    if (!IsNeighborActive(nb))
       continue;
 
     fs.recv_flag[nb.bufid].store(BoundaryStatus::waiting,
@@ -1022,12 +1052,13 @@ void CommRegistry::ClearBoundaryFused(CommGroup group,
                                  std::memory_order_relaxed);
 
 #ifdef MPI_PARALLEL
-    if (nb.snb.rank != Globals::my_rank)
+    if (wait && nb.snb.rank != Globals::my_rank)
     {
       MPI_Wait(&fs.req_send[nb.bufid], MPI_STATUS_IGNORE);
     }
 #endif
   }
+  return true;
 }
 
 //----------------------------------------------------------------------------------------

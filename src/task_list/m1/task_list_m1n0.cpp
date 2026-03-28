@@ -208,7 +208,9 @@ void M1N0::StartupTaskList(MeshBlock* pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-//! Functions to end MPI communication
+// Wait on M1 ghost exchange and flux correction sends, reset channel flags.
+// M1 task list is GTS-only - blocking MPI_Wait is faster than spinning on
+// MPI_Test when there is no useful work to steal.
 TaskStatus M1N0::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
   Mesh* pm = pmb->pmy_mesh;
@@ -1035,6 +1037,7 @@ TaskStatus M1N0::UpdateSourceHyd(MeshBlock* pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Wait on M1Rescatter sends and reset channel flags.
+// See ClearAllBoundary comment.
 TaskStatus M1N0::ClearMainInt(MeshBlock* pmb, int stage)
 {
   if (stage != nstages)

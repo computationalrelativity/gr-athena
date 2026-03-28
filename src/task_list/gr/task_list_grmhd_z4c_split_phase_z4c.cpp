@@ -1,5 +1,5 @@
 // C/C++ headers
-#include <iostream>   // endl
+#include <iostream>  // endl
 #include <limits>
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
@@ -7,17 +7,17 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
+#include "../../comm/comm_registry.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../mesh/mesh.hpp"
-#include "../../z4c/z4c.hpp"
-#include "../../z4c/wave_extract.hpp"
-#include "../../z4c/puncture_tracker.hpp"
-#include "../../trackers/extrema_tracker.hpp"
 #include "../../reconstruct/reconstruction.hpp"
 #include "../../scalars/scalars.hpp"
-#include "../../comm/comm_registry.hpp"
+#include "../../trackers/extrema_tracker.hpp"
+#include "../../z4c/puncture_tracker.hpp"
+#include "../../z4c/wave_extract.hpp"
+#include "../../z4c/z4c.hpp"
 #include "task_list.hpp"
 #include "task_names.hpp"
 #if CCE_ENABLED
@@ -36,11 +36,10 @@ using namespace gra::triggers;
 typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
-GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
-                                         Mesh *pm,
-                                         Triggers &trgs)
-  : LowStorage(pin, pm),
-    trgs(trgs)
+GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput* pin,
+                                         Mesh* pm,
+                                         Triggers& trgs)
+    : LowStorage(pin, pm), trgs(trgs)
 {
   using namespace TaskNames::GeneralRelativity::GRMHD_Z4c_Split::Phase_Z4c;
 
@@ -53,9 +52,9 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   const bool adaptive   = pm->adaptive;    // AMR
 
   // Z4c sub-system logic ---------------------------------------------------
-  Add(INIT_Z4C_DERIV, NONE,          &GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives);
-  Add(CALC_Z4CRHS, INIT_Z4C_DERIV,   &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
-  Add(INT_Z4C,     CALC_Z4CRHS, &GRMHD_Z4c_Phase_Z4c::IntegrateZ4c);
+  Add(INIT_Z4C_DERIV, NONE, &GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives);
+  Add(CALC_Z4CRHS, INIT_Z4C_DERIV, &GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS);
+  Add(INT_Z4C, CALC_Z4CRHS, &GRMHD_Z4c_Phase_Z4c::IntegrateZ4c);
 
   // Should be able to do this
   Add(SEND_Z4C, INT_Z4C, &GRMHD_Z4c_Phase_Z4c::SendZ4c);
@@ -65,7 +64,9 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
 
   if (multilevel)
   {
-    Add(PROLONG_Z4C,  (SEND_Z4C | SETB_Z4C), &GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c);
+    Add(PROLONG_Z4C,
+        (SEND_Z4C | SETB_Z4C),
+        &GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c);
     Add(PHY_BVAL_Z4C, PROLONG_Z4C, &GRMHD_Z4c_Phase_Z4c::PhysicalBoundary_Z4c);
   }
   else
@@ -81,18 +82,17 @@ GRMHD_Z4c_Phase_Z4c::GRMHD_Z4c_Phase_Z4c(ParameterInput *pin,
   Add(Z4C_TO_ADM, PREP_Z4C_DERIV, &GRMHD_Z4c_Phase_Z4c::Z4cToADM);
 
 #if CCE_ENABLED
-    Add(CCE_DUMP, Z4C_TO_ADM,   &GRMHD_Z4c_Phase_Z4c::CCEDump);
+  Add(CCE_DUMP, Z4C_TO_ADM, &GRMHD_Z4c_Phase_Z4c::CCEDump);
 #endif
 
   // We are done for the z4c phase
   Add(CLEAR_ALLBND, Z4C_TO_ADM, &GRMHD_Z4c_Phase_Z4c::ClearAllBoundary);
-
 }
 
 // ----------------------------------------------------------------------------
-void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
+void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock* pmb, int stage)
 {
-  Z4c *pz4c = pmb->pz4c;
+  Z4c* pz4c = pmb->pz4c;
 
   if (stage == 1)
   {
@@ -101,8 +101,7 @@ void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
       std::stringstream msg;
       msg << "### FATAL ERROR in GRMHD_Z4c_Phase_Z4c::StartupTaskList\n"
           << "integrator=" << integrator
-          << " is currently incompatible with GRMHD"
-          << std::endl;
+          << " is currently incompatible with GRMHD" << std::endl;
       ATHENA_ERROR(msg);
     }
 
@@ -120,19 +119,20 @@ void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock *pmb, int stage)
 }
 
 //-----------------------------------------------------------------------------
-// Functions to end MPI communication
-TaskStatus GRMHD_Z4c_Phase_Z4c::ClearAllBoundary(MeshBlock *pmb, int stage)
+// Wait on outstanding Z4c ghost sends and reset channel flags.
+// Split-phase Z4c path is GTS-only - blocking MPI_Wait is faster than
+// spinning on MPI_Test when there is no useful work to steal.
+TaskStatus GRMHD_Z4c_Phase_Z4c::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
   pmb->pcomm->ClearBoundary(comm::CommGroup::Z4c);
   return TaskStatus::next;
 }
 
-
-TaskStatus GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS(MeshBlock* pmb, int stage)
 {
-  Z4c * pz4c = pmb->pz4c;
+  Z4c* pz4c = pmb->pz4c;
 
- // PunctureTracker: interpolate beta at puncture position before evolution
+  // PunctureTracker: interpolate beta at puncture position before evolution
   if (stage == 1)
   {
     for (auto ptracker : pmb->pmy_mesh->pz4c_tracker)
@@ -146,9 +146,8 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage)
     pz4c->Z4cRHS(pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
 
     // Sommerfeld boundary conditions
-    pz4c->Z4cBoundaryRHS(pz4c->storage.u,
-                         pz4c->storage.mat,
-                         pz4c->storage.rhs);
+    pz4c->Z4cBoundaryRHS(
+      pz4c->storage.u, pz4c->storage.mat, pz4c->storage.rhs);
 
     return TaskStatus::next;
   }
@@ -157,37 +156,31 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CalculateZ4cRHS(MeshBlock *pmb, int stage)
 
 //-----------------------------------------------------------------------------
 // Functions to integrate variables
-TaskStatus GRMHD_Z4c_Phase_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::IntegrateZ4c(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
-    Hydro *ph = pmb->phydro;
-    Field *pf = pmb->pfield;
+    Z4c* pz4c = pmb->pz4c;
+    Hydro* ph = pmb->phydro;
+    Field* pf = pmb->pfield;
 
     // See IntegrateField
     Real ave_wghts[3];
     ave_wghts[0] = 1.0;
-    ave_wghts[1] = stage_wghts[stage-1].delta;
+    ave_wghts[1] = stage_wghts[stage - 1].delta;
     ave_wghts[2] = 0.0;
-    pz4c->WeightedAve(pz4c->storage.u1,
-                      pz4c->storage.u,
-                      pz4c->storage.u2,
-                      ave_wghts);
+    pz4c->WeightedAve(
+      pz4c->storage.u1, pz4c->storage.u, pz4c->storage.u2, ave_wghts);
 
-    ave_wghts[0] = stage_wghts[stage-1].gamma_1;
-    ave_wghts[1] = stage_wghts[stage-1].gamma_2;
-    ave_wghts[2] = stage_wghts[stage-1].gamma_3;
+    ave_wghts[0] = stage_wghts[stage - 1].gamma_1;
+    ave_wghts[1] = stage_wghts[stage - 1].gamma_2;
+    ave_wghts[2] = stage_wghts[stage - 1].gamma_3;
 
-    pz4c->WeightedAve(pz4c->storage.u,
-                      pz4c->storage.u1,
-                      pz4c->storage.u2,
-                      ave_wghts);
+    pz4c->WeightedAve(
+      pz4c->storage.u, pz4c->storage.u1, pz4c->storage.u2, ave_wghts);
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
-    pz4c->AddZ4cRHS(pz4c->storage.rhs,
-                    dt_scaled,
-                    pz4c->storage.u);
+    pz4c->AddZ4cRHS(pz4c->storage.rhs, dt_scaled, pz4c->storage.u);
 
     return TaskStatus::next;
   }
@@ -196,7 +189,7 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::IntegrateZ4c(MeshBlock *pmb, int stage)
 
 //-----------------------------------------------------------------------------
 // Pack and send Z4c ghost-zone data to neighbors.
-TaskStatus GRMHD_Z4c_Phase_Z4c::SendZ4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::SendZ4c(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
@@ -211,20 +204,21 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::SendZ4c(MeshBlock *pmb, int stage)
 
 //-----------------------------------------------------------------------------
 // Poll for received Z4c ghost-zone data from neighbors.
-TaskStatus GRMHD_Z4c_Phase_Z4c::ReceiveZ4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::ReceiveZ4c(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
     // Poll all Z4c channels.  Returns true when every channel has received
     // all expected messages from same-level, coarser, and finer neighbors.
     bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::Z4c);
-    if (done) return TaskStatus::next;
+    if (done)
+      return TaskStatus::next;
     return TaskStatus::fail;
   }
   return TaskStatus::fail;
 }
 
-TaskStatus GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
@@ -236,15 +230,14 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::SetBoundariesZ4c(MeshBlock *pmb, int stage)
 }
 
 //-----------------------------------------------------------------------------
-TaskStatus GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c(MeshBlock* pmb, int stage)
 {
-
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
-    comm::CommRegistry *pcomm = pmb->pcomm;
+    Z4c* pz4c                 = pmb->pz4c;
+    comm::CommRegistry* pcomm = pmb->pcomm;
 
-    const Real t_end = this->t_end(stage, pmb);
+    const Real t_end     = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // Z4c uses module-specific coarse indices from MB_info (may differ from
@@ -255,9 +248,16 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
     const int cng = pz4c->mbi.cng;
 
     // Apply coarse-level physical BCs then prolongate each Z4c channel.
-    pcomm->ProlongateAndApplyPhysicalBCs(
-        comm::CommGroup::Z4c, t_end, dt_scaled,
-        cil, ciu, cjl, cju, ckl, cku, cng);
+    pcomm->ProlongateAndApplyPhysicalBCs(comm::CommGroup::Z4c,
+                                         t_end,
+                                         dt_scaled,
+                                         cil,
+                                         ciu,
+                                         cjl,
+                                         cju,
+                                         ckl,
+                                         cku,
+                                         cng);
   }
   else
   {
@@ -267,42 +267,43 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Prolongation_Z4c(MeshBlock *pmb, int stage)
   return TaskStatus::next;
 }
 
-TaskStatus GRMHD_Z4c_Phase_Z4c::PhysicalBoundary_Z4c(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::PhysicalBoundary_Z4c(MeshBlock* pmb, int stage)
 {
-
   if (stage <= nstages)
   {
-    comm::CommRegistry *pcomm = pmb->pcomm;
+    comm::CommRegistry* pcomm = pmb->pcomm;
 
-    const Real t_end = this->t_end(stage, pmb);
+    const Real t_end     = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // Apply fine-level physical BCs for every Z4c channel.
     pcomm->ApplyPhysicalBCs(comm::CommGroup::Z4c, t_end, dt_scaled);
-
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
   return TaskStatus::next;
 }
 
-TaskStatus GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::EnforceAlgConstr(MeshBlock* pmb, int stage)
 {
 #ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages) return TaskStatus::next; // only do on last stage
-#endif // DBG_ALGCONSTR_ALL
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
+#endif                        // DBG_ALGCONSTR_ALL
 
-  Z4c *pz4c = pmb->pz4c;
+  Z4c* pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
 
   return TaskStatus::next;
 }
 
-TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
+    Z4c* pz4c = pmb->pz4c;
     pz4c->Z4cToADM(pz4c->storage.u, pz4c->storage.adm);
     return TaskStatus::next;
   }
@@ -311,16 +312,17 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::Z4cToADM(MeshBlock *pmb, int stage)
 }
 
 #if CCE_ENABLED
-TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock* pmb, int stage)
 {
   // only do on last stage
-  if (stage != nstages) return TaskStatus::next;
+  if (stage != nstages)
+    return TaskStatus::next;
 
   using namespace gra::triggers;
   typedef Triggers::TriggerVariant tvar;
   typedef Triggers::OutputVariant ovar;
 
-  Mesh *pm = pmb->pmy_mesh;
+  Mesh* pm = pmb->pmy_mesh;
 
   for (auto cce : pm->pcce)
   {
@@ -346,11 +348,12 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::CCEDump(MeshBlock *pmb, int stage)
 #endif
 
 // Pre-compute conformal derivative 3D arrays ---------------------------------
-TaskStatus GRMHD_Z4c_Phase_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::PrepareZ4cDerivatives(MeshBlock* pmb,
+                                                      int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
+    Z4c* pz4c = pmb->pz4c;
     pz4c->PrepareZ4cDerivatives(pz4c->storage.u);
     return TaskStatus::next;
   }
@@ -358,11 +361,12 @@ TaskStatus GRMHD_Z4c_Phase_Z4c::PrepareZ4cDerivatives(MeshBlock *pmb, int stage)
 }
 
 // One-time initialization of derivative 3D arrays for fresh MeshBlocks -------
-TaskStatus GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives(MeshBlock *pmb, int stage)
+TaskStatus GRMHD_Z4c_Phase_Z4c::InitializeZ4cDerivatives(MeshBlock* pmb,
+                                                         int stage)
 {
   if (stage <= nstages)
   {
-    Z4c *pz4c = pmb->pz4c;
+    Z4c* pz4c = pmb->pz4c;
     pz4c->InitializeZ4cDerivatives(pz4c->storage.u);
     return TaskStatus::next;
   }

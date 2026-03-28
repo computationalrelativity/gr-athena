@@ -145,9 +145,12 @@ class CommRegistry
   void SetBoundaries(CommGroup group,
                      CommTarget target_filter = CommTarget::All);
 
-  // Wait on outstanding sends and reset flags for all channels in the group.
-  void ClearBoundary(CommGroup group,
-                     CommTarget target_filter = CommTarget::All);
+  // Test (or wait on) outstanding sends and reset flags for all channels in
+  // the group.  When wait=false, returns false without resetting flags if
+  // any off-rank send is still pending.
+  bool ClearBoundary(CommGroup group,
+                     CommTarget target_filter = CommTarget::All,
+                     bool wait                = true);
 
   // --- flux correction group-level communication ---
   // These methods operate on channels whose flux_group matches the given
@@ -170,10 +173,10 @@ class CommRegistry
   // different phase.
   void StartReceivingFluxCorrSingleChannel(int channel_id);
 
-  // Wait on flux correction sends and reset flags for a single channel (by
-  // channel_id). Used for per-phase cleanup so that each phase only clears its
-  // own channels.
-  void ClearFluxCorrSingleChannel(int channel_id);
+  // Test (or wait on) flux correction sends and reset flags for a single
+  // channel (by channel_id).  When wait=false, returns false without
+  // resetting flags if any off-rank send is still pending.
+  bool ClearFluxCorrSingleChannel(int channel_id, bool wait = true);
 
   // Poll for received flux correction data.  Returns true when all channels
   // done. For FC (AccumulateAverage), the two-phase state machine runs inside
@@ -292,8 +295,11 @@ class CommRegistry
   // divide.
   void SetBoundariesFused(CommGroup group, CommTarget target_filter);
 
-  // MPI_Wait on sends, reset flags.
-  void ClearBoundaryFused(CommGroup group, CommTarget target_filter);
+  // MPI_Test (or MPI_Wait) on sends, reset flags.  When wait=false, polls
+  // sends first; flags are only reset after all sends are confirmed complete.
+  bool ClearBoundaryFused(CommGroup group,
+                          CommTarget target_filter,
+                          bool wait = true);
 
   // MPI_Start on persistent recv requests.
   void StartReceivingFused(CommGroup group, CommTarget target_filter);

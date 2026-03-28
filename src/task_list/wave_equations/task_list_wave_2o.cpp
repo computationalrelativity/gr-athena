@@ -6,12 +6,12 @@
 
 // Athena++ classes headers
 #include "../../athena.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../wave/wave.hpp"
-#include "../../parameter_input.hpp"
-#include "../task_list.hpp"
-#include "../../trackers/extrema_tracker.hpp"
 #include "../../comm/comm_registry.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../parameter_input.hpp"
+#include "../../trackers/extrema_tracker.hpp"
+#include "../../wave/wave.hpp"
+#include "../task_list.hpp"
 #include "task_list.hpp"
 
 // ----------------------------------------------------------------------------
@@ -23,9 +23,8 @@ using namespace gra::triggers;
 typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
-Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
-  : integrators(pin, pm),
-    trgs(trgs)
+Wave_2O::Wave_2O(ParameterInput* pin, Mesh* pm, Triggers& trgs)
+    : integrators(pin, pm), trgs(trgs)
 {
   // Take the number of stages from the integrator
   nstages = integrators::nstages;
@@ -41,13 +40,13 @@ Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(INT_WAVE, CALC_WAVERHS, &Wave_2O::IntegrateWave);
 
     Add(SEND_WAVE, INT_WAVE, &Wave_2O::SendWave);
-    Add(RECV_WAVE, NONE,     &Wave_2O::ReceiveWave);
+    Add(RECV_WAVE, NONE, &Wave_2O::ReceiveWave);
 
-    Add(SETB_WAVE, (RECV_WAVE|INT_WAVE), &Wave_2O::SetBoundariesWave);
+    Add(SETB_WAVE, (RECV_WAVE | INT_WAVE), &Wave_2O::SetBoundariesWave);
 
     if (pm->multilevel)
-    { // SMR or AMR
-      Add(PROLONG, (SEND_WAVE|SETB_WAVE), &Wave_2O::Prolongation);
+    {  // SMR or AMR
+      Add(PROLONG, (SEND_WAVE | SETB_WAVE), &Wave_2O::Prolongation);
       Add(PHY_BVAL, PROLONG, &Wave_2O::PhysicalBoundary);
     }
     else
@@ -56,24 +55,24 @@ Wave_2O::Wave_2O(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     }
 
     Add(USERWORK, PHY_BVAL, &Wave_2O::UserWork);
-    Add(NEW_DT, USERWORK,   &Wave_2O::NewBlockTimeStep);
+    Add(NEW_DT, USERWORK, &Wave_2O::NewBlockTimeStep);
 
     if (pm->adaptive)
     {
-      Add(FLAG_AMR,     USERWORK, &Wave_2O::CheckRefinement);
+      Add(FLAG_AMR, USERWORK, &Wave_2O::CheckRefinement);
       Add(CLEAR_ALLBND, FLAG_AMR, &Wave_2O::ClearAllBoundary);
     }
     else
     {
       Add(CLEAR_ALLBND, NEW_DT, &Wave_2O::ClearAllBoundary);
     }
-  } // namespace
+  }  // namespace
 }
 
 // ----------------------------------------------------------------------------
-void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
+void Wave_2O::StartupTaskList(MeshBlock* pmb, int stage)
 {
-  Wave *pwave = pmb->pwave;
+  Wave* pwave = pmb->pwave;
 
   integrators::Initialize(stage, pmb, pwave->bt_k, pwave->u, pwave->rhs);
 
@@ -84,8 +83,7 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
       std::stringstream msg;
       msg << "### FATAL ERROR in Wave_2O::StartupTaskList\n"
           << "integrator=" << integrator
-          << " is currently incompatible with Wave_2O"
-          << std::endl;
+          << " is currently incompatible with Wave_2O" << std::endl;
       ATHENA_ERROR(msg);
     }
 
@@ -102,8 +100,10 @@ void Wave_2O::StartupTaskList(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Functions to end MPI communication
-TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
+// Clear outstanding Wave ghost sends and reset channel flags.
+// Wave task list is GTS-only - blocking MPI_Wait is faster than spinning on
+// MPI_Test when there is no useful work to steal.
+TaskStatus Wave_2O::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
   pmb->pcomm->ClearBoundary(comm::CommGroup::Wave);
   return TaskStatus::next;
@@ -111,9 +111,9 @@ TaskStatus Wave_2O::ClearAllBoundary(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Functions to calculate the RHS
-TaskStatus Wave_2O::CalculateWaveRHS(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::CalculateWaveRHS(MeshBlock* pmb, int stage)
 {
-  Wave *pwave = pmb->pwave;
+  Wave* pwave = pmb->pwave;
 
   if (stage <= nstages)
   {
@@ -129,9 +129,9 @@ TaskStatus Wave_2O::CalculateWaveRHS(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Functions to integrate variables
-TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::IntegrateWave(MeshBlock* pmb, int stage)
 {
-  Wave *pwave = pmb->pwave;
+  Wave* pwave = pmb->pwave;
 
   if (stage <= nstages)
   {
@@ -141,13 +141,13 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
       {
         Real ave_wghts[3];
         ave_wghts[0] = 1.0;
-        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].delta;
         ave_wghts[2] = 0.0;
         pmb->WeightedAveCC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
 
-        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
-        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
-        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
+        ave_wghts[0] = ls->stage_wghts[stage - 1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage - 1].gamma_3;
 
         pmb->WeightedAveCC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
       }
@@ -155,13 +155,13 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
       {
         Real ave_wghts[3];
         ave_wghts[0] = 1.0;
-        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].delta;
         ave_wghts[2] = 0.0;
         pmb->WeightedAveVC(pwave->u1, pwave->u, pwave->u2, ave_wghts);
 
-        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
-        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
-        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
+        ave_wghts[0] = ls->stage_wghts[stage - 1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage - 1].gamma_3;
 
         pmb->WeightedAveVC(pwave->u, pwave->u1, pwave->u2, ave_wghts);
       }
@@ -169,18 +169,18 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
       {
         Real ave_wghts[3];
         ave_wghts[0] = 1.0;
-        ave_wghts[1] = ls->stage_wghts[stage-1].delta;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].delta;
         ave_wghts[2] = 0.0;
         pmb->WeightedAveCX(pwave->u1, pwave->u, pwave->u2, ave_wghts);
 
-        ave_wghts[0] = ls->stage_wghts[stage-1].gamma_1;
-        ave_wghts[1] = ls->stage_wghts[stage-1].gamma_2;
-        ave_wghts[2] = ls->stage_wghts[stage-1].gamma_3;
+        ave_wghts[0] = ls->stage_wghts[stage - 1].gamma_1;
+        ave_wghts[1] = ls->stage_wghts[stage - 1].gamma_2;
+        ave_wghts[2] = ls->stage_wghts[stage - 1].gamma_3;
 
         pmb->WeightedAveCX(pwave->u, pwave->u1, pwave->u2, ave_wghts);
       }
 
-      pwave->AddWaveRHS(ls->stage_wghts[stage-1].beta, pwave->u);
+      pwave->AddWaveRHS(ls->stage_wghts[stage - 1].beta, pwave->u);
     }
     else
     {
@@ -188,9 +188,8 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
 
       if (stage < nstages)
       {
-        bt->SumBT_ak(pmb, stage+1, dt, pwave->bt_k, pwave->u);
+        bt->SumBT_ak(pmb, stage + 1, dt, pwave->bt_k, pwave->u);
       }
-
 
       if (stage == nstages)
       {
@@ -205,13 +204,16 @@ TaskStatus Wave_2O::IntegrateWave(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Pack and send Wave ghost-zone data to neighbors.
-TaskStatus Wave_2O::SendWave(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::SendWave(MeshBlock* pmb, int stage)
 {
-  if (stage <= nstages) {
+  if (stage <= nstages)
+  {
     // Group-level send handles the Wave channel (CC, CX, or VC depending on
     // compile-time config).  Restriction is embedded for multilevel.
     pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::Wave);
-  } else {
+  }
+  else
+  {
     return TaskStatus::fail;
   }
   return TaskStatus::next;
@@ -219,19 +221,20 @@ TaskStatus Wave_2O::SendWave(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Poll for received Wave ghost-zone data from neighbors.
-TaskStatus Wave_2O::ReceiveWave(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::ReceiveWave(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
     bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::Wave);
-    if (done) return TaskStatus::next;
+    if (done)
+      return TaskStatus::next;
     return TaskStatus::fail;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus Wave_2O::SetBoundariesWave(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::SetBoundariesWave(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
@@ -244,14 +247,14 @@ TaskStatus Wave_2O::SetBoundariesWave(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Functions for everything else
-TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::Prolongation(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
-    Wave *pwave = pmb->pwave;
-    comm::CommRegistry *pcomm = pmb->pcomm;
+    Wave* pwave               = pmb->pwave;
+    comm::CommRegistry* pcomm = pmb->pcomm;
 
-    const Real t_end = this->t_end(stage, pmb);
+    const Real t_end     = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // Wave uses module-specific coarse indices from MB_info (may differ from
@@ -262,9 +265,16 @@ TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
     const int cng = pwave->mbi.cng;
 
     // Apply coarse-level physical BCs then prolongate each Wave channel.
-    pcomm->ProlongateAndApplyPhysicalBCs(
-        comm::CommGroup::Wave, t_end, dt_scaled,
-        cil, ciu, cjl, cju, ckl, cku, cng);
+    pcomm->ProlongateAndApplyPhysicalBCs(comm::CommGroup::Wave,
+                                         t_end,
+                                         dt_scaled,
+                                         cil,
+                                         ciu,
+                                         cjl,
+                                         cju,
+                                         ckl,
+                                         cku,
+                                         cng);
   }
   else
   {
@@ -275,13 +285,13 @@ TaskStatus Wave_2O::Prolongation(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::PhysicalBoundary(MeshBlock* pmb, int stage)
 {
   if (stage <= nstages)
   {
-    comm::CommRegistry *pcomm = pmb->pcomm;
+    comm::CommRegistry* pcomm = pmb->pcomm;
 
-    const Real t_end = this->t_end(stage, pmb);
+    const Real t_end     = this->t_end(stage, pmb);
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // Apply fine-level physical BCs for every Wave channel.
@@ -296,9 +306,10 @@ TaskStatus Wave_2O::PhysicalBoundary(MeshBlock *pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus Wave_2O::UserWork(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::UserWork(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::next; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->WaveUserWorkInLoop();
 
@@ -308,18 +319,19 @@ TaskStatus Wave_2O::UserWork(MeshBlock *pmb, int stage)
   return TaskStatus::next;
 }
 
-TaskStatus Wave_2O::NewBlockTimeStep(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::NewBlockTimeStep(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::next; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->pwave->NewBlockTimeStep();
   return TaskStatus::next;
 }
 
-
-TaskStatus Wave_2O::CheckRefinement(MeshBlock *pmb, int stage)
+TaskStatus Wave_2O::CheckRefinement(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::next; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
   return TaskStatus::next;
