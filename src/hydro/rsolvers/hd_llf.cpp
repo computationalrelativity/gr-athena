@@ -60,11 +60,8 @@ void Hydro::RiemannSolver(const int ivx,
                           AA& aux_l_,
                           AA& aux_r_,
                           AT_N_sca& alpha_,
-                          AT_N_sca& oo_alpha_,
                           AT_N_vec& beta_u_,
                           AT_N_sym& gamma_dd_,
-                          AT_N_sca& detgamma_,
-                          AT_N_sca& oo_detgamma_,
                           AT_N_sca& sqrt_detgamma_,
                           AA& flux,
                           AA& s_flux,
@@ -80,6 +77,9 @@ void Hydro::RiemannSolver(const int ivx,
   Reconstruction* precon = pmb->precon;
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+  // regularization epsilon for reciprocal lapse
+  const Real eps_alpha__ = pmb->pz4c->opt.eps_floor;
 
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx - IVX) + 1) % 3;
@@ -342,15 +342,16 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
+    const Real oo_alpha_i = OO(regularize_near_zero(alpha_(i), eps_alpha__));
     // D flux: D(v^i - beta^i/alpha)
     flux_l_(IDN, i) =
       cons_l_(IDN, i) * alpha_(i) *
-      (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i));
+      (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i);
 
     // tau flux: alpha_(S^i - Dv^i) - beta^i tau
     flux_l_(IEN, i) =
       cons_l_(IEN, i) * alpha_(i) *
-        (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i)) +
+        (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i) +
       alpha_(i) * sqrt_detgamma_(i) * w_p_l_(i) * w_v_u_l_(ivx - 1, i);
   }
 
@@ -359,10 +360,11 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
+      const Real oo_alpha_i = OO(regularize_near_zero(alpha_(i), eps_alpha__));
       // S_i flux alpha S^j_i - beta^j S_i
       flux_l_(IVX + a, i) =
         (cons_l_(IVX + a, i) * alpha_(i) *
-         (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i)));
+         (w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i));
     }
   }
 
@@ -398,15 +400,16 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
+    const Real oo_alpha_i = OO(regularize_near_zero(alpha_(i), eps_alpha__));
     // D flux: D(v^i - beta^i/alpha)
     flux_r_(IDN, i) =
       cons_r_(IDN, i) * alpha_(i) *
-      (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i));
+      (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i);
 
     // tau flux: alpha_(S^i - Dv^i) - beta^i tau
     flux_r_(IEN, i) =
       cons_r_(IEN, i) * alpha_(i) *
-        (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i)) +
+        (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i) +
       alpha_(i) * sqrt_detgamma_(i) * w_p_r_(i) * w_v_u_r_(ivx - 1, i);
   }
 
@@ -415,10 +418,11 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
+      const Real oo_alpha_i = OO(regularize_near_zero(alpha_(i), eps_alpha__));
       // S_i flux alpha S^j_i - beta^j S_i
       flux_r_(IVX + a, i) =
         (cons_r_(IVX + a, i) * alpha_(i) *
-         (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_(i)));
+         (w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i) * oo_alpha_i));
     }
   }
 

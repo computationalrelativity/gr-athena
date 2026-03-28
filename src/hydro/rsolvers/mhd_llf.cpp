@@ -59,13 +59,9 @@ void Hydro::RiemannSolver(const int ivx,
                           AA& aux_l_,
                           AA& aux_r_,
                           AT_N_sca& alpha_,
-                          AT_N_sca& oo_alpha_,
                           AT_N_vec& beta_u_,
                           AT_N_sym& gamma_dd_,
-                          AT_N_sca& detgamma_,
-                          AT_N_sca& oo_detgamma_,
                           AT_N_sca& sqrt_detgamma_,
-                          AT_N_sca& oo_sqrt_detgamma_,
                           AA& flux,
                           AA& s_flux,
                           AA& ey,
@@ -83,6 +79,9 @@ void Hydro::RiemannSolver(const int ivx,
   Reconstruction* precon = pmb->precon;
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
+
+  // regularization epsilon for reciprocal lapse
+  const Real eps_alpha__ = pmb->pz4c->opt.eps_floor;
 
   // Calculate cyclic permutations of indices
   int ivy = IVX + ((ivx - IVX) + 1) % 3;
@@ -268,36 +267,37 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
+    const Real oo_sqrt_detgamma_i = OO(sqrt_detgamma_(i));
     switch (ivx)
     {
       case IVX:
       {
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_(i) * prim_l_(IBY, i);
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_(i) * prim_l_(IBZ, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_(i) * prim_r_(IBY, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_(i) * prim_r_(IBZ, i);
+        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
+        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
+        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
+        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
         break;
       }
       case IVY:
       {
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_(i) * prim_l_(IBY, i);
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_(i) * prim_l_(IBZ, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_(i) * prim_r_(IBY, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_(i) * prim_r_(IBZ, i);
+        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
+        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
+        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
+        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
         break;
       }
       case IVZ:
       {
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_(i) * prim_l_(IBY, i);
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_(i) * prim_l_(IBZ, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_(i) * B(k, j, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_(i) * prim_r_(IBY, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_(i) * prim_r_(IBZ, i);
+        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
+        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
+        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * B(k, j, i);
+        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
+        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
         break;
       }
       default:
@@ -315,8 +315,9 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      b0_l_(i) += oo_alpha_(i) * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
-      b0_r_(i) += oo_alpha_(i) * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
+      const Real oo_alpha_i = OO(regularize_near_zero(alpha_(i), eps_alpha__));
+      b0_l_(i) += oo_alpha_i * W_l_(i) * q_scB_u_l_(a, i) * w_v_d_l_(a, i);
+      b0_r_(i) += oo_alpha_i * W_r_(i) * q_scB_u_r_(a, i) * w_v_d_r_(a, i);
     }
   }
 

@@ -155,11 +155,8 @@ class Hydro
   // scratches ----------------------------------------------------------------
   public:
   AT_N_sca sqrt_detgamma_;
-  AT_N_sca detgamma_;     // spatial met det
-  AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
   AT_N_sca alpha_;
-  AT_N_sca oo_alpha_;  // 1 / alpha
   AT_N_vec beta_u_;
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;
@@ -198,8 +195,6 @@ class Hydro
   AT_H_vec flux_r_;
 
   // Particular to magnetic fields --------------------------------------------
-  AT_N_sca oo_sqrt_detgamma_;
-
   AT_C_sca oo_W_l_;
   AT_C_sca oo_W_r_;
 
@@ -317,11 +312,8 @@ class Hydro
                      AA& aux_l_,
                      AA& aux_r_,
                      AT_N_sca& alpha_,
-                     AT_N_sca& oo_alpha_,
                      AT_N_vec& beta_u_,
                      AT_N_sym& gamma_dd_,
-                     AT_N_sca& detgamma_,
-                     AT_N_sca& oo_detgamma_,
                      AT_N_sca& sqrt_detgamma_,
                      AA& flux,
                      AA& s_flux,
@@ -341,13 +333,9 @@ class Hydro
                      AA& aux_l_,
                      AA& aux_r_,
                      AT_N_sca& alpha_,
-                     AT_N_sca& oo_alpha_,
                      AT_N_vec& beta_u_,
                      AT_N_sym& gamma_dd_,
-                     AT_N_sca& detgamma_,
-                     AT_N_sca& oo_detgamma_,
                      AT_N_sca& sqrt_detgamma_,
-                     AT_N_sca& oo_sqrt_detgamma_,
                      AA& flux,
                      AA& s_flux,
                      AA& ey,

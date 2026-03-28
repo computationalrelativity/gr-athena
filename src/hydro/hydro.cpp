@@ -237,11 +237,8 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   const int nn1 = pmy_block->nverts1;
 
   sqrt_detgamma_.NewAthenaTensor(nn1);
-  detgamma_.NewAthenaTensor(nn1);
-  oo_detgamma_.NewAthenaTensor(nn1);
 
   alpha_.NewAthenaTensor(nn1);
-  oo_alpha_.NewAthenaTensor(nn1);
   beta_u_.NewAthenaTensor(nn1);
   gamma_dd_.NewAthenaTensor(nn1);
   gamma_uu_.NewAthenaTensor(nn1);
@@ -274,8 +271,6 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
 
   flux_l_.NewAthenaTensor(nn1);
   flux_r_.NewAthenaTensor(nn1);
-
-  oo_sqrt_detgamma_.NewAthenaTensor(nn1);
 
 #if MAGNETIC_FIELDS_ENABLED
   oo_W_l_.NewAthenaTensor(nn1);
