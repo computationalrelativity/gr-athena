@@ -391,14 +391,7 @@ class Z4c
     // Matter parameters
     int cowling;  // if 1 then cowling approximation used, rhs of z4c equations
                   // -> 0
-    int rhstheta0;      // if 1 then rhs of Theta equation -> 0
-    int fixedgauge;     // if 1 then gauge is fixed, rhs of alpha, beta^i
-                        // equations -> 0
-    int fix_admsource;  // if 1 then gauge is fixed, rhs of alpha, beta^i
-                        // equations -> 0
-    int Tmunuinterp;    // interpolate stress energy
-    int epsinterp;      // interpolate stress energy
-    int bssn;           // reduce to bssn
+    int Tmunuinterp;  // interpolate stress energy
 
     // AwA parameters
     Real AwA_amplitude;           // amplitude parameter

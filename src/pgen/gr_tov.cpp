@@ -1166,7 +1166,6 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
   AT_N_vec sl_S_d(pz4c->storage.mat, Z4c::I_MAT_Sx);
   AT_N_sym sl_S_dd(pz4c->storage.mat, Z4c::I_MAT_Sxx);
 
-  Real T_initial          = pin->GetReal("hydro", "tfloor");
   Real Y_atm[MAX_SPECIES] = { 0.0 };
 #if EOS_POLICY_CODE == 2
   Y_atm[0] = pin->GetReal("hydro", "y0_atmosphere");

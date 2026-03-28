@@ -1213,6 +1213,7 @@ int DNS_parameters(ParameterInput* pin)
 
   pin->SetReal("problem", "xin1", xin1);
   pin->SetReal("problem", "xmax1", xmax1);
+  pin->SetReal("problem", "xout1", xout1);
   pin->SetReal("problem", "qmax1", qmax1);
   pin->SetReal("problem", "xin2", xin2);
   pin->SetReal("problem", "xmax2", xmax2);

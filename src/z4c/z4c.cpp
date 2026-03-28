@@ -361,24 +361,11 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
     pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false);
 
   // Matter parameters
-  opt.cowling       = pin->GetOrAddInteger("z4c", "cowling_true", 0);
-  opt.bssn          = pin->GetOrAddInteger("z4c", "bssn", 0);
-  opt.rhstheta0     = pin->GetOrAddInteger("z4c", "rhstheta0", 0);
-  opt.fixedgauge    = pin->GetOrAddInteger("z4c", "fixedgauge", 0);
-  opt.fix_admsource = pin->GetOrAddInteger("z4c", "fix_admsource", 0);
-  opt.Tmunuinterp   = pin->GetOrAddInteger(
+  opt.cowling     = pin->GetOrAddInteger("z4c", "cowling_true", 0);
+  opt.Tmunuinterp = pin->GetOrAddInteger(
     "z4c",
     "Tmunuinterp",
     0);  // interpolate components of Tmunu if 1 (if 0 interpolate primitives)
-  opt.epsinterp = pin->GetOrAddInteger(
-    "z4c",
-    "epsinterp",
-    0);  // interpolate internal energy eps instead of pressure p.
-
-  if (opt.epsinterp == 1)
-  {
-    std::cout << "<z4c> epsinterp = 1 not supported" << std::endl;
-  }
 
   // Problem-specific parameters
   // AwA parameters (default to linear wave test)

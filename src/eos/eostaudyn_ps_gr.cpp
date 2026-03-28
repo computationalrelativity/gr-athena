@@ -88,14 +88,11 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
 #endif
   verbose = pin->GetOrAddBoolean("hydro", "verbose", true);
 
-  // BD: TODO - dead parameter
   restrict_cs2 = pin->GetOrAddBoolean("hydro", "restrict_cs2", false);
 
   max_cs_W = pin->GetOrAddReal("hydro", "max_cs_W", 10.0);
   max_cs2  = 1.0 - SQR(1.0 / max_cs_W);
 
-  warn_unrestricted_cs2 =
-    pin->GetOrAddBoolean("hydro", "warn_unrestricted_cs2", false);
   recompute_temperature =
     pin->GetOrAddBoolean("hydro", "recompute_temperature", true);
   smooth_temperature =

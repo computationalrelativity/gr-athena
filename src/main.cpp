@@ -155,9 +155,6 @@ int main(int argc, char* argv[])
   gra::PrintRankZero("Step 08: Entering main integration loop...");
   gra::timing::Clocks* pclk = new gra::timing::Clocks(pmesh);
 
-  const bool trgs_can_adjust_mesh_dt =
-    pinput->GetOrAddBoolean("task_triggers", "adjust_mesh_dt", true);
-
   while ((pmesh->time < pmesh->tlim) &&
          (pmesh->nlim < 0 || pmesh->ncycle < pmesh->nlim))
   {
@@ -165,7 +162,7 @@ int main(int argc, char* argv[])
     // This is to allow increase of pmesh->NewTimeStep to be unlimited & avoid
     // getting stuck
     bool mesh_dt_adjusted =
-      (trgs_can_adjust_mesh_dt) ? trgs.AdjustFromAny_mesh_dt() : false;
+      (allow_rescale_dt) ? trgs.AdjustFromAny_mesh_dt() : false;
 
     // Any Mesh-level logic to be called prior to next iter of integration loop
     pmesh->UserWorkBeforeLoop(pinput);
