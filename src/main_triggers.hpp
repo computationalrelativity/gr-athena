@@ -16,14 +16,14 @@
 #include "athena.hpp"
 #include "defs.hpp"
 #include "globals.hpp"
-#include "parameter_input.hpp"
-
-#include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
+#include "outputs/outputs.hpp"
+#include "parameter_input.hpp"
 #include "utils/utils.hpp"
 
 // triggers external to task-lists used in main -------------------------------
-namespace gra::triggers {
+namespace gra::triggers
+{
 
 struct Trigger
 {
@@ -33,11 +33,10 @@ struct Trigger
   bool allow_rescale_dt = true;
   bool force_first_iter = false;
 
-  Mesh * pm;
+  Mesh* pm;
 
   inline bool is_satisfied()
   {
-
     if (dt > 0)
     {
       if (force_first_iter)
@@ -45,19 +44,16 @@ struct Trigger
         return true;
       }
 
-      const Real t_end_step = pm->time+pm->dt;
+      const Real t_end_step = pm->time + pm->dt;
 
       // catch the last point(s) reducing trigger dt
-      if (((pm->ncycle >= pm->nlim) &&
-           (pm->nlim > 0)) ||
-          (t_next > pm->tlim))
+      if (((pm->ncycle >= pm->nlim) && (pm->nlim > 0)) || (t_next > pm->tlim))
       {
         dt = pm->dt;
         return true;
       }
 
-      return (t_end_step >= t_next)  ||
-             (pm->time   >= pm->tlim);
+      return (t_end_step >= t_next) || (pm->time >= pm->tlim);
     }
     return false;
   }
@@ -70,11 +66,11 @@ struct Trigger
     {
       // Note use of t_last here
       const int ndumps = (static_cast<int>(t_last / dt));
-      t_next = (ndumps+1) * dt;
+      t_next           = (ndumps + 1) * dt;
     }
     else
     {
-      t_next = t_last+dt;
+      t_next = t_last + dt;
     }
 
     force_first_iter = false;
@@ -88,22 +84,20 @@ struct Trigger
     //   return false;
     // }
 
-    const Real t_end_step = pm->time+pm->dt;
+    const Real t_end_step = pm->time + pm->dt;
 
     // BD: TODO - better way to handle this?
     // FP ops can cause miniscule steps to be set if t_next and pm->time
     // approximately coincide.
-    const bool diff_tol = std::abs(1-t_next / pm->time) > 1e-13;
+    const bool diff_tol = std::abs(1 - t_next / pm->time) > 1e-13;
     // const bool diff_tol = true;
 
-    if ((t_end_step > t_next) &&
-        (pm->time < t_next)   &&
-        diff_tol)
+    if ((t_end_step > t_next) && (pm->time < t_next) && diff_tol)
     {
-      const Real dt_0 = pm->dt;
+      const Real dt_0     = pm->dt;
       const Real t_next_0 = t_next;
 
-      pm->dt = t_next-pm->time;
+      pm->dt = t_next - pm->time;
       t_next = pm->time + pm->dt;
       t_last = t_next - dt;
 
@@ -138,8 +132,9 @@ struct Trigger
 
 class Triggers
 {
-public:
-  enum class TriggerVariant {
+  public:
+  enum class TriggerVariant
+  {
     none,
     tracker_extrema,
     Z4c_ADM_constraints,
@@ -153,61 +148,61 @@ public:
     global_extrema
   };
 
-  enum class OutputVariant {
+  enum class OutputVariant
+  {
     user,  // for e.g. tracker scalars
     rst,   // restarts
     hst,   // history file
     data   // general output / dumps
   };
 
-public:
-  Triggers(Mesh *pm, ParameterInput *pin, Outputs *pouts)
-    : pm(pm), pin(pin), pouts(pouts)
-  { };
+  public:
+  Triggers(Mesh* pm, ParameterInput* pin, Outputs* pouts)
+      : pm(pm), pin(pin), pouts(pouts) {};
 
-// ----------------------------------------------------------------------------
-// For unordered_map: use map instead to avoid hasher, though, it would be
-// slower ...
-public:
+  // ----------------------------------------------------------------------------
+  // For unordered_map: use map instead to avoid hasher, though, it would be
+  // slower ...
+  public:
   typedef std::tuple<TriggerVariant, OutputVariant, int> TriggerMeta;
 
-private:
+  private:
   class tm_hash
   {
     public:
-      size_t operator()(const TriggerMeta& tm) const
-      {
-        // hash is XOR of standard hash impl. on enum
-        return (std::hash<TriggerVariant>()(std::get<0>(tm)) ^
-                std::hash<OutputVariant >()(std::get<1>(tm)) ^
-                std::hash<int >()(std::get<2>(tm)));
-      }
+    size_t operator()(const TriggerMeta& tm) const
+    {
+      // hash is XOR of standard hash impl. on enum
+      return (std::hash<TriggerVariant>()(std::get<0>(tm)) ^
+              std::hash<OutputVariant>()(std::get<1>(tm)) ^
+              std::hash<int>()(std::get<2>(tm)));
+    }
   };
 
-public:
+  public:
   // std::unordered_map<TriggerVariant, Trigger> triggers;
   std::unordered_map<TriggerMeta, Trigger, tm_hash> triggers;
-// ----------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
 
   inline static TriggerMeta MakeTriggerMeta(OutputVariant ov)
   {
-    return {TriggerVariant::none, ov, 0};
+    return { TriggerVariant::none, ov, 0 };
   }
 
   inline static TriggerMeta MakeTriggerMeta(TriggerVariant tv,
                                             OutputVariant ov)
   {
-    return {tv, ov, 0};
+    return { tv, ov, 0 };
   }
 
   inline static TriggerMeta MakeTriggerMeta(TriggerVariant tv,
                                             OutputVariant ov,
                                             const int index)
   {
-    return {tv, ov, index};
+    return { tv, ov, index };
   }
 
-public:
+  public:
   void Add(TriggerVariant tvar,
            OutputVariant ovar,
            const bool force_first_iter,
@@ -242,7 +237,7 @@ public:
         // Issue a warning to stdout ------------------------------------------
         if ((Globals::my_rank == 0) &&
             (pin->GetOrAddInteger("trackers_extrema", "N_tracker", 0) > 0) &&
-            pin->GetOrAddReal("task_triggers", "dt_tracker_extrema", 0.0) == 0)
+            dt == 0)
         {
           std::cout << "Warning: trackers_extrema/N_tracker > 0 & ";
           std::cout << "task_triggers/dt_tracker_extrema = 0 \n";
@@ -258,8 +253,8 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("task_triggers",
-                                   "dt_Z4c_ADM_constraints", 0.0);
+            dt = pin->GetOrAddReal(
+              "task_triggers", "dt_Z4c_ADM_constraints", 0.0);
             break;
           }
           case (Triggers::OutputVariant::hst):
@@ -289,9 +284,8 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("task_triggers",
-                                   "dt_Z4c_tracker_punctures",
-                                   0.0);
+            dt = pin->GetOrAddReal(
+              "task_triggers", "dt_Z4c_tracker_punctures", 0.0);
             break;
           }
           default:
@@ -305,8 +299,7 @@ public:
 
         // Issue a warning to stdout ------------------------------------------
         if ((Globals::my_rank == 0) &&
-            (pin->GetOrAddInteger("z4c", "npunct", 0) > 0) &&
-            dt == 0)
+            (pin->GetOrAddInteger("z4c", "npunct", 0) > 0) && dt == 0)
         {
           std::cout << "Warning: z4c/npunct > 0 & ";
           std::cout << "task_triggers/dt_Z4c_tracker_punctures = 0 \n";
@@ -322,13 +315,13 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("task_triggers",
-                                   "dt_Z4c_Weyl", 0.0);
+            dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_Weyl", 0.0);
             // Issue a warning to stdout --------------------------------------
             if ((Globals::my_rank == 0) &&
-                (pin->GetOrAddInteger("psi4_extraction",
-                                      "num_radii", 0) > 0) &&
-                dt == 0) {
+                (pin->GetOrAddInteger("psi4_extraction", "num_radii", 0) >
+                 0) &&
+                dt == 0)
+            {
               std::cout << "Warning: psi4_extraction/num_radii > 0 & ";
               std::cout << "task_triggers/dt_Z4c_Weyl = 0 \n";
             }
@@ -338,10 +331,8 @@ public:
           }
           case (Triggers::OutputVariant::data):
           {
-            dt = std::min(
-              pouts->GetMinOutputTimeStepExhaustive("geom"),
-              pouts->GetMinOutputTimeStepExhaustive("geom.weyl")
-            );
+            dt = std::min(pouts->GetMinOutputTimeStepExhaustive("geom"),
+                          pouts->GetMinOutputTimeStepExhaustive("geom.weyl"));
             break;
           }
           default:
@@ -364,8 +355,7 @@ public:
 
         // Issue a warning to stdout ------------------------------------------
         if ((Globals::my_rank == 0) &&
-            (pin->GetOrAddInteger("ahf", "num_horizons", 0) > 0) &&
-            dt == 0)
+            (pin->GetOrAddInteger("ahf", "num_horizons", 0) > 0) && dt == 0)
         {
           std::cout << "Warning: ahf/num_horizons > 0 & ";
           std::cout << "task_triggers/dt_Z4c_AHF = 0 \n";
@@ -388,8 +378,7 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("task_triggers",
-                                   "dt_Z4c_CCE", 0.0);
+            dt = pin->GetOrAddReal("task_triggers", "dt_Z4c_CCE", 0.0);
             break;
           }
           default:
@@ -423,8 +412,7 @@ public:
 
         // Issue a warning to stdout ------------------------------------------
         if ((Globals::my_rank == 0) &&
-            (pin->GetOrAddInteger("ejecta", "num_rad", 0) > 0) &&
-            pin->GetOrAddReal("task_triggers", "dt_ejecta", 0.0) == 0)
+            (pin->GetOrAddInteger("ejecta", "num_rad", 0) > 0) && dt == 0)
         {
           std::cout << "Warning: ejecta/num_rad > 0 & ";
           std::cout << "task_triggers/dt_ejecta = 0 \n";
@@ -440,8 +428,8 @@ public:
         {
           case (Triggers::OutputVariant::user):
           {
-            dt = pin->GetOrAddReal("surface" + std::to_string(index),
-                                   "dt", 0.0);
+            dt =
+              pin->GetOrAddReal("surface" + std::to_string(index), "dt", 0.0);
             break;
           }
           default:
@@ -495,7 +483,8 @@ public:
 
   bool IsSatisfied(OutputVariant ovar)
   {
-    return triggers[MakeTriggerMeta(TriggerVariant::none, ovar)].is_satisfied();
+    return triggers[MakeTriggerMeta(TriggerVariant::none, ovar)]
+      .is_satisfied();
   }
   // Check whether a trigger is satisfied; checks all output variants
   bool IsSatisfied(TriggerVariant tvar, OutputVariant ovar)
@@ -521,7 +510,7 @@ public:
       if ((std::get<0>(tvar_iter) == tvar))
       {
         bool was_satisfied = tri.is_satisfied();
-        satisfied = satisfied || was_satisfied;
+        satisfied          = satisfied || was_satisfied;
       }
     }
     return satisfied;
@@ -542,7 +531,7 @@ public:
       if (tri.is_satisfied())
       {
         bool was_reduced = tri.reduce_mesh_dt();
-        adjusted = adjusted || was_reduced;
+        adjusted         = adjusted || was_reduced;
       }
     }
     return adjusted;
@@ -560,8 +549,8 @@ public:
     }
   }
 
-private:
-  void PopulateTrigger(Trigger & tri,
+  private:
+  void PopulateTrigger(Trigger& tri,
                        const bool force_first_iter,
                        const bool allow_rescale_dt,
                        const Real dt)
@@ -573,36 +562,31 @@ private:
     // use "time" as this gets "start_time" if specified
     // Further, it is retained on restarts
 
-    const int ndumps = (dt > 0)
-      ? (static_cast<int>(pm->time / dt))
-      : 0;
-    tri.t_last = ndumps * dt;
-    tri.t_next = (ndumps + 1) * dt;
+    const int ndumps = (dt > 0) ? (static_cast<int>(pm->time / dt)) : 0;
+    tri.t_last       = ndumps * dt;
+    tri.t_next       = (ndumps + 1) * dt;
 
     if (force_first_iter)
     {
       // on restarts first iterate may exceed next permitted
       // step based on dump iter
       // tri.t_next = pm->time+pm->dt;
-      tri.t_next = std::min(pm->time + pm->dt, tri.t_next);
+      tri.t_next           = std::min(pm->time + pm->dt, tri.t_next);
       tri.force_first_iter = true;
     }
 
     tri.allow_rescale_dt = allow_rescale_dt;
-
   }
 
-private:
-  Mesh *pm;
-  ParameterInput * pin;
-  Outputs *pouts;
-
+  private:
+  Mesh* pm;
+  ParameterInput* pin;
+  Outputs* pouts;
 };
 
 }  // namespace gra::triggers
 
-
-#endif // MAIN_TRIGGERS_HPP
+#endif  // MAIN_TRIGGERS_HPP
 //
 // :D
 //
