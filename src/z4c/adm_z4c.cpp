@@ -1234,7 +1234,8 @@ void Z4c::PrepareAuxExtended(AA& u_aux_extended,
   Aux_extended_vars aux_extended;
   SetAuxExtendedAliases(u_aux_extended, aux_extended);
 
-  MeshBlock* pmb = pmy_block;
+  MeshBlock* pmb      = pmy_block;
+  GRDynamical* pco_gr = static_cast<GRDynamical*>(pmb->pcoord);
 
   for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)

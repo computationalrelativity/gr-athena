@@ -897,7 +897,6 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 void Z4c::Z4cRHSExciseFreeze(AA& u, AA& u_mat, AA& u_rhs)
 {
   MeshBlock* pmb = pmy_block;
-  Mesh* pm       = pmb->pmy_mesh;
 #if FLUID_ENABLED
   Hydro* ph             = pmb->phydro;
   EquationOfState* peos = pmb->peos;

@@ -1,7 +1,8 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file new_blockdt.cpp
 //  \brief computes timestep using CFL condition on a MEshBlock
@@ -36,49 +37,63 @@
 // \!fn void Hydro::NewBlockTimeStep()
 // \brief calculate the minimum timestep within a MeshBlock
 
-void Hydro::NewBlockTimeStep() {
-  MeshBlock *pmb = pmy_block;
-  int is = pmb->is; int js = pmb->js; int ks = pmb->ks;
-  int ie = pmb->ie; int je = pmb->je; int ke = pmb->ke;
-  AthenaArray<Real> &w = pmb->phydro->w;
-  // hyperbolic timestep constraint in each (x1-slice) cell along coordinate direction:
-  AthenaArray<Real> &dt1 = dt1_, &dt2 = dt2_, &dt3 = dt3_;  // (x1 slices)
-  Real wi[NWAVE];
+void Hydro::NewBlockTimeStep()
+{
+  MeshBlock* pmb       = pmy_block;
+  int is               = pmb->is;
+  int js               = pmb->js;
+  int ks               = pmb->ks;
+  int ie               = pmb->ie;
+  int je               = pmb->je;
+  int ke               = pmb->ke;
+  AthenaArray<Real>& w = pmb->phydro->w;
+  // hyperbolic timestep constraint in each (x1-slice) cell along coordinate
+  // direction:
+  AthenaArray<Real>&dt1 = dt1_, &dt2 = dt2_, &dt3 = dt3_;  // (x1 slices)
 
   Real real_max = std::numeric_limits<Real>::max();
-  Real min_dt = real_max;
-  // Note, "dt_hyperbolic" currently refers to the dt limit imposed by evoluiton of the
-  // ideal hydro or MHD fluid by the main integrator (even if not strictly hyperbolic)
-  Real min_dt_hyperbolic  = real_max;
-  // TODO(felker): consider renaming dt_hyperbolic after general execution model is
-  // implemented and flexibility from #247 (zero fluid configurations) is
-  // addressed. dt_hydro, dt_main (inaccurate since "dt" is actually main), dt_MHD?
-  Real min_dt_parabolic  = real_max;
-  Real min_dt_user  = real_max;
+  Real min_dt   = real_max;
+  // Note, "dt_hyperbolic" currently refers to the dt limit imposed by
+  // evoluiton of the ideal hydro or MHD fluid by the main integrator (even if
+  // not strictly hyperbolic)
+  Real min_dt_hyperbolic = real_max;
+  // TODO(felker): consider renaming dt_hyperbolic after general execution
+  // model is implemented and flexibility from #247 (zero fluid configurations)
+  // is addressed. dt_hydro, dt_main (inaccurate since "dt" is actually main),
+  // dt_MHD?
+  Real min_dt_parabolic = real_max;
+  Real min_dt_user      = real_max;
 
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
+  for (int k = ks; k <= ke; ++k)
+  {
+    for (int j = js; j <= je; ++j)
+    {
       pmb->pcoord->CenterWidth1(k, j, is, ie, dt1);
       pmb->pcoord->CenterWidth2(k, j, is, ie, dt2);
       pmb->pcoord->CenterWidth3(k, j, is, ie, dt3);
       // compute minimum of (v1 +/- C)
-      for (int i=is; i<=ie; ++i) {
-        Real& dt_1 = dt1(i);
+      for (int i = is; i <= ie; ++i)
+      {
+        Real& dt_1        = dt1(i);
         min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_1);
       }
 
       // if grid is 2D/3D, compute minimum of (v2 +/- C)
-      if (pmb->block_size.nx2 > 1) {
-        for (int i=is; i<=ie; ++i) {
-          Real& dt_2 = dt2(i);
+      if (pmb->block_size.nx2 > 1)
+      {
+        for (int i = is; i <= ie; ++i)
+        {
+          Real& dt_2        = dt2(i);
           min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_2);
         }
       }
 
       // if grid is 3D, compute minimum of (v3 +/- C)
-      if (pmb->block_size.nx3 > 1) {
-        for (int i=is; i<=ie; ++i) {
-          Real& dt_3 = dt3(i);
+      if (pmb->block_size.nx3 > 1)
+      {
+        for (int i = is; i <= ie; ++i)
+        {
+          Real& dt_3        = dt3(i);
           min_dt_hyperbolic = std::min(min_dt_hyperbolic, dt_3);
         }
       }
@@ -86,24 +101,27 @@ void Hydro::NewBlockTimeStep() {
   }
 
   min_dt_hyperbolic *= pmb->pmy_mesh->cfl_number;
-  // scale the theoretical stability limit by a safety factor = the hyperbolic CFL limit
-  // (user-selected or automaticlaly enforced). May add independent parameter "cfl_diff"
-  // in the future (with default = cfl_number).
+  // scale the theoretical stability limit by a safety factor = the hyperbolic
+  // CFL limit (user-selected or automaticlaly enforced). May add independent
+  // parameter "cfl_diff" in the future (with default = cfl_number).
   min_dt_parabolic *= pmb->pmy_mesh->cfl_number;
 
-  // set main integrator timestep as the minimum of the appropriate timestep constraints:
-  // hyperbolic: (skip if fluid is nonexistent or frozen)
+  // set main integrator timestep as the minimum of the appropriate timestep
+  // constraints: hyperbolic: (skip if fluid is nonexistent or frozen)
   min_dt = std::min(min_dt, min_dt_hyperbolic);
   // user:
-  if (UserTimeStep_ != nullptr) {
+  if (UserTimeStep_ != nullptr)
+  {
     min_dt_user = UserTimeStep_(pmb);
-    min_dt = std::min(min_dt, min_dt_user);
+    min_dt      = std::min(min_dt, min_dt_user);
   }
   // parabolic:
   // (diffusion removed; min_dt_parabolic stays at real_max - harmless no-op)
   pmb->new_block_dt_ = std::min(pmb->new_block_dt_, min_dt);
-  pmb->new_block_dt_hyperbolic_ = std::min(pmb->new_block_dt_hyperbolic_, min_dt_hyperbolic);
-  pmb->new_block_dt_parabolic_ = std::min(pmb->new_block_dt_parabolic_, min_dt_parabolic);
+  pmb->new_block_dt_hyperbolic_ =
+    std::min(pmb->new_block_dt_hyperbolic_, min_dt_hyperbolic);
+  pmb->new_block_dt_parabolic_ =
+    std::min(pmb->new_block_dt_parabolic_, min_dt_parabolic);
   pmb->new_block_dt_user_ = std::min(pmb->new_block_dt_user_, min_dt_user);
 
   return;
