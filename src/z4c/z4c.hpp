@@ -224,6 +224,15 @@ class Z4c
 #if FLUID_ENABLED
     I_AUX_EXTENDED_ms_sqrt_detgamma,
 #endif  // FLUID_ENABLED
+    // Pre-computed physical inverse 3-metric gamma^{ij} on geometric sampling
+    // grid.  Computed in PrepareAuxExtended (called from Z4cToADM).
+    // CX consumers read directly; VC consumers fall back to Inv3Metric.
+    I_AUX_EXTENDED_guxx,
+    I_AUX_EXTENDED_guxy,
+    I_AUX_EXTENDED_guxz,
+    I_AUX_EXTENDED_guyy,
+    I_AUX_EXTENDED_guyz,
+    I_AUX_EXTENDED_guzz,
     N_AUX_EXTENDED
   };
   // Names of auxiliary variables
@@ -233,6 +242,13 @@ class Z4c
     ,
     "aux.ms_sqrt_detgamma"
 #endif
+    ,
+    "aux.guxx",
+    "aux.guxy",
+    "aux.guxz",
+    "aux.guyy",
+    "aux.guyz",
+    "aux.guzz"
   };
 
   public:
@@ -332,6 +348,7 @@ class Z4c
 #if FLUID_ENABLED
     AT_N_sca ms_sqrt_detgamma;  // matter sampling
 #endif                          // FLUID_ENABLED
+    AT_N_sym g_uu;              // physical inverse 3-metric (GS grid)
   };
   Aux_extended_vars aux_extended;
 
@@ -614,6 +631,7 @@ class Z4c
   AT_N_sca detg;         // det(g)
   AT_N_sca chi_guarded;  // bounded version of chi
   AT_N_sca oopsi4;       // 1/psi4
+  AT_N_sca oochi;        // 1/chi_guarded
   AT_N_sca A;            // trace of A
   AT_N_sca trAA;         // trace of AA
   AT_N_sca R;            // Ricci scalar

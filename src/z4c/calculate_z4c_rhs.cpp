@@ -1,33 +1,32 @@
 // C++ standard headers
-#include <algorithm> // max
-#include <cmath> // exp, pow, sqrt
+#include <algorithm>  // max
+#include <cmath>      // exp, pow, sqrt
+#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <fstream>
 
 // Athena++ headers
-#include "z4c.hpp"
-#include "z4c_macro.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
-#include "../eos/eos.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "z4c.hpp"
+#include "z4c_macro.hpp"
 
 // External libraries
 #ifdef GSL
-#include <gsl/gsl_sf_bessel.h>   // Bessel functions
+#include <gsl/gsl_sf_bessel.h>  // Bessel functions
 #endif
 
 #include "puncture_tracker.hpp"
-
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
 // \brief compute the RHS given the state vector and matter state
 //
 // This function operates only on the interior points of the MeshBlock
-void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
+void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 {
   using namespace LinearAlgebra;
 
@@ -39,7 +38,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
   SetMatterAliases(u_mat, mat);
 
   // Break-fast on cowling
-  if(opt.cowling)
+  if (opt.cowling)
   {
     u_rhs.ZeroClear();
     return;
@@ -55,7 +54,7 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
   AT_N_sca shift_eta_spa(nn1);
 #elif defined(Z4C_ETA_TRACK_TP)
 
-#endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
+#endif  // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
   //---------------------------------------------------------------------------
 
   //---------------------------------------------------------------------------
@@ -65,84 +64,109 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
   // InitializeZ4cDerivatives() on the very first substep).
   //---------------------------------------------------------------------------
 
-  ILOOP2(k,j) {
+  const Real oochi_psi_power = 1.0 / opt.chi_psi_power;
+
+  ILOOP2(k, j)
+  {
     // -----------------------------------------------------------------------------------
     // 1st derivatives
     //
     // Scalars
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        dalpha_d(a,i) = dalpha_d_3d(a,k,j,i);
-        dchi_d(a,i)   = dchi_d_3d(a,k,j,i);
-        dKhat_d(a,i)  = fd->Dx(a, z4c.Khat(k,j,i));
-        dTheta_d(a,i) = fd->Dx(a, z4c.Theta(k,j,i));
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        dalpha_d(a, i) = dalpha_d_3d(a, k, j, i);
+        dchi_d(a, i)   = dchi_d_3d(a, k, j, i);
+        dKhat_d(a, i)  = fd->Dx(a, z4c.Khat(k, j, i));
+        dTheta_d(a, i) = fd->Dx(a, z4c.Theta(k, j, i));
       }
     }
     // Vectors
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        dbeta_du(b,a,i) = dbeta_du_3d(b,a,k,j,i);
-        dGam_du(b,a,i)  = fd->Dx(b, z4c.Gam_u(a,k,j,i));
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          dbeta_du(b, a, i) = dbeta_du_3d(b, a, k, j, i);
+          dGam_du(b, a, i)  = fd->Dx(b, z4c.Gam_u(a, k, j, i));
+        }
       }
-    }
     // Tensors
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
-      ILOOP1(i) {
-        dg_ddd(c,a,b,i) = dg_ddd_3d(c,a,b,k,j,i);
-        dA_ddd(c,a,b,i) = fd->Dx(c, z4c.A_dd(a,b,k,j,i));
-      }
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            dg_ddd(c, a, b, i) = dg_ddd_3d(c, a, b, k, j, i);
+            dA_ddd(c, a, b, i) = fd->Dx(c, z4c.A_dd(a, b, k, j, i));
+          }
+        }
 
     // -----------------------------------------------------------------------------------
     // 2nd derivatives
     //
-    // Scalars: lapse 2nd derivatives (stencil) + chi 2nd derivatives (load from 3D)
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        ddalpha_dd(a,a,i) = fd->Dxx(a, z4c.alpha(k,j,i));
-        ddchi_dd(a,a,i) = ddchi_dd_3d(a,a,k,j,i);
+    // Scalars: lapse 2nd derivatives (stencil) + chi 2nd derivatives (load
+    // from 3D)
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        ddalpha_dd(a, a, i) = fd->Dxx(a, z4c.alpha(k, j, i));
+        ddchi_dd(a, a, i)   = ddchi_dd_3d(a, a, k, j, i);
       }
-      for(int b = a + 1; b < NDIM; ++b) {
-        ILOOP1(i) {
-          ddalpha_dd(a,b,i) = fd->Dx(a, dalpha_d_3d(b,k,j,i));
-          ddchi_dd(a,b,i) = ddchi_dd_3d(a,b,k,j,i);
+      for (int b = a + 1; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          ddalpha_dd(a, b, i) = fd->Dx(a, dalpha_d_3d(b, k, j, i));
+          ddchi_dd(a, b, i)   = ddchi_dd_3d(a, b, k, j, i);
         }
       }
     }
     // Vectors
-    for(int c = 0; c < NDIM; ++c)
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      if(a == b) {
-        ILOOP1(i) {
-          ddbeta_ddu(a,b,c,i) = fd->Dxx(a, z4c.beta_u(c,k,j,i));
+    for (int c = 0; c < NDIM; ++c)
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+        {
+          if (a == b)
+          {
+            ILOOP1(i)
+            {
+              ddbeta_ddu(a, b, c, i) = fd->Dxx(a, z4c.beta_u(c, k, j, i));
+            }
+          }
+          else
+          {
+            ILOOP1(i)
+            {
+              ddbeta_ddu(a, b, c, i) = fd->Dx(a, dbeta_du_3d(b, c, k, j, i));
+            }
+          }
         }
-      }
-      else {
-        ILOOP1(i) {
-          ddbeta_ddu(a,b,c,i) = fd->Dx(a, dbeta_du_3d(b,c,k,j,i));
-        }
-      }
-    }
     // Tensors
-    for(int c = 0; c < NDIM; ++c)
-    for(int d = c; d < NDIM; ++d)
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      if(a == b) {
-        ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = fd->Dxx(a, z4c.g_dd(c,d,k,j,i));
-        }
-      }
-      else {
-        ILOOP1(i) {
-          ddg_dddd(a,b,c,d,i) = fd->Dx(a, dg_ddd_3d(b,c,d,k,j,i));
-        }
-      }
-    }
+    for (int c = 0; c < NDIM; ++c)
+      for (int d = c; d < NDIM; ++d)
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = a; b < NDIM; ++b)
+          {
+            if (a == b)
+            {
+              ILOOP1(i)
+              {
+                ddg_dddd(a, b, c, d, i) = fd->Dxx(a, z4c.g_dd(c, d, k, j, i));
+              }
+            }
+            else
+            {
+              ILOOP1(i)
+              {
+                ddg_dddd(a, b, c, d, i) =
+                  fd->Dx(a, dg_ddd_3d(b, c, d, k, j, i));
+              }
+            }
+          }
 
     // -----------------------------------------------------------------------------------
     // Advective derivatives
@@ -152,164 +176,271 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     Lchi.ZeroClear();
     LKhat.ZeroClear();
     LTheta.ZeroClear();
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        Lalpha(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.alpha(k,j,i));
-        Lchi(i)   += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.chi(k,j,i)  );
-        LKhat(i)  += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Khat(k,j,i) );
-        LTheta(i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Theta(k,j,i));
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        Lalpha(i) += fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.alpha(k, j, i));
+        Lchi(i) += fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.chi(k, j, i));
+        LKhat(i) += fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.Khat(k, j, i));
+        LTheta(i) += fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.Theta(k, j, i));
       }
     }
     // Vectors
     Lbeta_u.ZeroClear();
     LGam_u.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Lbeta_u(b,i) += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.beta_u(b,k,j,i));
-        LGam_u(b,i)  += fd->Lx(a, z4c.beta_u(a,k,j,i), z4c.Gam_u(b,k,j,i));
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Lbeta_u(b, i) +=
+            fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.beta_u(b, k, j, i));
+          LGam_u(b, i) +=
+            fd->Lx(a, z4c.beta_u(a, k, j, i), z4c.Gam_u(b, k, j, i));
+        }
       }
-    }
     // Tensors
     Lg_dd.ZeroClear();
     LA_dd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c) {
-      ILOOP1(i) {
-        Lg_dd(a,b,i) += fd->Lx(c, z4c.beta_u(c,k,j,i), z4c.g_dd(a,b,k,j,i));
-        LA_dd(a,b,i) += fd->Lx(c, z4c.beta_u(c,k,j,i), z4c.A_dd(a,b,k,j,i));
-      }
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            Lg_dd(a, b, i) +=
+              fd->Lx(c, z4c.beta_u(c, k, j, i), z4c.g_dd(a, b, k, j, i));
+            LA_dd(a, b, i) +=
+              fd->Lx(c, z4c.beta_u(c, k, j, i), z4c.A_dd(a, b, k, j, i));
+          }
+        }
 
     // -----------------------------------------------------------------------------------
     // Get K from Khat
     //
-    ILOOP1(i) {
-      K(i) = z4c.Khat(k,j,i) + 2.*z4c.Theta(k,j,i);
+    ILOOP1(i)
+    {
+      K(i) = z4c.Khat(k, j, i) + 2. * z4c.Theta(k, j, i);
     }
 
     // -----------------------------------------------------------------------------------
-    // Inverse metric
+    // Conformal factor: chi_guarded, oochi, oopsi4
+    // (needed early for the inverse-metric shortcut below and later for phi
+    // derivs)
     //
-    ILOOP1(i) {
-      detg(i) = Det3Metric(z4c.g_dd, k, j, i);
-      Inv3Metric(1.0/detg(i),
-          z4c.g_dd(0,0,k,j,i), z4c.g_dd(0,1,k,j,i), z4c.g_dd(0,2,k,j,i),
-          z4c.g_dd(1,1,k,j,i), z4c.g_dd(1,2,k,j,i), z4c.g_dd(2,2,k,j,i),
-          &g_uu(0,0,i), &g_uu(0,1,i), &g_uu(0,2,i),
-          &g_uu(1,1,i), &g_uu(1,2,i), &g_uu(2,2,i));
+    ILOOP1(i)
+    {
+      chi_guarded(i) = std::max(z4c.chi(k, j, i), opt.chi_div_floor);
+      oochi(i)       = 1.0 / chi_guarded(i);
     }
+
+    if (opt.chi_psi_power == -4.)
+    {
+      // Default: chi = psi^{-4}  =>  oopsi4 = 1/psi^4 = chi
+      ILOOP1(i)
+      {
+        oopsi4(i) = chi_guarded(i);
+      }
+    }
+    else
+    {
+#if FLUID_ENABLED
+      // General power: use stored adm.psi4 = chi^{4/p} from Z4cToADM.
+      // Where chi_div_floor was active (chi_guarded != chi), fall back to
+      // pow().
+      ILOOP1(i)
+      {
+        oopsi4(i) = (chi_guarded(i) == z4c.chi(k, j, i))
+                    ? 1.0 / adm.psi4(k, j, i)
+                    : pow(chi_guarded(i), -4. / opt.chi_psi_power);
+      }
+#else
+      // Vacuum: aux_extended may be stale, compute locally
+      ILOOP1(i)
+      {
+        oopsi4(i) = pow(chi_guarded(i), -4. / opt.chi_psi_power);
+      }
+#endif
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Inverse conformal metric  g~^{ij}
+    //
+#if FLUID_ENABLED
+    // In GRMHD builds PrepareAuxExtended (called from Z4cToADM) stores the
+    // physical inverse 3-metric gamma^{ij} on the GS grid every stage.
+    // Recover the conformal inverse:  g~^{ij} = psi^4 gamma^{ij}
+    //                                         = gamma^{ij} / oopsi4
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          g_uu(a, b, i) = aux_extended.g_uu(a, b, k, j, i) / oopsi4(i);
+        }
+      }
+#else
+    // Vacuum: aux_extended.g_uu may be stale at intermediate RK stages,
+    // so compute locally from the conformal metric.
+    ILOOP1(i)
+    {
+      detg(i) = Det3Metric(z4c.g_dd, k, j, i);
+      Inv3Metric(1.0 / detg(i),
+                 z4c.g_dd(0, 0, k, j, i),
+                 z4c.g_dd(0, 1, k, j, i),
+                 z4c.g_dd(0, 2, k, j, i),
+                 z4c.g_dd(1, 1, k, j, i),
+                 z4c.g_dd(1, 2, k, j, i),
+                 z4c.g_dd(2, 2, k, j, i),
+                 &g_uu(0, 0, i),
+                 &g_uu(0, 1, i),
+                 &g_uu(0, 2, i),
+                 &g_uu(1, 1, i),
+                 &g_uu(1, 2, i),
+                 &g_uu(2, 2, i));
+    }
+#endif
 
     // -----------------------------------------------------------------------------------
     // Christoffel symbols
     //
-    for(int c = 0; c < NDIM; ++c)
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Gamma_ddd(c,a,b,i) = 0.5*(dg_ddd(a,b,c,i) + dg_ddd(b,a,c,i) - dg_ddd(c,a,b,i));
-      }
-    }
+    for (int c = 0; c < NDIM; ++c)
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+        {
+          ILOOP1(i)
+          {
+            Gamma_ddd(c, a, b, i) =
+              0.5 *
+              (dg_ddd(a, b, c, i) + dg_ddd(b, a, c, i) - dg_ddd(c, a, b, i));
+          }
+        }
     Gamma_udd.ZeroClear();
-    for(int c = 0; c < NDIM; ++c)
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
-        Gamma_udd(c,a,b,i) += g_uu(c,d,i)*Gamma_ddd(d,a,b,i);
-      }
-    }
+    for (int c = 0; c < NDIM; ++c)
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+          for (int d = 0; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              Gamma_udd(c, a, b, i) += g_uu(c, d, i) * Gamma_ddd(d, a, b, i);
+            }
+          }
     // Gamma's computed from the conformal metric (not evolved)
-    // Gamma^a = g^{bc} Gamma^a_{bc}; both g^{bc} and Gamma^a_{bc} are symmetric
-    // in (b,c), so use triangular sum with 2x off-diagonal factor.
+    // Gamma^a = g^{bc} Gamma^a_{bc}; both g^{bc} and Gamma^a_{bc} are
+    // symmetric in (b,c), so use triangular sum with 2x off-diagonal factor.
     Gamma_u.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b)
-    for(int c = b; c < NDIM; ++c) {
-      ILOOP1(i) {
-        Gamma_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i)*Gamma_udd(a,b,c,i);
-      }
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = 0; b < NDIM; ++b)
+        for (int c = b; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            Gamma_u(a, i) +=
+              ((b == c) ? 1.0 : 2.0) * g_uu(b, c, i) * Gamma_udd(a, b, c, i);
+          }
+        }
 
     // -----------------------------------------------------------------------------------
     // Curvature of conformal metric
     //
     R_dd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      for(int c = 0; c < NDIM; ++c) {
-        ILOOP1(i) {
-          R_dd(a,b,i) += 0.5*(z4c.g_dd(c,a,k,j,i)*dGam_du(b,c,i) +
-                              z4c.g_dd(c,b,k,j,i)*dGam_du(a,c,i) +
-                              Gamma_u(c,i)*(Gamma_ddd(a,b,c,i) + Gamma_ddd(b,a,c,i)));
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            R_dd(a, b, i) +=
+              0.5 * (z4c.g_dd(c, a, k, j, i) * dGam_du(b, c, i) +
+                     z4c.g_dd(c, b, k, j, i) * dGam_du(a, c, i) +
+                     Gamma_u(c, i) *
+                       (Gamma_ddd(a, b, c, i) + Gamma_ddd(b, a, c, i)));
+          }
         }
+        // g^{cd} ddg_{cdab} - both g^{cd} and ddg_{cdab} are symmetric in
+        // (c,d), so use triangular sum with 2x off-diagonal factor.
+        for (int c = 0; c < NDIM; ++c)
+          for (int d = c; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              R_dd(a, b, i) -= ((c == d) ? 0.5 : 1.0) * g_uu(c, d, i) *
+                               ddg_dddd(c, d, a, b, i);
+            }
+          }
+        for (int c = 0; c < NDIM; ++c)
+          for (int d = 0; d < NDIM; ++d)
+            for (int e = 0; e < NDIM; ++e)
+            {
+              ILOOP1(i)
+              {
+                R_dd(a, b, i) +=
+                  g_uu(c, d, i) *
+                  (Gamma_udd(e, c, a, i) * Gamma_ddd(b, e, d, i) +
+                   Gamma_udd(e, c, b, i) * Gamma_ddd(a, e, d, i) +
+                   Gamma_udd(e, a, d, i) * Gamma_ddd(e, c, b, i));
+              }
+            }
       }
-      // g^{cd} ddg_{cdab} - both g^{cd} and ddg_{cdab} are symmetric in (c,d),
-      // so use triangular sum with 2x off-diagonal factor.
-      for(int c = 0; c < NDIM; ++c)
-      for(int d = c; d < NDIM; ++d) {
-        ILOOP1(i) {
-          R_dd(a,b,i) -= ((c == d) ? 0.5 : 1.0)*g_uu(c,d,i)*ddg_dddd(c,d,a,b,i);
-        }
-      }
-      for(int c = 0; c < NDIM; ++c)
-      for(int d = 0; d < NDIM; ++d)
-      for(int e = 0; e < NDIM; ++e) {
-        ILOOP1(i) {
-          R_dd(a,b,i) += g_uu(c,d,i)*(
-              Gamma_udd(e,c,a,i)*Gamma_ddd(b,e,d,i) +
-              Gamma_udd(e,c,b,i)*Gamma_ddd(a,e,d,i) +
-              Gamma_udd(e,a,d,i)*Gamma_ddd(e,c,b,i));
-        }
-      }
-    }
 
     // -----------------------------------------------------------------------------------
     // Derivatives of conformal factor phi
+    // (chi_guarded, oochi, and oopsi4 already computed above)
     //
-    ILOOP1(i) {
-      chi_guarded(i) = std::max(z4c.chi(k,j,i), opt.chi_div_floor);
-      oopsi4(i) = pow(chi_guarded(i), -4./opt.chi_psi_power);
-    }
-
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        dphi_d(a,i) = dchi_d(a,i)/(chi_guarded(i) * opt.chi_psi_power);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        dphi_d(a, i) = dchi_d(a, i) * oochi(i) * oochi_psi_power;
       }
     }
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Real const ddphi_ab = ddchi_dd(a,b,i)/(chi_guarded(i) * opt.chi_psi_power) -
-          opt.chi_psi_power * dphi_d(a,i) * dphi_d(b,i);
-        Ddphi_dd(a,b,i) = ddphi_ab;
-      }
-      for(int c = 0; c < NDIM; ++c) {
-        ILOOP1(i) {
-          Ddphi_dd(a,b,i) -= Gamma_udd(c,a,b,i)*dphi_d(c,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Real const ddphi_ab =
+            ddchi_dd(a, b, i) * oochi(i) * oochi_psi_power -
+            opt.chi_psi_power * dphi_d(a, i) * dphi_d(b, i);
+          Ddphi_dd(a, b, i) = ddphi_ab;
+        }
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            Ddphi_dd(a, b, i) -= Gamma_udd(c, a, b, i) * dphi_d(c, i);
+          }
         }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // Curvature contribution from conformal factor
     //
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Rphi_dd(a,b,i) = 4.*dphi_d(a,i)*dphi_d(b,i) - 2.*Ddphi_dd(a,b,i);
-      }
-      // g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d) - all factors symmetric in (c,d),
-      // so use triangular sum with 2x off-diagonal factor.
-      for(int c = 0; c < NDIM; ++c)
-      for(int d = c; d < NDIM; ++d) {
-        ILOOP1(i) {
-          Rphi_dd(a,b,i) -= ((c == d) ? 2.0 : 4.0)*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i)*(Ddphi_dd(c,d,i) +
-              2.*dphi_d(c,i)*dphi_d(d,i));
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Rphi_dd(a, b, i) =
+            4. * dphi_d(a, i) * dphi_d(b, i) - 2. * Ddphi_dd(a, b, i);
         }
+        // g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d) - all factors symmetric in
+        // (c,d), so use triangular sum with 2x off-diagonal factor.
+        for (int c = 0; c < NDIM; ++c)
+          for (int d = c; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              Rphi_dd(a, b, i) -=
+                ((c == d) ? 2.0 : 4.0) * z4c.g_dd(a, b, k, j, i) *
+                g_uu(c, d, i) *
+                (Ddphi_dd(c, d, i) + 2. * dphi_d(c, i) * dphi_d(d, i));
+            }
+          }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // Trace of the matter stress tensor
@@ -317,93 +448,123 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // S = g^{ab} S_{ab}; both symmetric in (a,b), so use triangular sum
     // with 2x off-diagonal factor.
     S.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        S(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * mat.S_dd(a,b,k,j,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          S(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a, b, i) *
+                  mat.S_dd(a, b, k, j, i);
+        }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // 2nd covariant derivative of the lapse
     //
-    // Ddalpha_dd is SYM2 in (a,b): ddalpha_dd symmetric, dphi*dalpha + dalpha*dphi
-    // manifestly symmetric, Gamma^c_{ab} symmetric, g_dd(a,b) symmetric.
-    // Use triangular outer loop (b=a).
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Ddalpha_dd(a,b,i) = ddalpha_dd(a,b,i)
-                          - 2.*(dphi_d(a,i)*dalpha_d(b,i) + dphi_d(b,i)*dalpha_d(a,i));
-      }
-      for(int c = 0; c < NDIM; ++c) {
-        ILOOP1(i) {
-          Ddalpha_dd(a,b,i) -= Gamma_udd(c,a,b,i)*dalpha_d(c,i);
+    // Ddalpha_dd is SYM2 in (a,b): ddalpha_dd symmetric, dphi*dalpha +
+    // dalpha*dphi manifestly symmetric, Gamma^c_{ab} symmetric, g_dd(a,b)
+    // symmetric. Use triangular outer loop (b=a).
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Ddalpha_dd(a, b, i) =
+            ddalpha_dd(a, b, i) - 2. * (dphi_d(a, i) * dalpha_d(b, i) +
+                                        dphi_d(b, i) * dalpha_d(a, i));
         }
-        for(int d = 0; d < NDIM; ++d) {
-          ILOOP1(i) {
-            Ddalpha_dd(a,b,i) += 2.*z4c.g_dd(a,b,k,j,i) * g_uu(c,d,i) * dphi_d(c,i) * dalpha_d(d,i);
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            Ddalpha_dd(a, b, i) -= Gamma_udd(c, a, b, i) * dalpha_d(c, i);
+          }
+          for (int d = 0; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              Ddalpha_dd(a, b, i) += 2. * z4c.g_dd(a, b, k, j, i) *
+                                     g_uu(c, d, i) * dphi_d(c, i) *
+                                     dalpha_d(d, i);
+            }
           }
         }
       }
-    }
 
     // Ddalpha = g^{ab} Ddalpha_{ab}; both symmetric in (a,b), so use
     // triangular sum with 2x off-diagonal factor.
     Ddalpha.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Ddalpha(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * Ddalpha_dd(a,b,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Ddalpha(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a, b, i) *
+                        Ddalpha_dd(a, b, i);
+        }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // Contractions of A_ab, inverse, and derivatives
     //
     AA_dd.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c)
-    for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
-        AA_dd(a,b,i) += g_uu(c,d,i) * z4c.A_dd(a,c,k,j,i) * z4c.A_dd(d,b,k,j,i);
-      }
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        for (int c = 0; c < NDIM; ++c)
+          for (int d = 0; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              AA_dd(a, b, i) += g_uu(c, d, i) * z4c.A_dd(a, c, k, j, i) *
+                                z4c.A_dd(d, b, k, j, i);
+            }
+          }
     // trAA = g^{ab} AA_{ab}; both symmetric in (a,b), so use triangular
     // sum with 2x off-diagonal factor.
     trAA.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        trAA(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * AA_dd(a,b,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          trAA(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a, b, i) * AA_dd(a, b, i);
+        }
       }
-    }
     A_uu.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    for(int c = 0; c < NDIM; ++c)
-    for(int d = 0; d < NDIM; ++d) {
-      ILOOP1(i) {
-        A_uu(a,b,i) += g_uu(a,c,i) * g_uu(b,d,i) * z4c.A_dd(c,d,k,j,i);
-      }
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        for (int c = 0; c < NDIM; ++c)
+          for (int d = 0; d < NDIM; ++d)
+          {
+            ILOOP1(i)
+            {
+              A_uu(a, b, i) +=
+                g_uu(a, c, i) * g_uu(b, d, i) * z4c.A_dd(c, d, k, j, i);
+            }
+          }
     DA_u.ZeroClear();
-    for(int a = 0; a < NDIM; ++a) {
-      for(int b = 0; b < NDIM; ++b) {
-        ILOOP1(i) {
-          DA_u(a,i) -= (3./2.) * A_uu(a,b,i) * dchi_d(b,i) / chi_guarded(i);
-          DA_u(a,i) -= (1./3.) * g_uu(a,b,i) * (2.*dKhat_d(b,i) + dTheta_d(b,i));
+    for (int a = 0; a < NDIM; ++a)
+    {
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          DA_u(a, i) -= (3. / 2.) * A_uu(a, b, i) * dchi_d(b, i) * oochi(i);
+          DA_u(a, i) -=
+            (1. / 3.) * g_uu(a, b, i) * (2. * dKhat_d(b, i) + dTheta_d(b, i));
         }
       }
       // Gamma^a_{bc} A^{bc} - both symmetric in (b,c), so use triangular
       // sum with 2x off-diagonal factor.
-      for(int b = 0; b < NDIM; ++b)
-      for(int c = b; c < NDIM; ++c) {
-        ILOOP1(i) {
-          DA_u(a,i) += ((b == c) ? 1.0 : 2.0) * Gamma_udd(a,b,c,i) * A_uu(b,c,i);
+      for (int b = 0; b < NDIM; ++b)
+        for (int c = b; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            DA_u(a, i) +=
+              ((b == c) ? 1.0 : 2.0) * Gamma_udd(a, b, c, i) * A_uu(b, c, i);
+          }
         }
-      }
     }
 
     // -----------------------------------------------------------------------------------
@@ -412,18 +573,22 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // R = g^{ab}(R_{ab} + Rphi_{ab}); all symmetric in (a,b), so use
     // triangular sum with 2x off-diagonal factor.
     R.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        R(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a,b,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i));
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          R(i) += ((a == b) ? 1.0 : 2.0) * oopsi4(i) * g_uu(a, b, i) *
+                  (R_dd(a, b, i) + Rphi_dd(a, b, i));
+        }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // Hamiltonian constraint
     //
-    ILOOP1(i) {
-      Ht(i) = R(i) + (2./3.)*SQR(K(i)) - trAA(i);
+    ILOOP1(i)
+    {
+      Ht(i) = R(i) + (2. / 3.) * SQR(K(i)) - trAA(i);
     }
 
     // -----------------------------------------------------------------------------------
@@ -431,114 +596,162 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     //
     // Shift vector contractions
     dbeta.ZeroClear();
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        dbeta(i) += dbeta_du(a,a,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        dbeta(i) += dbeta_du(a, a, i);
       }
     }
     ddbeta_d.ZeroClear();
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = 0; b < NDIM; ++b) {
-      ILOOP1(i) {
-        ddbeta_d(a,i) += (1./3.) * ddbeta_ddu(a,b,b,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          ddbeta_d(a, i) += (1. / 3.) * ddbeta_ddu(a, b, b, i);
+        }
       }
-    }
     // Finalize Lchi
-    ILOOP1(i) {
-      Lchi(i) += (1./6.) * opt.chi_psi_power * chi_guarded(i) * dbeta(i);
+    ILOOP1(i)
+    {
+      Lchi(i) += (1. / 6.) * opt.chi_psi_power * chi_guarded(i) * dbeta(i);
     }
     // Finalize LGam_u (note that this is not a real Lie derivative)
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        LGam_u(a,i) += (2./3.) * Gamma_u(a,i) * dbeta(i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        LGam_u(a, i) += (2. / 3.) * Gamma_u(a, i) * dbeta(i);
       }
-      for(int b = 0; b < NDIM; ++b) {
-        ILOOP1(i) {
-          LGam_u(a,i) += g_uu(a,b,i) * ddbeta_d(b,i) - Gamma_u(b,i) * dbeta_du(b,a,i);
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          LGam_u(a, i) +=
+            g_uu(a, b, i) * ddbeta_d(b, i) - Gamma_u(b, i) * dbeta_du(b, a, i);
         }
         // g^{bc} ddbeta^a_{bc} - g^{bc} symmetric and ddbeta^a_{bc} symmetric
         // in (b,c) (partial derivatives commute), so use triangular sum
         // with 2x off-diagonal factor.
-        for(int c = b; c < NDIM; ++c) {
-          ILOOP1(i) {
-            LGam_u(a,i) += ((b == c) ? 1.0 : 2.0) * g_uu(b,c,i) * ddbeta_ddu(b,c,a,i);
+        for (int c = b; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            LGam_u(a, i) +=
+              ((b == c) ? 1.0 : 2.0) * g_uu(b, c, i) * ddbeta_ddu(b, c, a, i);
           }
         }
       }
     }
     // Finalize Lg_dd and LA_dd
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        Lg_dd(a,b,i) -= (2./3.) * z4c.g_dd(a,b,k,j,i) * dbeta(i);
-        LA_dd(a,b,i) -= (2./3.) * z4c.A_dd(a,b,k,j,i) * dbeta(i);
-      }
-      for(int c = 0; c < NDIM; ++c) {
-        ILOOP1(i) {
-          Lg_dd(a,b,i) += dbeta_du(a,c,i) * z4c.g_dd(b,c,k,j,i);
-          LA_dd(a,b,i) += dbeta_du(b,c,i) * z4c.A_dd(a,c,k,j,i);
-          Lg_dd(a,b,i) += dbeta_du(b,c,i) * z4c.g_dd(a,c,k,j,i);
-          LA_dd(a,b,i) += dbeta_du(a,c,i) * z4c.A_dd(b,c,k,j,i);
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          Lg_dd(a, b, i) -= (2. / 3.) * z4c.g_dd(a, b, k, j, i) * dbeta(i);
+          LA_dd(a, b, i) -= (2. / 3.) * z4c.A_dd(a, b, k, j, i) * dbeta(i);
+        }
+        for (int c = 0; c < NDIM; ++c)
+        {
+          ILOOP1(i)
+          {
+            Lg_dd(a, b, i) += dbeta_du(a, c, i) * z4c.g_dd(b, c, k, j, i);
+            LA_dd(a, b, i) += dbeta_du(b, c, i) * z4c.A_dd(a, c, k, j, i);
+            Lg_dd(a, b, i) += dbeta_du(b, c, i) * z4c.g_dd(a, c, k, j, i);
+            LA_dd(a, b, i) += dbeta_du(a, c, i) * z4c.A_dd(b, c, k, j, i);
+          }
         }
       }
-    }
 
     // -----------------------------------------------------------------------------------
     // Assemble RHS
     //
 
     // Khat, chi, and Theta
-    ILOOP1(i) {
-      rhs.Khat(k,j,i) = - Ddalpha(i) + z4c.alpha(k,j,i) * (trAA(i) + (1./3.)*SQR(K(i))) +
-        LKhat(i) + opt.damp_kappa1*(1 - opt.damp_kappa2) * z4c.alpha(k,j,i) * z4c.Theta(k,j,i);
-      rhs.Khat(k,j,i) += 4*M_PI * z4c.alpha(k,j,i) * (S(i) + mat.rho(k,j,i));
-      rhs.chi(k,j,i) = Lchi(i) - (1./6.) * opt.chi_psi_power *
-        chi_guarded(i) * z4c.alpha(k,j,i) * K(i);
-      rhs.Theta(k,j,i) = LTheta(i) + z4c.alpha(k,j,i) * (
-          0.5*Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 * z4c.Theta(k,j,i));
-      rhs.Theta(k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) * mat.rho(k,j,i);
+    ILOOP1(i)
+    {
+      rhs.Khat(k, j, i) =
+        -Ddalpha(i) + z4c.alpha(k, j, i) * (trAA(i) + (1. / 3.) * SQR(K(i))) +
+        LKhat(i) +
+        opt.damp_kappa1 * (1 - opt.damp_kappa2) * z4c.alpha(k, j, i) *
+          z4c.Theta(k, j, i);
+      rhs.Khat(k, j, i) +=
+        4 * M_PI * z4c.alpha(k, j, i) * (S(i) + mat.rho(k, j, i));
+      rhs.chi(k, j, i) = Lchi(i) - (1. / 6.) * opt.chi_psi_power *
+                                     chi_guarded(i) * z4c.alpha(k, j, i) *
+                                     K(i);
+      rhs.Theta(k, j, i) =
+        LTheta(i) + z4c.alpha(k, j, i) *
+                      (0.5 * Ht(i) - (2. + opt.damp_kappa2) * opt.damp_kappa1 *
+                                       z4c.Theta(k, j, i));
+      rhs.Theta(k, j, i) -= 8. * M_PI * z4c.alpha(k, j, i) * mat.rho(k, j, i);
     }
     // Gamma's
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.Gam_u(a,k,j,i) = 2.*z4c.alpha(k,j,i)*DA_u(a,i) + LGam_u(a,i);
-        rhs.Gam_u(a,k,j,i) -= 2.*z4c.alpha(k,j,i) * opt.damp_kappa1 *
-            (z4c.Gam_u(a,k,j,i) - Gamma_u(a,i));
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        rhs.Gam_u(a, k, j, i) =
+          2. * z4c.alpha(k, j, i) * DA_u(a, i) + LGam_u(a, i);
+        rhs.Gam_u(a, k, j, i) -= 2. * z4c.alpha(k, j, i) * opt.damp_kappa1 *
+                                 (z4c.Gam_u(a, k, j, i) - Gamma_u(a, i));
       }
-      for(int b = 0; b < NDIM; ++b) {
-        ILOOP1(i) {
-          rhs.Gam_u(a,k,j,i) -= 2. * A_uu(a,b,i) * dalpha_d(b,i);
-          rhs.Gam_u(a,k,j,i) -= 16.*M_PI * z4c.alpha(k,j,i) * g_uu(a,b,i) * mat.S_d(b,k,j,i);
+      for (int b = 0; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          rhs.Gam_u(a, k, j, i) -= 2. * A_uu(a, b, i) * dalpha_d(b, i);
+          rhs.Gam_u(a, k, j, i) -= 16. * M_PI * z4c.alpha(k, j, i) *
+                                   g_uu(a, b, i) * mat.S_d(b, k, j, i);
         }
       }
     }
     // g and A
-    //LOOK
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b) {
-      ILOOP1(i) {
-        rhs.g_dd(a,b,k,j,i) = - 2. * z4c.alpha(k,j,i) * z4c.A_dd(a,b,k,j,i) + Lg_dd(a,b,i);
-        rhs.A_dd(a,b,k,j,i) = oopsi4(i) *
-            (-Ddalpha_dd(a,b,i) + z4c.alpha(k,j,i) * (R_dd(a,b,i) + Rphi_dd(a,b,i)));
-        rhs.A_dd(a,b,k,j,i) -= (1./3.) * z4c.g_dd(a,b,k,j,i) * (-Ddalpha(i) + z4c.alpha(k,j,i)*R(i));
-        rhs.A_dd(a,b,k,j,i) += z4c.alpha(k,j,i) * (K(i)*z4c.A_dd(a,b,k,j,i) - 2.*AA_dd(a,b,i));
-        rhs.A_dd(a,b,k,j,i) += LA_dd(a,b,i);
-        rhs.A_dd(a,b,k,j,i) -= 8.*M_PI * z4c.alpha(k,j,i) *
-            (oopsi4(i)*mat.S_dd(a,b,k,j,i) - (1./3.)*S(i)*z4c.g_dd(a,b,k,j,i));
+    // LOOK
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          rhs.g_dd(a, b, k, j, i) =
+            -2. * z4c.alpha(k, j, i) * z4c.A_dd(a, b, k, j, i) +
+            Lg_dd(a, b, i);
+          rhs.A_dd(a, b, k, j, i) =
+            oopsi4(i) *
+            (-Ddalpha_dd(a, b, i) +
+             z4c.alpha(k, j, i) * (R_dd(a, b, i) + Rphi_dd(a, b, i)));
+          rhs.A_dd(a, b, k, j, i) -= (1. / 3.) * z4c.g_dd(a, b, k, j, i) *
+                                     (-Ddalpha(i) + z4c.alpha(k, j, i) * R(i));
+          rhs.A_dd(a, b, k, j, i) +=
+            z4c.alpha(k, j, i) *
+            (K(i) * z4c.A_dd(a, b, k, j, i) - 2. * AA_dd(a, b, i));
+          rhs.A_dd(a, b, k, j, i) += LA_dd(a, b, i);
+          rhs.A_dd(a, b, k, j, i) -=
+            8. * M_PI * z4c.alpha(k, j, i) *
+            (oopsi4(i) * mat.S_dd(a, b, k, j, i) -
+             (1. / 3.) * S(i) * z4c.g_dd(a, b, k, j, i));
+        }
       }
-    }
     // lapse function
-    ILOOP1(i) {
-      Real const f = opt.lapse_oplog * opt.lapse_harmonicf + opt.lapse_harmonic * z4c.alpha(k,j,i);
-      rhs.alpha(k,j,i) = (opt.lapse_advect * Lalpha(i) -
-                          f * z4c.alpha(k,j,i) * (z4c.Khat(k,j,i) +
-                                                  2 * opt.lapse_K * z4c.Theta(k,j,i)));
+    ILOOP1(i)
+    {
+      Real const f = opt.lapse_oplog * opt.lapse_harmonicf +
+                     opt.lapse_harmonic * z4c.alpha(k, j, i);
+      rhs.alpha(k, j, i) =
+        (opt.lapse_advect * Lalpha(i) -
+         f * z4c.alpha(k, j, i) *
+           (z4c.Khat(k, j, i) + 2 * opt.lapse_K * z4c.Theta(k, j, i)));
     }
 
     // shift vector
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) = opt.shift_Gamma * z4c.Gam_u(a,k,j,i) + opt.shift_advect * Lbeta_u(a,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        rhs.beta_u(a, k, j, i) = opt.shift_Gamma * z4c.Gam_u(a, k, j, i) +
+                                 opt.shift_advect * Lbeta_u(a, i);
 
         // This term is taken care of below
         // rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
@@ -546,24 +759,33 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     }
 
     // harmonic gauge terms
-    if (std::fabs(opt.shift_alpha2Gamma) > 0.0) {
+    if (std::fabs(opt.shift_alpha2Gamma) > 0.0)
+    {
       // coutBoldBlue("opt.shift_alpha2Gamma\n");
-      for(int a = 0; a < NDIM; ++a) {
-        ILOOP1(i) {
-          rhs.beta_u(a,k,j,i) += opt.shift_alpha2Gamma *
-                                 SQR(z4c.alpha(k,j,i)) * z4c.Gam_u(a,k,j,i);
+      for (int a = 0; a < NDIM; ++a)
+      {
+        ILOOP1(i)
+        {
+          rhs.beta_u(a, k, j, i) += opt.shift_alpha2Gamma *
+                                    SQR(z4c.alpha(k, j, i)) *
+                                    z4c.Gam_u(a, k, j, i);
         }
       }
     }
 
-    if (std::fabs(opt.shift_H) > 0.0) {
+    if (std::fabs(opt.shift_H) > 0.0)
+    {
       // coutBoldRed("opt.shift_H\n");
-      for(int a = 0; a < NDIM; ++a) {
-        for(int b = 0; b < NDIM; ++b) {
-          ILOOP1(i) {
-            rhs.beta_u(a,k,j,i) += opt.shift_H * z4c.alpha(k,j,i) *
-              chi_guarded(i) * (0.5 * z4c.alpha(k,j,i) * dchi_d(b,i) -
-                                dalpha_d(b,i)) * g_uu(a,b,i);
+      for (int a = 0; a < NDIM; ++a)
+      {
+        for (int b = 0; b < NDIM; ++b)
+        {
+          ILOOP1(i)
+          {
+            rhs.beta_u(a, k, j, i) +=
+              opt.shift_H * z4c.alpha(k, j, i) * chi_guarded(i) *
+              (0.5 * z4c.alpha(k, j, i) * dchi_d(b, i) - dalpha_d(b, i)) *
+              g_uu(a, b, i);
           }
         }
       }
@@ -581,24 +803,31 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // symmetric in (a,b), so use triangular sum with 2x off-diagonal factor.
     eta_damp.ZeroClear();
 
-    for(int a = 0; a < NDIM; ++a) {
-      for(int b = a; b < NDIM; ++b) {
-        ILOOP1(i) {
-          eta_damp(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a,b,i) * dchi_d(a,i) * dchi_d(b,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      for (int b = a; b < NDIM; ++b)
+      {
+        ILOOP1(i)
+        {
+          eta_damp(i) += ((a == b) ? 1.0 : 2.0) * g_uu(a, b, i) *
+                         dchi_d(a, i) * dchi_d(b, i);
         }
       }
     }
 
-    ILOOP1(i) {
-      eta_damp(i) = opt.shift_eta_R_0 / 2. * SQRT(eta_damp(i) / chi_guarded(i))
-        / pow(1. - pow(chi_guarded(i), opt.shift_eta_a / 2.),
-              opt.shift_eta_b);
+    ILOOP1(i)
+    {
+      eta_damp(i) =
+        opt.shift_eta_R_0 / 2. * SQRT(eta_damp(i) * oochi(i)) /
+        pow(1. - pow(chi_guarded(i), opt.shift_eta_a / 2.), opt.shift_eta_b);
     }
 
     // mask and damp
-    for(int a = 0; a< NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        rhs.beta_u(a, k, j, i) -= eta_damp(i) * z4c.beta_u(a, k, j, i);
       }
     }
 
@@ -610,49 +839,51 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
     // compute prefactors
     Real const re_pow2_w = 1. / POW2(opt.shift_eta_w);
 
-    ILOOP1(i) {
-
-      eta_damp(i) += \
-        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(0)
-          - mbi.x1(i));
-      eta_damp(i) += \
-        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(1)
-          - mbi.x2(j));
-      eta_damp(i) += \
-        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(2)
-          - mbi.x3(k));
+    ILOOP1(i)
+    {
+      eta_damp(i) +=
+        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(0) - mbi.x1(i));
+      eta_damp(i) +=
+        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(1) - mbi.x2(j));
+      eta_damp(i) +=
+        POW2(pmy_block->pmy_mesh->pz4c_tracker[b_ix]->GetPos(2) - mbi.x3(k));
 
       eta_damp(i) = 1. + pow(eta_damp(i) * re_pow2_w, opt.shift_eta_delta);
 
-      eta_damp(i) = opt.shift_eta \
-        + (opt.shift_eta_P - opt.shift_eta) / eta_damp(i);
+      eta_damp(i) =
+        opt.shift_eta + (opt.shift_eta_P - opt.shift_eta) / eta_damp(i);
     }
 
     // mask and damp
-    for(int a = 0; a< NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) -= eta_damp(i) * z4c.beta_u(a,k,j,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        rhs.beta_u(a, k, j, i) -= eta_damp(i) * z4c.beta_u(a, k, j, i);
       }
     }
 
 #else
     // global constant [original implementation]
-    for(int a = 0; a < NDIM; ++a) {
-      ILOOP1(i) {
-        rhs.beta_u(a,k,j,i) -= opt.shift_eta * z4c.beta_u(a,k,j,i);
+    for (int a = 0; a < NDIM; ++a)
+    {
+      ILOOP1(i)
+      {
+        rhs.beta_u(a, k, j, i) -= opt.shift_eta * z4c.beta_u(a, k, j, i);
       }
     }
-#endif // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
-
+#endif  // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
   }
 
   // ===================================================================================
   // Add dissipation for stability
   //
-  for(int n = 0; n < N_Z4c; ++n) {
-    ILOOP3(k,j,i) {
-      for(int a = 0; a < NDIM; ++a)
-        u_rhs(n,k,j,i) += fd->Diss(a, u(n,k,j,i), opt.diss);
+  for (int n = 0; n < N_Z4c; ++n)
+  {
+    ILOOP3(k, j, i)
+    {
+      for (int a = 0; a < NDIM; ++a)
+        u_rhs(n, k, j, i) += fd->Diss(a, u(n, k, j, i), opt.diss);
     }
   }
 
@@ -663,45 +894,43 @@ void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
   }
 }
 
-void Z4c::Z4cRHSExciseFreeze(AA & u, AA & u_mat, AA & u_rhs)
+void Z4c::Z4cRHSExciseFreeze(AA& u, AA& u_mat, AA& u_rhs)
 {
-  MeshBlock * pmb = pmy_block;
-  Mesh * pm = pmb->pmy_mesh;
+  MeshBlock* pmb = pmy_block;
+  Mesh* pm       = pmb->pmy_mesh;
 #if FLUID_ENABLED
-  Hydro * ph = pmb->phydro;
-  EquationOfState * peos = pmb->peos;
-#endif // FLUID_ENABLED
+  Hydro* ph             = pmb->phydro;
+  EquationOfState* peos = pmb->peos;
+#endif  // FLUID_ENABLED
 
   Z4c_vars z4c, rhs;
   SetZ4cAliases(u, z4c);
   SetZ4cAliases(u_rhs, rhs);
 
-  AT_N_sca & alpha = z4c.alpha;
+  AT_N_sca& alpha = z4c.alpha;
 
 #if FLUID_ENABLED
   Real horizon_factor = ph->opt_excision.horizon_factor;
   if (opt.excise_z4c_freeze_evo_rat > 0)
     ph->opt_excision.horizon_factor = opt.excise_z4c_freeze_evo_rat;
 
-  ILOOP3(k,j,i)
+  ILOOP3(k, j, i)
   {
     Real excision_factor;
 
     bool can_excise = peos->CanExcisePoint(
-      excision_factor,
-      false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
+      excision_factor, false, alpha, mbi.x1, mbi.x2, mbi.x3, i, j, k);
 
     if (can_excise)
     {
-      for(int n = 0; n < N_Z4c; ++n)
+      for (int n = 0; n < N_Z4c; ++n)
       {
-        u_rhs(n,k,j,i) = excision_factor * u_rhs(n,k,j,i);
+        u_rhs(n, k, j, i) = excision_factor * u_rhs(n, k, j, i);
       }
     }
   }
 
   if (opt.excise_z4c_freeze_evo_rat > 0)
     ph->opt_excision.horizon_factor = horizon_factor;
-#endif // FLUID_ENABLED
-
+#endif  // FLUID_ENABLED
 }

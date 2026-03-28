@@ -1484,8 +1484,6 @@ class GRDynamical : public Coordinates
   private:
   // geometry
   AT_N_sca sqrt_detgamma_;
-  AT_N_sca detgamma_;     // spatial met det
-  AT_N_sca oo_detgamma_;  // 1 / spatial met det
 
   AT_N_sca alpha_;
   AT_N_vec beta_u_;
@@ -1510,7 +1508,6 @@ class GRDynamical : public Coordinates
   AT_N_vec SS_d_;  // S_i eq
 
   // Particular to magnetic fields --------------------------------------------
-  AT_N_sca oo_sqrt_detgamma_;
 
   // geometry
   AT_N_vec beta_d_;

@@ -2910,7 +2910,6 @@ void Mesh::CalculateHydroFieldDerived()
       AT_N_sym& gamma_dd_       = gsc.gamma_dd_;
       AT_N_sym& gamma_uu_       = gsc.gamma_uu_;
       AT_N_sca& sqrt_det_gamma_ = gsc.sqrt_det_gamma_;
-      AT_N_sca& det_gamma_      = gsc.det_gamma_;
 
       // sanitize loop limits (coarse / fine auto-switched)
       int IL = 0;

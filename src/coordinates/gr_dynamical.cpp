@@ -173,9 +173,6 @@ GRDynamical::GRDynamical(MeshBlock* pmb, ParameterInput* pin, bool coarse_flag)
   {
     // geometry
     sqrt_detgamma_.NewAthenaTensor(nc1);
-    detgamma_.NewAthenaTensor(nc1);
-
-    oo_detgamma_.NewAthenaTensor(nc1);
 
     alpha_.NewAthenaTensor(nc1);
     beta_u_.NewAthenaTensor(nc1);
@@ -202,8 +199,6 @@ GRDynamical::GRDynamical(MeshBlock* pmb, ParameterInput* pin, bool coarse_flag)
     // Particular to magnetic fields ------------------------------------------
     if (MAGNETIC_FIELDS_ENABLED)
     {
-      oo_sqrt_detgamma_.NewAthenaTensor(nc1);
-
       beta_d_.NewAthenaTensor(nc1);
 
       q_scB_u_.NewAthenaTensor(nc1);
@@ -268,6 +263,10 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
                                          Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
 #endif  // FLUID_ENABLED
 
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+  AT_N_sym adm_gamma_uu(pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_guxx);
+#endif
+
   // Slice matter -------------------------------------------------------------
   AA& ccprim = const_cast<AthenaArray<Real>&>(prim);
   AT_N_sca w_rho(ccprim, IDN);
@@ -326,18 +325,31 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
       // Prepare determinant-like
       CC_PCO_ILOOP1(i)
       {
-        // detgamma_(i)      = Det3Metric(gamma_dd_, i);
-        // sqrt_detgamma_(i) = std::sqrt(detgamma_(i));
         sqrt_detgamma_(i) = adm_sqrt_detgamma(k, j, i);
-        detgamma_(i)      = SQR(sqrt_detgamma_(i));
-
-        oo_detgamma_(i) = OO(detgamma_(i));
-#if MAGNETIC_FIELDS_ENABLED
-        oo_sqrt_detgamma_(i) = OO(sqrt_detgamma_(i));
-#endif
       }
 
-      Inv3Metric(oo_detgamma_, gamma_dd_, gamma_uu_, il, iu);
+#if defined(Z4C_CX_ENABLED) || defined(Z4C_CC_ENABLED)
+      GetGeometricFieldCC(gamma_uu_, adm_gamma_uu, k, j);
+#else
+      CC_PCO_ILOOP1(i)
+      {
+        const Real detgamma_i    = SQR(sqrt_detgamma_(i));
+        const Real oo_detgamma_i = OO(detgamma_i);
+        Inv3Metric(oo_detgamma_i,
+                   gamma_dd_(0, 0, i),
+                   gamma_dd_(0, 1, i),
+                   gamma_dd_(0, 2, i),
+                   gamma_dd_(1, 1, i),
+                   gamma_dd_(1, 2, i),
+                   gamma_dd_(2, 2, i),
+                   &gamma_uu_(0, 0, i),
+                   &gamma_uu_(0, 1, i),
+                   &gamma_uu_(0, 2, i),
+                   &gamma_uu_(1, 1, i),
+                   &gamma_uu_(1, 2, i),
+                   &gamma_uu_(2, 2, i));
+      }
+#endif
 
       // indicial manipulations
       for (int a = 0; a < N; ++a)
@@ -400,7 +412,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         for (int a = 0; a < N; ++a)
           CC_PCO_ILOOP1(i)
           {
-            q_scB_u_(a, i) = bb_cc(IB1 + a, k, j, i) * oo_sqrt_detgamma_(i);
+            q_scB_u_(a, i) = bb_cc(IB1 + a, k, j, i) * OO(sqrt_detgamma_(i));
           }
 
         b0_.ZeroClear();
@@ -412,415 +424,419 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
             b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) * oo_alpha_i;
           }
         }
-      }
 
-      // b^i = B^i/W + b^0 (alpha v^i - beta^i)
-      // where v^i = utilde^i / W.
-      for (int a = 0; a < NDIM; ++a)
-        CC_PCO_ILOOP1(i)
-        {
-          const Real oo_alpha_i = OO(alpha_(i));
-          bi_u_(a, i) =
-            (q_scB_u_(a, i) / W_(i) +
-             alpha_(i) * b0_(i) *
-               (w_util_u_(a, i) / W_(i) - beta_u_(a, i) * oo_alpha_i));
-        }
+        // b^i = B^i/W + b^0 (alpha v^i - beta^i)
+        // where v^i = utilde^i / W.
+        for (int a = 0; a < NDIM; ++a)
+          CC_PCO_ILOOP1(i)
+          {
+            const Real oo_alpha_i = OO(alpha_(i));
+            bi_u_(a, i) =
+              (q_scB_u_(a, i) / W_(i) +
+               alpha_(i) * b0_(i) *
+                 (w_util_u_(a, i) / W_(i) - beta_u_(a, i) * oo_alpha_i));
+          }
 
-      //  bi_d.ZeroClear();
-      for (int a = 0; a < NDIM; ++a)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          bi_d_(a, i) = beta_d_(a, i) * b0_(i);
-          // bi_d_(a,i) += bi_u_(b,i)*gamma_dd(a,b,i);
-        }
-
-        for (int b = 0; b < NDIM; ++b)
+        //  bi_d.ZeroClear();
+        for (int a = 0; a < NDIM; ++a)
         {
           CC_PCO_ILOOP1(i)
           {
-            bi_d_(a, i) += gamma_dd_(a, b, i) * bi_u_(b, i);
+            bi_d_(a, i) = beta_d_(a, i) * b0_(i);
+            // bi_d_(a,i) += bi_u_(b,i)*gamma_dd(a,b,i);
+          }
+
+          for (int b = 0; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              bi_d_(a, i) += gamma_dd_(a, b, i) * bi_u_(b, i);
+            }
           }
         }
-      }
 
-      CC_PCO_ILOOP1(i)
-      {
-        b2_(i) = SQR(alpha_(i)) * SQR(b0_(i)) / SQR(W_(i));
-      }
-
-      // Original:
-      //   for (int a=0; a<NDIM; ++a)
-      //   for (int b=0; b<NDIM; ++b)
-      //     b2_ += B^a B^b gamma_{ab} / W^2
-      //
-      // Both B^a B^b and gamma_{ab} are symmetric in (a,b), so the full
-      // contraction decomposes into diagonal (a=b) and off-diagonal (a<b)
-      // terms, with a factor of 2 on the off-diagonals. Reduces from 9 to
-      // 6 inner-loop passes.
-      for (int a = 0; a < NDIM; ++a)
-      {
         CC_PCO_ILOOP1(i)
         {
-          b2_(i) += SQR(q_scB_u_(a, i)) * gamma_dd_(a, a, i) / SQR(W_(i));
+          b2_(i) = SQR(alpha_(i)) * SQR(b0_(i)) / SQR(W_(i));
         }
-        for (int b = a + 1; b < NDIM; ++b)
+
+        // Original:
+        //   for (int a=0; a<NDIM; ++a)
+        //   for (int b=0; b<NDIM; ++b)
+        //     b2_ += B^a B^b gamma_{ab} / W^2
+        //
+        // Both B^a B^b and gamma_{ab} are symmetric in (a,b), so the full
+        // contraction decomposes into diagonal (a=b) and off-diagonal (a<b)
+        // terms, with a factor of 2 on the off-diagonals. Reduces from 9 to
+        // 6 inner-loop passes.
+        for (int a = 0; a < NDIM; ++a)
+        {
           CC_PCO_ILOOP1(i)
           {
-            b2_(i) += 2.0 * q_scB_u_(a, i) * q_scB_u_(b, i) *
-                      gamma_dd_(a, b, i) / SQR(W_(i));
+            b2_(i) += SQR(q_scB_u_(a, i)) * gamma_dd_(a, a, i) / SQR(W_(i));
           }
-      }
+          for (int b = a + 1; b < NDIM; ++b)
+            CC_PCO_ILOOP1(i)
+            {
+              b2_(i) += 2.0 * q_scB_u_(a, i) * q_scB_u_(b, i) *
+                        gamma_dd_(a, b, i) / SQR(W_(i));
+            }
+        }
 
-      // T_dd (space-time) components
-      // -----------------------------------------
-      CC_PCO_ILOOP1(i)
-      {
-        const Real oo_alpha_i = OO(alpha_(i));
-        T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) * oo_alpha_i) +
-                  (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 * SQR(oo_alpha_i)) -
-                  b0_(i) * b0_(i));
-      }
-
-      for (int a = 0; a < NDIM; ++a)
-      {
+        // T_dd (space-time) components
+        // -----------------------------------------
         CC_PCO_ILOOP1(i)
         {
           const Real oo_alpha_i = OO(alpha_(i));
-          T0i_u(a, i) =
-            ((w_hrho_(i) + b2_(i)) * W_(i) * oo_alpha_i *
-               (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) +
-             (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) * SQR(oo_alpha_i) -
-             b0_(i) * bi_u_(a, i));
+          T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) * oo_alpha_i) +
+                    (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 * SQR(oo_alpha_i)) -
+                    b0_(i) * b0_(i));
         }
-      }
 
-      // BD: TODO - why was this loop written like this?
-      for (int a = 0; a < NDIM; ++a)
-      // for (int b=0; b<NDIM; ++b)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          const Real oo_alpha_i = OO(alpha_(i));
-          T0i_d(a, i) =
-            (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) * oo_alpha_i -
-             b0_(i) * bi_d_(a, i));
-        }
-      }
-
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = a; b < NDIM; ++b)
+        for (int a = 0; a < NDIM; ++a)
         {
           CC_PCO_ILOOP1(i)
           {
             const Real oo_alpha_i = OO(alpha_(i));
-            Tij_uu(a, b, i) =
-              ((w_hrho_(i) + b2_(i)) *
-                 (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) *
-                 (w_util_u_(b, i) - W_(i) * beta_u_(b, i) * oo_alpha_i) +
-               (w_p(k, j, i) + b2_(i) / 2.0) *
-                 (gamma_uu_(a, b, i) -
-                  beta_u_(a, i) * beta_u_(b, i) * SQR(oo_alpha_i)) -
-               bi_u_(a, i) * bi_u_(b, i));
+            T0i_u(a, i) =
+              ((w_hrho_(i) + b2_(i)) * W_(i) * oo_alpha_i *
+                 (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) +
+               (w_p(k, j, i) + b2_(i) / 2.0) * beta_u_(a, i) *
+                 SQR(oo_alpha_i) -
+               b0_(i) * bi_u_(a, i));
           }
         }
 
-      // tau-source term
-      // ------------------------------------------------------
-      Stau_.ZeroClear();
-      for (int a = 0; a < NDIM; ++a)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          Stau_(i) += -(T00(i) * beta_u_(a, i) * dalpha_d_(a, i) +
-                        T0i_u(a, i) * dalpha_d_(a, i));
-        }
-      }
-
-      // Original:
-      //   for (int a=0; a<NDIM; ++a)
-      //   for (int b=0; b<NDIM; ++b)
-      //     Stau_ += K_{ab} * (T^{00} beta^a beta^b
-      //              + 2 T^{0i,a} beta^b + T^{ab})
-      //
-      // K_{ab} is symmetric. T^{ab} and beta^a beta^b are symmetric.
-      // The mixed term 2*T^{0a}*beta^b is NOT symmetric in (a,b) by
-      // itself, but its antisymmetric part vanishes under contraction
-      // with the symmetric K_{ab}:
-      //   K_{ab} T^{0a} beta^b = K_{ba} T^{0a} beta^b
-      //                        = K_{ab} T^{0b} beta^a  (relabel a<->b)
-      // so sum_{a,b} K_{ab} * 2*T^{0a}*beta^b
-      //  = sum_{a,b} K_{ab} * (T^{0a}*beta^b + T^{0b}*beta^a).
-      // This allows triangular iteration (9 -> 6 inner-loop passes).
-      for (int a = 0; a < NDIM; ++a)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          Stau_(i) += K_dd_(a, a, i) *
-                      (T00(i) * beta_u_(a, i) * beta_u_(a, i) +
-                       2.0 * T0i_u(a, i) * beta_u_(a, i) + Tij_uu(a, a, i));
-        }
-        for (int b = a + 1; b < NDIM; ++b)
+        // BD: TODO - why was this loop written like this?
+        for (int a = 0; a < NDIM; ++a)
+        // for (int b=0; b<NDIM; ++b)
         {
           CC_PCO_ILOOP1(i)
           {
-            Stau_(i) += 2.0 * K_dd_(a, b, i) *
-                        (T00(i) * beta_u_(a, i) * beta_u_(b, i) +
-                         T0i_u(a, i) * beta_u_(b, i) +
-                         T0i_u(b, i) * beta_u_(a, i) + Tij_uu(a, b, i));
-          }
-        }
-      }
-
-      // momentum source term
-      // -------------------------------------------------
-      for (int a = 0; a < NDIM; ++a)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          SS_d_(a, i) = -T00(i) * alpha_(i) * dalpha_d_(a, i);
-        }
-      }
-
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = 0; b < NDIM; ++b)
-        {
-          CC_PCO_ILOOP1(i)
-          {
-            SS_d_(a, i) += T0i_d(b, i) * dbeta_du_(a, b, i);
+            const Real oo_alpha_i = OO(alpha_(i));
+            T0i_d(a, i) =
+              (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) * oo_alpha_i -
+               b0_(i) * bi_d_(a, i));
           }
         }
 
-      // Original:
-      //   for (int a=0; a<NDIM; ++a)
-      //   for (int b=0; b<NDIM; ++b)
-      //   for (int c=0; c<NDIM; ++c)
-      //     SS_d_(a) += d_a gamma_{bc} *
-      //       (0.5*T^{00}*beta^b*beta^c + T^{0b}*beta^c + 0.5*T^{bc})
-      //
-      // d_a gamma_{bc} (SYM2) and T^{bc} are symmetric in (b,c).
-      // beta^b*beta^c is symmetric in (b,c).
-      // T^{0b}*beta^c is NOT symmetric in (b,c), but its antisymmetric
-      // part vanishes under contraction with the (b,c)-symmetric
-      // d_a gamma_{bc}:
-      //   sum_{b,c} S_{bc} * T^{0b} beta^c
-      //     = sum_{b,c} S_{cb} * T^{0b} beta^c   (S symmetric)
-      //     = sum_{b,c} S_{bc} * T^{0c} beta^b   (relabel b<->c)
-      // so the contraction equals
-      //   sum_{b,c} S_{bc} * 0.5*(T^{0b}*beta^c + T^{0c}*beta^b).
-      // This allows triangular iteration over (b,c) with b<=c,
-      // reducing from 27 to 18 inner-loop passes.
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          CC_PCO_ILOOP1(i)
-          {
-            SS_d_(a, i) +=
-              dgamma_ddd_(a, b, b, i) *
-              (0.5 * T00(i) * (beta_u_(b, i) * beta_u_(b, i)) +
-               T0i_u(b, i) * beta_u_(b, i) + 0.5 * Tij_uu(b, b, i));
-          }
-          for (int c = b + 1; c < NDIM; ++c)
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = a; b < NDIM; ++b)
           {
             CC_PCO_ILOOP1(i)
             {
-              SS_d_(a, i) += 2.0 * dgamma_ddd_(a, b, c, i) *
-                             (0.5 * T00(i) * beta_u_(b, i) * beta_u_(c, i) +
-                              0.5 * (T0i_u(b, i) * beta_u_(c, i) +
-                                     T0i_u(c, i) * beta_u_(b, i)) +
-                              0.5 * Tij_uu(b, c, i));
+              const Real oo_alpha_i = OO(alpha_(i));
+              Tij_uu(a, b, i) =
+                ((w_hrho_(i) + b2_(i)) *
+                   (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) *
+                   (w_util_u_(b, i) - W_(i) * beta_u_(b, i) * oo_alpha_i) +
+                 (w_p(k, j, i) + b2_(i) / 2.0) *
+                   (gamma_uu_(a, b, i) -
+                    beta_u_(a, i) * beta_u_(b, i) * SQR(oo_alpha_i)) -
+                 bi_u_(a, i) * bi_u_(b, i));
+            }
+          }
+
+        // tau-source term
+        // ------------------------------------------------------
+        Stau_.ZeroClear();
+        for (int a = 0; a < NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            Stau_(i) += -(T00(i) * beta_u_(a, i) * dalpha_d_(a, i) +
+                          T0i_u(a, i) * dalpha_d_(a, i));
+          }
+        }
+
+        // Original:
+        //   for (int a=0; a<NDIM; ++a)
+        //   for (int b=0; b<NDIM; ++b)
+        //     Stau_ += K_{ab} * (T^{00} beta^a beta^b
+        //              + 2 T^{0i,a} beta^b + T^{ab})
+        //
+        // K_{ab} is symmetric. T^{ab} and beta^a beta^b are symmetric.
+        // The mixed term 2*T^{0a}*beta^b is NOT symmetric in (a,b) by
+        // itself, but its antisymmetric part vanishes under contraction
+        // with the symmetric K_{ab}:
+        //   K_{ab} T^{0a} beta^b = K_{ba} T^{0a} beta^b
+        //                        = K_{ab} T^{0b} beta^a  (relabel a<->b)
+        // so sum_{a,b} K_{ab} * 2*T^{0a}*beta^b
+        //  = sum_{a,b} K_{ab} * (T^{0a}*beta^b + T^{0b}*beta^a).
+        // This allows triangular iteration (9 -> 6 inner-loop passes).
+        for (int a = 0; a < NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            Stau_(i) += K_dd_(a, a, i) *
+                        (T00(i) * beta_u_(a, i) * beta_u_(a, i) +
+                         2.0 * T0i_u(a, i) * beta_u_(a, i) + Tij_uu(a, a, i));
+          }
+          for (int b = a + 1; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              Stau_(i) += 2.0 * K_dd_(a, b, i) *
+                          (T00(i) * beta_u_(a, i) * beta_u_(b, i) +
+                           T0i_u(a, i) * beta_u_(b, i) +
+                           T0i_u(b, i) * beta_u_(a, i) + Tij_uu(a, b, i));
+            }
+          }
+        }
+
+        // momentum source term
+        // -------------------------------------------------
+        for (int a = 0; a < NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            SS_d_(a, i) = -T00(i) * alpha_(i) * dalpha_d_(a, i);
+          }
+        }
+
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = 0; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              SS_d_(a, i) += T0i_d(b, i) * dbeta_du_(a, b, i);
+            }
+          }
+
+        // Original:
+        //   for (int a=0; a<NDIM; ++a)
+        //   for (int b=0; b<NDIM; ++b)
+        //   for (int c=0; c<NDIM; ++c)
+        //     SS_d_(a) += d_a gamma_{bc} *
+        //       (0.5*T^{00}*beta^b*beta^c + T^{0b}*beta^c + 0.5*T^{bc})
+        //
+        // d_a gamma_{bc} (SYM2) and T^{bc} are symmetric in (b,c).
+        // beta^b*beta^c is symmetric in (b,c).
+        // T^{0b}*beta^c is NOT symmetric in (b,c), but its antisymmetric
+        // part vanishes under contraction with the (b,c)-symmetric
+        // d_a gamma_{bc}:
+        //   sum_{b,c} S_{bc} * T^{0b} beta^c
+        //     = sum_{b,c} S_{cb} * T^{0b} beta^c   (S symmetric)
+        //     = sum_{b,c} S_{bc} * T^{0c} beta^b   (relabel b<->c)
+        // so the contraction equals
+        //   sum_{b,c} S_{bc} * 0.5*(T^{0b}*beta^c + T^{0c}*beta^b).
+        // This allows triangular iteration over (b,c) with b<=c,
+        // reducing from 27 to 18 inner-loop passes.
+        for (int a = 0; a < NDIM; ++a)
+        {
+          for (int b = 0; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              SS_d_(a, i) +=
+                dgamma_ddd_(a, b, b, i) *
+                (0.5 * T00(i) * (beta_u_(b, i) * beta_u_(b, i)) +
+                 T0i_u(b, i) * beta_u_(b, i) + 0.5 * Tij_uu(b, b, i));
+            }
+            for (int c = b + 1; c < NDIM; ++c)
+            {
+              CC_PCO_ILOOP1(i)
+              {
+                SS_d_(a, i) += 2.0 * dgamma_ddd_(a, b, c, i) *
+                               (0.5 * T00(i) * beta_u_(b, i) * beta_u_(c, i) +
+                                0.5 * (T0i_u(b, i) * beta_u_(c, i) +
+                                       T0i_u(c, i) * beta_u_(b, i)) +
+                                0.5 * Tij_uu(b, c, i));
+              }
             }
           }
         }
       }
-    }
-  else  // GRHD
-  {
-    // tau-source term
-    // ------------------------------------------------------
-    Stau_.ZeroClear();
-    for (int a = 0; a < NDIM; ++a)
-    {
-      CC_PCO_ILOOP1(i)
+      else  // GRHD
       {
-        const Real oo_alpha_i = OO(alpha_(i));
-        Stau_(i) -=
-          w_hrho_(i) * W_(i) * w_util_u_(a, i) * dalpha_d_(a, i) * oo_alpha_i;
-      }
-
-      // Original:
-      //   for (int b = 0; b < NDIM; ++b)
-      //     Stau_ += (rho*h * utilde^a * utilde^b
-      //              + p * gamma^{ab}) * K_{ab}
-      //
-      // All three factors utilde^a*utilde^b, gamma^{ab}, and K_{ab}
-      // are symmetric in (a,b). Triangular iteration (9 -> 6 passes).
-      // diagonal a=b
-      CC_PCO_ILOOP1(i)
-      {
-        Stau_(i) += (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(a, i) +
-                     w_p(k, j, i) * gamma_uu_(a, a, i)) *
-                    K_dd_(a, a, i);
-      }
-      // off-diagonal b>a (factor of 2 from symmetry)
-      for (int b = a + 1; b < NDIM; ++b)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          Stau_(i) += 2.0 *
-                      (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(b, i) +
-                       w_p(k, j, i) * gamma_uu_(a, b, i)) *
-                      K_dd_(a, b, i);
-        }
-      }
-    }
-
-    // momentum source term
-    // -------------------------------------------------
-    for (int a = 0; a < NDIM; ++a)
-    {
-      CC_PCO_ILOOP1(i)
-      {
-        const Real oo_alpha_i = OO(alpha_(i));
-        SS_d_(a, i)           = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
-                      dalpha_d_(a, i) * oo_alpha_i;
-      }
-
-      for (int b = 0; b < NDIM; ++b)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          const Real oo_alpha_i = OO(alpha_(i));
-          SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
-                         dbeta_du_(a, b, i) * oo_alpha_i;
-        }
-
-        // Original:
-        //   for (int c=0; c<NDIM; ++c)
-        //     SS_d_(a) += 0.5 * (rho*h * utilde^b * utilde^c
-        //                + p * gamma^{bc}) * d_a gamma_{bc}
-        //
-        // All of utilde^b*utilde^c, gamma^{bc}, and d_a gamma_{bc}
-        // are symmetric in (b,c). Triangular iteration (9 -> 6 passes
-        // in the c-loop for each b).
-        // diagonal c=b
-        CC_PCO_ILOOP1(i)
-        {
-          SS_d_(a, i) += (0.5 *
-                          (w_hrho_(i) * w_util_u_(b, i) * w_util_u_(b, i) +
-                           w_p(k, j, i) * gamma_uu_(b, b, i)) *
-                          dgamma_ddd_(a, b, b, i));
-        }
-        // off-diagonal c>b (factor of 2 from symmetry)
-        for (int c = b + 1; c < NDIM; ++c)
+        // tau-source term
+        // ------------------------------------------------------
+        Stau_.ZeroClear();
+        for (int a = 0; a < NDIM; ++a)
         {
           CC_PCO_ILOOP1(i)
           {
-            SS_d_(a, i) += ((w_hrho_(i) * w_util_u_(b, i) * w_util_u_(c, i) +
-                             w_p(k, j, i) * gamma_uu_(b, c, i)) *
-                            dgamma_ddd_(a, b, c, i));
+            const Real oo_alpha_i = OO(alpha_(i));
+            Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) *
+                        dalpha_d_(a, i) * oo_alpha_i;
+          }
+
+          // Original:
+          //   for (int b = 0; b < NDIM; ++b)
+          //     Stau_ += (rho*h * utilde^a * utilde^b
+          //              + p * gamma^{ab}) * K_{ab}
+          //
+          // All three factors utilde^a*utilde^b, gamma^{ab}, and K_{ab}
+          // are symmetric in (a,b). Triangular iteration (9 -> 6 passes).
+          // diagonal a=b
+          CC_PCO_ILOOP1(i)
+          {
+            Stau_(i) += (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(a, i) +
+                         w_p(k, j, i) * gamma_uu_(a, a, i)) *
+                        K_dd_(a, a, i);
+          }
+          // off-diagonal b>a (factor of 2 from symmetry)
+          for (int b = a + 1; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              Stau_(i) += 2.0 *
+                          (w_hrho_(i) * w_util_u_(a, i) * w_util_u_(b, i) +
+                           w_p(k, j, i) * gamma_uu_(a, b, i)) *
+                          K_dd_(a, b, i);
+            }
           }
         }
-      }
-    }
-  }  // MAGNETIC_FIELDS_ENABLED
 
-  // Add sources
-  if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_freeze_evo)
-  {
-    CC_PCO_ILOOP1(i)
-    {
-      const Real w_vol =
-        dt * alpha_(i) * sqrt_detgamma_(i) * ph->excision_mask(k, j, i);
-      cons(IEN, k, j, i) += w_vol * Stau_(i);
-      cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
-      cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
-      cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
-    }
-  }
-  else if (ph->opt_excision.excise_hydro_damping)
-  {
-    CC_PCO_ILOOP1(i)
-    {
-      const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+        // momentum source term
+        // -------------------------------------------------
+        for (int a = 0; a < NDIM; ++a)
+        {
+          CC_PCO_ILOOP1(i)
+          {
+            const Real oo_alpha_i = OO(alpha_(i));
+            SS_d_(a, i)           = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
+                          dalpha_d_(a, i) * oo_alpha_i;
+          }
 
-      cons(IEN, k, j, i) += w_vol * Stau_(i);
-      cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
-      cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
-      cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
+          for (int b = 0; b < NDIM; ++b)
+          {
+            CC_PCO_ILOOP1(i)
+            {
+              const Real oo_alpha_i = OO(alpha_(i));
+              SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
+                             dbeta_du_(a, b, i) * oo_alpha_i;
+            }
 
-      // 1 if not excising, 0 if excising
-      const Real ef = ph->excision_mask(k, j, i);
+            // Original:
+            //   for (int c=0; c<NDIM; ++c)
+            //     SS_d_(a) += 0.5 * (rho*h * utilde^b * utilde^c
+            //                + p * gamma^{bc}) * d_a gamma_{bc}
+            //
+            // All of utilde^b*utilde^c, gamma^{bc}, and d_a gamma_{bc}
+            // are symmetric in (b,c). Triangular iteration (9 -> 6 passes
+            // in the c-loop for each b).
+            // diagonal c=b
+            CC_PCO_ILOOP1(i)
+            {
+              SS_d_(a, i) += (0.5 *
+                              (w_hrho_(i) * w_util_u_(b, i) * w_util_u_(b, i) +
+                               w_p(k, j, i) * gamma_uu_(b, b, i)) *
+                              dgamma_ddd_(a, b, b, i));
+            }
+            // off-diagonal c>b (factor of 2 from symmetry)
+            for (int c = b + 1; c < NDIM; ++c)
+            {
+              CC_PCO_ILOOP1(i)
+              {
+                SS_d_(a, i) +=
+                  ((w_hrho_(i) * w_util_u_(b, i) * w_util_u_(c, i) +
+                    w_p(k, j, i) * gamma_uu_(b, c, i)) *
+                   dgamma_ddd_(a, b, c, i));
+              }
+            }
+          }
+        }
+      }  // MAGNETIC_FIELDS_ENABLED
 
-      if (ef < 1)
+      // Add sources
+      if (ph->opt_excision.use_taper &&
+          ph->opt_excision.excise_hydro_freeze_evo)
       {
-        const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
-        // const Real gam_w_vol = dt * alpha_(i) * sqrt_detgamma_(i) * gam;
+        CC_PCO_ILOOP1(i)
+        {
+          const Real w_vol =
+            dt * alpha_(i) * sqrt_detgamma_(i) * ph->excision_mask(k, j, i);
+          cons(IEN, k, j, i) += w_vol * Stau_(i);
+          cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
+          cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
+          cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
+        }
+      }
+      else if (ph->opt_excision.excise_hydro_damping)
+      {
+        CC_PCO_ILOOP1(i)
+        {
+          const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
 
-        Real gam_w_vol = gam * (dt  // * alpha_(i) * sqrt_detgamma_(i)
-                               );
+          cons(IEN, k, j, i) += w_vol * Stau_(i);
+          cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
+          cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
+          cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
+
+          // 1 if not excising, 0 if excising
+          const Real ef = ph->excision_mask(k, j, i);
+
+          if (ef < 1)
+          {
+            const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
+            // const Real gam_w_vol = dt * alpha_(i) * sqrt_detgamma_(i) * gam;
+
+            Real gam_w_vol = gam * (dt  // * alpha_(i) * sqrt_detgamma_(i)
+                                   );
 
 #if FLUID_ENABLED
-        // scale update to land at or above floor:
-        const Real den_new =
-          cons(IDN, k, j, i) - gam_w_vol * ph->u(IDN, k, j, i);
-        const Real tau_new =
-          cons(IEN, k, j, i) - gam_w_vol * ph->u(IEN, k, j, i);
+            // scale update to land at or above floor:
+            const Real den_new =
+              cons(IDN, k, j, i) - gam_w_vol * ph->u(IDN, k, j, i);
+            const Real tau_new =
+              cons(IEN, k, j, i) - gam_w_vol * ph->u(IEN, k, j, i);
 
-        const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-        const Real den_flr =
-          (mb * pmb->peos->GetEOS().GetDensityFloor() * sqrt_detgamma_(i));
-        const Real tau_flr = 0;
+            const Real mb = pmb->peos->GetEOS().GetBaryonMass();
+            const Real den_flr =
+              (mb * pmb->peos->GetEOS().GetDensityFloor() * sqrt_detgamma_(i));
+            const Real tau_flr = 0;
 
-        if (den_new < den_flr)
-        {
-          gam_w_vol = std::min(
-            gam_w_vol, (cons(IDN, k, j, i) - den_flr) / ph->u(IDN, k, j, i));
-        }
+            if (den_new < den_flr)
+            {
+              gam_w_vol =
+                std::min(gam_w_vol,
+                         (cons(IDN, k, j, i) - den_flr) / ph->u(IDN, k, j, i));
+            }
 
-        if (tau_new < tau_flr)
-        {
-          gam_w_vol = std::min(
-            gam_w_vol, (cons(IEN, k, j, i) - tau_flr) / ph->u(IEN, k, j, i));
-        }
+            if (tau_new < tau_flr)
+            {
+              gam_w_vol =
+                std::min(gam_w_vol,
+                         (cons(IEN, k, j, i) - tau_flr) / ph->u(IEN, k, j, i));
+            }
 
 #endif  // FLUID_ENABLED
 
-        cons(IDN, k, j, i) -= gam_w_vol * ph->u(IDN, k, j, i);
-        cons(IM1, k, j, i) -= gam_w_vol * ph->u(IM1, k, j, i);
-        cons(IM2, k, j, i) -= gam_w_vol * ph->u(IM2, k, j, i);
-        cons(IM3, k, j, i) -= gam_w_vol * ph->u(IM3, k, j, i);
-        cons(IEN, k, j, i) -= gam_w_vol * ph->u(IEN, k, j, i);
+            cons(IDN, k, j, i) -= gam_w_vol * ph->u(IDN, k, j, i);
+            cons(IM1, k, j, i) -= gam_w_vol * ph->u(IM1, k, j, i);
+            cons(IM2, k, j, i) -= gam_w_vol * ph->u(IM2, k, j, i);
+            cons(IM3, k, j, i) -= gam_w_vol * ph->u(IM3, k, j, i);
+            cons(IEN, k, j, i) -= gam_w_vol * ph->u(IEN, k, j, i);
+          }
+        }
       }
-    }
-  }
-  else
-  {
-    CC_PCO_ILOOP1(i)
-    {
-      // BD: TODO - consider embedded pre-factor to avoid zero-div. if
-      // alpha->0
-      const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
-      cons(IEN, k, j, i) += w_vol * Stau_(i);
-      cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
-      cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
-      cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
-    }
-  }
+      else
+      {
+        CC_PCO_ILOOP1(i)
+        {
+          // BD: TODO - consider embedded pre-factor to avoid zero-div. if
+          // alpha->0
+          const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
+          cons(IEN, k, j, i) += w_vol * Stau_(i);
+          cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
+          cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
+          cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
+        }
+      }
 
-  // DEBUG FULL EXCISION
-  if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_taper)
-    CC_PCO_ILOOP1(i)
-    {
-      cons(IDN, k, j, i) = ph->excision_mask(k, j, i) * cons(IDN, k, j, i);
-      cons(IM1, k, j, i) = ph->excision_mask(k, j, i) * cons(IM1, k, j, i);
-      cons(IM2, k, j, i) = ph->excision_mask(k, j, i) * cons(IM2, k, j, i);
-      cons(IM3, k, j, i) = ph->excision_mask(k, j, i) * cons(IM3, k, j, i);
-      cons(IEN, k, j, i) = ph->excision_mask(k, j, i) * cons(IEN, k, j, i);
-    }
+      // DEBUG FULL EXCISION
+      if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_taper)
+        CC_PCO_ILOOP1(i)
+        {
+          cons(IDN, k, j, i) = ph->excision_mask(k, j, i) * cons(IDN, k, j, i);
+          cons(IM1, k, j, i) = ph->excision_mask(k, j, i) * cons(IM1, k, j, i);
+          cons(IM2, k, j, i) = ph->excision_mask(k, j, i) * cons(IM2, k, j, i);
+          cons(IM3, k, j, i) = ph->excision_mask(k, j, i) * cons(IM3, k, j, i);
+          cons(IEN, k, j, i) = ph->excision_mask(k, j, i) * cons(IEN, k, j, i);
+        }
 
-}  // j, k
+    }  // j, k
 }
 
 //

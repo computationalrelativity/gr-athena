@@ -505,6 +505,7 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   detg.NewAthenaTensor(mbi.nn1);
   chi_guarded.NewAthenaTensor(mbi.nn1);
   oopsi4.NewAthenaTensor(mbi.nn1);
+  oochi.NewAthenaTensor(mbi.nn1);
   A.NewAthenaTensor(mbi.nn1);
   trAA.NewAthenaTensor(mbi.nn1);
   R.NewAthenaTensor(mbi.nn1);
@@ -694,6 +695,7 @@ void Z4c::SetAuxExtendedAliases(AthenaArray<Real>& u_aux_extended,
   aux_extended.ms_sqrt_detgamma.InitWithShallowSlice(
     u_aux_extended, I_AUX_EXTENDED_ms_sqrt_detgamma);
 #endif
+  aux_extended.g_uu.InitWithShallowSlice(u_aux_extended, I_AUX_EXTENDED_guxx);
 }
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::AlgConstr(AthenaArray<Real> & u)
