@@ -357,49 +357,32 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         }
 
         // Deal with PrimitiveSolver interface
-        Real g3d[NSPMETRIC] = { gamma_dd_(0, 0, i), gamma_dd_(0, 1, i),
-                                gamma_dd_(0, 2, i), gamma_dd_(1, 1, i),
-                                gamma_dd_(1, 2, i), gamma_dd_(2, 2, i) };
+        Real g3d[NSPMETRIC];
+        PrimHelper::GatherMetric(gamma_dd_, g3d, i);
 
         const Real sqrt_detgamma    = sqrt_det_gamma_(i);
         const Real detgamma         = SQR(sqrt_detgamma);
         const Real oo_sqrt_detgamma = OO(sqrt_detgamma);
 
-        Real g3u[NSPMETRIC] = { gamma_uu_(0, 0, i), gamma_uu_(0, 1, i),
-                                gamma_uu_(0, 2, i), gamma_uu_(1, 1, i),
-                                gamma_uu_(1, 2, i), gamma_uu_(2, 2, i) };
+        Real g3u[NSPMETRIC];
+        PrimHelper::GatherMetric(gamma_uu_, g3u, i);
 
         // Extract and undensitize the conserved variables.
-        Real cons_pt[NCONS]     = { 0.0 };
+        Real cons_pt[NCONS] = { 0.0 };
+        PrimHelper::GatherCons(
+          cons, cons_scalar, cons_pt, k, j, i, oo_sqrt_detgamma);
         Real cons_old_pt[NCONS] = {
           0.0
         };  // Redundancy in case things go bad.
-        cons_pt[IDN] = cons_old_pt[IDN] =
-          cons(IDN, k, j, i) * oo_sqrt_detgamma;
-        cons_pt[IM1] = cons_old_pt[IM1] =
-          cons(IM1, k, j, i) * oo_sqrt_detgamma;
-        cons_pt[IM2] = cons_old_pt[IM2] =
-          cons(IM2, k, j, i) * oo_sqrt_detgamma;
-        cons_pt[IM3] = cons_old_pt[IM3] =
-          cons(IM3, k, j, i) * oo_sqrt_detgamma;
-        cons_pt[IEN] = cons_old_pt[IEN] =
-          cons(IEN, k, j, i) * oo_sqrt_detgamma;
-
-        // Extract the scalars
-        for (int n = 0; n < NSCALARS; n++)
-        {
-          cons_pt[IYD + n] = cons_old_pt[IYD + n] =
-            cons_scalar(n, k, j, i) * oo_sqrt_detgamma;
-        }
+        std::copy(cons_pt, cons_pt + NCONS, cons_old_pt);
 
         // Find the primitive variables.
         Real prim_pt[NPRIM] = { 0.0 };
 
 #if MAGNETIC_FIELDS_ENABLED
         // Extract the magnetic field.
-        Real b3u[NMAG] = { bb_cc(IB1, k, j, i) * oo_sqrt_detgamma,
-                           bb_cc(IB2, k, j, i) * oo_sqrt_detgamma,
-                           bb_cc(IB3, k, j, i) * oo_sqrt_detgamma };
+        Real b3u[NMAG];
+        PrimHelper::GatherBfield(bb_cc, b3u, k, j, i, oo_sqrt_detgamma);
 #else
         Real b3u[NMAG] = { 0.0 };  // Assume no magnetic field.
 #endif
@@ -454,32 +437,18 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           }
 
           // Update the primitive variables.
-          prim(IDN, k, j, i) = prim_pt[IDN] * mb;
-          prim(IVX, k, j, i) = prim_pt[IVX];
-          prim(IVY, k, j, i) = prim_pt[IVY];
-          prim(IVZ, k, j, i) = prim_pt[IVZ];
-          prim(IPR, k, j, i) = prim_pt[IPR];
-
-          for (int n = 0; n < NSCALARS; n++)
-          {
-            prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-          }
+          PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
 
           // Write back conserved variables only if they were modified.
           if (result.cons_adjusted)
           {
-            cons(IDN, k, j, i) = cons_pt[IDN] * sqrt_detgamma;
-            cons(IM1, k, j, i) = cons_pt[IM1] * sqrt_detgamma;
-            cons(IM2, k, j, i) = cons_pt[IM2] * sqrt_detgamma;
-            cons(IM3, k, j, i) = cons_pt[IM3] * sqrt_detgamma;
-            cons(IEN, k, j, i) = cons_pt[IEN] * sqrt_detgamma;
+            PrimHelper::ScatterConsHydro(
+              cons_pt, cons, k, j, i, sqrt_detgamma);
           }
           if (result.cons_adjusted || result.scalars_adjusted)
           {
-            for (int n = 0; n < NSCALARS; n++)
-            {
-              cons_scalar(n, k, j, i) = cons_pt[IYD + n] * sqrt_detgamma;
-            }
+            PrimHelper::ScatterConsScalars(
+              cons_pt, cons_scalar, k, j, i, sqrt_detgamma);
           }
         }
         else
@@ -487,17 +456,8 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           // didn't need to run, but do need to extract variables
           // (see derived below)
 
-          prim_pt[IDN] = prim(IDN, k, j, i) / mb;
-          prim_pt[IVX] = prim(IVX, k, j, i);
-          prim_pt[IVY] = prim(IVY, k, j, i);
-          prim_pt[IVZ] = prim(IVZ, k, j, i);
-          prim_pt[IPR] = prim(IPR, k, j, i);
+          PrimHelper::GatherPrim(prim, prim_scalar, prim_pt, k, j, i, mb);
           prim_pt[ITM] = temperature(k, j, i);
-
-          for (int n = 0; n < NSCALARS; n++)
-          {
-            prim_pt[IYF + n] = prim_scalar(n, k, j, i);
-          }
         }
 
         // BD: not clear why these behave differently (limiting)?
@@ -627,17 +587,9 @@ static void PrimitiveToConservedSingle(AA& prim,
   Real prim_pt[NPRIM] = { 0.0 };
   Real Y[MAX_SPECIES] = { 0.0 };
 
-  Real mb      = ps.GetEOS()->GetBaryonMass();
-  prim_pt[IDN] = prim(IDN, k, j, i) / mb;
-  prim_pt[IVX] = prim(IVX, k, j, i);
-  prim_pt[IVY] = prim(IVY, k, j, i);
-  prim_pt[IVZ] = prim(IVZ, k, j, i);
-  prim_pt[IPR] = prim(IPR, k, j, i);
-
-  for (int n = 0; n < NSCALARS; n++)
-  {
-    Y[n] = prim_scalar(n, k, j, i);
-  }
+  Real mb = ps.GetEOS()->GetBaryonMass();
+  PrimHelper::GatherPrim(prim, prim_scalar, prim_pt, k, j, i, mb);
+  PrimHelper::GatherScalars(prim_scalar, Y, k, j, i);
 
   // Get temperature and apply floor
   ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
@@ -653,17 +605,15 @@ static void PrimitiveToConservedSingle(AA& prim,
   }
 
   // Extract the metric and calculate the determinant..
-  Real g3d[NSPMETRIC] = { gamma_dd_(0, 0, i), gamma_dd_(0, 1, i),
-                          gamma_dd_(0, 2, i), gamma_dd_(1, 1, i),
-                          gamma_dd_(1, 2, i), gamma_dd_(2, 2, i) };
-  Real sdetg          = sqrt_det_gamma_(i);
-  Real detg           = SQR(sdetg);
+  Real g3d[NSPMETRIC];
+  PrimHelper::GatherMetric(gamma_dd_, g3d, i);
+  Real sdetg = sqrt_det_gamma_(i);
+  Real detg  = SQR(sdetg);
 
 #if MAGNETIC_FIELDS_ENABLED
   // Extract and undensitize the magnetic field.
-  Real bu[NMAG] = { bb_cc(IB1, k, j, i) / sdetg,
-                    bb_cc(IB2, k, j, i) / sdetg,
-                    bb_cc(IB3, k, j, i) / sdetg };
+  Real bu[NMAG];
+  PrimHelper::GatherBfield(bb_cc, bu, k, j, i, OO(sdetg));
 #else
   Real bu[NMAG] = { 0.0 };
 #endif
@@ -700,28 +650,13 @@ static void PrimitiveToConservedSingle(AA& prim,
   }
 
   // Push the densitized conserved variables to Athena.
-  cons(IDN, k, j, i) = cons_pt[IDN] * sdetg;
-  cons(IM1, k, j, i) = cons_pt[IM1] * sdetg;
-  cons(IM2, k, j, i) = cons_pt[IM2] * sdetg;
-  cons(IM3, k, j, i) = cons_pt[IM3] * sdetg;
-  cons(IEN, k, j, i) = cons_pt[IEN] * sdetg;
-  for (int n = 0; n < NSCALARS; n++)
-  {
-    cons_scalar(n, k, j, i) = cons_pt[IYD + n] * sdetg;
-  }
+  PrimHelper::ScatterConsHydro(cons_pt, cons, k, j, i, sdetg);
+  PrimHelper::ScatterConsScalars(cons_pt, cons_scalar, k, j, i, sdetg);
 
   // If we floored things, we'll need to readjust the primitives.
   if (result)
   {
-    prim(IDN, k, j, i) = prim_pt[IDN] * mb;
-    prim(IVX, k, j, i) = prim_pt[IVX];
-    prim(IVY, k, j, i) = prim_pt[IVY];
-    prim(IVZ, k, j, i) = prim_pt[IVZ];
-    prim(IPR, k, j, i) = prim_pt[IPR];
-    for (int n = 0; n < NSCALARS; n++)
-    {
-      prim_scalar(n, k, j, i) = prim_pt[IYF + n];
-    }
+    PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
 
     derived_ms(IX_LOR, k, j, i) = 1;
   }
