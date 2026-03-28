@@ -1500,24 +1500,6 @@ Mesh::~Mesh()
 #endif
 }
 
-//-----------------------------------------------------------------------------
-// Fill vector with pointers to all MeshBlock objects on current rank
-void Mesh::GetMeshBlocksMyRank(std::vector<MeshBlock*>& pmb_array)
-{
-  const int nmb = GetNumMeshBlocksThisRank(Globals::my_rank);
-
-  if (static_cast<unsigned int>(nmb) != pmb_array.size())
-    pmb_array.resize(nmb);
-
-  MeshBlock* pmbl = pblock;
-
-  for (int i = 0; i < nmb; ++i)
-  {
-    pmb_array[i] = pmbl;
-    pmbl         = pmbl->next;
-  }
-}
-
 //----------------------------------------------------------------------------------------
 //! \fn void Mesh::OutputMeshStructure(int ndim)
 //  \brief print the mesh structure information
@@ -1750,7 +1732,10 @@ void Mesh::OutputMeshStructure(int ndim)
 
 void Mesh::NewTimeStep(bool limit_dt_growth)
 {
-  MeshBlock* pmb = pblock;
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+
+  MeshBlock* pmb0 = pmb_array[0];
 
   if (limit_dt_growth)
   {
@@ -1758,25 +1743,24 @@ void Mesh::NewTimeStep(bool limit_dt_growth)
     // every MeshBlock has new_block_dt > 2.0*dt_old)
     dt = static_cast<Real>(2.0) * dt;
     // consider first MeshBlock on this MPI rank's linked list of blocks:
-    dt = std::min(dt, pmb->new_block_dt_);
+    dt = std::min(dt, pmb0->new_block_dt_);
   }
   else
   {
-    dt = pmb->new_block_dt_;
+    dt = pmb0->new_block_dt_;
   }
 
-  dt_hyperbolic = pmb->new_block_dt_hyperbolic_;
-  dt_parabolic  = pmb->new_block_dt_parabolic_;
-  dt_user       = pmb->new_block_dt_user_;
-  pmb           = pmb->next;
+  dt_hyperbolic = pmb0->new_block_dt_hyperbolic_;
+  dt_parabolic  = pmb0->new_block_dt_parabolic_;
+  dt_user       = pmb0->new_block_dt_user_;
 
-  while (pmb != nullptr)
+  for (int i = 1; i < nmb; ++i)
   {
-    dt            = std::min(dt, pmb->new_block_dt_);
-    dt_hyperbolic = std::min(dt_hyperbolic, pmb->new_block_dt_hyperbolic_);
-    dt_parabolic  = std::min(dt_parabolic, pmb->new_block_dt_parabolic_);
-    dt_user       = std::min(dt_user, pmb->new_block_dt_user_);
-    pmb           = pmb->next;
+    MeshBlock* pmb = pmb_array[i];
+    dt             = std::min(dt, pmb->new_block_dt_);
+    dt_hyperbolic  = std::min(dt_hyperbolic, pmb->new_block_dt_hyperbolic_);
+    dt_parabolic   = std::min(dt_parabolic, pmb->new_block_dt_parabolic_);
+    dt_user        = std::min(dt_user, pmb->new_block_dt_user_);
   }
 
 #ifdef MPI_PARALLEL
@@ -1813,11 +1797,11 @@ void Mesh::NewTimeStep()
 
 void Mesh::ResetAllBlockDt()
 {
-  MeshBlock* pmb = pblock;
-  while (pmb != nullptr)
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+  for (int i = 0; i < nmb; ++i)
   {
-    pmb->ResetBlockDt();
-    pmb = pmb->next;
+    pmb_array[i]->ResetBlockDt();
   }
 }
 
@@ -1980,11 +1964,11 @@ void Mesh::AllocateIntUserMeshDataField(int n)
 
 void Mesh::ApplyUserWorkBeforeOutput(ParameterInput* pin)
 {
-  MeshBlock* pmb = pblock;
-  while (pmb != nullptr)
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+  for (int i = 0; i < nmb; ++i)
   {
-    pmb->UserWorkBeforeOutput(pin);
-    pmb = pmb->next;
+    pmb_array[i]->UserWorkBeforeOutput(pin);
   }
 }
 
@@ -1994,11 +1978,11 @@ void Mesh::ApplyUserWorkBeforeOutput(ParameterInput* pin)
 
 void Mesh::ApplyUserWorkAfterOutput(ParameterInput* pin)
 {
-  MeshBlock* pmb = pblock;
-  while (pmb != nullptr)
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+  for (int i = 0; i < nmb; ++i)
   {
-    pmb->UserWorkAfterOutput(pin);
-    pmb = pmb->next;
+    pmb_array[i]->UserWorkAfterOutput(pin);
   }
 }
 
@@ -2006,11 +1990,11 @@ void Mesh::ApplyUserWorkAfterOutput(ParameterInput* pin)
 // Apply MeshBlock::UserWorkMeshUpdatedPrePostAMRHooks
 void Mesh::ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput* pin)
 {
-  MeshBlock* pmb = pblock;
-  while (pmb != nullptr)
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+  for (int i = 0; i < nmb; ++i)
   {
-    pmb->UserWorkMeshUpdatedPrePostAMRHooks(pin);
-    pmb = pmb->next;
+    pmb_array[i]->UserWorkMeshUpdatedPrePostAMRHooks(pin);
   }
 }
 
@@ -2026,13 +2010,12 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
   (void)nthreads;
 
   int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
 
   do
   {
     // initialize a vector of MeshBlock pointers
-    GetMeshBlocksMyRank(pmb_array);
-    nmb = pmb_array.size();
+    const auto& pmb_array = GetMeshBlocksCached();
+    nmb                   = pmb_array.size();
 
     if (init_style == initialize_style::pgen)
     {
@@ -2269,8 +2252,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
           iflag = true;
           if (mesh_updated)
           {
-            GetMeshBlocksMyRank(pmb_array);
-            nmb = pmb_array.size();
+            // Cache is already rebuilt by
+            // LoadBalancingAndAdaptiveMeshRefinement
+            nmb = GetMeshBlocksCached().size();
           }
         }
         else if (nbtotal < onb && Globals::my_rank == 0)
@@ -2296,23 +2280,28 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
     // ------------------------------------------------------------------------
   } while (!iflag);
 
-// calculate the first time step --------------------------------------------
-#pragma omp parallel for num_threads(nthreads)
-  for (int i = 0; i < nmb; ++i)
+  // calculate the first time step --------------------------------------------
   {
-    pmb_array[i]->ResetBlockDt();
+    const auto& pmb_array = GetMeshBlocksCached();
+    nmb                   = pmb_array.size();
 
-    if (FLUID_ENABLED)
-      pmb_array[i]->phydro->NewBlockTimeStep();
+#pragma omp parallel for num_threads(nthreads)
+    for (int i = 0; i < nmb; ++i)
+    {
+      pmb_array[i]->ResetBlockDt();
 
-    if (WAVE_ENABLED)
-      pmb_array[i]->pwave->NewBlockTimeStep();
+      if (FLUID_ENABLED)
+        pmb_array[i]->phydro->NewBlockTimeStep();
 
-    if (Z4C_ENABLED)
-      pmb_array[i]->pz4c->NewBlockTimeStep();
+      if (WAVE_ENABLED)
+        pmb_array[i]->pwave->NewBlockTimeStep();
 
-    if (M1_ENABLED)
-      pmb_array[i]->pm1->NewBlockTimeStep();
+      if (Z4C_ENABLED)
+        pmb_array[i]->pz4c->NewBlockTimeStep();
+
+      if (M1_ENABLED)
+        pmb_array[i]->pm1->NewBlockTimeStep();
+    }
   }
   // --------------------------------------------------------------------------
 
@@ -2617,10 +2606,9 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real>& x_min,
                                  int& max_level)
 {
   int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
   // initialize a vector of MeshBlock pointers
-  GetMeshBlocksMyRank(pmb_array);
-  nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  nmb                   = pmb_array.size();
 
   bool grid_updated = false;
 
@@ -2765,14 +2753,14 @@ bool Mesh::GetGlobalGridGeometry(AthenaArray<Real>& x_min,
 void Mesh::CalculateExcisionMask()
 {
 #if FLUID_ENABLED && Z4C_ENABLED
-  if (pblock->phydro->opt_excision.use_taper ||
-      pblock->phydro->opt_excision.excise_hydro_damping)
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+
+  if (pmb_array[0]->phydro->opt_excision.use_taper ||
+      pmb_array[0]->phydro->opt_excision.excise_hydro_damping)
   {
     int nthreads = GetNumMeshThreads();
     (void)nthreads;
-    std::vector<MeshBlock*> pmb_array;
-    GetMeshBlocksMyRank(pmb_array);
-    const int nmb = pmb_array.size();
 
 #pragma omp parallel num_threads(nthreads)
     {
@@ -2817,9 +2805,8 @@ void Mesh::CalculateHydroFieldDerived()
 
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  std::vector<MeshBlock*> pmb_array;
-  GetMeshBlocksMyRank(pmb_array);
-  const int nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
 #pragma omp parallel num_threads(nthreads)
   {
@@ -2890,9 +2877,8 @@ void Mesh::CalculateZ4cInitDiagnostics()
 
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  std::vector<MeshBlock*> pmb_array;
-  GetMeshBlocksMyRank(pmb_array);
-  const int nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
 #pragma omp parallel num_threads(nthreads)
   {

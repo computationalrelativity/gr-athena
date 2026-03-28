@@ -168,12 +168,13 @@ void Mesh::ResetLoadBalanceVariables()
 {
   if (lb_automatic_)
   {
-    MeshBlock* pmb = pblock;
-    while (pmb != nullptr)
+    const auto& pmb_array = GetMeshBlocksCached();
+    const int nmb         = pmb_array.size();
+    for (int i = 0; i < nmb; ++i)
     {
+      MeshBlock* pmb     = pmb_array[i];
       costlist[pmb->gid] = TINY_NUMBER;
       pmb->ResetTimeMeasurement();
-      pmb = pmb->next;
     }
   }
   lb_flag_      = false;
@@ -186,23 +187,24 @@ void Mesh::ResetLoadBalanceVariables()
 
 void Mesh::UpdateCostList()
 {
-  MeshBlock* pmb = pblock;
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
   if (lb_automatic_)
   {
     double w = static_cast<double>(lb_interval_ - 1) /
                static_cast<double>(lb_interval_);
-    while (pmb != nullptr)
+    for (int i = 0; i < nmb; ++i)
     {
+      MeshBlock* pmb     = pmb_array[i];
       costlist[pmb->gid] = costlist[pmb->gid] * w + pmb->cost_;
-      pmb                = pmb->next;
     }
   }
   else if (lb_flag_)
   {
-    while (pmb != nullptr)
+    for (int i = 0; i < nmb; ++i)
     {
+      MeshBlock* pmb     = pmb_array[i];
       costlist[pmb->gid] = pmb->cost_;
-      pmb                = pmb->next;
     }
   }
 }
@@ -214,7 +216,6 @@ void Mesh::UpdateCostList()
 void Mesh::UpdateMeshBlockTree(int& nnew, int& ndel)
 {
   // compute nleaf= number of leaf MeshBlocks per refined block
-  MeshBlock* pmb;
   int nleaf = 2, dim = 1;
   if (mesh_size.nx2 > 1)
     nleaf = 4, dim = 2;
@@ -222,18 +223,20 @@ void Mesh::UpdateMeshBlockTree(int& nnew, int& ndel)
     nleaf = 8, dim = 3;
   (void)dim;
 
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+
   // collect refinement flags from all the meshblocks
   // count the number of the blocks to be (de)refined
   nref[Globals::my_rank]   = 0;
   nderef[Globals::my_rank] = 0;
-  pmb                      = pblock;
-  while (pmb != nullptr)
+  for (int i = 0; i < nmb; ++i)
   {
+    MeshBlock* pmb = pmb_array[i];
     if (pmb->pmr->refine_flag_ == 1)
       nref[Globals::my_rank]++;
     if (pmb->pmr->refine_flag_ == -1)
       nderef[Globals::my_rank]++;
-    pmb = pmb->next;
   }
 #ifdef MPI_PARALLEL
   // Merge two MPI_Allgather calls into one by packing nref+nderef per rank
@@ -291,14 +294,13 @@ void Mesh::UpdateMeshBlockTree(int& nnew, int& ndel)
 
   // collect the locations and costs
   int iref = rdisp[Globals::my_rank], ideref = ddisp[Globals::my_rank];
-  pmb = pblock;
-  while (pmb != nullptr)
+  for (int i = 0; i < nmb; ++i)
   {
+    MeshBlock* pmb = pmb_array[i];
     if (pmb->pmr->refine_flag_ == 1)
       lref[iref++] = pmb->loc;
     if (pmb->pmr->refine_flag_ == -1 && tnderef >= nleaf)
       lderef[ideref++] = pmb->loc;
-    pmb = pmb->next;
   }
 #ifdef MPI_PARALLEL
   if (tnref > 0)
@@ -707,11 +709,11 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot)
 #if defined(DBG_NO_REF_NN_SAME_LEVEL)
   tree.ComputeNeighborLevelFlags();
 #endif
-  pmb = pblock;
-  while (pmb != nullptr)
+  // Cache is fresh - RebuildBlockByGid() was called above.
+  const auto& pmb_array = GetMeshBlocksCached();
+  for (auto* mb : pmb_array)
   {
-    pmb->SearchAndSetNeighbors(tree, ranklist, nslist);
-    pmb = pmb->next;
+    mb->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
   Initialize(initialize_style::regrid, pin);
 

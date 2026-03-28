@@ -1,14 +1,14 @@
 #ifndef MAIN_HPP
 #define MAIN_HPP
 
-
 // C++ headers
-#include "athena_aliases.hpp"
-#include <ctime>      // clock(), CLOCKS_PER_SEC, clock_t
-#include <iomanip>
-#include <iostream>   // cout, endl
-#include <thread>
 #include <chrono>
+#include <ctime>  // clock(), CLOCKS_PER_SEC, clock_t
+#include <iomanip>
+#include <iostream>  // cout, endl
+#include <thread>
+
+#include "athena_aliases.hpp"
 
 // External libraries
 
@@ -26,20 +26,18 @@
 #include "defs.hpp"
 #include "globals.hpp"
 #include "main_triggers.hpp"
-
-#include "outputs/io_wrapper.hpp"
-#include "outputs/outputs.hpp"
 #include "mesh/mesh.hpp"
 #include "mesh/surfaces.hpp"
+#include "outputs/io_wrapper.hpp"
+#include "outputs/outputs.hpp"
 #include "task_list/gr/task_list.hpp"
 #include "task_list/m1/task_list.hpp"
 #include "task_list/wave_equations/task_list.hpp"
 #include "utils/utils.hpp"
-
+#include "z4c/ahf.hpp"
+#include "z4c/puncture_tracker.hpp"
 #include "z4c/wave_extract.hpp"
 #include "z4c/wave_extract_rwz.hpp"
-#include "z4c/puncture_tracker.hpp"
-#include "z4c/ahf.hpp"
 #ifdef EJECTA_ENABLED
 #include "z4c/ejecta.hpp"
 #endif
@@ -57,20 +55,22 @@
 // ENABLE_EXCEPTIONS is _always_ assumed
 
 // Diagnostics ----------------------------------------------------------------
-namespace gra::diagnostics {
+namespace gra::diagnostics
+{
 
-inline void std_print(const std::string & to_print)
+inline void std_print(const std::string& to_print)
 {
   if (Globals::my_rank == 0)
-  #pragma omp critical
+#pragma omp critical
   {
     std::cout << to_print << "\n";
   }
 }
-}
+}  // namespace gra::diagnostics
 
 // MPI/OMP  -------------------------------------------------------------------
-namespace gra::parallelism {
+namespace gra::parallelism
+{
 
 inline void Teardown()
 {
@@ -79,99 +79,102 @@ inline void Teardown()
 #endif
 }
 
-inline void Init(int argc, char *argv[])
+inline void Init(int argc, char* argv[])
 {
-  #ifdef MPI_PARALLEL
-  #ifdef OPENMP_PARALLEL
-    int mpiprv;
-    if (MPI_SUCCESS != MPI_Init_thread(&argc,
-                                       &argv,
-                                       MPI_THREAD_MULTIPLE, &mpiprv))
-    {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "MPI Initialization failed." << std::endl;
-      std::exit(0);
-    }
-    if (mpiprv != MPI_THREAD_MULTIPLE) {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "MPI_THREAD_MULTIPLE must be supported for the hybrid parallelzation. "
-                << MPI_THREAD_MULTIPLE << " : " << mpiprv
-                << std::endl;
-      Teardown();
-      std::exit(0);
-    }
-  #else  // no OpenMP
-    if (MPI_SUCCESS != MPI_Init(&argc, &argv)) {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "MPI Initialization failed." << std::endl;
-      std::exit(0);
-    }
-  #endif  // OPENMP_PARALLEL
-    // Get process id (rank) in MPI_COMM_WORLD
-    if (MPI_SUCCESS != MPI_Comm_rank(MPI_COMM_WORLD, &(Globals::my_rank)))
-    {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "MPI_Comm_rank failed." << std::endl;
-      Teardown();
-      std::exit(0);
-    }
+#ifdef MPI_PARALLEL
+#ifdef OPENMP_PARALLEL
+  int mpiprv;
+  if (MPI_SUCCESS !=
+      MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &mpiprv))
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "MPI Initialization failed." << std::endl;
+    std::exit(0);
+  }
+  if (mpiprv != MPI_THREAD_MULTIPLE)
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "MPI_THREAD_MULTIPLE must be supported for the hybrid "
+                 "parallelzation. "
+              << MPI_THREAD_MULTIPLE << " : " << mpiprv << std::endl;
+    Teardown();
+    std::exit(0);
+  }
+#else   // no OpenMP
+  if (MPI_SUCCESS != MPI_Init(&argc, &argv))
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "MPI Initialization failed." << std::endl;
+    std::exit(0);
+  }
+#endif  // OPENMP_PARALLEL
+  // Get process id (rank) in MPI_COMM_WORLD
+  if (MPI_SUCCESS != MPI_Comm_rank(MPI_COMM_WORLD, &(Globals::my_rank)))
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "MPI_Comm_rank failed." << std::endl;
+    Teardown();
+    std::exit(0);
+  }
 
-    // Get total number of MPI processes (ranks)
-    if (MPI_SUCCESS != MPI_Comm_size(MPI_COMM_WORLD, &Globals::nranks))
-    {
-      std::cout << "### FATAL ERROR in main" << std::endl
-                << "MPI_Comm_size failed." << std::endl;
-      Teardown();
-      std::exit(0);
-    }
+  // Get total number of MPI processes (ranks)
+  if (MPI_SUCCESS != MPI_Comm_size(MPI_COMM_WORLD, &Globals::nranks))
+  {
+    std::cout << "### FATAL ERROR in main" << std::endl
+              << "MPI_Comm_size failed." << std::endl;
+    Teardown();
+    std::exit(0);
+  }
 
-    // Get the maximum MPI tag
-    void * value;
-    int flag;
-    MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &value, &flag);
-    Globals::mpi_tag_ub = *(int *)value;
+  // Get the maximum MPI tag
+  void* value;
+  int flag;
+  MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &value, &flag);
+  Globals::mpi_tag_ub = *(int*)value;
 
-  #else  // no MPI
-    Globals::my_rank = 0;
-    Globals::nranks  = 1;
-    Globals::mpi_tag_ub = 0;
-  #endif  // MPI_PARALLEL
+#else   // no MPI
+  Globals::my_rank    = 0;
+  Globals::nranks     = 1;
+  Globals::mpi_tag_ub = 0;
+#endif  // MPI_PARALLEL
 }
 
 inline void Barrier()
 {
 #ifdef MPI_PARALLEL
   MPI_Barrier(MPI_COMM_WORLD);
-#endif // MPI_PARALLEL
+#endif  // MPI_PARALLEL
 }
 
 }  // namespace gra::parallelism
 
 // Runtime stuff --------------------------------------------------------------
-namespace gra::timing {
+namespace gra::timing
+{
 
 // basic real-world [non-cpu] timer based on chrono for e.g. t-evo / hr
 // based on SO. 2808398
-template <class DT = std::chrono::milliseconds,
-          class ClockT = std::chrono::steady_clock,
+template <class DT        = std::chrono::milliseconds,
+          class ClockT    = std::chrono::steady_clock,
           class TimePoint = std::chrono::steady_clock::time_point,
-          class Duration = std::chrono::steady_clock::duration>
+          class Duration  = std::chrono::steady_clock::duration>
 class Timer
 {
   public:
-    Timer()
+  Timer()
       : time_start_(ClockT::now()),
         time_paused_(time_start_),
         duration_ignored_(Duration::zero()),
         is_paused_(false)
-    { }
+  {
+  }
 
   void pause()
   {
     if (!is_paused_)
     {
       time_paused_ = ClockT::now();
-      is_paused_ = true;
+      is_paused_   = true;
     }
   }
 
@@ -186,122 +189,121 @@ class Timer
 
   Real elapsed() const
   {
-    auto time_end_ = (is_paused_) ? time_paused_ : ClockT::now();
+    auto time_end_  = (is_paused_) ? time_paused_ : ClockT::now();
     auto time_diff_ = time_end_ - time_start_ - duration_ignored_;
     return std::chrono::duration<Real>(time_diff_).count();
   }
 
   private:
-    TimePoint time_start_;
-    TimePoint time_paused_;
-    Duration duration_ignored_;
-    bool is_paused_;
+  TimePoint time_start_;
+  TimePoint time_paused_;
+  Duration duration_ignored_;
+  bool is_paused_;
 };
 
 class Clocks
 {
   public:
-    Clocks(Mesh * pmesh)
-    : pmesh(pmesh),
-      wtime(),
-      evo_clock_time_start(pmesh->start_time)
-    {
-      tstart = clock();
+  Clocks(Mesh* pmesh)
+      : pmesh(pmesh), wtime(), evo_clock_time_start(pmesh->start_time)
+  {
+    tstart = clock();
 #ifdef OPENMP_PARALLEL
-      omp_start_time = omp_get_wtime();
+    omp_start_time = omp_get_wtime();
 #endif
-    };
+  };
 
-    inline void Stop()
-    {
-      tstop = clock();
+  inline void Stop()
+  {
+    tstop = clock();
 #ifdef OPENMP_PARALLEL
-      omp_time = omp_get_wtime() - omp_start_time;
+    omp_time = omp_get_wtime() - omp_start_time;
 #endif
-    }
+  }
 
-    // N.B. non-cpu time
-    inline Real Elapsed_seconds()
-    {
-      return wtime.elapsed();
-    }
+  // N.B. non-cpu time
+  inline Real Elapsed_seconds()
+  {
+    return wtime.elapsed();
+  }
 
-    inline Real Elapsed_hours()
-    {
-      return Elapsed_seconds() / 3600.0;
-    }
+  inline Real Elapsed_hours()
+  {
+    return Elapsed_seconds() / 3600.0;
+  }
 
-    // allow pause & resume of real-time clock
-    inline void Elapsed_pause()
-    {
-      wtime.pause();
-    }
+  // allow pause & resume of real-time clock
+  inline void Elapsed_pause()
+  {
+    wtime.pause();
+  }
 
-    inline void Elapsed_resume()
-    {
-      wtime.resume();
-    }
+  inline void Elapsed_resume()
+  {
+    wtime.resume();
+  }
 
-    // measured evolution rate in T/hr
-    inline Real evo_rate()
-    {
-      Real er = (
-        pmesh->time - evo_clock_time_start
-      ) / Elapsed_hours();
+  // measured evolution rate in T/hr
+  inline Real evo_rate()
+  {
+    Real er = (pmesh->time - evo_clock_time_start) / Elapsed_hours();
 
-      return std::isfinite(er) ? er : 0;
-    }
+    return std::isfinite(er) ? er : 0;
+  }
 
   public:
-    Mesh * pmesh;
-    Timer<std::chrono::seconds,
-          std::chrono::steady_clock,
-          std::chrono::steady_clock::time_point,
-          std::chrono::steady_clock::duration> wtime;
+  Mesh* pmesh;
+  Timer<std::chrono::seconds,
+        std::chrono::steady_clock,
+        std::chrono::steady_clock::time_point,
+        std::chrono::steady_clock::duration>
+    wtime;
 
-    clock_t tstart, tstop;
-    double omp_start_time;
-    double omp_time;
+  clock_t tstart, tstop;
+  double omp_start_time;
+  double omp_time;
 
-    // start time for `Elapsed_seconds` & `Elapsed_hours`
-    Real evo_clock_time_start;
+  // start time for `Elapsed_seconds` & `Elapsed_hours`
+  Real evo_clock_time_start;
 };
 
 }  // namespace gra::timing
 
 // General procedures ---------------------------------------------------------
-namespace gra {
+namespace gra
+{
 
 // BD: TODO- would be an excellent move to inject git commit into ver. info
 std::string athena_version = "version 19.0 - August 2019";
 
 struct Pathing
 {
-  char *input_filename = nullptr;
-  char *restart_filename = nullptr;
-  char *prundir = nullptr;
+  char* input_filename   = nullptr;
+  char* restart_filename = nullptr;
+  char* prundir          = nullptr;
 };
 
 struct Flags
 {
-  int res;  // set to 1 if -r        argument is on cmdline
-  int narg; // set to 1 if -n        argument is on cmdline
-  int iarg; // set to 1 if -i <file> argument is on cmdline
-  int mesh; // set to <nproc> if -m <nproc> argument is on cmdline
+  int res;   // set to 1 if -r        argument is on cmdline
+  int narg;  // set to 1 if -n        argument is on cmdline
+  int iarg;  // set to 1 if -i <file> argument is on cmdline
+  int mesh;  // set to <nproc> if -m <nproc> argument is on cmdline
   int wtlim;
 };
 
 // Command line parsing -------------------------------------------------------
-inline void ParseCommandLine(int argc, char *argv[], Pathing *ppat, Flags *pfl)
+inline void ParseCommandLine(int argc, char* argv[], Pathing* ppat, Flags* pfl)
 {
-  for (int i=1; i<argc; i++)
+  for (int i = 1; i < argc; i++)
   {
     // If argv[i] is a 2 character string of the form "-?" then:
-    if (*argv[i] == '-'  && *(argv[i]+1) != '\0' && *(argv[i]+2) == '\0')
+    if (*argv[i] == '-' && *(argv[i] + 1) != '\0' && *(argv[i] + 2) == '\0')
     {
       // check validity of command line options + arguments:
-      char opt_letter = *(argv[i]+1);
-      switch(opt_letter) {
+      char opt_letter = *(argv[i] + 1);
+      switch (opt_letter)
+      {
         // options that do not take arguments:
         case 'n':
         case 'c':
@@ -309,52 +311,58 @@ inline void ParseCommandLine(int argc, char *argv[], Pathing *ppat, Flags *pfl)
           break;
           // options that require arguments:
         default:
-          if ((i+1 >= argc) // flag is at the end of the command line options
-              || (*argv[i+1] == '-') ) { // flag is followed by another flag
+          if ((i + 1 >=
+               argc)  // flag is at the end of the command line options
+              || (*argv[i + 1] == '-'))
+          {  // flag is followed by another flag
             if (Globals::my_rank == 0)
             {
               std::cout << "### FATAL ERROR in main" << std::endl
-                        << "-" << opt_letter << " must be followed by a valid argument\n";
+                        << "-" << opt_letter
+                        << " must be followed by a valid argument\n";
 
               gra::parallelism::Teardown();
               std::exit(0);
             }
           }
       }
-      switch(*(argv[i]+1))
+      switch (*(argv[i] + 1))
       {
-        case 'i':                      // -i <input_filename>
+        case 'i':  // -i <input_filename>
           ppat->input_filename = argv[++i];
-          pfl->iarg = 1;
+          pfl->iarg            = 1;
           break;
-        case 'r':                      // -r <restart_file>
-          pfl->res = 1;
+        case 'r':  // -r <restart_file>
+          pfl->res               = 1;
           ppat->restart_filename = argv[++i];
           break;
-        case 'd':                      // -d <run_directory>
+        case 'd':  // -d <run_directory>
           ppat->prundir = argv[++i];
           break;
         case 'n':
           pfl->narg = 1;
           break;
-        case 'm':                      // -m <nproc>
+        case 'm':  // -m <nproc>
           pfl->mesh = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
           break;
-        case 't':                      // -t <hh:mm:ss>
+        case 't':  // -t <hh:mm:ss>
           int wth, wtm, wts;
           std::sscanf(argv[++i], "%d:%d:%d", &wth, &wtm, &wts);
-          pfl->wtlim = wth*3600 + wtm*60 + wts;
+          pfl->wtlim = wth * 3600 + wtm * 60 + wts;
           break;
         case 'c':
-          if (Globals::my_rank == 0) ShowConfig();
+          if (Globals::my_rank == 0)
+            ShowConfig();
           gra::parallelism::Teardown();
           std::exit(0);
           break;
         case 'h':
         default:
-          if (Globals::my_rank == 0) {
+          if (Globals::my_rank == 0)
+          {
             std::cout << "Athena++ " << athena_version << std::endl;
-            std::cout << "Usage: " << argv[0] << " [options] [block/par=value ...]\n";
+            std::cout << "Usage: " << argv[0]
+                      << " [options] [block/par=value ...]\n";
             std::cout << "Options:" << std::endl;
             std::cout << "  -i <file>       specify input file [athinput]\n";
             std::cout << "  -r <file>       restart with this file\n";
@@ -362,7 +370,8 @@ inline void ParseCommandLine(int argc, char *argv[], Pathing *ppat, Flags *pfl)
             std::cout << "  -n              parse input file and quit\n";
             std::cout << "  -c              show configuration and quit\n";
             std::cout << "  -m <nproc>      output mesh structure and quit\n";
-            std::cout << "  -t hh:mm:ss     wall time limit for final output\n";
+            std::cout
+              << "  -t hh:mm:ss     wall time limit for final output\n";
             std::cout << "  -h              this help\n";
             ShowConfig();
           }
@@ -370,7 +379,8 @@ inline void ParseCommandLine(int argc, char *argv[], Pathing *ppat, Flags *pfl)
           std::exit(0);
           break;
       }
-    } // else if argv[i] not of form "-?" ignore it here (tested in ModifyFromCmdline)
+    }  // else if argv[i] not of form "-?" ignore it here (tested in
+       // ModifyFromCmdline)
   }
 
   if (ppat->restart_filename == nullptr && ppat->input_filename == nullptr)
@@ -384,11 +394,14 @@ inline void ParseCommandLine(int argc, char *argv[], Pathing *ppat, Flags *pfl)
 }
 
 // Input parsing --------------------------------------------------------------
-inline void ParseInputs(int argc, char *argv[],
-                        Pathing *ppat, Flags *pfl, ParameterInput *pin,
-                        IOWrapper &infile, IOWrapper &restartfile)
+inline void ParseInputs(int argc,
+                        char* argv[],
+                        Pathing* ppat,
+                        Flags* pfl,
+                        ParameterInput* pin,
+                        IOWrapper& infile,
+                        IOWrapper& restartfile)
 {
-
   try
   {
     if (pfl->res == 1)
@@ -396,64 +409,73 @@ inline void ParseInputs(int argc, char *argv[],
       restartfile.Open(ppat->restart_filename, IOWrapper::FileMode::read);
       pin->LoadFromFile(restartfile);
       // If both -r and -i are specified, make sure next_time gets corrected.
-      // This needs to be corrected on the restart file because we need the old dt.
-      if (pfl->iarg == 1) pin->RollbackNextTime();
+      // This needs to be corrected on the restart file because we need the old
+      // dt.
+      if (pfl->iarg == 1)
+        pin->RollbackNextTime();
       // leave the restart file open for later use
     }
     if (pfl->iarg == 1)
     {
-      // if both -r and -i are specified, override the parameters using the input file
+      // if both -r and -i are specified, override the parameters using the
+      // input file
       infile.Open(ppat->input_filename, IOWrapper::FileMode::read);
       pin->LoadFromFile(infile);
       infile.Close();
     }
-    pin->ModifyFromCmdline(argc ,argv);
+    pin->ModifyFromCmdline(argc, argv);
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl
               << "memory allocation failed initializing class ParameterInput: "
               << ba.what() << std::endl;
-    if (pfl->res == 1) restartfile.Close();
+    if (pfl->res == 1)
+      restartfile.Close();
     gra::parallelism::Teardown();
     std::exit(0);
   }
-  catch(std::exception const& ex)
+  catch (std::exception const& ex)
   {
     std::cout << ex.what() << std::endl;  // prints diagnostic message
-    if (pfl->res == 1) restartfile.Close();
+    if (pfl->res == 1)
+      restartfile.Close();
     gra::parallelism::Teardown();
     std::exit(0);
   }
 }
 
 // Mesh manipulation ----------------------------------------------------------
-inline Mesh * InitMesh(Flags *pfl, ParameterInput *pin, IOWrapper &resfile)
+inline Mesh* InitMesh(Flags* pfl, ParameterInput* pin, IOWrapper& resfile)
 {
-  Mesh *pmesh;
+  Mesh* pmesh;
 
   try
   {
     if (pfl->res == 0)
     {
       pmesh = new Mesh(pin, pfl->mesh);
-    } else {
+    }
+    else
+    {
       pmesh = new Mesh(pin, resfile, pfl->mesh);
     }
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl
               << "memory allocation failed initializing class Mesh: "
               << ba.what() << std::endl;
-    if (pfl->res == 1) resfile.Close();
+    if (pfl->res == 1)
+      resfile.Close();
     gra::parallelism::Teardown();
     std::exit(0);
   }
-  catch(std::exception const& ex)
+  catch (std::exception const& ex)
   {
     std::cout << ex.what() << std::endl;  // prints diagnostic message
-    if (pfl->res == 1) resfile.Close();
+    if (pfl->res == 1)
+      resfile.Close();
     gra::parallelism::Teardown();
     std::exit(0);
   }
@@ -470,13 +492,16 @@ inline Mesh * InitMesh(Flags *pfl, ParameterInput *pin, IOWrapper &resfile)
   // Dump input parameters and quit if code was run with -n option.
   if (pfl->narg)
   {
-    if (Globals::my_rank == 0) pin->ParameterDump(std::cout);
-    if (pfl->res == 1) resfile.Close();
+    if (Globals::my_rank == 0)
+      pin->ParameterDump(std::cout);
+    if (pfl->res == 1)
+      resfile.Close();
     gra::parallelism::Teardown();
     std::exit(0);
   }
 
-  if (pfl->res == 1) resfile.Close(); // close the restart file here
+  if (pfl->res == 1)
+    resfile.Close();  // close the restart file here
 
   // Quit if -m was on cmdline.  This option builds and outputs mesh structure.
   if (pfl->mesh > 0)
@@ -488,7 +513,7 @@ inline Mesh * InitMesh(Flags *pfl, ParameterInput *pin, IOWrapper &resfile)
   return pmesh;
 }
 
-inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
+inline void InitMeshData(Flags* pfl, ParameterInput* pin, Mesh* pm)
 {
   try
   {
@@ -499,7 +524,7 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
     pm->InitializePostFirstInitialize(init_style, pin);
     pm->DeleteTemporaryUserMeshData();
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl
               << "memory allocation failed "
@@ -507,7 +532,7 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
     gra::parallelism::Teardown();
     std::exit(0);
   }
-  catch(std::exception const& ex)
+  catch (std::exception const& ex)
   {
     std::cout << ex.what() << std::endl;  // prints diagnostic message
     gra::parallelism::Teardown();
@@ -516,16 +541,16 @@ inline void InitMeshData(Flags *pfl, ParameterInput *pin, Mesh *pm)
 }
 
 // Output handlers ------------------------------------------------------------
-inline Outputs * InitOutputs(Flags *pfl,
-                             Pathing *ppat,
-                             ParameterInput *pin,
-                             Mesh *pm)
+inline Outputs* InitOutputs(Flags* pfl,
+                            Pathing* ppat,
+                            ParameterInput* pin,
+                            Mesh* pm)
 {
   try
   {
     ChangeRunDir(ppat->prundir);
 
-    Outputs *pouts;
+    Outputs* pouts;
 
     pouts = new Outputs(pm, pin);
 
@@ -539,26 +564,26 @@ inline Outputs * InitOutputs(Flags *pfl,
 
     return pouts;
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl
               << "memory allocation failed setting initial conditions: "
               << ba.what() << std::endl;
     gra::parallelism::Teardown();
-    return(0);
+    return (0);
   }
-  catch(std::exception const& ex)
+  catch (std::exception const& ex)
   {
     std::cout << ex.what() << std::endl;
     gra::parallelism::Teardown();
-    return(0);
+    return (0);
   }
 }
 
 inline void MakeOutputs(const bool is_final,
-                        ParameterInput *pin,
-                        Mesh *pm,
-                        Outputs *pouts)
+                        ParameterInput* pin,
+                        Mesh* pm,
+                        Outputs* pouts)
 {
   // Record final time as start_time for any restarts
   pin->SetReal("time", "start_time", pm->time);
@@ -571,15 +596,15 @@ inline void MakeOutputs(const bool is_final,
   {
     pouts->MakeOutputs(pm, pin, is_final);
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl
               << "memory allocation failed during output: ";
-    std::cout << ba.what() <<std::endl;
+    std::cout << ba.what() << std::endl;
     gra::parallelism::Teardown();
     std::exit(0);
   }
-  catch(std::exception const& ex)
+  catch (std::exception const& ex)
   {
     std::cout << ex.what() << std::endl;
     gra::parallelism::Teardown();
@@ -597,21 +622,30 @@ inline void PrintRankZero(std::string msg)
 }
 
 inline void PrintDiagnostics(std::uint64_t mbcnt,
-                             gra::timing::Clocks * pclk,
-                             Mesh *pm)
+                             gra::timing::Clocks* pclk,
+                             Mesh* pm)
 {
   if (Globals::my_rank == 0)
   {
     pm->OutputCycleDiagnostics();
-    if (SignalHandler::GetSignalFlag(SIGTERM) != 0) {
+    if (SignalHandler::GetSignalFlag(SIGTERM) != 0)
+    {
       std::cout << std::endl << "Terminating on Terminate signal" << std::endl;
-    } else if (SignalHandler::GetSignalFlag(SIGINT) != 0) {
+    }
+    else if (SignalHandler::GetSignalFlag(SIGINT) != 0)
+    {
       std::cout << std::endl << "Terminating on Interrupt signal" << std::endl;
-    } else if (SignalHandler::GetSignalFlag(SIGALRM) != 0) {
+    }
+    else if (SignalHandler::GetSignalFlag(SIGALRM) != 0)
+    {
       std::cout << std::endl << "Terminating on wall-time limit" << std::endl;
-    } else if (pm->ncycle == pm->nlim) {
+    }
+    else if (pm->ncycle == pm->nlim)
+    {
       std::cout << std::endl << "Terminating on cycle limit" << std::endl;
-    } else {
+    }
+    else
+    {
       std::cout << std::endl << "Terminating on time limit" << std::endl;
     }
 
@@ -620,68 +654,70 @@ inline void PrintDiagnostics(std::uint64_t mbcnt,
 
     if (pm->adaptive)
     {
-      std::cout << std::endl << "Number of MeshBlocks = " << pm->nbtotal
-                << "; " << pm->nbnew << "  created, " << pm->nbdel
+      std::cout << std::endl
+                << "Number of MeshBlocks = " << pm->nbtotal << "; "
+                << pm->nbnew << "  created, " << pm->nbdel
                 << " destroyed during this simulation." << std::endl;
     }
 
     // Calculate and print the zone-cycles/cpu-second and wall-second
     pclk->Stop();
-    double cpu_time = (pclk->tstop > pclk->tstart ?
-                       static_cast<double> (pclk->tstop-pclk->tstart) :
-                       1.0)/static_cast<double> (CLOCKS_PER_SEC);
-    std::uint64_t zonecycles = mbcnt * static_cast<std::uint64_t> (
-      pm->pblock->GetNumberOfMeshBlockCells()
-    );
-    double zc_cpus = static_cast<double> (zonecycles) / cpu_time;
+    double cpu_time = (pclk->tstop > pclk->tstart
+                         ? static_cast<double>(pclk->tstop - pclk->tstart)
+                         : 1.0) /
+                      static_cast<double>(CLOCKS_PER_SEC);
+    std::uint64_t zonecycles =
+      mbcnt *
+      static_cast<std::uint64_t>(pm->pblock->GetNumberOfMeshBlockCells());
+    double zc_cpus = static_cast<double>(zonecycles) / cpu_time;
 
     std::cout << std::endl << "zone-cycles = " << zonecycles << std::endl;
     std::cout << "cpu time used = " << cpu_time << std::endl;
     std::cout << "zone-cycles/cpu_second = " << zc_cpus << std::endl;
 #ifdef OPENMP_PARALLEL
-    double zc_omps = static_cast<double> (zonecycles) / pclk->omp_time;
-    std::cout << std::endl << "omp wtime used = "
-                           << pclk->omp_time << std::endl;
+    double zc_omps = static_cast<double>(zonecycles) / pclk->omp_time;
+    std::cout << std::endl
+              << "omp wtime used = " << pclk->omp_time << std::endl;
     std::cout << "zone-cycles/omp_wsecond = " << zc_omps << std::endl;
 #endif
   }
-
 }
 
 }  // namespace gra
 
 // Handle collections of tasklists --------------------------------------------
-namespace gra::tasklist {
+namespace gra::tasklist
+{
 
 struct Collection
 {
-  gra::triggers::Triggers & trgs;
-  TaskLists::GeneralRelativity::GR_Z4c      * gr_z4c       = nullptr;
+  gra::triggers::Triggers& trgs;
+  TaskLists::GeneralRelativity::GR_Z4c* gr_z4c = nullptr;
 
   // Monolithic GRMHD+Z4c: single-DAG task list (default, no internal barriers)
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Monolithic * grmhd_z4c_mono = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Monolithic* grmhd_z4c_mono = nullptr;
 
   // Split 4-phase GRMHD+Z4c: selected by hydro/use_split_grmhd_z4c = true
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD      * grmhd_z4c_MHD     = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com  * grmhd_z4c_MHD_com = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Z4c      * grmhd_z4c_Z4c     = nullptr;
-  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Finalize * grmhd_z4c_Fin     = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD* grmhd_z4c_MHD = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_MHD_com* grmhd_z4c_MHD_com =
+    nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Z4c* grmhd_z4c_Z4c = nullptr;
+  TaskLists::GeneralRelativity::GRMHD_Z4c_Phase_Finalize* grmhd_z4c_Fin =
+    nullptr;
 
   // Whether to use the split (4-phase) task list instead of monolithic
   bool use_split_grmhd_z4c = false;
 
-  TaskLists::GeneralRelativity::Aux_Z4c     * aux_z4c      = nullptr;
-  TaskLists::GeneralRelativity::PostAMR_Z4c * postamr_z4c  = nullptr;
+  TaskLists::GeneralRelativity::Aux_Z4c* aux_z4c         = nullptr;
+  TaskLists::GeneralRelativity::PostAMR_Z4c* postamr_z4c = nullptr;
 
-  TaskLists::M1::M1N0                       * m1n0         = nullptr;
-  TaskLists::M1::PostAMR_M1N0               * postamr_m1n0 = nullptr;
+  TaskLists::M1::M1N0* m1n0                 = nullptr;
+  TaskLists::M1::PostAMR_M1N0* postamr_m1n0 = nullptr;
 
-  TaskLists::WaveEquations::Wave_2O         * wave_2o      = nullptr;
+  TaskLists::WaveEquations::Wave_2O* wave_2o = nullptr;
 };
 
-inline void PopulateCollection(Collection &ptlc,
-                               Mesh *pm,
-                               ParameterInput *pin)
+inline void PopulateCollection(Collection& ptlc, Mesh* pm, ParameterInput* pin)
 {
   try
   {
@@ -694,15 +730,17 @@ inline void PopulateCollection(Collection &ptlc,
         // Runtime selection between monolithic and split task lists.
         // Default is monolithic (single DAG, no inter-phase barriers).
         ptlc.use_split_grmhd_z4c =
-            pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false);
+          pin->GetOrAddBoolean("hydro", "use_split_grmhd_z4c", false);
 
         if (ptlc.use_split_grmhd_z4c)
         {
           // GR(M)HD [split 4-phase]
-          ptlc.grmhd_z4c_MHD     = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
-          ptlc.grmhd_z4c_MHD_com = new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
-          ptlc.grmhd_z4c_Z4c     = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
-          ptlc.grmhd_z4c_Fin     = new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_MHD = new GRMHD_Z4c_Phase_MHD(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_MHD_com =
+            new GRMHD_Z4c_Phase_MHD_com(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_Z4c = new GRMHD_Z4c_Phase_Z4c(pin, pm, ptlc.trgs);
+          ptlc.grmhd_z4c_Fin =
+            new GRMHD_Z4c_Phase_Finalize(pin, pm, ptlc.trgs);
         }
         else
         {
@@ -728,11 +766,10 @@ inline void PopulateCollection(Collection &ptlc,
       // embed MHD re-scatter tasks directly in the M1N0 DAG so that MHD
       // ghost exchange overlaps with M1 analysis/userwork.  When the split
       // path is active, the M1N0 driver calls MHD_com + Finalize externally.
-      const bool embed_mhd = (Z4C_ENABLED && FLUID_ENABLED)
-                              ? !ptlc.use_split_grmhd_z4c
-                              : false;
+      const bool embed_mhd =
+        (Z4C_ENABLED && FLUID_ENABLED) ? !ptlc.use_split_grmhd_z4c : false;
 
-      ptlc.m1n0 = new M1N0(pin, pm, ptlc.trgs, embed_mhd);
+      ptlc.m1n0         = new M1N0(pin, pm, ptlc.trgs, embed_mhd);
       ptlc.postamr_m1n0 = new PostAMR_M1N0(pin, pm, ptlc.trgs);
     }
 
@@ -742,7 +779,7 @@ inline void PopulateCollection(Collection &ptlc,
       ptlc.wave_2o = new Wave_2O(pin, pm, ptlc.trgs);
     }
   }
-  catch(std::bad_alloc& ba)
+  catch (std::bad_alloc& ba)
   {
     std::cout << "### FATAL ERROR in main" << std::endl;
     std::cout << "memory allocation failed ";
@@ -753,7 +790,7 @@ inline void PopulateCollection(Collection &ptlc,
   }
 }
 
-inline void TearDown(Collection &ptlc)
+inline void TearDown(Collection& ptlc)
 {
   if (Z4C_ENABLED)
   {
@@ -793,22 +830,21 @@ inline void TearDown(Collection &ptlc)
   {
     delete ptlc.wave_2o;
   }
-
 }
 
 }  // namespace gra::tasklist
 
 // Integration loop handling / triggers, etc ----------------------------------
-namespace gra::evolve {
+namespace gra::evolve
+{
 
 using namespace gra::triggers;
 typedef Triggers::TriggerVariant tvar;
 typedef Triggers::OutputVariant ovar;
 
-inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
-                       Mesh *pmesh)
+inline void Z4c_Vacuum(gra::tasklist::Collection& ptlc, Mesh* pmesh)
 {
-  for (int stage=1; stage<=ptlc.gr_z4c->nstages; ++stage)
+  for (int stage = 1; stage <= ptlc.gr_z4c->nstages; ++stage)
   {
     ptlc.gr_z4c->DoTaskListOneStage(pmesh, stage);
     // Iterate bnd comm. as required
@@ -816,13 +852,13 @@ inline void Z4c_Vacuum(gra::tasklist::Collection &ptlc,
   }
 }
 
-inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
-                      Mesh *pmesh)
+inline void Z4c_GRMHD(gra::tasklist::Collection& ptlc, Mesh* pmesh)
 {
   if (ptlc.use_split_grmhd_z4c)
   {
-    // ----- Split 4-phase path (legacy, selected by hydro/use_split_grmhd_z4c = true)
-    for (int stage=1; stage<=ptlc.grmhd_z4c_MHD->nstages; ++stage)
+    // ----- Split 4-phase path (legacy, selected by hydro/use_split_grmhd_z4c
+    // = true)
+    for (int stage = 1; stage <= ptlc.grmhd_z4c_MHD->nstages; ++stage)
     {
       ptlc.grmhd_z4c_MHD->DoTaskListOneStage(pmesh, stage);
       ptlc.grmhd_z4c_Z4c->DoTaskListOneStage(pmesh, stage);
@@ -838,13 +874,11 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
       if (pmesh->presc->opt.apply_on_substeps ||
           (stage == ptlc.grmhd_z4c_MHD->nstages))
       {
-        const Real time_end_stage   = pmesh->time+pmesh->dt;
-        const Real ncycle_end_stage = pmesh->ncycle+1;
+        const Real time_end_stage   = pmesh->time + pmesh->dt;
+        const Real ncycle_end_stage = pmesh->ncycle + 1;
 
         pmesh->presc->Apply();
-        pmesh->presc->OutputWrite(ncycle_end_stage,
-                                  time_end_stage,
-                                  stage);
+        pmesh->presc->OutputWrite(ncycle_end_stage, time_end_stage, stage);
       }
 #endif
     }
@@ -852,7 +886,7 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
   else
   {
     // ----- Monolithic path (default) - single DAG, no inter-phase barriers
-    for (int stage=1; stage<=ptlc.grmhd_z4c_mono->nstages; ++stage)
+    for (int stage = 1; stage <= ptlc.grmhd_z4c_mono->nstages; ++stage)
     {
       ptlc.grmhd_z4c_mono->DoTaskListOneStage(pmesh, stage);
 
@@ -861,29 +895,26 @@ inline void Z4c_GRMHD(gra::tasklist::Collection &ptlc,
       if (pmesh->presc->opt.apply_on_substeps ||
           (stage == ptlc.grmhd_z4c_mono->nstages))
       {
-        const Real time_end_stage   = pmesh->time+pmesh->dt;
-        const Real ncycle_end_stage = pmesh->ncycle+1;
+        const Real time_end_stage   = pmesh->time + pmesh->dt;
+        const Real ncycle_end_stage = pmesh->ncycle + 1;
 
         pmesh->presc->Apply();
-        pmesh->presc->OutputWrite(ncycle_end_stage,
-                                  time_end_stage,
-                                  stage);
+        pmesh->presc->OutputWrite(ncycle_end_stage, time_end_stage, stage);
       }
 #endif
     }
   }
-
 }
 
-inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
-                                  gra::triggers::Triggers &trgs,
-                                  Mesh *pmesh,
-                                  Outputs *pouts)
+inline void Z4c_DerivedQuantities(gra::tasklist::Collection& ptlc,
+                                  gra::triggers::Triggers& trgs,
+                                  Mesh* pmesh,
+                                  Outputs* pouts)
 {
   // After state vector propagated, derived diagnostics (i.e. GW, trackers)
   // are at the new time-step ...
-  const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const int ncycle_end_stage  = pmesh->ncycle+1;
+  const Real time_end_stage  = pmesh->time + pmesh->dt;
+  const int ncycle_end_stage = pmesh->ncycle + 1;
 
   // All derived hydro/field quantities computed for hst or any surface
 #if FLUID_ENABLED
@@ -893,7 +924,9 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   {
     for (auto psurf : pmesh->psurfs)
     {
-      need_derived = need_derived || trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix);
+      need_derived =
+        need_derived ||
+        trgs.IsSatisfied(tvar::Surfaces, ovar::user, psurf->par_ix);
       if (need_derived)
         break;
     }
@@ -901,18 +934,18 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
 
   // should also check whether needed for athdf:
   if (!need_derived)
-  if (pouts->TimeExceedsNextOutputTime("hydro.aux", time_end_stage) ||
-      pouts->TimeExceedsNextOutputTime("field.aux", time_end_stage))
-  {
-    need_derived = true;
-  }
+    if (pouts->TimeExceedsNextOutputTime("hydro.aux", time_end_stage) ||
+        pouts->TimeExceedsNextOutputTime("field.aux", time_end_stage))
+    {
+      need_derived = true;
+    }
 
   if (need_derived)
   {
     pmesh->CalculateHydroFieldDerived();
   }
 
-#endif // FLUID_ENABLED
+#endif  // FLUID_ENABLED
 
   // Compute global extrema quantities if so desired
   if (trgs.IsSatisfied(tvar::global_extrema))
@@ -979,7 +1012,7 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   {
     for (auto prwz : pmesh->pwave_extr_rwz)
     {
-      //prwz->FlagSpherePointsContainedMesh();
+      // prwz->FlagSpherePointsContainedMesh();
       prwz->MetricToSphere();
       prwz->BackgroundReduce();
       prwz->MultipoleReduce();
@@ -990,7 +1023,6 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   // AHF
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {
-
     for (auto pah_f : pmesh->pah_finder)
     {
       pah_f->Find(ncycle_end_stage, time_end_stage);
@@ -1018,20 +1050,15 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection &ptlc,
   }
 
   if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
-  for (auto ptracker : pmesh->pz4c_tracker)
-  {
-    ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
-  }
-
+    for (auto ptracker : pmesh->pz4c_tracker)
+    {
+      ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
+    }
 }
 
-inline void M1N0(gra::tasklist::Collection &ptlc,
-                 Mesh *pmesh)
+inline void M1N0(gra::tasklist::Collection& ptlc, Mesh* pmesh)
 {
-  std::vector<MeshBlock*> pmb_array;
-  pmesh->GetMeshBlocksMyRank(pmb_array);
-
-  for (int stage=1; stage<=ptlc.m1n0->nstages; ++stage)
+  for (int stage = 1; stage <= ptlc.m1n0->nstages; ++stage)
   {
     ptlc.m1n0->DoTaskListOneStage(pmesh, stage);
 
@@ -1050,20 +1077,17 @@ inline void M1N0(gra::tasklist::Collection &ptlc,
 
 #if FLUID_ENABLED
       // Rescale as required
-      const Real time_end_stage   = pmesh->time+pmesh->dt;
-      const Real ncycle_end_stage = pmesh->ncycle+1;
+      const Real time_end_stage   = pmesh->time + pmesh->dt;
+      const Real ncycle_end_stage = pmesh->ncycle + 1;
 
       pmesh->presc->Apply();
-      pmesh->presc->OutputWrite(ncycle_end_stage,
-                                time_end_stage,
-                                stage);
+      pmesh->presc->OutputWrite(ncycle_end_stage, time_end_stage, stage);
 #endif
     }
   }
 }
 
-inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
-                           Mesh *pmesh)
+inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection& ptlc, Mesh* pmesh)
 {
 #if M1_ENABLED
 
@@ -1093,7 +1117,7 @@ inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
 
     // revert time
     pmesh->time -= pmesh->dt;
-    pmesh->dt    = dt;
+    pmesh->dt = dt;
   }
   else
   {
@@ -1101,25 +1125,24 @@ inline void Z4c_GRMHD_M1N0(gra::tasklist::Collection &ptlc,
     M1N0(ptlc, pmesh);
   }
 
-#endif // M1_ENABLED
+#endif  // M1_ENABLED
 }
 
-inline void Wave_2O(gra::tasklist::Collection &ptlc,
-                    Mesh *pmesh)
+inline void Wave_2O(gra::tasklist::Collection& ptlc, Mesh* pmesh)
 {
-  for (int stage=1; stage<=ptlc.wave_2o->nstages; ++stage)
+  for (int stage = 1; stage <= ptlc.wave_2o->nstages; ++stage)
   {
     ptlc.wave_2o->DoTaskListOneStage(pmesh, stage);
   }
 }
 
-inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
-                           gra::triggers::Triggers &trgs,
-                           Mesh *pmesh)
+inline void TrackerExtrema(gra::tasklist::Collection& ptlc,
+                           gra::triggers::Triggers& trgs,
+                           Mesh* pmesh)
 {
   // Extrema tracker is based on propagated state vector
-  const Real time_end_stage   = pmesh->time+pmesh->dt;
-  const Real ncycle_end_stage = pmesh->ncycle+1;
+  const Real time_end_stage   = pmesh->time + pmesh->dt;
+  const Real ncycle_end_stage = pmesh->ncycle + 1;
 
   // Trace AMR state
   pmesh->ptracker_extrema->ReduceTracker();
@@ -1127,16 +1150,15 @@ inline void TrackerExtrema(gra::tasklist::Collection &ptlc,
 
   if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
   {
-    pmesh->ptracker_extrema->EvaluateAndWriteFields(
-      ncycle_end_stage, time_end_stage
-    );
+    pmesh->ptracker_extrema->EvaluateAndWriteFields(ncycle_end_stage,
+                                                    time_end_stage);
     pmesh->ptracker_extrema->WriteTracker(ncycle_end_stage, time_end_stage);
   }
 }
 
-inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
-                              gra::triggers::Triggers &trgs,
-                              Mesh *pmesh,
+inline void SurfaceReductions(gra::tasklist::Collection& ptlc,
+                              gra::triggers::Triggers& trgs,
+                              Mesh* pmesh,
                               const bool is_final)
 {
   // Extrema tracker is based on propagated state vector
@@ -1161,7 +1183,7 @@ inline void SurfaceReductions(gra::tasklist::Collection &ptlc,
 
 }  // namespace gra::evolve
 
-#endif // MAIN_HPP
+#endif  // MAIN_HPP
 
 //
 // :D

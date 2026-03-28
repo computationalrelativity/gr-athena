@@ -17,7 +17,7 @@
 #include "../z4c/z4c.hpp"
 #include "mesh.hpp"
 
-void Mesh::FinalizeWave(std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeWave(const std::vector<MeshBlock*>& pmb_array)
 {
   MeshBlock* pmb;
 
@@ -51,7 +51,7 @@ void Mesh::FinalizeWave(std::vector<MeshBlock*>& pmb_array)
   }
 }
 
-void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*>& pmb_array,
+void Mesh::FinalizeZ4cADMPhysical(const std::vector<MeshBlock*>& pmb_array,
                                   const bool enforce_alg)
 {
 #if Z4C_ENABLED
@@ -97,7 +97,7 @@ void Mesh::FinalizeZ4cADMPhysical(std::vector<MeshBlock*>& pmb_array,
 #endif  // Z4C_ENABLED
 }
 
-void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*>& pmb_array,
+void Mesh::FinalizeZ4cADMGhosts(const std::vector<MeshBlock*>& pmb_array,
                                 const bool enforce_alg)
 {
 #if Z4C_ENABLED
@@ -163,7 +163,7 @@ void Mesh::FinalizeZ4cADMGhosts(std::vector<MeshBlock*>& pmb_array,
 #endif  // Z4C_ENABLED
 }
 
-void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeZ4cADM_Matter(const std::vector<MeshBlock*>& pmb_array)
 {
 #if defined(Z4C_WITH_HYDRO_ENABLED)
   MeshBlock* pmb = nullptr;
@@ -239,7 +239,7 @@ void Mesh::FinalizeZ4cADM_Matter(std::vector<MeshBlock*>& pmb_array)
 #endif  // Z4C_ENABLED
 }
 
-void Mesh::FinalizeM1(std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeM1(const std::vector<MeshBlock*>& pmb_array)
 {
 #if M1_ENABLED
   MeshBlock* pmb;
@@ -282,7 +282,7 @@ void Mesh::FinalizeM1(std::vector<MeshBlock*>& pmb_array)
 #endif  // M1_ENABLED
 }
 
-void Mesh::FinalizeHydro_pgen(std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeHydro_pgen(const std::vector<MeshBlock*>& pmb_array)
 {
 #if FLUID_ENABLED
   MeshBlock* pmb;
@@ -306,7 +306,7 @@ void Mesh::FinalizeHydro_pgen(std::vector<MeshBlock*>& pmb_array)
 #endif  // FLUID_ENABLED
 }
 
-void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeHydroConsRP(const std::vector<MeshBlock*>& pmb_array)
 {
   MeshBlock* pmb;
 
@@ -366,7 +366,7 @@ void Mesh::FinalizeHydroConsRP(std::vector<MeshBlock*>& pmb_array)
   }
 }
 
-void Mesh::PreparePrimitives(std::vector<MeshBlock*>& pmb_array,
+void Mesh::PreparePrimitives(const std::vector<MeshBlock*>& pmb_array,
                              const bool interior_only,
                              const bool skip_physical)
 {
@@ -422,7 +422,7 @@ void Mesh::PreparePrimitives(std::vector<MeshBlock*>& pmb_array,
 #endif  // FLUID_ENABLED
 }
 
-void Mesh::CommunicateConserved(std::vector<MeshBlock*>& pmb_array)
+void Mesh::CommunicateConserved(const std::vector<MeshBlock*>& pmb_array)
 {
   MeshBlock* pmb;
 
@@ -470,7 +470,7 @@ void Mesh::CommunicateConserved(std::vector<MeshBlock*>& pmb_array)
   }
 }
 
-void Mesh::CommunicateConservedMatter(std::vector<MeshBlock*>& pmb_array)
+void Mesh::CommunicateConservedMatter(const std::vector<MeshBlock*>& pmb_array)
 {
   MeshBlock* pmb;
 
@@ -515,9 +515,8 @@ void Mesh::CommunicateAuxZ4c()
 
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  std::vector<MeshBlock*> pmb_array;
-  GetMeshBlocksMyRank(pmb_array);
-  const int nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
   const auto grp = comm::CommGroup::Aux;
 
@@ -587,9 +586,8 @@ void Mesh::CommunicateAuxADM()
 
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
-  std::vector<MeshBlock*> pmb_array;
-  GetMeshBlocksMyRank(pmb_array);
-  const int nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
   const auto grp = comm::CommGroup::AuxADM;
 
@@ -657,9 +655,8 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
   {
     int nthreads = GetNumMeshThreads();
     (void)nthreads;
-    std::vector<MeshBlock*> pmb_array;
-    GetMeshBlocksMyRank(pmb_array);
-    const int nmb = pmb_array.size();
+    const auto& pmb_array = GetMeshBlocksCached();
+    const int nmb         = pmb_array.size();
 
     // Communication uses the Iterated group (z4c_rbc channel with
     // RestrictOp::LagrangeFull).  Prolongation and physical BCs use the Z4c
@@ -760,9 +757,8 @@ void Mesh::GlobalExtrema()
   int nthreads = GetNumMeshThreads();
   (void)nthreads;
 
-  std::vector<MeshBlock*> pmb_array;
-  GetMeshBlocksMyRank(pmb_array);
-  const int nmb = pmb_array.size();
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
   // minima-per-MeshBlock and then reduce
   AA res_V_mb;

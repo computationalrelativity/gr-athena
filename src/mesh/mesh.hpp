@@ -532,7 +532,14 @@ class Mesh
 
   // functions ----------------------------------------------------------------
 
-  void GetMeshBlocksMyRank(std::vector<MeshBlock*>& pmb_array);
+  // Cached MeshBlock pointer array, indexed by local offset (gid - gid_base_).
+  // Rebuilt automatically when the block list changes (construction, restart,
+  // AMR regrid) via RebuildBlockByGid().  Prefer this over walking the pblock
+  // linked list.
+  const std::vector<MeshBlock*>& GetMeshBlocksCached() const
+  {
+    return block_by_gid_;
+  }
 
   enum class initialize_style
   {
@@ -593,26 +600,26 @@ class Mesh
                              AthenaArray<Real>& dx_max,
                              int& max_level);
 
-  void CommunicateConserved(std::vector<MeshBlock*>& pmb_array);
+  void CommunicateConserved(const std::vector<MeshBlock*>& pmb_array);
 
-  void CommunicateConservedMatter(std::vector<MeshBlock*>& pmb_array);
+  void CommunicateConservedMatter(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeWave(std::vector<MeshBlock*>& pmb_array);
+  void FinalizeWave(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeZ4cADMPhysical(std::vector<MeshBlock*>& pmb_array,
+  void FinalizeZ4cADMPhysical(const std::vector<MeshBlock*>& pmb_array,
                               const bool enforce_alg);
-  void FinalizeZ4cADMGhosts(std::vector<MeshBlock*>& pmb_array,
+  void FinalizeZ4cADMGhosts(const std::vector<MeshBlock*>& pmb_array,
                             const bool enforce_alg);
 
-  void FinalizeZ4cADM_Matter(std::vector<MeshBlock*>& pmb_array);
+  void FinalizeZ4cADM_Matter(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeM1(std::vector<MeshBlock*>& pmb_array);
+  void FinalizeM1(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeHydro_pgen(std::vector<MeshBlock*>& pmb_array);
+  void FinalizeHydro_pgen(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeHydroConsRP(std::vector<MeshBlock*>& pmb_array);
+  void FinalizeHydroConsRP(const std::vector<MeshBlock*>& pmb_array);
 
-  void PreparePrimitives(std::vector<MeshBlock*>& pmb_array,
+  void PreparePrimitives(const std::vector<MeshBlock*>& pmb_array,
                          const bool interior_only,
                          const bool skip_physical = false);
 

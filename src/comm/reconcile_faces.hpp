@@ -25,7 +25,8 @@ namespace comm
 {
 
 // Must be called OUTSIDE any OpenMP parallel region (uses MPI internally).
-void ReconcileSharedFacesFC(Mesh* pm, std::vector<MeshBlock*>& pmb_array);
+void ReconcileSharedFacesFC(Mesh* pm,
+                            const std::vector<MeshBlock*>& pmb_array);
 
 }  // namespace comm
 
