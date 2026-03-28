@@ -180,3 +180,175 @@ Real rec1d_p_ceno3(const Real uimt,
 //
 // :D
 //
+
+// ============================================================================
+// CENO5 -- Central ENO 5th order reconstruction
+//
+// Same philosophy as CENO3 but uses three quartic (5-point) sub-stencils
+// from a 7-point stencil {i-3,...,i+3}.  Achieves 5th order in smooth
+// regions; falls back to 2nd-order TVD near discontinuities.
+//
+// Sub-stencil coefficients (Lagrange interpolation at x_{i+1/2}),
+// denominator 128:
+//   k=-1  {i-3..i+1}:  -5,  28, -70, 140, 35
+//   k= 0  {i-2..i+2}:   3, -20,  90,  60, -5
+//   k=+1  {i-1..i+3}:  -5,  60,  90, -20,  3
+//
+// Requires NGHOST >= 4 (same as MP7).
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+namespace
+{
+
+// CENO5 uses the same limiter structure as CENO3 (3 candidates, same-sign
+// check, alpha-weighted central bias, select minimum magnitude).  Reuse
+// ceno3lim directly -- it already does exactly what we need.
+
+// Paired L+R kernel: computes both left and right states in a single call,
+// sharing the MC2 slope computation.
+inline void rec1d_p_ceno5_LR(const Real uim3,
+                             const Real uim2,
+                             const Real uim1,
+                             const Real ui,
+                             const Real uip1,
+                             const Real uip2,
+                             const Real uip3,
+                             Real& uL,
+                             Real& uR)
+{
+  using namespace reconstruction::utils;
+
+  static constexpr Real oo2   = 1.0 / 2.0;
+  static constexpr Real oo128 = 1.0 / 128.0;
+
+  // MC2 slope -- shared between L and R (R just flips sign)
+  const Real slope = oo2 * MC2((ui - uim1), (uip1 - ui));
+
+  // --- Left state (forward stencil) ---
+  const Real baseL = ui + slope;
+  Real dL[3];
+  dL[0] =
+    (-5.0 * uim3 + 28.0 * uim2 - 70.0 * uim1 + 140.0 * ui + 35.0 * uip1) *
+      oo128 -
+    baseL;
+  dL[1] =
+    (3.0 * uim2 - 20.0 * uim1 + 90.0 * ui + 60.0 * uip1 - 5.0 * uip2) * oo128 -
+    baseL;
+  dL[2] = (-5.0 * uim1 + 60.0 * ui + 90.0 * uip1 - 20.0 * uip2 + 3.0 * uip3) *
+            oo128 -
+          baseL;
+  uL = baseL + ceno3lim(dL);
+
+  // --- Right state (reversed stencil) ---
+  // Under argument reversal: uim3<->uip3, uim2<->uip2, uim1<->uip1
+  // slope flips sign -> baseR = ui - slope
+  const Real baseR = ui - slope;
+  Real dR[3];
+  dR[0] =
+    (-5.0 * uip3 + 28.0 * uip2 - 70.0 * uip1 + 140.0 * ui + 35.0 * uim1) *
+      oo128 -
+    baseR;
+  dR[1] =
+    (3.0 * uip2 - 20.0 * uip1 + 90.0 * ui + 60.0 * uim1 - 5.0 * uim2) * oo128 -
+    baseR;
+  dR[2] = (-5.0 * uip1 + 60.0 * ui + 90.0 * uim1 - 20.0 * uim2 + 3.0 * uim3) *
+            oo128 -
+          baseR;
+  uR = baseR + ceno3lim(dR);
+}
+
+}  // namespace
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructCeno5X1(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zim3 = z(n_src, k, j, i - 3);
+    const Real zim2 = z(n_src, k, j, i - 2);
+    const Real zim1 = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zip1 = z(n_src, k, j, i + 1);
+    const Real zip2 = z(n_src, k, j, i + 2);
+    const Real zip3 = z(n_src, k, j, i + 3);
+
+    Real uL, uR;
+    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructCeno5X2(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zim3 = z(n_src, k, j - 3, i);
+    const Real zim2 = z(n_src, k, j - 2, i);
+    const Real zim1 = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zip1 = z(n_src, k, j + 1, i);
+    const Real zip2 = z(n_src, k, j + 2, i);
+    const Real zip3 = z(n_src, k, j + 3, i);
+
+    Real uL, uR;
+    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructCeno5X3(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zim3 = z(n_src, k - 3, j, i);
+    const Real zim2 = z(n_src, k - 2, j, i);
+    const Real zim1 = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zip1 = z(n_src, k + 1, j, i);
+    const Real zip2 = z(n_src, k + 2, j, i);
+    const Real zip3 = z(n_src, k + 3, j, i);
+
+    Real uL, uR;
+    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+//
+// :D
+//
