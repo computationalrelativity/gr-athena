@@ -208,6 +208,10 @@ void ReconstructFields(MeshBlock* pmb,
   //   - Recompute from P
   // - Apply primitive floors
   // - Limit W, h, cs2 if they are also reconstructed
+  //
+  // Note: When xorder_use_aux_T is set, T is reconstructed to faces and
+  // GetTemperatureFromP is skipped (when recompute_temperature is also false).
+  // The reconstructed T is still needed by ApplyPrimitiveFloor below.
 
 #if !FLUID_ENABLED
   // only support operation with PrimitiveSolver

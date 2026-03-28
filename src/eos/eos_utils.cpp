@@ -630,6 +630,8 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
   const bool sp_kj = (skip_physical && (pmb->js <= j) && (j <= pmb->je) &&
                       (pmb->ks <= k) && (k <= pmb->ke));
 
+  const bool skip_cs2 = pmb->precon->xorder_use_aux_cs2;
+
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
@@ -681,10 +683,13 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
       (T > 0) ? GetEOS().GetSpecificInternalEnergy(n, T, Y) : 0;
     hyd_der_ms(IX_HU_d_0, k, j, i) = h / h_inf * hyd_der_ms(IX_U_d_0, k, j, i);
 
-    hyd_der_ms(IX_CS2, k, j, i) =
-      (T > 0) ? SQR(GetEOS().GetSoundSpeed(n, T, Y)) : 0;
-    hyd_der_ms(IX_CS2, k, j, i) =
-      std::min(hyd_der_ms(IX_CS2, k, j, i), max_cs2);
+    if (!skip_cs2)
+    {
+      hyd_der_ms(IX_CS2, k, j, i) =
+        (T > 0) ? SQR(GetEOS().GetSoundSpeed(n, T, Y)) : 0;
+      hyd_der_ms(IX_CS2, k, j, i) =
+        std::min(hyd_der_ms(IX_CS2, k, j, i), max_cs2);
+    }
     Real Vx                    = hyd_der_int(IX_TR_V1, k, j, i);
     Real Vy                    = hyd_der_int(IX_TR_V2, k, j, i);
     hyd_der_ms(IX_OM, k, j, i) = (x * Vy - y * Vx) / (SQR(x) + SQR(y));

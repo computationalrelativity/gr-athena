@@ -1140,6 +1140,27 @@ TaskStatus GRMHD_Z4c_Monolithic::PrimitivesGhosts(MeshBlock* pmb, int stage)
           ph->derived_ms(IX_ETH, k, j, i) =
             peos->GetEOS().GetEnthalpy(n, ph->derived_ms(IX_T, k, j, i), Y);
         }
+
+      // Recompute cs2 from smoothed T if auxiliary cs2 reconstruction is
+      // active
+      if (pmb->precon->xorder_use_aux_cs2)
+      {
+        const Real mb_cs2 = peos->GetEOS().GetBaryonMass();
+        CC_GLOOP3(k, j, i)
+        {
+          Real Y[MAX_SPECIES] = { 0.0 };
+          for (int l = 0; l < NSCALARS; l++)
+          {
+            Y[l] = ps->r(l, k, j, i);
+          }
+          const Real n = ph->w(IDN, k, j, i) / mb_cs2;
+          const Real T = ph->derived_ms(IX_T, k, j, i);
+          ph->derived_ms(IX_CS2, k, j, i) =
+            (T > 0) ? std::min(SQR(peos->GetEOS().GetSoundSpeed(n, T, Y)),
+                               peos->max_cs2)
+                    : 0.0;
+        }
+      }
     }
 
     // Update w1 to retain the current primitive state

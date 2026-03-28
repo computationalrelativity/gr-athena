@@ -230,6 +230,27 @@ void Mesh::FinalizeZ4cADM_Matter(const std::vector<MeshBlock*>& pmb_array)
             n, ph->derived_ms(IX_T, k, j, i), Y);
         }
       }
+
+      // Recompute cs2 from smoothed T if auxiliary cs2 reconstruction is
+      // active
+      if (pmb->precon->xorder_use_aux_cs2)
+      {
+        const Real mb_cs2 = pmb->peos->GetEOS().GetBaryonMass();
+        CC_GLOOP3(k, j, i)
+        {
+          Real Y[MAX_SPECIES] = { 0.0 };
+          for (int l = 0; l < NSCALARS; l++)
+          {
+            Y[l] = ps->r(l, k, j, i);
+          }
+          const Real n = ph->w(IDN, k, j, i) / mb_cs2;
+          const Real T = ph->derived_ms(IX_T, k, j, i);
+          ph->derived_ms(IX_CS2, k, j, i) =
+            (T > 0) ? std::min(SQR(pmb->peos->GetEOS().GetSoundSpeed(n, T, Y)),
+                               pmb->peos->max_cs2)
+                    : 0.0;
+        }
+      }
     }
 
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);

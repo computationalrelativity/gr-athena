@@ -282,6 +282,8 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
   const Real max_v = ps.GetEOS()->GetMaxVelocity();
   const Real max_W = OO(std::sqrt(1 - SQR(max_v)));
 
+  const bool use_aux_cs2 = pmb->precon->xorder_use_aux_cs2;
+
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il;
   int IU = iu;
@@ -481,6 +483,17 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         // enthalpy update required at all substeps
         ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
           prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
+
+        // cs2 update required when auxiliary reconstruction of cs2 is active
+        if (use_aux_cs2)
+        {
+          const Real T_cs2 = ph->derived_ms(IX_T, k, j, i);
+          ph->derived_ms(IX_CS2, k, j, i) =
+            (T_cs2 > 0) ? std::min(SQR(GetEOS().GetSoundSpeed(
+                                     prim_pt[IDN], T_cs2, &prim_pt[IYF])),
+                                   max_cs2)
+                        : 0.0;
+        }
 
         // required [CT specifically] on all substeps
         const Real oo_W  = OO(ph->derived_ms(IX_LOR, k, j, i));

@@ -244,14 +244,7 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    // Calculate wavespeeds in left state NB EOS specific
-    // If using the PrimitiveSolver framework, get the number density
-    // and temperature to help calculate enthalpy.
-    Real nl__ = w_rho_l_(i) / mb;
-    Real nr__ = w_rho_r_(i) / mb;
-
-    Real Tl__ = aux_l_(IX_T, i);
-    Real Tr__ = aux_r_(IX_T, i);
+    // enthalpy is always needed for rho*h
     Real hl__ = aux_l_(IX_ETH, i);
     Real hr__ = aux_r_(IX_ETH, i);
 
@@ -267,6 +260,12 @@ void Hydro::RiemannSolver(const int ivx,
     }
     else
     {
+      Real nl__ = w_rho_l_(i) / mb;
+      Real nr__ = w_rho_r_(i) / mb;
+
+      Real Tl__ = aux_l_(IX_T, i);
+      Real Tr__ = aux_r_(IX_T, i);
+
       Real Yl__[MAX_SPECIES] = { 0.0 };
       Real Yr__[MAX_SPECIES] = { 0.0 };
       for (int n = 0; n < NSCALARS; n++)
