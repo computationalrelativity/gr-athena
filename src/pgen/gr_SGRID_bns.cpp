@@ -25,6 +25,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
+#include "../field/seed_magnetic_field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
@@ -154,113 +155,59 @@ namespace
 
 void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin)
 {
-  GRDynamical* pcoord{ static_cast<GRDynamical*>(pmb->pcoord) };
-  Field* pfield{ pmb->pfield };
-  Hydro* phydro{ pmb->phydro };
-
-  // Prepare CC index bounds
-  const int il = 0;
-  const int iu = (pmb->ncells1 > 1) ? pmb->ncells1 - 1 : 0;
-
-  const int jl = 0;
-  const int ju = (pmb->ncells2 > 1) ? pmb->ncells2 - 1 : 0;
-
-  const int kl = 0;
-  const int ku = (pmb->ncells3 > 1) ? pmb->ncells3 - 1 : 0;
-
   // B field ------------------------------------------------------------------
-  // Assume stars are located on x axis
+  // Assume stars are located on x axis.
+  //
+  // The vector potential is
+  //   A_x = -y * A_amp(p)
+  //   A_y = (x - x_centre) * A_amp(p)
+  //   A_z = 0
+  // where A_amp(p) = amplitude * max(p - p_cut, 0)^n_s and the star centre
+  // and amplitude parameters differ for x > 0 (star 2) vs x <= 0 (star 1).
+  //
+  // Face-centred B = curl(A) is computed via the discrete Stokes theorem on
+  // cell edges, which gives div(B) = 0 to machine precision.
 
   Real pcut_1 = pin->GetReal("problem", "pcut_1") * pgasmax_1;
   Real pcut_2 = pin->GetReal("problem", "pcut_2") * pgasmax_2;
 
-  // Real b_amp = pin->GetReal("problem","b_amp");
-  // Scaling taken from project_bnsmhd
   Real ns_1 = pin->GetReal("problem", "ns_1");
   Real ns_2 = pin->GetReal("problem", "ns_2");
 
-  // Read b_amp and rescale it from gaus to code units
   Real A_amp_1 = pin->GetReal("problem", "b_amp_1") * 0.5 /
                  std::pow(pgasmax_1 - pcut_1, ns_1) / B_unit;
   Real A_amp_2 = pin->GetReal("problem", "b_amp_2") * 0.5 /
                  std::pow(pgasmax_2 - pcut_2, ns_2) / B_unit;
 
-  pfield->b.x1f.ZeroClear();
-  pfield->b.x2f.ZeroClear();
-  pfield->b.x3f.ZeroClear();
-  pfield->bcc.ZeroClear();
+  // Capture centre coordinates for the lambda
+  const Real sp = sep;
+  const Real sm = -sep;
 
-  AthenaArray<Real> Acc(NFIELD, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-  // Initialize cell centred potential
-  for (int k = 0; k < pmb->ncells3; k++)
-    for (int j = 0; j < pmb->ncells2; j++)
-      for (int i = 0; i < pmb->ncells1; i++)
+  SeedFaceBFromEdgePotential(
+    pmb,
+    [=](Real x,
+        Real y,
+        Real /*z*/,
+        Real p,
+        Real /*rho*/,
+        Real& Ax,
+        Real& Ay,
+        Real& Az)
+    {
+      if (x > 0)
       {
-        const Real x1 = pcoord->x1v(i);
-        const Real x2 = pcoord->x2v(j);
-
-        const Real w_p   = phydro->w(IPR, k, j, i);
-        const Real w_rho = phydro->w(IDN, k, j, i);
-
-        if (x1 > 0)
-        {
-          Real A_amp = A_amp_2 * std::max(std::pow(w_p - pcut_2, ns_2), 0.0);
-          Acc(0, k, j, i) = -x2 * A_amp;
-          Acc(1, k, j, i) = (x1 - sep) * A_amp;
-          Acc(2, k, j, i) = 0.0;
-        }
-        else
-        {
-          Real A_amp = A_amp_1 * std::max(std::pow(w_p - pcut_1, ns_1), 0.0);
-          Acc(0, k, j, i) = -x2 * A_amp;
-          Acc(1, k, j, i) = (x1 + sep) * A_amp;
-          Acc(2, k, j, i) = 0.0;
-        }
+        Real amp = A_amp_2 * std::max(std::pow(p - pcut_2, ns_2), 0.0);
+        Ax       = -y * amp;
+        Ay       = (x - sp) * amp;
       }
-
-  // Construct cell centred B field from cell centred potential
-  for (int k = pmb->ks - 1; k <= pmb->ke + 1; k++)
-    for (int j = pmb->js - 1; j <= pmb->je + 1; j++)
-      for (int i = pmb->is - 1; i <= pmb->ie + 1; i++)
+      else
       {
-        const Real dx1 = pcoord->dx1v(i);
-        const Real dx2 = pcoord->dx2v(j);
-        const Real dx3 = pcoord->dx3v(k);
-
-        pfield->bcc(0, k, j, i) =
-          -((Acc(1, k + 1, j, i) - Acc(1, k - 1, j, i)) / (2.0 * dx3));
-        pfield->bcc(1, k, j, i) =
-          ((Acc(0, k + 1, j, i) - Acc(0, k - 1, j, i)) / (2.0 * dx3));
-        pfield->bcc(2, k, j, i) =
-          ((Acc(1, k, j, i + 1) - Acc(1, k, j, i - 1)) / (2.0 * dx1) -
-           (Acc(0, k, j + 1, i) - Acc(0, k, j - 1, i)) / (2.0 * dx2));
+        Real amp = A_amp_1 * std::max(std::pow(p - pcut_1, ns_1), 0.0);
+        Ax       = -y * amp;
+        Ay       = (x - sm) * amp;
       }
-
-  // Initialise face centred field by averaging cc field
-  for (int k = pmb->ks; k <= pmb->ke; k++)
-    for (int j = pmb->js; j <= pmb->je; j++)
-      for (int i = pmb->is; i <= pmb->ie + 1; i++)
-      {
-        pfield->b.x1f(k, j, i) =
-          0.5 * (pfield->bcc(0, k, j, i - 1) + pfield->bcc(0, k, j, i));
-      }
-
-  for (int k = pmb->ks; k <= pmb->ke; k++)
-    for (int j = pmb->js; j <= pmb->je + 1; j++)
-      for (int i = pmb->is; i <= pmb->ie; i++)
-      {
-        pfield->b.x2f(k, j, i) =
-          0.5 * (pfield->bcc(1, k, j - 1, i) + pfield->bcc(1, k, j, i));
-      }
-
-  for (int k = pmb->ks; k <= pmb->ke + 1; k++)
-    for (int j = pmb->js; j <= pmb->je; j++)
-      for (int i = pmb->is; i <= pmb->ie; i++)
-      {
-        pfield->b.x3f(k, j, i) =
-          0.5 * (pfield->bcc(2, k - 1, j, i) + pfield->bcc(2, k, j, i));
-      }
+      Az = 0.0;
+    });
 }
 
 }  // namespace

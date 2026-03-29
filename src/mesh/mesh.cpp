@@ -2183,24 +2183,8 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
         CommunicateConserved(pmb_array);
       }
 
-// Reconcile shared boundary faces after pgen ghost exchange.
-// Same-level face-sharing blocks may have different values at their
-// shared boundary face (set independently by SeedMagneticFields).
-// Lower-gid block's value is made canonical.
-#pragma omp barrier
-#pragma omp master
-      {
-        // should only be needed for pgen but for maximal safety put everything
-        if ((init_style == initialize_style::pgen) ||
-            (init_style == initialize_style::regrid) ||
-            (init_style == initialize_style::restart))
-        {
-#if MAGNETIC_FIELDS_ENABLED
-          comm::ReconcileSharedFacesFC(this, pmb_array);
-#endif
-        }
-      }
-#pragma omp barrier
+      // ReconcileSharedFacesFC is disabled for all init styles.
+      // pgen should now consistently use discrete Stokes theorem
 
       // Finalize sub-systems that only need conserved vars -------------------
 #if Z4C_ENABLED

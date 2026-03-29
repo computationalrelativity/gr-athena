@@ -28,7 +28,8 @@
 #include "../eos/eos.hpp"                  // EquationOfState
 #include "../z4c/z4c.hpp"
 // #include "../z4c/z4c_amr.hpp"
-#include "../field/field.hpp"      // Field
+#include "../field/field.hpp"  // Field
+#include "../field/seed_magnetic_field.hpp"
 #include "../hydro/hydro.hpp"      // Hydro
 #include "../hydro/rescaling.hpp"  // Hydro
 #include "../mesh/mesh.hpp"
@@ -1795,132 +1796,39 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
 
 void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin)
 {
-  GRDynamical* pcoord{ static_cast<GRDynamical*>(pmb->pcoord) };
-  Field* pfield{ pmb->pfield };
-  Hydro* phydro{ pmb->phydro };
+  // B field ------------------------------------------------------------------
+  // The vector potential is
+  //   A_x = -y * b_amp * max(p - pcut, 0) * (1 - rho/rhomax)^magindex
+  //   A_y =  x * b_amp * max(p - pcut, 0) * (1 - rho/rhomax)^magindex
+  //   A_z =  0
+  //
+  // Face-centred B = curl(A) is computed via the discrete Stokes theorem on
+  // cell edges, which gives div(B) = 0 to machine precision.
 
-  // Prepare CC index bounds
-  const int il = 0;
-  const int iu = (pmb->ncells1 > 1) ? pmb->ncells1 - 1 : 0;
-
-  const int jl = 0;
-  const int ju = (pmb->ncells2 > 1) ? pmb->ncells2 - 1 : 0;
-
-  const int kl = 0;
-  const int ku = (pmb->ncells3 > 1) ? pmb->ncells3 - 1 : 0;
-
-  // Initialize magnetic field
-  // No metric weighting here
   Real rhomax  = tov->data[itov_rho][0];
   Real pgasmax = ceos->GetPressure(rhomax);
 
   Real pcut    = pin->GetReal("problem", "pcut") * pgasmax;
   int magindex = pin->GetInteger("problem", "magindex");
+  Real b_amp   = pin->GetReal("problem", "b_amp");
 
-  // Real ns = pin->GetReal("problem","ns");
-  // Real b_amp = pin->GetReal("problem","b_amp") *
-  //               0.5/std::pow(pgasmax-pcut, ns)/8.351416e19;
-
-  Real b_amp = pin->GetReal("problem", "b_amp");
-
-  pfield->b.x1f.ZeroClear();
-  pfield->b.x2f.ZeroClear();
-  pfield->b.x3f.ZeroClear();
-  pfield->bcc.ZeroClear();
-
-  AthenaArray<Real> Acc(NFIELD, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-  // Initialize cell centred potential
-  for (int k = 0; k < pmb->ncells3; k++)
-    for (int j = 0; j < pmb->ncells2; j++)
-      for (int i = 0; i < pmb->ncells1; i++)
-      {
-        const Real x1 = pcoord->x1v(i);
-        const Real x2 = pcoord->x2v(j);
-
-        const Real w_p   = phydro->w(IPR, k, j, i);
-        const Real w_rho = phydro->w(IDN, k, j, i);
-
-        Acc(0, k, j, i) = -x2 * b_amp * std::max(w_p - pcut, 0.0) *
-                          std::pow((1.0 - w_rho / rhomax), magindex);
-        Acc(1, k, j, i) = x1 * b_amp * std::max(w_p - pcut, 0.0) *
-                          std::pow((1.0 - w_rho / rhomax), magindex);
-        Acc(2, k, j, i) = 0.0;
-
-        // Acc(0,k,j,i) = -x2 * b_amp;
-        // Acc(1,k,j,i) =  x1 * b_amp;
-        // Acc(2,k,j,i) =  0.0;
-      }
-
-  // Construct cell centred B field from cell centred potential
-  for (int k = pmb->ks - 1; k <= pmb->ke + 1; k++)
-    for (int j = pmb->js - 1; j <= pmb->je + 1; j++)
-      for (int i = pmb->is - 1; i <= pmb->ie + 1; i++)
-      {
-        const Real dx1 = pcoord->dx1v(i);
-        const Real dx2 = pcoord->dx2v(j);
-        const Real dx3 = pcoord->dx3v(k);
-
-        pfield->bcc(0, k, j, i) =
-          -((Acc(1, k + 1, j, i) - Acc(1, k - 1, j, i)) / (2.0 * dx3));
-        pfield->bcc(1, k, j, i) =
-          ((Acc(0, k + 1, j, i) - Acc(0, k - 1, j, i)) / (2.0 * dx3));
-        pfield->bcc(2, k, j, i) =
-          ((Acc(1, k, j, i + 1) - Acc(1, k, j, i - 1)) / (2.0 * dx1) -
-           (Acc(0, k, j + 1, i) - Acc(0, k, j - 1, i)) / (2.0 * dx2));
-
-        // const Real x1 = pcoord->x1v(i);
-        // const Real x2 = pcoord->x2v(j);
-        // const Real x3 = pcoord->x3v(j);
-
-        // pfield->bcc(0,k,j,i) = x1 * x2;
-        // pfield->bcc(1,k,j,i) = x2 * x2;
-        // pfield->bcc(2,k,j,i) = x3 * x2;
-
-        /*
-        const Real F0 = 1.0 / (2.0 * dx1);
-        const Real F1 = 1.0 / (2.0 * dx2);
-        const Real F2 = 1.0 / (2.0 * dx3);
-
-        const Real d1A0 = F0 * (Acc(0,k,j+1,i)-Acc(0,k,j-1,i));
-        const Real d2A0 = F2 * (Acc(0,k+1,j,i)-Acc(0,k-1,j,i));
-
-        const Real d0A1 = F0 * (Acc(1,k,j,i+1)-Acc(1,k,j,i-1));
-        const Real d2A1 = F2 * (Acc(1,k+1,j,i)-Acc(1,k-1,j,i));
-
-        const Real d0A2 = F0 * (Acc(2,k,j,i+1)-Acc(2,k,j,i-1));
-        const Real d1A2 = F1 * (Acc(2,k,j+1,i)-Acc(2,k,j-1,i));
-
-        pfield->bcc(0,k,j,i) = d1A2-d2A1;
-        pfield->bcc(1,k,j,i) = d2A0-d0A2;
-        pfield->bcc(2,k,j,i) = d0A1-d1A0;
-        */
-      }
-
-  // Initialise face centred field by averaging cc field
-  for (int k = pmb->ks; k <= pmb->ke; k++)
-    for (int j = pmb->js; j <= pmb->je; j++)
-      for (int i = pmb->is; i <= pmb->ie + 1; i++)
-      {
-        pfield->b.x1f(k, j, i) =
-          0.5 * (pfield->bcc(0, k, j, i - 1) + pfield->bcc(0, k, j, i));
-      }
-
-  for (int k = pmb->ks; k <= pmb->ke; k++)
-    for (int j = pmb->js; j <= pmb->je + 1; j++)
-      for (int i = pmb->is; i <= pmb->ie; i++)
-      {
-        pfield->b.x2f(k, j, i) =
-          0.5 * (pfield->bcc(1, k, j - 1, i) + pfield->bcc(1, k, j, i));
-      }
-
-  for (int k = pmb->ks; k <= pmb->ke + 1; k++)
-    for (int j = pmb->js; j <= pmb->je; j++)
-      for (int i = pmb->is; i <= pmb->ie; i++)
-      {
-        pfield->b.x3f(k, j, i) =
-          0.5 * (pfield->bcc(2, k - 1, j, i) + pfield->bcc(2, k, j, i));
-      }
+  SeedFaceBFromEdgePotential(pmb,
+                             [=](Real x,
+                                 Real y,
+                                 Real /*z*/,
+                                 Real p,
+                                 Real rho,
+                                 Real& Ax,
+                                 Real& Ay,
+                                 Real& Az)
+                             {
+                               Real amp =
+                                 b_amp * std::max(p - pcut, 0.0) *
+                                 std::pow(1.0 - rho / rhomax, magindex);
+                               Ax = -y * amp;
+                               Ay = x * amp;
+                               Az = 0.0;
+                             });
 }
 
 //----------------------------------------------------------------------------------------
