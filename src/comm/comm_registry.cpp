@@ -511,6 +511,11 @@ void CommRegistry::ProlongateAndApplyPhysicalBCs(CommGroup group,
     const CommSpec& spec = channels_[id].spec();
     if (spec.sampling == Sampling::FC)
     {
+      // Re-restrict FC interior to refresh coarse_buf.
+      // Without this, coarse_buf is stale after ReconcileSharedFacesFC
+      // modifies fine-level shared boundary faces between the initial
+      // SendBoundaryBuffers (which restricted) and the prolongation here.
+      comm::RestrictInterior(pmy_block_, spec);
       comm::ApplyPhysicalBCsOnCoarseLevel_FC(
         pmy_block_, spec, time, dt, cis, cie, cjs, cje, cks, cke, cng);
     }
