@@ -447,6 +447,13 @@ TaskStatus GRMHD_Z4c_Monolithic::CalculateHydroScalarFlux(MeshBlock* pmb,
                                        mask,
                                        num_enlarge_layer);
 
+      // TODO: on cross-block consistency of the DMP mask:
+      // Unlike the check about which uses pre-comm ph->u
+      // the DMP check compares against ph->u2, a snapshot of ph->u taken at
+      // the start of the timestep. This latter means adjustment / floor may
+      // have occurred. It is therefore possible (though very rare) that
+      // inconsistent masks and mismatched fluxes at same-level faces could
+      // occur.
       if (pr->xorder_use_dmp)
       {
         ph->CheckStateWithFluxDivergenceDMP(dt_scaled,
