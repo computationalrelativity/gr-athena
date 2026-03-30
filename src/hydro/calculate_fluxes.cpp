@@ -831,7 +831,8 @@ void Hydro::CalculateFluxesCachedGeometry(
   AA (&sflux)[3],
   Reconstruction::ReconstructionVariant rv,
   const int num_enlarge_layer,
-  ThreadCache& cache)
+  ThreadCache& cache,
+  const AA_B& mask)
 {
   MeshBlock* pmb = pmy_block;
 
@@ -879,6 +880,25 @@ void Hydro::CalculateFluxesCachedGeometry(
   for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
     {
+      int i_min = iu + 1;
+      int i_max = il - 1;
+      for (int i = il - 1; i <= iu; ++i)
+      {
+        if (!mask(k, j, i))
+        {
+          if (i < i_min)
+            i_min = i;
+          if (i > i_max)
+            i_max = i;
+        }
+      }
+
+      if (i_min > i_max)
+        continue;
+
+      int il_row = std::max(il, i_min);
+      int iu_row = std::min(iu, i_max + 1);
+
       ReconstructFields(pmb,
                         rv_w,
                         rv_a,
@@ -896,14 +916,14 @@ void Hydro::CalculateFluxesCachedGeometry(
                         IVX,
                         k,
                         j,
-                        il,
-                        iu);
+                        il_row,
+                        iu_row);
 
       cache.LoadFCGeometry(X1DIR,
                            k,
                            j,
-                           il,
-                           iu,
+                           il_row,
+                           iu_row,
                            alpha_,
                            beta_u_,
                            gamma_dd_,
@@ -911,15 +931,15 @@ void Hydro::CalculateFluxesCachedGeometry(
                            gamma_uu_,
                            IVX);
 
-      pmb->pcoord->CenterWidth1(k, j, il, iu, dxw_);
+      pmb->pcoord->CenterWidth1(k, j, il_row, iu_row, dxw_);
 
 #if !MAGNETIC_FIELDS_ENABLED
 
       RiemannSolver(IVX,
                     k,
                     j,
-                    il,
-                    iu,
+                    il_row,
+                    iu_row,
                     wl_,
                     wr_,
                     rl_,
@@ -942,8 +962,8 @@ void Hydro::CalculateFluxesCachedGeometry(
       RiemannSolver(IVX,
                     k,
                     j,
-                    il,
-                    iu,
+                    il_row,
+                    iu_row,
                     b1,
                     wl_,
                     wr_,
@@ -985,6 +1005,37 @@ void Hydro::CalculateFluxesCachedGeometry(
 
     for (int k = kl; k <= ku; ++k)
     {
+      int j_min = ju + 1;
+      int j_max = jl - 1;
+      int i_min = iu + 1;
+      int i_max = il - 1;
+
+      for (int j = jl - 1; j <= ju; ++j)
+      {
+        for (int i = il; i <= iu; ++i)
+        {
+          if (!mask(k, j, i))
+          {
+            if (j < j_min)
+              j_min = j;
+            if (j > j_max)
+              j_max = j;
+            if (i < i_min)
+              i_min = i;
+            if (i > i_max)
+              i_max = i;
+          }
+        }
+      }
+
+      if (j_min > j_max)
+        continue;
+
+      int il_plane = std::max(il, i_min);
+      int iu_plane = std::min(iu, i_max + 1);
+      int jl_plane = std::max(jl, j_min);
+      int ju_plane = std::min(ju, j_max + 1);
+
       ReconstructFields(pmb,
                         rv_w,
                         rv_a,
@@ -1001,11 +1052,11 @@ void Hydro::CalculateFluxesCachedGeometry(
                         derived_ms,
                         IVY,
                         k,
-                        jl - 1,
-                        il,
-                        iu);
+                        jl_plane - 1,
+                        il_plane,
+                        iu_plane);
 
-      for (int j = jl; j <= ju; ++j)
+      for (int j = jl_plane; j <= ju_plane; ++j)
       {
         ReconstructFields(pmb,
                           rv_w,
@@ -1024,14 +1075,14 @@ void Hydro::CalculateFluxesCachedGeometry(
                           IVY,
                           k,
                           j,
-                          il,
-                          iu);
+                          il_plane,
+                          iu_plane);
 
         cache.LoadFCGeometry(X2DIR,
                              k,
                              j,
-                             il,
-                             iu,
+                             il_plane,
+                             iu_plane,
                              alpha_,
                              beta_u_,
                              gamma_dd_,
@@ -1039,14 +1090,14 @@ void Hydro::CalculateFluxesCachedGeometry(
                              gamma_uu_,
                              IVY);
 
-        pmb->pcoord->CenterWidth2(k, j, il, iu, dxw_);
+        pmb->pcoord->CenterWidth2(k, j, il_plane, iu_plane, dxw_);
 #if !MAGNETIC_FIELDS_ENABLED
 
         RiemannSolver(IVY,
                       k,
                       j,
-                      il,
-                      iu,
+                      il_plane,
+                      iu_plane,
                       wl_,
                       wr_,
                       rl_,
@@ -1069,8 +1120,8 @@ void Hydro::CalculateFluxesCachedGeometry(
         RiemannSolver(IVY,
                       k,
                       j,
-                      il,
-                      iu,
+                      il_plane,
+                      iu_plane,
                       b2,
                       wl_,
                       wr_,
@@ -1115,6 +1166,36 @@ void Hydro::CalculateFluxesCachedGeometry(
 
     for (int j = jl; j <= ju; ++j)
     {  // this loop ordering is intentional
+      int k_min = ku + 1;
+      int k_max = kl - 1;
+      int i_min = iu + 1;
+      int i_max = il - 1;
+
+      for (int k = kl - 1; k <= ku; ++k)
+      {
+        for (int i = il; i <= iu; ++i)
+        {
+          if (!mask(k, j, i))
+          {
+            if (k < k_min)
+              k_min = k;
+            if (k > k_max)
+              k_max = k;
+            if (i < i_min)
+              i_min = i;
+            if (i > i_max)
+              i_max = i;
+          }
+        }
+      }
+
+      if (k_min > k_max)
+        continue;
+
+      int il_plane = std::max(il, i_min);
+      int iu_plane = std::min(iu, i_max + 1);
+      int kl_plane = std::max(kl, k_min);
+      int ku_plane = std::min(ku, k_max + 1);
 
       ReconstructFields(pmb,
                         rv_w,
@@ -1131,12 +1212,12 @@ void Hydro::CalculateFluxesCachedGeometry(
                         bcc,
                         derived_ms,
                         IVZ,
-                        kl - 1,
+                        kl_plane - 1,
                         j,
-                        il,
-                        iu);
+                        il_plane,
+                        iu_plane);
 
-      for (int k = kl; k <= ku; ++k)
+      for (int k = kl_plane; k <= ku_plane; ++k)
       {
         ReconstructFields(pmb,
                           rv_w,
@@ -1155,14 +1236,14 @@ void Hydro::CalculateFluxesCachedGeometry(
                           IVZ,
                           k,
                           j,
-                          il,
-                          iu);
+                          il_plane,
+                          iu_plane);
 
         cache.LoadFCGeometry(X3DIR,
                              k,
                              j,
-                             il,
-                             iu,
+                             il_plane,
+                             iu_plane,
                              alpha_,
                              beta_u_,
                              gamma_dd_,
@@ -1170,15 +1251,15 @@ void Hydro::CalculateFluxesCachedGeometry(
                              gamma_uu_,
                              IVZ);
 
-        pmb->pcoord->CenterWidth3(k, j, il, iu, dxw_);
+        pmb->pcoord->CenterWidth3(k, j, il_plane, iu_plane, dxw_);
 
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
 
         RiemannSolver(IVZ,
                       k,
                       j,
-                      il,
-                      iu,
+                      il_plane,
+                      iu_plane,
                       wl_,
                       wr_,
                       rl_,
@@ -1200,8 +1281,8 @@ void Hydro::CalculateFluxesCachedGeometry(
         RiemannSolver(IVZ,
                       k,
                       j,
-                      il,
-                      iu,
+                      il_plane,
+                      iu_plane,
                       b3,
                       wl_,
                       wr_,

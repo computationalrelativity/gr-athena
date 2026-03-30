@@ -253,7 +253,8 @@ class Hydro
                                      AA (&sflux)[3],
                                      Reconstruction::ReconstructionVariant rv,
                                      const int num_enlarge_layer,
-                                     ThreadCache& cache);
+                                     ThreadCache& cache,
+                                     const AA_B& mask);
 
   void CheckStateWithFluxDivergence(const Real wght,
                                     AA& u,
