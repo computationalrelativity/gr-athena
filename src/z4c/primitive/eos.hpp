@@ -31,8 +31,8 @@
 //  following functions:
 //    bool PrimitiveFloor(Real& n, Real& v[3], Real& p)
 //    bool ConservedFloor(Real& D, Real& Sd[3], Real& tau, Real& Bu[3])
-//    void DensityLimits(Real& n, Real n_min, Real n_max);
-//    void TemperatureLimits(Real& T, Real T_min, Real T_max);
+//    bool DensityLimits(Real& n, Real n_min, Real n_max);
+//    bool TemperatureLimits(Real& T, Real T_min, Real T_max);
 //    bool SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
 //    void PressureLimits(Real& P, Real P_min, Real P_max);
 //    void EnergyLimits(Real& e, Real e_min, Real e_max);
@@ -728,17 +728,18 @@ class EOS : public EOSPolicy, public ErrorPolicy
   }
 
   //! \brief Limit the density to a physical range
-  inline void ApplyDensityLimits(Real& n)
+  inline bool ApplyDensityLimits(Real& n)
   {
-    DensityLimits(n, min_n, max_n);
+    return DensityLimits(n, min_n, max_n);
   }
 
   //! \brief Limit the temperature to a physical range
-  inline void ApplyTemperatureLimits(Real& T)
+  inline bool ApplyTemperatureLimits(Real& T)
   {
-    Real T_eos = T * code_units->TemperatureConversion(*eos_units);
-    TemperatureLimits(T_eos, min_T, max_T);
-    T = T_eos * eos_units->TemperatureConversion(*code_units);
+    Real T_eos    = T * code_units->TemperatureConversion(*eos_units);
+    bool adjusted = TemperatureLimits(T_eos, min_T, max_T);
+    T             = T_eos * eos_units->TemperatureConversion(*code_units);
+    return adjusted;
   }
 
   //! \brief Limit Y to a specified range
@@ -749,20 +750,24 @@ class EOS : public EOSPolicy, public ErrorPolicy
 
   //! \brief Limit the pressure to a specified range at a given density and
   //! composition
-  inline void ApplyPressureLimits(Real& P, Real n, Real* Y)
+  inline bool ApplyPressureLimits(Real& P, Real n, Real* Y)
   {
     Real P_eos = P * code_units->PressureConversion(*eos_units);
-    PressureLimits(P_eos, MinimumPressure(n, Y), MaximumPressure(n, Y));
+    bool result =
+      PressureLimits(P_eos, MinimumPressure(n, Y), MaximumPressure(n, Y));
     P = P_eos * eos_units->PressureConversion(*code_units);
+    return result;
   }
 
   //! \brief Limit the energy density to a specified range at a given density
   //! and composition
-  inline void ApplyEnergyLimits(Real& e, Real n, Real* Y)
+  inline bool ApplyEnergyLimits(Real& e, Real n, Real* Y)
   {
     Real e_eos = e * code_units->PressureConversion(*eos_units);
-    EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
+    bool result =
+      EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
     e = e_eos * eos_units->PressureConversion(*code_units);
+    return result;
   }
 
   //! \brief Respond to a failed solve.
