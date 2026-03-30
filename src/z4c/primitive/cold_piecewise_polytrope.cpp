@@ -108,13 +108,17 @@ Real ColdPiecewisePolytrope::DensityFromEnergy(Real e) {
   }
   // Unfortunately, e(rho) cannot be inverted simply. Therefore, we use a Newton-Raphson
   // solver to get this instead.
-  int p = FindPieceFromE(e);
-  Real lb = density_pieces[p];
-  Real ub = density_pieces[p+1];
+  // int p = FindPieceFromE(e);
+  // Real lb = density_pieces[p];
+  // Real ub = density_pieces[p+1];
+  Real lb = 0.0;
+  Real ub = e;
   auto f = [&](Real n) -> Real {
+    int p = FindPiece(n);
     return GetColdEnergy(n, p) - e;
   };
   auto df = [&](Real n) -> Real {
+    int p = FindPiece(n);
     return mb*(1.0 + eps_pieces[p]) +
       gamma_pieces[p]*GetColdPressure(n, p)/(n*(gamma_pieces[p] - 1.0));
   };

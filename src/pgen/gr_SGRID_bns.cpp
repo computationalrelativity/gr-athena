@@ -213,24 +213,21 @@ void SeedMagneticFields(MeshBlock *pmb, ParameterInput *pin)
   for(int j=pmb->js; j<=pmb->je;   j++)
   for(int i=pmb->is; i<=pmb->ie+1; i++)
   {
-  	pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) +
-                                pfield->bcc(0,k,j,i));
+    pfield->b.x1f(k,j,i) = 0.5*(pfield->bcc(0,k,j,i-1) + pfield->bcc(0,k,j,i));
   }
 
   for(int k=pmb->ks; k<=pmb->ke;   k++)
   for(int j=pmb->js; j<=pmb->je+1; j++)
   for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-  	pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) +
-                                pfield->bcc(1,k,j,i));
+    pfield->b.x2f(k,j,i) = 0.5*(pfield->bcc(1,k,j-1,i) + pfield->bcc(1,k,j,i));
   }
 
   for(int k=pmb->ks; k<=pmb->ke+1; k++)
   for(int j=pmb->js; j<=pmb->je;   j++)
   for(int i=pmb->is; i<=pmb->ie;   i++)
   {
-	  pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) +
-                                pfield->bcc(2,k,j,i));
+    pfield->b.x3f(k,j,i) = 0.5*(pfield->bcc(2,k-1,j,i) + pfield->bcc(2,k,j,i));
   }
 
 }
@@ -580,34 +577,37 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       // Primitives
       Real rho = 0.0;
       Real pre = 0.0;
-      Real eps = 0.0;
+      Real ene = 0.0;
       Real v_u_x = 0.0, v_u_y = 0.0, v_u_z = 0.0;
       
       // if we are in matter region, convert q, VR to rho, press, eps, v^i :
       if (IDvars[idvar_q]>0.0) {
+        SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho, &pre, &ene);
 
-	SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho, &pre, &eps);
-  	eps = SGRID_epsl_of_rho0_rhoE(rho, eps);
+        // 3-velocity  v^i
+        Real xmax = (xb>0)?xmax1:xmax2;
 
-	// 3-velocity  v^i
-	Real xmax = (xb>0)?xmax1:xmax2;
-	
-	// construct KV xi from Omega, ecc, rdot, xmax1-xmax2 
-	Real xix = -Omega*yb + xb*rdotor; // CM is at (0,0,0) in bam 
-	Real xiy =  Omega*(xb - ecc*xmax) + yb*rdotor;
-	Real xiz =  zb*rdotor;
+        // construct KV xi from Omega, ecc, rdot, xmax1-xmax2
+        Real xix = -Omega*yb + xb*rdotor; // CM is at (0,0,0) in bam
+        Real xiy =  Omega*(xb - ecc*xmax) + yb*rdotor;
+        Real xiz =  zb*rdotor;
 
-	// vI^i = VR^i + xi^i 
-	Real vIx = IDvars[idvar_VRx] + xix;
-	Real vIy = IDvars[idvar_VRy] + xiy;
-	Real vIz = IDvars[idvar_VRz] + xiz;
+        // vI^i = VR^i + xi^i
+        Real vIx = IDvars[idvar_VRx] + xix;
+        Real vIy = IDvars[idvar_VRy] + xiy;
+        Real vIz = IDvars[idvar_VRz] + xiz;
 
-	// Note: vI^i = u^i/u^0 in DNSdata,
-	//       while matter_v^i = u^i/(alpha u^0) + beta^i / alpha
-	//   ==> matter_v^i = (vI^i + beta^i)/alpha                    
-	v_u_x = (vIx + IDvars[idvar_Bx])/IDvars[idvar_alpha];
-	v_u_y = (vIy + IDvars[idvar_By])/IDvars[idvar_alpha];
-	v_u_z = (vIz + IDvars[idvar_Bz])/IDvars[idvar_alpha];
+        // Note: vI^i = u^i/u^0 in DNSdata,
+        //       while matter_v^i = u^i/(alpha u^0) + beta^i / alpha
+        //   ==> matter_v^i = (vI^i + beta^i)/alpha
+        v_u_x = (vIx + IDvars[idvar_Bx])/IDvars[idvar_alpha];
+        v_u_y = (vIy + IDvars[idvar_By])/IDvars[idvar_alpha];
+        v_u_z = (vIz + IDvars[idvar_Bz])/IDvars[idvar_alpha];
+
+#if USETM
+        // recover rest mass density from energy density to avoid inconsistencies in the baryon mass
+        rho = ceos->GetDensityFromEnergy(ene);
+#endif
       }
 
       // Lorentz factor
@@ -622,10 +622,6 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
-#if USETM
-      // recover rest mass density from energy density to avoid inconsistencies in the baryon mass
-      rho = ceos->GetDensityFromEnergy(rho*(1.0 + eps));
-#endif
 
       // Fill primitive storage
       w(IDN, k, j, i) = rho;
@@ -988,8 +984,7 @@ int DNS_parameters(ParameterInput *pin)
   strn[0] = strrho0[0] = strkappa[0] = EoS_type[0] = EoS_file[0] = 0;
 
   // Get datadir and remove any trailing "/"
-  std::snprintf(datadir, STRLEN-1, "%s",
-	   pin->GetString("problem", "datadir").c_str());
+  std::snprintf(datadir, STRLEN-1, "%s", pin->GetString("problem", "datadir").c_str());
   int j = strlen(datadir);
   if(datadir[j-1]=='/')
   {
