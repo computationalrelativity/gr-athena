@@ -892,15 +892,53 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
           }
           else
           {
-            BufferUtility::UnpackData(recv_buf_[nb.bufid],
-                                      *face[sa],
-                                      r.si,
-                                      r.ei,
-                                      r.sj,
-                                      r.ej,
-                                      r.sk,
-                                      r.ek,
-                                      p);
+            switch (spec_.unpack_mode)
+            {
+              case UnpackMode::Min:
+                BufferUtility::UnpackDataMin(recv_buf_[nb.bufid],
+                                             *face[sa],
+                                             r.si,
+                                             r.ei,
+                                             r.sj,
+                                             r.ej,
+                                             r.sk,
+                                             r.ek,
+                                             p);
+                break;
+              case UnpackMode::Max:
+                BufferUtility::UnpackDataMax(recv_buf_[nb.bufid],
+                                             *face[sa],
+                                             r.si,
+                                             r.ei,
+                                             r.sj,
+                                             r.ej,
+                                             r.sk,
+                                             r.ek,
+                                             p);
+                break;
+              case UnpackMode::Average:
+                BufferUtility::UnpackDataAvg(recv_buf_[nb.bufid],
+                                             *face[sa],
+                                             r.si,
+                                             r.ei,
+                                             r.sj,
+                                             r.ej,
+                                             r.sk,
+                                             r.ek,
+                                             p);
+                break;
+              default:  // UnpackMode::Default
+                BufferUtility::UnpackData(recv_buf_[nb.bufid],
+                                          *face[sa],
+                                          r.si,
+                                          r.ei,
+                                          r.sj,
+                                          r.ej,
+                                          r.sk,
+                                          r.ek,
+                                          p);
+                break;
+            }
           }
           // Degenerate dimension copies - always applied (even polar).
           if (sa == 1 && nx2_degen)

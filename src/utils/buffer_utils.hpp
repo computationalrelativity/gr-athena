@@ -2,8 +2,9 @@
 #define UTILS_BUFFER_UTILS_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file buffer_utils.hpp
 //  \brief prototypes of utility functions to pack/unpack buffers
@@ -16,34 +17,113 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 
-namespace BufferUtility {
+namespace BufferUtility
+{
 // 2x templated and overloaded functions
 // 4D
-template <typename T> void PackData(AthenaArray<T> &src, T *buf,
-                                    int sn, int en,
-                                    int si, int ei, int sj, int ej, int sk, int ek,
-                                    int &offset);
+template <typename T>
+void PackData(AthenaArray<T>& src,
+              T* buf,
+              int sn,
+              int en,
+              int si,
+              int ei,
+              int sj,
+              int ej,
+              int sk,
+              int ek,
+              int& offset);
 // 3D
-template <typename T> void PackData(AthenaArray<T> &src, T *buf,
-                                    int si, int ei, int sj, int ej, int sk, int ek,
-                                    int &offset);
+template <typename T>
+void PackData(AthenaArray<T>& src,
+              T* buf,
+              int si,
+              int ei,
+              int sj,
+              int ej,
+              int sk,
+              int ek,
+              int& offset);
 // 4D
-template <typename T> void UnpackData(T *buf, AthenaArray<T> &dst,
-                                      int sn, int en,
-                                      int si, int ei, int sj, int ej, int sk, int ek,
-                                      int &offset);
+template <typename T>
+void UnpackData(T* buf,
+                AthenaArray<T>& dst,
+                int sn,
+                int en,
+                int si,
+                int ei,
+                int sj,
+                int ej,
+                int sk,
+                int ek,
+                int& offset);
 // 3D
-template <typename T> void UnpackData(T *buf, AthenaArray<T> &dst,
-                                      int si, int ei, int sj, int ej, int sk, int ek,
-                                      int &offset);
+template <typename T>
+void UnpackData(T* buf,
+                AthenaArray<T>& dst,
+                int si,
+                int ei,
+                int sj,
+                int ej,
+                int sk,
+                int ek,
+                int& offset);
 // 4D
-template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
-                                         int sn, int en,
-                                         int si, int ei, int sj, int ej, int sk, int ek,
-                                         int &offset);
+template <typename T>
+void UnpackDataAdd(T* buf,
+                   AthenaArray<T>& dst,
+                   int sn,
+                   int en,
+                   int si,
+                   int ei,
+                   int sj,
+                   int ej,
+                   int sk,
+                   int ek,
+                   int& offset);
 // 3D
-template <typename T> void UnpackDataAdd(T *buf, AthenaArray<T> &dst,
-                                         int si, int ei, int sj, int ej, int sk, int ek,
-                                         int &offset);
-} // namespace BufferUtility
-#endif // UTILS_BUFFER_UTILS_HPP_
+template <typename T>
+void UnpackDataAdd(T* buf,
+                   AthenaArray<T>& dst,
+                   int si,
+                   int ei,
+                   int sj,
+                   int ej,
+                   int sk,
+                   int ek,
+                   int& offset);
+// 3D min-merge (dst = min(dst, buf))
+template <typename T>
+void UnpackDataMin(T* buf,
+                   AthenaArray<T>& dst,
+                   int si,
+                   int ei,
+                   int sj,
+                   int ej,
+                   int sk,
+                   int ek,
+                   int& offset);
+// 3D max-merge (dst = max(dst, buf))
+template <typename T>
+void UnpackDataMax(T* buf,
+                   AthenaArray<T>& dst,
+                   int si,
+                   int ei,
+                   int sj,
+                   int ej,
+                   int sk,
+                   int ek,
+                   int& offset);
+// 3D average (dst = 0.5*(dst + buf))
+template <typename T>
+void UnpackDataAvg(T* buf,
+                   AthenaArray<T>& dst,
+                   int si,
+                   int ei,
+                   int sj,
+                   int ej,
+                   int sk,
+                   int ek,
+                   int& offset);
+}  // namespace BufferUtility
+#endif  // UTILS_BUFFER_UTILS_HPP_

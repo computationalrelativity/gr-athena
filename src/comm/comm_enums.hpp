@@ -151,6 +151,18 @@ enum class FluxCorrMode : int
     2  // FC EMF: accumulate edge values, then average by count
 };
 
+// Unpack mode: controls how received ghost-zone data is combined with the
+// local destination array.  Default overwrites; alternatives apply a
+// reduction so that both sender and receiver agree on a single value.
+
+enum class UnpackMode : int
+{
+  Default = 0,  // dst = buf  (standard overwrite)
+  Min     = 1,  // dst = min(dst, buf)
+  Max     = 2,  // dst = max(dst, buf)
+  Average = 3   // dst = 0.5*(dst + buf)
+};
+
 }  // namespace comm
 
 #endif  // COMM_COMM_ENUMS_HPP_
