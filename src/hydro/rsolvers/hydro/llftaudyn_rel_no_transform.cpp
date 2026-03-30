@@ -605,4 +605,39 @@ void Hydro::RiemannSolver(
     }
   }
 
+#if defined(USE_TRANSITION_EOS)
+  // Constrained flux correction: enforce F_S(Xn)+F_S(Xp)+F_S(Xa)+F_S(Xh) = F_D
+  // so that the discrete sum of mass fractions remains 1.
+  #pragma omp simd
+  for (int i=il; i<=iu; ++i)
+  {
+    const Real F_D = flux(IDN,k,j,i);
+    const Real F_sum = s_flux(SCXN,k,j,i) + s_flux(SCXP,k,j,i)
+                     + s_flux(SCXA,k,j,i) + s_flux(SCXH,k,j,i);
+
+    constexpr Real eps = 1e-30;
+    if (std::abs(F_sum) > eps) {
+      const Real ratio = F_D / F_sum;
+      s_flux(SCXN,k,j,i) *= ratio;
+      s_flux(SCXP,k,j,i) *= ratio;
+      s_flux(SCXA,k,j,i) *= ratio;
+      s_flux(SCXH,k,j,i) *= ratio;
+    } else if (std::abs(F_D) > eps) {
+      // Fallback: F_sum ~ 0 but F_D != 0 -> use upwind mass fractions
+      if (F_D >= 0.0) {
+        s_flux(SCXN,k,j,i) = F_D * pscalars_l_(SCXN,i);
+        s_flux(SCXP,k,j,i) = F_D * pscalars_l_(SCXP,i);
+        s_flux(SCXA,k,j,i) = F_D * pscalars_l_(SCXA,i);
+        s_flux(SCXH,k,j,i) = F_D * pscalars_l_(SCXH,i);
+      } else {
+        s_flux(SCXN,k,j,i) = F_D * pscalars_r_(SCXN,i);
+        s_flux(SCXP,k,j,i) = F_D * pscalars_r_(SCXP,i);
+        s_flux(SCXA,k,j,i) = F_D * pscalars_r_(SCXA,i);
+        s_flux(SCXH,k,j,i) = F_D * pscalars_r_(SCXH,i);
+      }
+    }
+    // else: both F_D ~ 0 and F_sum ~ 0, no correction needed
+  }
+#endif // USE_TRANSITION_EOS
+
 }
