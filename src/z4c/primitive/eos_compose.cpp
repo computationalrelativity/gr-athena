@@ -222,6 +222,141 @@ void EOSCompOSE::PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h)
   *h        = (Pval + eval) / n;
 }
 
+void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
+                                                     Real e,
+                                                     Real* Y,
+                                                     Real* T,
+                                                     Real* P,
+                                                     Real* h)
+{
+  assert(m_initialized);
+  int in, iy;
+  Real wn0, wn1, wy0, wy1;
+  Real log_n = log(n);
+  weight_idx_ln(&wn0, &wn1, &in, log_n);
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+
+  // Evaluate log(e) at the table boundaries using 4 lookups each
+  Real loge_min = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, 0);
+  Real loge_max = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
+  Real e_min    = exp(loge_min);
+  Real e_max    = exp(loge_max);
+
+  if (e <= e_min)
+  {
+    *T = min_T;
+    PressureAndEnthalpy(n, *T, Y, P, h);
+    return;
+  }
+  if (e >= e_max)
+  {
+    *T = max_T;
+    PressureAndEnthalpy(n, *T, Y, P, h);
+    return;
+  }
+
+  ptrdiff_t const be00 = index(ECLOGE, in, iy, 0);
+  ptrdiff_t const be01 = index(ECLOGE, in, iy + 1, 0);
+  ptrdiff_t const be10 = index(ECLOGE, in + 1, iy, 0);
+  ptrdiff_t const be11 = index(ECLOGE, in + 1, iy + 1, 0);
+
+  Real var = log(e);
+
+  auto f = [=](int it) -> Real
+  {
+    Real var_pt = wn0 * (wy0 * m_table[be00 + it] + wy1 * m_table[be01 + it]) +
+                  wn1 * (wy0 * m_table[be10 + it] + wy1 * m_table[be11 + it]);
+    return var - var_pt;
+  };
+
+  int ilo  = 0;
+  int ihi  = m_nt - 1;
+  Real flo = f(ilo);
+  Real fhi = f(ihi);
+
+  if (flo * fhi > 0)
+  {
+    // Bracket already at adjacent points is the best we can do
+  }
+  else
+  {
+    int it_guess =
+      static_cast<int>(static_cast<Real>(m_nt - 1) * flo / (flo - fhi));
+    it_guess = std::max(0, std::min(m_nt - 2, it_guess));
+
+    Real fg = f(it_guess);
+    if (fg * flo <= 0)
+    {
+      ihi = it_guess;
+      fhi = fg;
+    }
+    else
+    {
+      ilo = it_guess;
+      flo = fg;
+    }
+
+    while (ihi - ilo > 1)
+    {
+      int ip  = ilo + (ihi - ilo) / 2;
+      Real fp = f(ip);
+      if (fp * flo <= 0)
+      {
+        ihi = ip;
+        fhi = fp;
+      }
+      else
+      {
+        ilo = ip;
+        flo = fp;
+      }
+    }
+  }
+
+  assert(ihi - ilo == 1 || flo * fhi <= 0);
+  Real ltlo = m_log_t[ilo];
+  Real lthi = m_log_t[ihi];
+
+  Real lt;
+  Real wt0, wt1;
+
+  if (flo == 0)
+  {
+    lt  = ltlo;
+    wt0 = 1.0;
+    wt1 = 0.0;
+  }
+  else if (fhi == 0)
+  {
+    lt  = lthi;
+    wt0 = 0.0;
+    wt1 = 1.0;
+  }
+  else
+  {
+    lt  = ltlo - flo * (lthi - ltlo) / (fhi - flo);
+    wt1 = (lt - ltlo) * m_id_log_t;
+    wt0 = 1.0 - wt1;
+  }
+
+  *T = exp(lt);
+
+  int it = ilo;
+
+  ptrdiff_t bp00 = index(ECLOGP, in, iy, it);
+  ptrdiff_t bp01 = index(ECLOGP, in, iy + 1, it);
+  ptrdiff_t bp10 = index(ECLOGP, in + 1, iy, it);
+  ptrdiff_t bp11 = index(ECLOGP, in + 1, iy + 1, it);
+
+  Real logP = wn0 * (wy0 * (wt0 * m_table[bp00] + wt1 * m_table[bp00 + 1]) +
+                     wy1 * (wt0 * m_table[bp01] + wt1 * m_table[bp01 + 1])) +
+              wn1 * (wy0 * (wt0 * m_table[bp10] + wt1 * m_table[bp10 + 1]) +
+                     wy1 * (wt0 * m_table[bp11] + wt1 * m_table[bp11 + 1]));
+
+  *P = exp(logP);
+  *h = (*P + e) / n;
+}
+
 Real EOSCompOSE::SoundSpeed(Real n, Real T, Real* Y)
 {
   assert(m_initialized);

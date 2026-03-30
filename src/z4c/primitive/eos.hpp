@@ -82,6 +82,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::TemperatureFromE;
   using EOSPolicy::TemperatureFromEntropy;
   using EOSPolicy::TemperatureFromP;
+  using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
 
   using EOSPolicy::FrYh;
   using EOSPolicy::FrYn;
@@ -282,6 +283,29 @@ class EOS : public EOSPolicy, public ErrorPolicy
            mb *
            (eos_units->EnergyConversion(*code_units) /
             eos_units->MassConversion(*code_units));
+  }
+
+  //! \brief Fused temperature + pressure + enthalpy query from energy.
+  inline void GetTemperaturePressureAndEnthalpyFromE(Real n,
+                                                     Real e,
+                                                     Real* Y,
+                                                     Real* T,
+                                                     Real* P,
+                                                     Real* h)
+  {
+    Real T_eos, P_eos, h_eos;
+    TemperaturePressureAndEnthalpyFromE(
+      n,
+      e * code_units->PressureConversion(*eos_units),
+      Y,
+      &T_eos,
+      &P_eos,
+      &h_eos);
+    *T = T_eos * eos_units->TemperatureConversion(*code_units);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
   }
 
   //! \brief Fused pressure + enthalpy query.

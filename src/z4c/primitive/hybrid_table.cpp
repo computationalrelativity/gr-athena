@@ -132,6 +132,17 @@ void HybridTable::PressureAndEnthalpy(Real n,
   *h          = (p_cold + e_cold + p_th + e_th) / n;
 }
 
+void HybridTable::TemperaturePressureAndEnthalpyFromE(Real n,
+                                                      Real e,
+                                                      Real* Y,
+                                                      Real* T,
+                                                      Real* P,
+                                                      Real* h)
+{
+  *T = TemperatureFromE(n, e, Y);
+  PressureAndEnthalpy(n, *T, Y, P, h);
+}
+
 Real HybridTable::SoundSpeed(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
