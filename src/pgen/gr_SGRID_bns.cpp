@@ -84,13 +84,13 @@ extern "C" {
 
 #define STRLEN (16384)
 
-// Indexes for Initial data variables (IDVars) 
+// Indexes for Initial data variables (IDVars)
 enum{idvar_alpha,
   idvar_Bx,idvar_By, idvar_Bz,
   idvar_gxx, idvar_gxy, idvar_gxz, idvar_gyy, idvar_gyz, idvar_gzz,
   idvar_Kxx, idvar_Kxy, idvar_Kxz, idvar_Kyy, idvar_Kyz, idvar_Kzz,
   idvar_q,
-  idvar_VRx, idvar_VRy, idvar_VRz, 
+  idvar_VRx, idvar_VRy, idvar_VRz,
   idvar_NDATAMAX, //TODO in NMESH this is 23, but they are 20, and only 20 used...
 };
 
@@ -112,7 +112,7 @@ namespace {
   // constants ----------------------------------------------------------------
   Real const B_unit = 8.351416e19; // almost the same as athenaB * 1.0e4;
   // --------------------------------------------------------------------------
-  
+
   // Utilities wrapping various SGRID DNS calls (DNS_*)
   void DNS_init_sgrid(ParameterInput *pin);
   int DNS_position_fileptr_after_str(FILE *in, const char *str);
@@ -425,7 +425,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   //
   // Get settings for SGRID lib
   //
-  
+
   const Real sgrid_x_CM = pin->GetReal("problem", "x_CM");
   const Real Omega = pin->GetReal("problem", "Omega");
   const Real ecc = pin->GetReal("problem", "ecc");
@@ -448,14 +448,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   //int set_shift = 1;
   //int set_hydro = 1;
 
-  // Initial data variables at one point 
+  // Initial data variables at one point
   // 20 values for the fields at (x_i,y_j,z_k) ordered as:
   //  alpha DNSdata_Bx DNSdata_By DNSdata_Bz
   //  gxx gxy gxz gyy gyz gzz
   //  Kxx Kxy Kxz Kyy Kyz Kzz
   //  q VRx VRy VRz
-  Real IDvars[idvar_NDATAMAX]; 
-  
+  Real IDvars[idvar_NDATAMAX];
+
   //
   // Settings for Athena++
   //
@@ -489,24 +489,24 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   {
 
     //
-    // Interpolate on spacetime grid 
+    // Interpolate on spacetime grid
     //
-    
+
     for (int k=0; k<mbi->nn3; ++k)
     for (int j=0; j<mbi->nn2; ++j)
     for (int i=0; i<mbi->nn1; ++i)
     {
       Real zb = mbi->x3(k);
       Real yb = mbi->x2(j) * s180; // multiply by -1 if 180 degree rotation
-      Real xb = mbi->x1(i) * s180; 
-      Real xs = xb + sgrid_x_CM;   // shift x-coord 
+      Real xb = mbi->x1(i) * s180;
+      Real xs = xb + sgrid_x_CM;   // shift x-coord
       Real xyz[3] = {xs, yb, zb};
 
       // Interpolate
       // This call is supposed to be threadsafe, it contains an OMP Critical
       SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz, IDvars, 0);
 
-      // transform some tensor components, if we have a 180 degree rotation 
+      // transform some tensor components, if we have a 180 degree rotation
       IDvars[idvar_Bx]  *= s180;
       IDvars[idvar_By]  *= s180;
       IDvars[idvar_gxz] *= s180;
@@ -527,7 +527,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       g_dd(1, 1, k, j, i) = IDvars[idvar_gyy];
       g_dd(1, 2, k, j, i) = IDvars[idvar_gyz];
       g_dd(2, 2, k, j, i) = IDvars[idvar_gzz];
-      
+
       K_dd(0, 0, k, j, i) = IDvars[idvar_Kxx];
       K_dd(0, 1, k, j, i) = IDvars[idvar_Kxy];
       K_dd(0, 2, k, j, i) = IDvars[idvar_Kxz];
@@ -539,9 +539,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
     }
     // ------------------------------------------------------------------------
-    // Interpolate on matter grid 
+    // Interpolate on matter grid
     //
-    
+
     AthenaArray<Real> & w = phydro->w;
 #if NSCALARS > 0
     AthenaArray<Real> & r = pscalars->r;
@@ -556,15 +556,15 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     {
       Real zb = pcoord->x3v(k);
       Real yb = pcoord->x2v(j) * s180; // multiply by -1 if 180 degree rotation
-      Real xb = pcoord->x1v(i) * s180; 
-      Real xs = xb + sgrid_x_CM;       // shift x-coord 
+      Real xb = pcoord->x1v(i) * s180;
+      Real xs = xb + sgrid_x_CM;       // shift x-coord
       Real xyz[3] = {xs, yb, zb};
 
       // Interpolate
       // This call is supposed to be threadsafe, it contains an OMP Critical
       SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz, IDvars, 0);
 
-      // Transform some tensor components, if we have a 180 degree rotation 
+      // Transform some tensor components, if we have a 180 degree rotation
       IDvars[idvar_Bx]  *= s180;
       IDvars[idvar_By]  *= s180;
       IDvars[idvar_gxz] *= s180;
@@ -579,7 +579,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       Real pre = 0.0;
       Real ene = 0.0;
       Real v_u_x = 0.0, v_u_y = 0.0, v_u_z = 0.0;
-      
+
       // if we are in matter region, convert q, VR to rho, press, eps, v^i :
       if (IDvars[idvar_q]>0.0) {
         SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho, &pre, &ene);
@@ -617,7 +617,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
              v_u_y * v_u_z * IDvars[idvar_gyz]  +
         v_u_x * v_u_x * IDvars[idvar_gxx]  +
         v_u_y * v_u_y * IDvars[idvar_gyy]  +
-        v_u_z * v_u_z * IDvars[idvar_gzz]) 
+        v_u_z * v_u_z * IDvars[idvar_gzz])
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
@@ -852,7 +852,7 @@ namespace {
 //  This code is adapted from W.Tichy NMESH example
 void DNS_init_sgrid(ParameterInput *pin)
 {
-  const int level_l = 0; 
+  const int level_l = 0;
   const int myrank = Globals::my_rank;
 
   const bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
@@ -862,43 +862,43 @@ void DNS_init_sgrid(ParameterInput *pin)
   const bool Interpolate_make_finer_grid2 = pin->GetOrAddBoolean("problem", "Interpolate_make_finer_grid2", 0);
   const Real Interpolate_max_xyz_diff = pin->GetOrAddReal("problem", "Interpolate_max_xyz_diff",0.);
   std::string outdir = pin->GetOrAddString("problem", "outdir","SGRID");
-  
+
   char * sgrid_datadir = (char *)malloc(sgrid_datadir_const.length() + 1);
   std::strcpy(sgrid_datadir, sgrid_datadir_const.c_str());
 
   char command[STRLEN+65676];
-  char sgrid_exe[] = "sgrid"; // name is not important 
+  char sgrid_exe[] = "sgrid"; // name is not important
   char sgridoutdir[STRLEN], sgridoutdir_previous[STRLEN];
   char sgridcheckpoint_indir[STRLEN];
   char sgridparfile[STRLEN];
   char *stringptr;
   int ret;
 
-  // initialize file names 
+  // initialize file names
   //std::sprintf(gridfile, "%s/grid_level_%d_proc_%d.dat", outdir, level_l, MPIrank);
   std::sprintf(sgridoutdir, "%s/sgrid_level_%d_proc_%d", outdir.c_str(), level_l, myrank);
   std::sprintf(sgridoutdir_previous, "%s/sgrid_level_%d_proc_%d_previous",
           outdir.c_str(), level_l, myrank);
   std::snprintf(sgridcheckpoint_indir, STRLEN-1, "%s", sgrid_datadir);
-  stringptr = std::strrchr(sgrid_datadir, '/'); // find last / 
-  if(stringptr==NULL) { // no / found in DNSdataReader_sgrid_datadir 
+  stringptr = std::strrchr(sgrid_datadir, '/'); // find last /
+  if(stringptr==NULL) { // no / found in DNSdataReader_sgrid_datadir
     std::snprintf(sgridparfile, STRLEN-1, "%s.par", sgrid_datadir);
   } else {
     std::snprintf(sgridparfile, STRLEN-1, "%s%s", stringptr+1, ".par");
   }
-  
+
   // IMPORTANT: Put sgrid in a mode where it does not free its memory before
   // returning from libsgrid_main. So later we need to explicitly call
   //   SGRID_free_everything();
   // Done in UserWorkAfterLoop
   SGRID_memory_persists = 1;
 
-  // init sgrid if needed, so that we can call funcs in it 
+  // init sgrid if needed, so that we can call funcs in it
   if(!SGRID_grid_exists())
   {
     if (verbose) std::printf("Init sgrid\n");
-    
-    // call sgrid without running interpolator 
+
+    // call sgrid without running interpolator
     std::sprintf(command, "%s %s/%s "
             "--modify-par:BNSdata_Interpolate_pointsfile=%s "
             "--modify-par:BNSdata_Interpolate_output=%s "
@@ -907,13 +907,13 @@ void DNS_init_sgrid(ParameterInput *pin)
             sgrid_exe, sgrid_datadir, sgridparfile,
             "****NONE****", "<NONE>", sgridoutdir, sgridcheckpoint_indir);
 
-    // low verbosity 
+    // low verbosity
     std::strcat(command,
            " --modify-par:Coordinates_set_bfaces=no"
            " --modify-par:verbose=no"
            " --modify-par:Coordinates_verbose=no");
 
-    // add other pars 
+    // add other pars
     if(Interpolate_verbose)
       std::strcat(command, " --modify-par:BNSdata_Interpolate_verbose=yes");
     if(Interpolate_max_xyz_diff>0.0)
@@ -931,9 +931,9 @@ void DNS_init_sgrid(ParameterInput *pin)
     int ret = DNS_call_sgrid(command);
     if (verbose) std::printf("DNS_call_sgrid returned: %d\n", ret);
   }
-  
+
 }
-  
+
 //----------------------------------------------------------------------------------------
 //! \fn int DNS_call_sgrid(const char *command)
 //  \brief Utility for SGRID DNS files: call libsgrid
@@ -946,29 +946,29 @@ int DNS_call_sgrid(const char *command)
   int size = Globals::nranks;
   int rkop;
 
-  // cleanup in case we have called this already before 
+  // cleanup in case we have called this already before
   if(SGRID_grid_exists()) SGRID_free_everything();
 
   std::printf("calling libsgrid_main with these arguments:\n%s\n", command);
 
   //argc = construct_argv(com, &argv);
   argc = SGRID_construct_argv(com, &argv);
- 
+
   status = libsgrid_main(argc, argv);
 
   if(status!=0) {
-    std::printf("WARNING: Return value = %d\n", status); 
+    std::printf("WARNING: Return value = %d\n", status);
   }
-  
-  free(argv); // free since construct_argv allocates argv 
+
+  free(argv); // free since construct_argv allocates argv
   free(com);
 
   return status;
 }
-  
+
 //----------------------------------------------------------------------------------------
 //! \fn int DNS_parameters(ParameterInput *pin)
-//  \brief Utility for SGRID DNS files: read SGRID BNSdata_properties.txt and get pars 
+//  \brief Utility for SGRID DNS files: read SGRID BNSdata_properties.txt and get pars
 //  This code is minimally changed from W.Tichy NMESH example
 int DNS_parameters(ParameterInput *pin)
 {
@@ -996,7 +996,7 @@ int DNS_parameters(ParameterInput *pin)
   //
   // Open file
   //
-  
+
   fp1 = fopen(datadir, "r");
   if(fp1==NULL) {
     std::stringstream msg;
@@ -1004,8 +1004,8 @@ int DNS_parameters(ParameterInput *pin)
         << " could not be accessed.";
     ATHENA_ERROR(msg);
   }
-  
-  // move fp1 to place where time = 0 is 
+
+  // move fp1 to place where time = 0 is
   j = DNS_position_fileptr_after_str(fp1, "NS data properties (time = 0):\n");
   if(j==EOF) {
     std::stringstream msg;
@@ -1021,7 +1021,7 @@ int DNS_parameters(ParameterInput *pin)
   Real ret = SGRID_fgetparameter(fp1, "EoS_type", EoS_type);
   if(ret==EOF)
   {
-    // if we can't find EoS_type default to PwP 
+    // if we can't find EoS_type default to PwP
     std::sprintf(EoS_type, "%s", "PwP");
     rewind(fp1);
     j = DNS_position_fileptr_after_str(fp1, "NS data properties (time = 0):\n");
@@ -1029,7 +1029,7 @@ int DNS_parameters(ParameterInput *pin)
   }
   if (verbose) std::printf("EoS_type = %s\n", EoS_type);
 
-  // Check if we need to read piecewise poly (PwP) pars 
+  // Check if we need to read piecewise poly (PwP) pars
   if( (strcmp(EoS_type,"PwP")==0) || (strcmp(EoS_type,"pwp")==0) )
   {
     SGRID_fgotonext(fp1, "n_list");
@@ -1050,10 +1050,10 @@ int DNS_parameters(ParameterInput *pin)
       std::printf("rho0_list = %s\n", strrho0);
       std::printf("kappa     = %s\n", strkappa);
       std::printf("Note: n_list contains the polytropic indices n,\n"
-	     "      compute each Gamma using:  Gamma = 1 + 1/n\n");
+                  "      compute each Gamma using:  Gamma = 1 + 1/n\n");
     }
   }
-  
+
   // Check if EoS is in sgrid table
   if(strcmp(EoS_type,"tab1d_AtT0")==0)
   {
@@ -1064,11 +1064,11 @@ int DNS_parameters(ParameterInput *pin)
     }
   }
 
-  //TODO set/adapt Athena++ EOS parameters from SGRID data 
+  //TODO set/adapt Athena++ EOS parameters from SGRID data
   /*
     Real rho0max, epslmax, Pmax;
 
-    set some Nmesh EoS pars according to what was read 
+    set some Nmesh EoS pars according to what was read
     if(strrho0[0])  Sets(Par("EoS_PwP_rho0"), strrho0);
     if(strn[0])     Sets(Par("EoS_PwP_n"), strn);
     if(strkappa[0]) Sets(Par("EoS_PwP_kappa"), strkappa);
@@ -1081,7 +1081,7 @@ int DNS_parameters(ParameterInput *pin)
     if(strkappa[0]) printf("EoS_PwP_kappa = %s\n", Gets(Par("EoS_PwP_kappa")));
     if(EoS_file[0]) printf("EoS_tab1d_load_file = %s\n", Gets(Par("EoS_tab1d_load_file")));
     printf("Make sure PwP_init_from_parameters gives a compatible EoS!!!\n");
-  
+
     EoS_reinit_from_pars(mesh);
 
     qmax = fmax(qmax1, qmax2);
@@ -1096,29 +1096,29 @@ int DNS_parameters(ParameterInput *pin)
     Real dPdrho0, dPdepsl;
     tab1d_Of_hm1_AtT0(qmax, &rho0max, &epslmax, &Pmax, &dPdrho0, &dPdepsl);
     }
-    else // read rho0max, Pmax from file fp1 
+    else // read rho0max, Pmax from file fp1
     {
     Real rho0max1=-1, Pmax1=-1, rho0max2=-1, Pmax2=-1;
     rewind(fp1);
     j=DNS_position_fileptr_after_str(fp1, "NS data properties (time = 0):\n");
-    
+
     ret = SGRID_fgetparameter(fp1, "rho0max1", str);
     if(ret!=EOF) rho0max1 = atof(str);
     ret = SGRID_fgetparameter(fp1, "Pmax1", str);
     if(ret!=EOF) Pmax1 = atof(str);
-    
+
     ret = SGRID_fgetparameter(fp1, "rho0max2", str);
     if(ret!=EOF) rho0max2 = atof(str);
     ret = SGRID_fgetparameter(fp1, "Pmax2", str);
     if(ret!=EOF) Pmax2 = atof(str);
-    
+
     rho0max = fmax(rho0max1, rho0max2);
     Pmax    = fmax(Pmax1, Pmax2);
     if(rho0max<0. || Pmax<0.)
     errorexit("unable to find rho0max1/2 and Pmax1/2 in "
     "BNSdata_properties.txt");
-    
-    // Set epslmax using: q = h-1 = epsl + P/rho0  =>  epsl = q - P/rho0 
+
+    // Set epslmax using: q = h-1 = epsl + P/rho0  =>  epsl = q - P/rho0
     epslmax = qmax - Pmax/rho0max;
     }
   */
@@ -1138,9 +1138,9 @@ int DNS_parameters(ParameterInput *pin)
   SGRID_fgetparameter(fp1, "m02", str);
   Real m02 = atof(str);
 
-  // Shift xmax1/2 such that CM is at 0, also read qmax1/2 
+  // Shift xmax1/2 such that CM is at 0, also read qmax1/2
   SGRID_fgetparameter(fp1, "xin1", str);
-  Real xin1 = atof(str)-sgrid_x_CM;  
+  Real xin1 = atof(str)-sgrid_x_CM;
   SGRID_fgetparameter(fp1, "xmax1", str);
   Real xmax1 = atof(str)-sgrid_x_CM;
   SGRID_fgetparameter(fp1, "xout1", str);
@@ -1162,14 +1162,14 @@ int DNS_parameters(ParameterInput *pin)
   //
   // Set Athena++ parameters for later
   //
-  
+
   pin->SetReal("problem", "x_CM" , sgrid_x_CM);
   pin->SetReal("problem", "Omega", Omega);
   pin->SetReal("problem", "ecc"  , ecc);
   pin->SetReal("problem", "rdot" , rdot);
   pin->SetReal("problem", "m01"  , m01);
   pin->SetReal("problem", "m02"  , m02);
-  
+
   pin->SetReal("problem", "xin1" , xin1);
   pin->SetReal("problem", "xmax1", xmax1);
   pin->SetReal("problem", "qmax1", qmax1);
@@ -1192,9 +1192,9 @@ int DNS_parameters(ParameterInput *pin)
   pin->SetReal("problem", "center2_z", 0.);
 
   //
-  // Close file 
+  // Close file
   //
-  
+
   fclose(fp1);
 
   if (verbose) {
