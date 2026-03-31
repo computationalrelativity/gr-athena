@@ -71,7 +71,15 @@ class PiecewisePolytrope : public EOSPolicyInterface
                                            Real* Y,
                                            Real* T,
                                            Real* P,
-                                           Real* h);
+                                           Real* h,
+                                           int* guess_it = nullptr);
+
+  void PressureAndEnthalpyFromE(Real n,
+                                Real e,
+                                Real* Y,
+                                Real* P,
+                                Real* h,
+                                int* guess_it = nullptr);
 
   /// Fused pressure + enthalpy query.
   void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);

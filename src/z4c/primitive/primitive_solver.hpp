@@ -110,8 +110,9 @@ class PrimitiveSolver
                            Real* Y,
                            EOS<EOSPolicy, ErrorPolicy>* const peos,
                            Real* n,
-                           Real* T,
-                           Real* P)
+                           Real* e,
+                           Real* P,
+                           int* guess_it)
     {
       // We need to get some utility quantities first.
       const Real x    = 1.0 / (1.0 + mu * bsq);
@@ -157,12 +158,10 @@ class PrimitiveSolver
       // GetTemperatureFromE already clamps to min_T/max_T when
       // the energy falls outside the table bounds.
 
-      // Now we can get an estimate of the temperature, and from that, the
-      // pressure and enthalpy.
-      Real That, Phat, hhat;
-      peos->GetTemperaturePressureAndEnthalpyFromE(
-        nhat, ehat, Y, &That, &Phat, &hhat);
-      peos->ApplyTemperatureLimits(That);
+      // Now we can get an estimate of the pressure and enthalpy.
+      Real Phat, hhat;
+      peos->GetPressureAndEnthalpyFromE(
+        nhat, ehat, Y, &Phat, &hhat, guess_it);
 
       // Now we can get two different estimates for nu = h/W.
       Real nu_a = hhat * iWhat;
@@ -176,7 +175,7 @@ class PrimitiveSolver
       Real muhat = 1.0 / (nuhat + mu * rbarsq);
 
       *n = nhat;
-      *T = That;
+      *e = ehat;
       *P = Phat;
 
       // FIXME: Debug only!
@@ -650,7 +649,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   // Do the root solve.
   // TODO: This should be done with something like TOMS748 once it's
   // available.
-  Real n, P, T, mu;
+  Real n, P, e, mu;
+  Real T;
+  int guess_it = -1;
   bool result;
   if (use_toms_748)
   {
@@ -666,8 +667,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                             Y,
                             peos,
                             &n,
-                            &T,
-                            &P);
+                            &e,
+                            &P,
+                            &guess_it);
     result = true;
   }
   else
@@ -685,8 +687,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                                 Y,
                                 peos,
                                 &n,
-                                &T,
-                                &P);
+                                &e,
+                                &P,
+                                &guess_it);
   }
 
   // WARNING: the reported number of iterations is not thread-safe and should
@@ -712,6 +715,10 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Wv_u[0]      = Wmux * (r_u[0] + rbmu * b_u[0]);
   Wv_u[1]      = Wmux * (r_u[1] + rbmu * b_u[1]);
   Wv_u[2]      = Wmux * (r_u[2] + rbmu * b_u[2]);
+
+  // Compute final temperature
+  T = peos->GetTemperatureFromE(n, e, Y);
+  peos->ApplyTemperatureLimits(T);
 
   // Apply the flooring policy to the primitive variables.
   floored                  = peos->ApplyPrimitiveFloor(n, Wv_u, P, T, Y);

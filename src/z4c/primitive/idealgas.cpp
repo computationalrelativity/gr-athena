@@ -74,10 +74,22 @@ void IdealGas::TemperaturePressureAndEnthalpyFromE(Real n,
                                                    Real* Y,
                                                    Real* T,
                                                    Real* P,
-                                                   Real* h)
+                                                   Real* h,
+                                                   int* guess_it)
 {
   *T = TemperatureFromE(n, e, Y);
   PressureAndEnthalpy(n, *T, Y, P, h);
+}
+
+void IdealGas::PressureAndEnthalpyFromE(Real n,
+                                        Real e,
+                                        Real* Y,
+                                        Real* P,
+                                        Real* h,
+                                        int* guess_it)
+{
+  Real T = TemperatureFromE(n, e, Y);
+  PressureAndEnthalpy(n, T, Y, P, h);
 }
 
 Real IdealGas::MinimumEnthalpy()

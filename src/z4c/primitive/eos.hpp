@@ -83,6 +83,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::TemperatureFromEntropy;
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
+  using EOSPolicy::PressureAndEnthalpyFromE;
 
   using EOSPolicy::FrYh;
   using EOSPolicy::FrYn;
@@ -291,7 +292,8 @@ class EOS : public EOSPolicy, public ErrorPolicy
                                                      Real* Y,
                                                      Real* T,
                                                      Real* P,
-                                                     Real* h)
+                                                     Real* h,
+                                                     int* guess_it = nullptr)
   {
     Real T_eos, P_eos, h_eos;
     TemperaturePressureAndEnthalpyFromE(
@@ -300,8 +302,32 @@ class EOS : public EOSPolicy, public ErrorPolicy
       Y,
       &T_eos,
       &P_eos,
-      &h_eos);
+      &h_eos,
+      guess_it);
     *T = T_eos * eos_units->TemperatureConversion(*code_units);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
+  }
+
+
+  //! \brief Fused pressure + enthalpy query from energy.
+  inline void GetPressureAndEnthalpyFromE(Real n,
+                                          Real e,
+                                          Real* Y,
+                                          Real* P,
+                                          Real* h,
+                                          int* guess_it = nullptr)
+  {
+    Real P_eos, h_eos;
+    PressureAndEnthalpyFromE(
+      n,
+      e * code_units->PressureConversion(*eos_units),
+      Y,
+      &P_eos,
+      &h_eos,
+      guess_it);
     *P = P_eos * eos_units->PressureConversion(*code_units);
     *h = h_eos / mb *
          (eos_units->EnergyConversion(*code_units) /
@@ -516,15 +542,21 @@ class EOS : public EOSPolicy, public ErrorPolicy
                                   Real* Y,
                                   Real Bsq)
   {
+    Real D_floor     = n_atm * GetBaryonMass();
+    Real t_floor     = 0.0;
+    Real t_abs_floor = 0.0;
+
+    if (D < D_floor * n_threshold)
+    {
+      t_abs_floor = GetTauFloor(D_floor, Y_atm, Bsq);
+    }
+    else
+    {
+      t_floor = GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq);
+    }
+
     return ConservedFloor(
-      D,
-      Sd,
-      tau,
-      Y,
-      n_atm * GetBaryonMass(),
-      GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq),
-      GetTauFloor(n_atm * GetBaryonMass(), Y_atm, Bsq),
-      n_species);
+      D, Sd, tau, Y, D_floor, t_floor, t_abs_floor, n_species);
   }
 
   //! \fn Real GetDensityFloor() const

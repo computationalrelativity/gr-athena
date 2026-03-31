@@ -75,7 +75,15 @@ class EOSCompOSE : public EOSPolicyInterface
                                            Real* Y,
                                            Real* T,
                                            Real* P,
-                                           Real* h);
+                                           Real* h,
+                                           int* guess_it = nullptr);
+
+  void PressureAndEnthalpyFromE(Real n,
+                                Real e,
+                                Real* Y,
+                                Real* P,
+                                Real* h,
+                                int* guess_it = nullptr);
 
   /// Fused pressure + enthalpy: single weight computation for both P and h.
   void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
@@ -193,7 +201,8 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Low level function, not intended for outside use
   Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
   /// Low level function with pre-computed density/composition weights
-  Real temperature_from_var_precomp(int iv,
+  Real temperature_from_var_precomp(Real var_min, Real var_max,
+                                    int iv,
                                     Real var,
                                     Real wn0,
                                     Real wn1,
