@@ -152,7 +152,8 @@ Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real* Y)
     return min_T;
   if (s >= s_max)
     return max_T;
-  return temperature_from_var_precomp(s_min, s_max, ECENT, s, wn0, wn1, in, wy0, wy1, iy);
+  return temperature_from_var_precomp(
+    s_min, s_max, ECENT, s, wn0, wn1, in, wy0, wy1, iy);
 }
 
 Real EOSCompOSE::Energy(Real n, Real T, Real* Y)
@@ -271,7 +272,7 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
       fhi       = fh;
       bracketed = true;
     }
-    else if (fl < 0 && it > 0) // Try shifting left
+    else if (fl < 0 && it > 0)  // Try shifting left
     {
       Real fl_minus = f(it - 1);
       if (fl_minus * fl <= 0)
@@ -283,7 +284,7 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
         bracketed = true;
       }
     }
-    else if (fh > 0 && it + 2 < m_nt) // Try shifting right
+    else if (fh > 0 && it + 2 < m_nt)  // Try shifting right
     {
       Real fh_plus = f(it + 2);
       if (fh * fh_plus <= 0)
@@ -410,11 +411,11 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
 }
 
 void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
-                                                     Real e,
-                                                     Real* Y,
-                                                     Real* P,
-                                                     Real* h,
-                                                     int* guess_it)
+                                          Real e,
+                                          Real* Y,
+                                          Real* P,
+                                          Real* h,
+                                          int* guess_it)
 {
   assert(m_initialized);
   int in, iy;
@@ -457,7 +458,7 @@ void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
       fhi       = fh;
       bracketed = true;
     }
-    else if (fl < 0 && it > 0) // Try shifting left
+    else if (fl < 0 && it > 0)  // Try shifting left
     {
       Real fl_minus = f(it - 1);
       if (fl_minus * fl <= 0)
@@ -469,7 +470,7 @@ void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
         bracketed = true;
       }
     }
-    else if (fh > 0 && it + 2 < m_nt) // Try shifting right
+    else if (fh > 0 && it + 2 < m_nt)  // Try shifting right
     {
       Real fh_plus = f(it + 2);
       if (fh * fh_plus <= 0)
@@ -574,7 +575,6 @@ void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
     wt1 = (lt - ltlo) * m_id_log_t;
     wt0 = 1.0 - wt1;
   }
-
 
   int it = ilo;
 
@@ -908,15 +908,20 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         }
       }
 
-      ierr = H5LTread_dataset_double(file_id, "dU", scratch);
-      if (ierr < 0) {
+      if (H5Lexists(file_id, "dU", H5P_DEFAULT) > 0)
+      {
+        ierr = H5LTread_dataset_double(file_id, "dU", scratch);
+        MYH5CHECK(ierr);
+        copy(&scratch[0],
+             &scratch[m_nn * m_ny * m_nt],
+             &m_table[index(ECDU, 0, 0, 0)]);
+      }
+      else
+      {
         // Dataset "dU" not found: fill table with zeros
         fill(&m_table[index(ECDU, 0, 0, 0)],
-            &m_table[index(ECDU, 0, 0, 0)] + m_nn*m_ny*m_nt,
-            0.0);
-      } else {
-        // Dataset read successfully, copy into table
-        copy(&scratch[0], &scratch[m_nn*m_ny*m_nt], &m_table[index(ECDU, 0, 0, 0)]);
+             &m_table[index(ECDU, 0, 0, 0)] + m_nn * m_ny * m_nt,
+             0.0);
       }
 
       // The following requires Abar?:
@@ -1023,7 +1028,8 @@ Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const
   weight_idx_yq(&wy0, &wy1, &iy, Yq);
   Real var_min = eval_at_it(iv, wn0, wn1, in, wy0, wy1, iy, 0);
   Real var_max = eval_at_it(iv, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
-  return temperature_from_var_precomp(var_min, var_max, iv, var, wn0, wn1, in, wy0, wy1, iy);
+  return temperature_from_var_precomp(
+    var_min, var_max, iv, var, wn0, wn1, in, wy0, wy1, iy);
 }
 
 Real EOSCompOSE::temperature_from_var_precomp(Real var_min,
