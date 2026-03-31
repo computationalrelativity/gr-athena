@@ -30,7 +30,7 @@ class WeakRates
         opu(pm1, pmb, pin, "(WeakRates)")
   {
 #if !FLUID_ENABLED
-    #pragma omp critical
+#pragma omp critical
     {
       std::cout << "Warning: ";
       std::cout << "M1::Opacities::WeakRates needs TEOS to work properly \n";
@@ -38,7 +38,7 @@ class WeakRates
 #endif
 
 #if !(NSCALARS > 0)
-    #pragma omp critical
+#pragma omp critical
     {
       std::cout << "Warning: ";
       std::cout
@@ -63,6 +63,9 @@ class WeakRates
     // Set EoS from PS
     pmy_weakrates =
       new WeakRatesNeutrinos::WeakRates(opu.opt, &pmy_block->peos->GetEOS());
+
+    // WeakRates always uses Kirchhoff energy-ratio correction
+    opu.opt.use_kirchhoff_energy_correction = true;
   };
 
   ~WeakRates()

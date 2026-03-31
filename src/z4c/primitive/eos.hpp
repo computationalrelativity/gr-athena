@@ -70,6 +70,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::Energy;
   using EOSPolicy::Enthalpy;
   using EOSPolicy::Entropy;
+  using EOSPolicy::InteractionPotentialDifference;
   using EOSPolicy::MaximumEnergy;
   using EOSPolicy::MaximumPressure;
   using EOSPolicy::MinimumEnergy;
@@ -473,6 +474,20 @@ class EOS : public EOSPolicy, public ErrorPolicy
     return ElectronLeptonChemicalPotential(
              n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
+  }
+  //! \fn Real GetInteractionPotentialDifference(Real n, Real T, Real *Y)
+  //  \brief Get the effective interaction potential difference from the
+  //         number density, temperature, and particle fractions.
+  //
+  //  \param[in] n  The number density [eos_units]
+  //  \param[in] T  The temperature
+  //  \param[in] Y  An array of size n_species of the particle fractions.
+  //  \return The effective interaction potential difference for the EOS.
+  inline Real GetInteractionPotentialDifference(Real n_eos, Real T, Real* Y)
+  {
+    return InteractionPotentialDifference(
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
+           eos_units->TemperatureConversion(*code_units);
   }
 
   //! \fn int Getn_species() const

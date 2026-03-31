@@ -169,6 +169,11 @@ class OpacityUtils
     Real tra_rho_min = 0.0;
     Real eql_t_min   = 0.0;
 
+    // Whether to apply Kirchhoff energy-ratio correction (default true).
+    // BNSNuRates sets this based on whether equilibrium distributions are
+    // used.
+    bool use_kirchhoff_energy_correction = true;
+
     // Constructor: reads all from pin
     explicit Opt(ParameterInput* pin)
         : cut_dfloor(pin->GetOrAddReal("M1_opacities", "cut_dfloor", 0.0)),

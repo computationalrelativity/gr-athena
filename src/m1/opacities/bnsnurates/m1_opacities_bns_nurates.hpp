@@ -25,7 +25,6 @@ class BNSNuRates
   public:
   // Shared utility object (public so pipeline code can access opu members)
   Common::OpacityUtils opu;
-  bool nrates_use_eq_distr;
 
   BNSNuRates(MeshBlock* pmb, M1* pm1, ParameterInput* pin)
       : pm1(pm1),
@@ -36,7 +35,7 @@ class BNSNuRates
         opu(pm1, pmb, pin, "(BNSNuRates)")
   {
 #if !FLUID_ENABLED
-    #pragma omp critical
+#pragma omp critical
     {
       std::cout << "Warning: ";
       std::cout << "M1::Opacities::BNS_NuRates needs TEOS to work properly \n";
@@ -44,7 +43,7 @@ class BNSNuRates
 #endif
 
 #if !(NSCALARS > 0)
-    #pragma omp critical
+#pragma omp critical
     {
       std::cout << "Warning: ";
       std::cout
@@ -68,8 +67,8 @@ class BNSNuRates
     pmy_eos     = new Common::EoS::EoSWrapper(opu.opt, &(pmb->peos->GetEOS()));
     pmy_nurates = new BNSNu_Wrapper::BNSNuRatesWrapper(pmy_eos, pin, opu.opt);
 
-    nrates_use_eq_distr = pmy_nurates->UseEquilibriumDistribution();
-
+    opu.opt.use_kirchhoff_energy_correction =
+      pmy_nurates->UseEquilibriumDistribution();
     // Cache unit pointers
     code_units = pmy_eos->GetCodeUnits();
     wr_units   = pmy_eos->GetWrUnits();
@@ -402,9 +401,7 @@ class BNSNuRates
                                          const bool using_averaging_fix)
   {
     auto recompute = [this](int k, int j, int i, Real rho, Real T, Real Y_e)
-    {
-      return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y_e);
-    };
+    { return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y_e); };
 
     return opu.ComputeEquilibriumDensities(this,
                                            k,
