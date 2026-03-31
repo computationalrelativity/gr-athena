@@ -710,7 +710,8 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
     if (nb.snb.rank != Globals::my_rank)
     {
       int test_flag = 0;
-      MPI_Test(&req_recv_[nb.bufid], &test_flag, MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Test(&req_recv_[nb.bufid], &test_flag, &mpi_status);
       if (test_flag)
         recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
                                    std::memory_order_release);
@@ -729,20 +730,21 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
 // Unpack received data into the state array.
 // For each neighbor, select the correct destination based on relative
 // refinement level:
-//   same-level  -> SetSameLevel (fine ghost zones + optional coarse payload)
-//   from coarser-> SetFromCoarser (into coarse buffer for later prolongation)
-//   from finer  -> SetFromFiner (restricted data into fine ghost zones)
+//   same-level  -> SetSameLevel (fine ghost zones + optional coarse
+//   payload) from coarser-> SetFromCoarser (into coarse buffer for later
+//   prolongation) from finer  -> SetFromFiner (restricted data into fine
+//   ghost zones)
 //
-// When nb.polar is true, the j-index loop is reversed and per-component parity
-// sign flips are applied - matching the old system's polar boundary handling
-// exactly.
+// When nb.polar is true, the j-index loop is reversed and per-component
+// parity sign flips are applied - matching the old system's polar boundary
+// handling exactly.
 //
-// VC additive unpack: vertex-centered data uses UnpackDataAdd for same-level
-// (fine + coarse) and from-finer cases, because shared vertices accumulate
-// contributions from multiple neighbors.  From-coarser uses plain UnpackData
-// (overwrites coarse buffer). The caller (CommRegistry::SetBoundaries) handles
-// ZeroGhosts before and ApplyDivision after, using the precomputed
-// NodeMultiplicity.
+// VC additive unpack: vertex-centered data uses UnpackDataAdd for
+// same-level (fine + coarse) and from-finer cases, because shared vertices
+// accumulate contributions from multiple neighbors.  From-coarser uses
+// plain UnpackData (overwrites coarse buffer). The caller
+// (CommRegistry::SetBoundaries) handles ZeroGhosts before and
+// ApplyDivision after, using the precomputed NodeMultiplicity.
 
 // Helper: unpack buffer into array with reversed j-order and sign flips.
 // Mirrors the old SetBoundarySameLevel polar branch.
@@ -779,8 +781,8 @@ static void UnpackPolar(Real* buf,
   }
 }
 
-// Helper: unpack buffer into a 3D array with reversed j-order and sign flip.
-// Used by FC polar unpack (one face component at a time).
+// Helper: unpack buffer into a 3D array with reversed j-order and sign
+// flip. Used by FC polar unpack (one face component at a time).
 static void UnpackPolarFC(Real* buf,
                           AthenaArray<Real>& arr,
                           Real sign,
@@ -949,8 +951,8 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
 
         // Multilevel: unpack 3 coarse face components into coarse_fc.
         // Coarse payload is NOT j-reversed (no polar reversal).
-        // Skip when this block has all same-level neighbors - it will never
-        // prolong, so coarse ghost data is not needed.
+        // Skip when this block has all same-level neighbors - it will
+        // never prolong, so coarse ghost data is not needed.
         if (pmb->pmy_mesh->multilevel && spec_.coarse_fc[0] != nullptr &&
             !pmb->NeighborBlocksSameLevel())
         {
@@ -1085,8 +1087,9 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
       idx::IndexRange3D r = idx::SetSameLevel(pmb, nb.ni, ngh, 1, samp);
       if (nb.polar)
       {
-        // TODO: polar additive unpack for VC - not needed yet (Z4c VC has no
-        // polar). When needed, add a sign-flipped UnpackDataAdd variant here.
+        // TODO: polar additive unpack for VC - not needed yet (Z4c VC has
+        // no polar). When needed, add a sign-flipped UnpackDataAdd variant
+        // here.
         UnpackPolar(recv_buf_[nb.bufid],
                     var,
                     nvar,
@@ -1129,9 +1132,9 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
       }
 
       // If multilevel, unpack coarse payload into coarse_buf ghost zones.
-      // Coarse payload is NOT j-reversed - the old system does not apply polar
-      // reversal to the coarse payload in SetBoundarySameLevel.
-      // Skip when this block has all same-level neighbors - it will never
+      // Coarse payload is NOT j-reversed - the old system does not apply
+      // polar reversal to the coarse payload in SetBoundarySameLevel. Skip
+      // when this block has all same-level neighbors - it will never
       // prolong, so coarse ghost data is not needed.
       if (pmb->pmy_mesh->multilevel && spec_.coarse_var != nullptr &&
           !pmb->NeighborBlocksSameLevel())
@@ -1171,7 +1174,8 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
     else if (nb.snb.level < mylevel)
     {
       // From coarser: unpack into coarse buffer for later prolongation.
-      // VC from-coarser is NOT additive (plain overwrite into coarse buffer).
+      // VC from-coarser is NOT additive (plain overwrite into coarse
+      // buffer).
       AthenaArray<Real>& cvar = *spec_.coarse_var;
       idx::IndexRange3D r     = idx::SetFromCoarser(pmb, nb.ni, ngh, samp);
       if (nb.polar)
@@ -1209,8 +1213,9 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
       idx::IndexRange3D r = idx::SetFromFiner(pmb, nb.ni, ngh, samp);
       if (nb.polar)
       {
-        // TODO: polar additive unpack for VC - not needed yet (Z4c VC has no
-        // polar). When needed, add a sign-flipped UnpackDataAdd variant here.
+        // TODO: polar additive unpack for VC - not needed yet (Z4c VC has
+        // no polar). When needed, add a sign-flipped UnpackDataAdd variant
+        // here.
         UnpackPolar(recv_buf_[nb.bufid],
                     var,
                     nvar,
@@ -1271,8 +1276,8 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
   // When wait=false (LTS non-blocking path), first check that all off-rank
   // sends have completed before touching any flags.  This avoids resetting
   // recv_flag/send_flag prematurely - a defensive measure that keeps the
-  // code safe even if future DAG changes allow overlapping Clear with a new
-  // communication cycle.  When wait=true (GTS blocking path), MPI_Wait
+  // code safe even if future DAG changes allow overlapping Clear with a
+  // new communication cycle.  When wait=true (GTS blocking path), MPI_Wait
   // guarantees completion so we can reset flags in the same pass.
 #ifdef MPI_PARALLEL
   if (!wait)
@@ -1286,7 +1291,8 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
       if (nb.snb.rank != Globals::my_rank)
       {
         int flag;
-        MPI_Test(&req_send_[nb.bufid], &flag, MPI_STATUS_IGNORE);
+        MPI_Status mpi_status;
+        MPI_Test(&req_send_[nb.bufid], &flag, &mpi_status);
         if (!flag)
           return false;  // at least one send still pending - retry later
       }
@@ -1310,7 +1316,8 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
 #ifdef MPI_PARALLEL
     if (wait && nb.snb.rank != Globals::my_rank)
     {
-      MPI_Wait(&req_send_[nb.bufid], MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Wait(&req_send_[nb.bufid], &mpi_status);
     }
 #endif
   }
@@ -1343,10 +1350,10 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
 }
 
 //----------------------------------------------------------------------------------------
-// Same-rank direct copy: find the target block's CommChannel and memcpy into
-// its recv buf. This avoids MPI overhead for intra-rank communication.  The
-// target channel is found via CommRegistry::FindForBlock(), which uses a
-// static map of all registries.
+// Same-rank direct copy: find the target block's CommChannel and memcpy
+// into its recv buf. This avoids MPI overhead for intra-rank
+// communication.  The target channel is found via
+// CommRegistry::FindForBlock(), which uses a static map of all registries.
 
 // --- Original CopyBufferSameProcess (commented out for reference) ---
 // Superseded by zero-copy optimization: the sender now packs directly into
@@ -1370,7 +1377,8 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
 //   if (target_reg == nullptr) {
 //     std::stringstream msg;
 //     msg << "### FATAL ERROR in CommChannel::CopyBufferSameProcess\n"
-//         << "No CommRegistry found for target MeshBlock gid=" << nb.snb.gid
+//         << "No CommRegistry found for target MeshBlock gid=" <<
+//         nb.snb.gid
 //         << std::endl;
 //     ATHENA_ERROR(msg);
 //   }
@@ -1386,10 +1394,10 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
 // Zero-copy helpers for same-rank communication.
 //
 // Instead of packing into send_buf_ and then memcpy-ing into the target's
-// recv_buf_, the sender resolves the target's recv buffer pointer up front and
-// packs directly into it.  This eliminates two of the three copies in the old
-// same-rank path (pack->send_buf + memcpy->recv_buf), leaving only the single
-// pack->recv_buf copy.
+// recv_buf_, the sender resolves the target's recv buffer pointer up front
+// and packs directly into it.  This eliminates two of the three copies in
+// the old same-rank path (pack->send_buf + memcpy->recv_buf), leaving only
+// the single pack->recv_buf copy.
 
 Real* CommChannel::ResolveTargetRecvBuffer(int nb_idx)
 {
@@ -1427,7 +1435,8 @@ void CommChannel::SetTargetFluxCorrRecvFlag(int nb_idx)
 
 //----------------------------------------------------------------------------------------
 // Compute flux correction buffer size for one neighbor.
-// Dispatches to the appropriate index_utilities function based on flcor_mode.
+// Dispatches to the appropriate index_utilities function based on
+// flcor_mode.
 
 int CommChannel::ComputeFluxCorrBufferSize(const NeighborConnectivity& nc,
                                            int nb_idx) const
@@ -1441,10 +1450,10 @@ int CommChannel::ComputeFluxCorrBufferSize(const NeighborConnectivity& nc,
 }
 
 //----------------------------------------------------------------------------------------
-// Populate edge_flag_[12] and nedge_fine_[12] by scanning the neighbor-level
-// table. Determines whether each of the 12 edges has a finer neighbor touching
-// it, and how many blocks contribute at the finest level.  Only meaningful for
-// FC EMF (AccumulateAverage). Ported from
+// Populate edge_flag_[12] and nedge_fine_[12] by scanning the
+// neighbor-level table. Determines whether each of the 12 edges has a
+// finer neighbor touching it, and how many blocks contribute at the finest
+// level.  Only meaningful for FC EMF (AccumulateAverage). Ported from
 // FaceCenteredBoundaryVariable::CountFineEdges (bvals_fc.cpp:790-853).
 
 void CommChannel::CountFineEdges(const NeighborConnectivity& nc)
@@ -1566,8 +1575,8 @@ void CommChannel::AllocateFluxCorrBuffers(const NeighborConnectivity& nc)
     {
       flcor_send_buf_[nb.bufid] = new Real[size];
     }
-    // flcor_send_buf_[nb.bufid] remains nullptr for same-rank (initialized in
-    // ctor).
+    // flcor_send_buf_[nb.bufid] remains nullptr for same-rank (initialized
+    // in ctor).
     flcor_recv_buf_[nb.bufid] = new Real[size];
     flcor_recv_flag_[nb.bufid].store(BoundaryStatus::waiting,
                                      std::memory_order_relaxed);
@@ -1595,12 +1604,12 @@ void CommChannel::FreeFluxCorrBuffers()
 //----------------------------------------------------------------------------------------
 // Create persistent MPI send/recv requests for flux correction buffers.
 // The level-based filtering mirrors the old system:
-//   CC: send only fine->coarse (nb.level < mylevel), recv only coarse<-finer
-//   (nb.level > mylevel) FC: same-level face + same-level edge (with
-//   edge_flag_) + fine->coarse + coarse<-finer
+//   CC: send only fine->coarse (nb.level < mylevel), recv only
+//   coarse<-finer (nb.level > mylevel) FC: same-level face + same-level
+//   edge (with edge_flag_) + fine->coarse + coarse<-finer
 // Uses the same tag scheme as ghost exchange, with the flux correction
-// channel_id offset by kFluxCorrTagChannelOffset to avoid tag collision with
-// ghost exchange on the same channel.
+// channel_id offset by kFluxCorrTagChannelOffset to avoid tag collision
+// with ghost exchange on the same channel.
 
 void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                                    int max_channel_id)
@@ -1610,9 +1619,9 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
   const int mylevel = pmb->loc.level;
 
   // Same tag bit layout as ghost exchange - both use
-  // BitsNeeded(max_channel_id + kFluxCorrTagChannelOffset) for channel_bits,
-  // ensuring no tag collisions between ghost-exchange and flux-correction
-  // messages. Flux correction channel_ids are shifted by
+  // BitsNeeded(max_channel_id + kFluxCorrTagChannelOffset) for
+  // channel_bits, ensuring no tag collisions between ghost-exchange and
+  // flux-correction messages. Flux correction channel_ids are shifted by
   // kFluxCorrTagChannelOffset.
   const int effective_max_ch = max_channel_id + kFluxCorrTagChannelOffset;
   const int channel_bits     = BitsNeeded(effective_max_ch);
@@ -1654,8 +1663,8 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
 
     if (spec_.flcor_mode == FluxCorrMode::OverwriteFromFiner)
     {
-      // CC: fine block sends to coarser neighbor; coarse block receives from
-      // finer.
+      // CC: fine block sends to coarser neighbor; coarse block receives
+      // from finer.
       if (nb.snb.level < mylevel)
       {
         // This block is finer -> send restricted flux to coarser neighbor.
@@ -1696,8 +1705,9 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
       if (nb.snb.level == mylevel)
       {
         // Same-level: face neighbors always participate.
-        // Edge neighbors participate only if edge_flag_[eid] is true (no finer
-        // neighbor at that edge - otherwise the finer block provides the EMF).
+        // Edge neighbors participate only if edge_flag_[eid] is true (no
+        // finer neighbor at that edge - otherwise the finer block provides
+        // the EMF).
         bool participates = (nb.ni.type == NeighborConnect::face);
         if (!participates && nb.ni.type == NeighborConnect::edge)
           participates = edge_flag_[nb.eid];
@@ -1732,10 +1742,10 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
       else if (nb.snb.level < mylevel)
       {
         // Fine -> coarser: send restricted EMF.
-        // The old code computes a smaller f2csize for the restricted buffer.
-        // Our ComputeFluxCorrBufferSizeFC returns the max (same-level) size,
-        // which is safe for persistent requests (over-allocates for
-        // to-coarser).
+        // The old code computes a smaller f2csize for the restricted
+        // buffer. Our ComputeFluxCorrBufferSizeFC returns the max
+        // (same-level) size, which is safe for persistent requests
+        // (over-allocates for to-coarser).
         int tag =
           MakeTag(nb.snb.lid, nb.targetid, flcor_ch, bufid_bits, channel_bits);
         if (req_flcor_send_[nb.bufid] != MPI_REQUEST_NULL)
@@ -1791,21 +1801,23 @@ void CommChannel::FreeFluxCorrMPIRequests()
 }
 
 //----------------------------------------------------------------------------------------
-// Same-rank direct copy for flux correction: write into target block's flcor
-// recv buffer. Mirrors CopyBufferSameProcess but targets
+// Same-rank direct copy for flux correction: write into target block's
+// flcor recv buffer. Mirrors CopyBufferSameProcess but targets
 // flcor_recv_buf_/flcor_recv_flag_.
 
-// --- Original CopyFluxCorrBufferSameProcess (commented out for reference) ---
-// Superseded by zero-copy optimization: the sender now packs directly into
-// the target's flcor_recv_buf_ via ResolveTargetFluxCorrRecvBuffer().
+// --- Original CopyFluxCorrBufferSameProcess (commented out for reference)
+// --- Superseded by zero-copy optimization: the sender now packs directly
+// into the target's flcor_recv_buf_ via ResolveTargetFluxCorrRecvBuffer().
 //
-// void CommChannel::CopyFluxCorrBufferSameProcess(int nb_idx, int send_size) {
+// void CommChannel::CopyFluxCorrBufferSameProcess(int nb_idx, int
+// send_size) {
 //   const NeighborBlock &nb = pmy_block_->nc().neighbor(nb_idx);
 //
 //   MeshBlock *ptarget = pmy_block_->pmy_mesh->FindMeshBlock(nb.snb.gid);
 //   if (ptarget == nullptr) {
 //     std::stringstream msg;
-//     msg << "### FATAL ERROR in CommChannel::CopyFluxCorrBufferSameProcess\n"
+//     msg << "### FATAL ERROR in
+//     CommChannel::CopyFluxCorrBufferSameProcess\n"
 //         << "Target MeshBlock gid=" << nb.snb.gid << " not found on this
 //         rank."
 //         << std::endl;
@@ -1815,8 +1827,10 @@ void CommChannel::FreeFluxCorrMPIRequests()
 //   CommRegistry *target_reg = CommRegistry::FindForBlock(ptarget);
 //   if (target_reg == nullptr) {
 //     std::stringstream msg;
-//     msg << "### FATAL ERROR in CommChannel::CopyFluxCorrBufferSameProcess\n"
-//         << "No CommRegistry found for target MeshBlock gid=" << nb.snb.gid
+//     msg << "### FATAL ERROR in
+//     CommChannel::CopyFluxCorrBufferSameProcess\n"
+//         << "No CommRegistry found for target MeshBlock gid=" <<
+//         nb.snb.gid
 //         << std::endl;
 //     ATHENA_ERROR(msg);
 //   }
@@ -1834,10 +1848,11 @@ void CommChannel::FreeFluxCorrMPIRequests()
 //========================================================================================
 
 //----------------------------------------------------------------------------------------
-// Pack area-weighted (CC) or edge-length-weighted (FC) restricted fluxes into
-// send buffers, then send to the appropriate neighbors. CC
+// Pack area-weighted (CC) or edge-length-weighted (FC) restricted fluxes
+// into send buffers, then send to the appropriate neighbors. CC
 // (OverwriteFromFiner): only face neighbors with level == mylevel-1. FC
-// (AccumulateAverage): same-level face + qualifying edge, and to-coarser face
+// (AccumulateAverage): same-level face + qualifying edge, and to-coarser
+// face
 // + edge. Polar EMF is deferred.
 
 void CommChannel::PackAndSendFluxCorr(const NeighborConnectivity& nc)
@@ -1856,8 +1871,9 @@ void CommChannel::PackAndSendFluxCorr(const NeighborConnectivity& nc)
 }
 
 //----------------------------------------------------------------------------------------
-// CC flux correction send: area-weighted restriction of fine fluxes to coarser
-// neighbor. Ported from CellCenteredBoundaryVariable::SendFluxCorrection
+// CC flux correction send: area-weighted restriction of fine fluxes to
+// coarser neighbor. Ported from
+// CellCenteredBoundaryVariable::SendFluxCorrection
 // (flux_correction_cc.cpp).
 
 void CommChannel::PackAndSendFluxCorrCC(const NeighborConnectivity& nc)
@@ -2028,10 +2044,11 @@ void CommChannel::PackAndSendFluxCorrCC(const NeighborConnectivity& nc)
 }
 
 //----------------------------------------------------------------------------------------
-// FC EMF flux correction send: raw EMFs (same-level) or edge-length-weighted
-// restricted EMFs (to-coarser) for face + edge neighbors. Ported from
-// FaceCenteredBoundaryVariable::SendFluxCorrection (flux_correction_fc.cpp).
-// Polar EMF is deferred - only non-polar neighbors are handled here.
+// FC EMF flux correction send: raw EMFs (same-level) or
+// edge-length-weighted restricted EMFs (to-coarser) for face + edge
+// neighbors. Ported from FaceCenteredBoundaryVariable::SendFluxCorrection
+// (flux_correction_fc.cpp). Polar EMF is deferred - only non-polar
+// neighbors are handled here.
 
 void CommChannel::PackAndSendFluxCorrFC(const NeighborConnectivity& nc)
 {
@@ -2465,10 +2482,10 @@ int CommChannel::LoadFluxBoundaryBufferToCoarser(Real* buf,
 //----------------------------------------------------------------------------------------
 // Poll for received flux correction data.
 // CC (OverwriteFromFiner): poll only; unpack is done in UnpackFluxCorr.
-// FC (AccumulateAverage): two-phase poll+unpack (same-level -> ClearCoarse ->
-// from-finer
-//   -> AverageFlux).  Each arrived buffer is unpacked immediately because the
-//   two-phase protocol requires same-level unpack to finish before
+// FC (AccumulateAverage): two-phase poll+unpack (same-level -> ClearCoarse
+// -> from-finer
+//   -> AverageFlux).  Each arrived buffer is unpacked immediately because
+//   the two-phase protocol requires same-level unpack to finish before
 //   ClearCoarseFluxBoundary.
 // Returns true when all expected buffers have been received (and, for FC,
 // fully processed).
@@ -2519,7 +2536,8 @@ bool CommChannel::PollReceiveFluxCorrCC(const NeighborConnectivity& nc)
     if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
     {
       int test = 0;
-      MPI_Test(&req_flcor_recv_[nb.bufid], &test, MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
       if (test)
       {
         flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -2593,7 +2611,8 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
         if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
         {
           int test = 0;
-          MPI_Test(&req_flcor_recv_[nb.bufid], &test, MPI_STATUS_IGNORE);
+          MPI_Status mpi_status;
+          MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
           if (test)
           {
             flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -2666,7 +2685,8 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
       if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
       {
         int test = 0;
-        MPI_Test(&req_flcor_recv_[nb.bufid], &test, MPI_STATUS_IGNORE);
+        MPI_Status mpi_status;
+        MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
         if (test)
         {
           flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -2735,9 +2755,9 @@ void CommChannel::UnpackFluxCorr(const NeighborConnectivity& nc)
 }
 
 //----------------------------------------------------------------------------------------
-// CC flux correction unpack: overwrite coarse-side flux at the shared face.
-// Quadrant selected by fi1/fi2 from the NeighborBlock.
-// Ported from CellCenteredBoundaryVariable::ReceiveFluxCorrection
+// CC flux correction unpack: overwrite coarse-side flux at the shared
+// face. Quadrant selected by fi1/fi2 from the NeighborBlock. Ported from
+// CellCenteredBoundaryVariable::ReceiveFluxCorrection
 // (flux_correction_cc.cpp).
 
 void CommChannel::UnpackFluxCorrCC(Real* buf, const NeighborBlock& nb)
@@ -2923,8 +2943,8 @@ void CommChannel::SetFluxBoundarySameLevel(Real* buf,
 }
 
 //----------------------------------------------------------------------------------------
-// FC EMF unpack: accumulate from-finer restricted EMFs with fi1/fi2 quadrant
-// narrowing. Ported from
+// FC EMF unpack: accumulate from-finer restricted EMFs with fi1/fi2
+// quadrant narrowing. Ported from
 // FaceCenteredBoundaryVariable::SetFluxBoundaryFromFiner.
 
 void CommChannel::SetFluxBoundaryFromFiner(Real* buf,
@@ -3100,15 +3120,16 @@ void CommChannel::SetFluxBoundaryFromFiner(Real* buf,
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void CommChannel::ClearCoarseFluxBoundary(const NeighborConnectivity
-//! &nc)
-//  \brief Zero EMFs at faces with finer neighbors and edges where finer blocks
-//  contribute.
+//! \fn void CommChannel::ClearCoarseFluxBoundary(const
+//! NeighborConnectivity &nc)
+//  \brief Zero EMFs at faces with finer neighbors and edges where finer
+//  blocks contribute.
 //
-//  Called between the same-level and from-finer unpack phases in the two-phase
-//  FC EMF protocol.  After same-level EMFs have been accumulated, this zeros
-//  the EMF arrays at interfaces where finer blocks will contribute, so the
-//  from-finer restricted EMFs start from a clean slate.
+//  Called between the same-level and from-finer unpack phases in the
+//  two-phase FC EMF protocol.  After same-level EMFs have been
+//  accumulated, this zeros the EMF arrays at interfaces where finer blocks
+//  will contribute, so the from-finer restricted EMFs start from a clean
+//  slate.
 
 void CommChannel::ClearCoarseFluxBoundary(const NeighborConnectivity& nc)
 {
@@ -3215,8 +3236,9 @@ void CommChannel::ClearCoarseFluxBoundary(const NeighborConnectivity& nc)
   // --- edges: zero EMFs at edges where finer neighbors contribute ---
   for (int n = 0; n < nedge; ++n)
   {
-    // edge_flag_[n] == true means only same-level neighbors touch this edge;
-    // skip those - only zero edges where finer blocks will contribute
+    // edge_flag_[n] == true means only same-level neighbors touch this
+    // edge; skip those - only zero edges where finer blocks will
+    // contribute
     if (edge_flag_[n])
       continue;
 
@@ -3245,15 +3267,16 @@ void CommChannel::ClearCoarseFluxBoundary(const NeighborConnectivity& nc)
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void CommChannel::AverageFluxBoundary(const NeighborConnectivity &nc)
+//! \fn void CommChannel::AverageFluxBoundary(const NeighborConnectivity
+//! &nc)
 //  \brief Divide accumulated EMFs by contributor count after both unpack
 //  phases complete.
 //
 //  At faces with same-level neighbors, each EMF was accumulated from both
-//  sides -> /2. At faces with finer neighbors, the overlap seam (midpoint of
-//  fine subfaces) was contributed by two fine blocks -> /2. At edges, divide
-//  by nedge_fine_[eid] (the number of blocks at the finest level touching that
-//  edge).
+//  sides -> /2. At faces with finer neighbors, the overlap seam (midpoint
+//  of fine subfaces) was contributed by two fine blocks -> /2. At edges,
+//  divide by nedge_fine_[eid] (the number of blocks at the finest level
+//  touching that edge).
 
 void CommChannel::AverageFluxBoundary(const NeighborConnectivity& nc)
 {
@@ -3322,8 +3345,8 @@ void CommChannel::AverageFluxBoundary(const NeighborConnectivity& nc)
       }
       else if (nl > mylevel)
       {
-        // Finer: the midpoint seam between fine subfaces was double-counted ->
-        // /2
+        // Finer: the midpoint seam between fine subfaces was
+        // double-counted -> /2
         if (pmb->block_size.nx3 > 1)
         {  // 3D
           int k = ks + pmb->block_size.nx3 / 2;
@@ -3448,9 +3471,9 @@ void CommChannel::AverageFluxBoundary(const NeighborConnectivity& nc)
 //  \brief Post persistent receive requests for flux correction.
 //
 //  CC (OverwriteFromFiner): post receives from face neighbors with level >
-//  mylevel. FC (AccumulateAverage): post receives from same-level face + edge
-//  neighbors (where applicable) AND from finer face + edge neighbors.  Also
-//  sets recv_flx_same_lvl_ = true to begin the same-level phase.
+//  mylevel. FC (AccumulateAverage): post receives from same-level face +
+//  edge neighbors (where applicable) AND from finer face + edge neighbors.
+//  Also sets recv_flx_same_lvl_ = true to begin the same-level phase.
 
 void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
 {
@@ -3511,14 +3534,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn bool CommChannel::ClearFluxCorr(const NeighborConnectivity &nc, bool
-//! wait)
-//  \brief Test (or wait on) outstanding flux correction sends and reset flags.
+//! \fn bool CommChannel::ClearFluxCorr(const NeighborConnectivity &nc,
+//! bool wait)
+//  \brief Test (or wait on) outstanding flux correction sends and reset
+//  flags.
 //
 //  Must be called after the flux correction cycle completes (both send and
-//  receive sides finished).  Resets all flcor flags to waiting for the next
-//  cycle.  When wait=false, uses MPI_Test instead of MPI_Wait and returns
-//  false if any off-rank send is still pending.
+//  receive sides finished).  Resets all flcor flags to waiting for the
+//  next cycle.  When wait=false, uses MPI_Test instead of MPI_Wait and
+//  returns false if any off-rank send is still pending.
 
 bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
 {
@@ -3530,7 +3554,8 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
 
   // Helper: returns true if this neighbor had a send that needs clearing.
   // CC (OverwriteFromFiner): only fine->coarse face sends.
-  // FC (AccumulateAverage): fine->coarse + same-level face + qualifying edges.
+  // FC (AccumulateAverage): fine->coarse + same-level face + qualifying
+  // edges.
   auto NeighborHasSend = [&](const NeighborBlock& nb) -> bool
   {
     if (spec_.flcor_mode == FluxCorrMode::OverwriteFromFiner)
@@ -3576,7 +3601,8 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
       if (!NeighborHasSend(nb))
         continue;
       int flag;
-      MPI_Test(&req_flcor_send_[nb.bufid], &flag, MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Test(&req_flcor_send_[nb.bufid], &flag, &mpi_status);
       if (!flag)
         return false;  // at least one send still pending - retry later
     }
@@ -3599,7 +3625,8 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
 #ifdef MPI_PARALLEL
     if (wait && nb.snb.rank != Globals::my_rank && NeighborHasSend(nb))
     {
-      MPI_Wait(&req_flcor_send_[nb.bufid], MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Wait(&req_flcor_send_[nb.bufid], &mpi_status);
     }
 #endif
   }
@@ -3614,20 +3641,22 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
 
 #ifdef DBG_FUSED_COMM
 //========================================================================================
-// Fused-comm helpers: called by CommRegistry for group-level buffer fusion.
-// These methods pack/unpack a single neighbor's data into/from an external
-// buffer at a given offset, without touching send/recv flags or MPI requests.
+// Fused-comm helpers: called by CommRegistry for group-level buffer
+// fusion. These methods pack/unpack a single neighbor's data into/from an
+// external buffer at a given offset, without touching send/recv flags or
+// MPI requests.
 //========================================================================================
 
 //----------------------------------------------------------------------------------------
 //! \fn int CommChannel::PackInto(Real *buf, int offset,
-//!                                const NeighborBlock &nb, int mylevel) const
+//!                                const NeighborBlock &nb, int mylevel)
+//!                                const
 //  \brief Pack one neighbor's ghost exchange data into an external buffer.
 //
-//  Packs the same payload as PackAndSend() for the given neighbor, starting at
-//  buf[offset].  Returns the new offset after packing (offset + packed_size).
-//  Does NOT set any flags or start any MPI - the caller (CommRegistry) handles
-//  that.
+//  Packs the same payload as PackAndSend() for the given neighbor,
+//  starting at buf[offset].  Returns the new offset after packing (offset
+//  + packed_size). Does NOT set any flags or start any MPI - the caller
+//  (CommRegistry) handles that.
 //
 //  Preconditions:
 //    - RestrictInterior has already been called if needed (handled by
@@ -3739,14 +3768,15 @@ int CommChannel::PackInto(Real* buf,
 //----------------------------------------------------------------------------------------
 //! \fn int CommChannel::UnpackFrom(Real *buf, int offset,
 //!                                  const NeighborBlock &nb, int mylevel)
-//  \brief Unpack one neighbor's ghost exchange data from an external buffer.
+//  \brief Unpack one neighbor's ghost exchange data from an external
+//  buffer.
 //
-//  Mirrors the Unpack() method's per-neighbor logic, reading from buf[offset].
-//  Returns the new offset after unpacking.  Does NOT set any flags - the
-//  caller (CommRegistry) handles flag management.
+//  Mirrors the Unpack() method's per-neighbor logic, reading from
+//  buf[offset]. Returns the new offset after unpacking.  Does NOT set any
+//  flags - the caller (CommRegistry) handles flag management.
 //
-//  VC additive unpack, polar reversal, and degenerate-dimension copies are all
-//  handled exactly as in Unpack().
+//  VC additive unpack, polar reversal, and degenerate-dimension copies are
+//  all handled exactly as in Unpack().
 
 int CommChannel::UnpackFrom(Real* buf,
                             int offset,
@@ -3992,8 +4022,9 @@ int CommChannel::UnpackFrom(Real* buf,
 //  \brief Compute the actual pack/unpack size (in Reals) for one neighbor.
 //
 //  When skip_coarse is false, returns the full allocation size (same as
-//  ComputeBufferSizeFromRanges).  When skip_coarse is true, omits the coarse
-//  payload for same-level neighbors (matching ComputeMPIBufferSize semantics).
+//  ComputeBufferSizeFromRanges).  When skip_coarse is true, omits the
+//  coarse payload for same-level neighbors (matching ComputeMPIBufferSize
+//  semantics).
 
 int CommChannel::PackSizeForNeighbor(const NeighborBlock& nb,
                                      bool skip_coarse) const

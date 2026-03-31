@@ -904,7 +904,8 @@ bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
     if (nb.snb.rank != Globals::my_rank)
     {
       int test_flag = 0;
-      MPI_Test(&fs.req_recv[nb.bufid], &test_flag, MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Test(&fs.req_recv[nb.bufid], &test_flag, &mpi_status);
       if (test_flag)
         fs.recv_flag[nb.bufid].store(BoundaryStatus::arrived,
                                      std::memory_order_release);
@@ -1035,7 +1036,8 @@ bool CommRegistry::ClearBoundaryFused(CommGroup group,
       if (nb.snb.rank != Globals::my_rank)
       {
         int flag;
-        MPI_Test(&fs.req_send[nb.bufid], &flag, MPI_STATUS_IGNORE);
+        MPI_Status mpi_status;
+        MPI_Test(&fs.req_send[nb.bufid], &flag, &mpi_status);
         if (!flag)
           return false;  // at least one send still pending - retry later
       }
@@ -1059,7 +1061,8 @@ bool CommRegistry::ClearBoundaryFused(CommGroup group,
 #ifdef MPI_PARALLEL
     if (wait && nb.snb.rank != Globals::my_rank)
     {
-      MPI_Wait(&fs.req_send[nb.bufid], MPI_STATUS_IGNORE);
+      MPI_Status mpi_status;
+      MPI_Wait(&fs.req_send[nb.bufid], &mpi_status);
     }
 #endif
   }

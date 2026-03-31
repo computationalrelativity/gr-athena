@@ -1858,7 +1858,8 @@ void Mesh::NewTimeStepBegin(bool limit_dt_growth)
 void Mesh::NewTimeStepFinish()
 {
 #ifdef MPI_PARALLEL
-  MPI_Wait(&dt_reduce_req_, MPI_STATUS_IGNORE);
+  MPI_Status mpi_status;
+  MPI_Wait(&dt_reduce_req_, &mpi_status);
 
   dt            = dt_reduce_buf_[0];
   dt_hyperbolic = dt_reduce_buf_[1];

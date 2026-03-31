@@ -366,13 +366,27 @@ class MeshBlock
   // if multilevel, useful to know if nearest-neighbour blocks on same level
   inline bool NeighborBlocksSameLevel()
   {
-    for (int n = 0; n < nc_.num_neighbors(); n++)
-    {
-      if (nc_.neighbor(n).snb.level != loc.level)
-        return false;
-    }
-    return true;
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+    // Use the tree-based flag (cached by SearchAndSetNeighbors) to ensure
+    // agreement with the sender-side predicate (nb.neighbor_all_same_level).
+    // The old list-based computation could disagree due to neighbor pruning,
+    // causing MPI buffer size mismatch and hangs.
+    return all_neighbors_same_level_cached_;
+#else
+    // When DBG_NO_REF_NN_SAME_LEVEL is disabled, nb.neighbor_all_same_level
+    // (sender side) is always false (never set from tree).  Return false here
+    // to match, preventing send_size > recv_size MPI truncation.
+    return false;
+#endif
   }
+
+#if defined(DBG_NO_REF_NN_SAME_LEVEL)
+  // Cached tree-based "all neighbors same level" flag, set by
+  // SearchAndSetNeighbors from MeshBlockTree::all_neighbors_same_level_.
+  // Must agree with nb.neighbor_all_same_level (sender-side flag) to ensure
+  // MPI buffer sizes match between sender and receiver.
+  bool all_neighbors_same_level_cached_ = false;  // conservative default
+#endif
 
   void DebugMeshBlock(const Real x,
                       const Real y,
