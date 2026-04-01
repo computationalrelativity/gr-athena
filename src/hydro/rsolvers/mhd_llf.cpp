@@ -261,50 +261,26 @@ void Hydro::RiemannSolver(const int ivx,
 
   LinearAlgebra::SlicedVecMet3Contraction(
     w_v_d_r_, w_v_u_r_, gamma_dd_, il, iu);
-// =============================================================
+  // =============================================================
 
-// assemble magnetic field components ---------------------------------------
+  // assemble magnetic field components ---------------------------------------
+  // Pre-compute direction-dependent index permutation (constant for entire
+  // pencil). Hoisted out of the SIMD loop to eliminate per-iteration
+  // branching.
+  const int ib_n = ivx - 1;  // normal direction index
+  const int ib_y = ivy - 1;  // transverse Y direction index
+  const int ib_z = ivz - 1;  // transverse Z direction index
+
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
     const Real oo_sqrt_detgamma_i = OO(sqrt_detgamma_(i));
-    switch (ivx)
-    {
-      case IVX:
-      {
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
-        break;
-      }
-      case IVY:
-      {
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
-        break;
-      }
-      case IVZ:
-      {
-        q_scB_u_l_(2, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_l_(0, i) = oo_sqrt_detgamma_i * prim_l_(IBY, i);
-        q_scB_u_l_(1, i) = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
-        q_scB_u_r_(2, i) = oo_sqrt_detgamma_i * B(k, j, i);
-        q_scB_u_r_(0, i) = oo_sqrt_detgamma_i * prim_r_(IBY, i);
-        q_scB_u_r_(1, i) = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
+    q_scB_u_l_(ib_n, i)           = oo_sqrt_detgamma_i * B(k, j, i);
+    q_scB_u_l_(ib_y, i)           = oo_sqrt_detgamma_i * prim_l_(IBY, i);
+    q_scB_u_l_(ib_z, i)           = oo_sqrt_detgamma_i * prim_l_(IBZ, i);
+    q_scB_u_r_(ib_n, i)           = oo_sqrt_detgamma_i * B(k, j, i);
+    q_scB_u_r_(ib_y, i)           = oo_sqrt_detgamma_i * prim_r_(IBY, i);
+    q_scB_u_r_(ib_z, i)           = oo_sqrt_detgamma_i * prim_r_(IBZ, i);
   }
 
   b0_l_.ZeroClear();
@@ -333,26 +309,17 @@ void Hydro::RiemannSolver(const int ivx,
     }
   }
 
+  // b^2 = (alpha * b^0 / W)^2 + (1/W^2) * gamma_{ab} B^a B^b
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    b2_l_(i) = SQR(alpha_(i) * b0_l_(i) * oo_W_l_(i));
-    b2_r_(i) = SQR(alpha_(i) * b0_r_(i) * oo_W_r_(i));
-  }
+    const Real ooW2_l = SQR(oo_W_l_(i));
+    const Real ooW2_r = SQR(oo_W_r_(i));
 
-  for (int a = 0; a < NDIM; ++a)
-  {
-    for (int b = 0; b < NDIM; ++b)
-    {
-#pragma omp simd
-      for (int i = il; i <= iu; ++i)
-      {
-        b2_l_(i) += SQR(oo_W_l_(i)) * q_scB_u_l_(a, i) * q_scB_u_l_(b, i) *
-                    gamma_dd_(a, b, i);
-        b2_r_(i) += SQR(oo_W_r_(i)) * q_scB_u_r_(a, i) * q_scB_u_r_(b, i) *
-                    gamma_dd_(a, b, i);
-      }
-    }
+    b2_l_(i) = SQR(alpha_(i) * b0_l_(i) * oo_W_l_(i)) +
+               ooW2_l * InnerProductSlicedVec3Metric(q_scB_u_l_, gamma_dd_, i);
+    b2_r_(i) = SQR(alpha_(i) * b0_r_(i) * oo_W_r_(i)) +
+               ooW2_r * InnerProductSlicedVec3Metric(q_scB_u_r_, gamma_dd_, i);
   }
 
   for (int a = 0; a < NDIM; ++a)
@@ -420,27 +387,30 @@ void Hydro::RiemannSolver(const int ivx,
       }
     }
 
-    // Calculate the wave speeds
+    // Calculate the wave speeds (use pre-computed Lorentz factor to avoid
+    // redundant sqrt + reciprocal inside MHDEigenvalues)
     Eigenvalues::MHDEigenvalues(cs2l,
                                 w_hrho_l_(i),
                                 b2_l_(i),
                                 w_v_u_l_(ivx - 1, i),
-                                w_norm2_v_l_(i),
+                                W_l_(i),
                                 alpha_(i),
                                 beta_u_(ivx - 1, i),
                                 gamma_uu_(ivx - 1, ivx - 1, i),
                                 &lambda_p_l(i),
-                                &lambda_m_l(i));
+                                &lambda_m_l(i),
+                                true);
     Eigenvalues::MHDEigenvalues(cs2r,
                                 w_hrho_r_(i),
                                 b2_r_(i),
                                 w_v_u_r_(ivx - 1, i),
-                                w_norm2_v_r_(i),
+                                W_r_(i),
                                 alpha_(i),
                                 beta_u_(ivx - 1, i),
                                 gamma_uu_(ivx - 1, ivx - 1, i),
                                 &lambda_p_r(i),
-                                &lambda_m_r(i));
+                                &lambda_m_r(i),
+                                true);
   }
 
 // Calculate extremal wavespeed

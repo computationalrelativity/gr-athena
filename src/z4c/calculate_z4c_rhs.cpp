@@ -46,8 +46,8 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 
   //---------------------------------------------------------------------------
   // Scratch arrays for spatially dependent eta shift damping
-#if defined(Z4C_ETA_CONF)
   int nn1 = pz4c->mbi.nn1;
+#if defined(Z4C_ETA_CONF)
   // 1/psi^2 (guarded); derivative and shift eta scratch
   AT_N_sca oopsi2(nn1);
   AT_N_vec doopsi2_d(nn1);
@@ -55,6 +55,10 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 #elif defined(Z4C_ETA_TRACK_TP)
 
 #endif  // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
+  //---------------------------------------------------------------------------
+
+  //---------------------------------------------------------------------------
+  AT_N_T2 A_ud(nn1);
   //---------------------------------------------------------------------------
 
   //---------------------------------------------------------------------------
@@ -419,27 +423,33 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
     // -----------------------------------------------------------------------------------
     // Curvature contribution from conformal factor
     //
+    // R1a: Hoist the trace g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d) out of the
+    // (a,b) loop - it is a scalar independent of (a,b).
+    // tr_Ddphi_plus_2dphidphi = sum_{c,d} g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d)
+    // Both g^{cd} and (Ddphi_{cd} + 2 dphi_c dphi_d) are symmetric in (c,d),
+    // so use triangular sum with 2x off-diagonal factor.
+    ILOOP1(i)
+    {
+      S(i) = 0.0;
+    }  // reuse S as temporary (will be overwritten below)
+    for (int c = 0; c < NDIM; ++c)
+      for (int d = c; d < NDIM; ++d)
+      {
+        ILOOP1(i)
+        {
+          S(i) += ((c == d) ? 1.0 : 2.0) * g_uu(c, d, i) *
+                  (Ddphi_dd(c, d, i) + 2. * dphi_d(c, i) * dphi_d(d, i));
+        }
+      }
     for (int a = 0; a < NDIM; ++a)
       for (int b = a; b < NDIM; ++b)
       {
         ILOOP1(i)
         {
-          Rphi_dd(a, b, i) =
-            4. * dphi_d(a, i) * dphi_d(b, i) - 2. * Ddphi_dd(a, b, i);
+          Rphi_dd(a, b, i) = 4. * dphi_d(a, i) * dphi_d(b, i) -
+                             2. * Ddphi_dd(a, b, i) -
+                             2. * z4c.g_dd(a, b, k, j, i) * S(i);
         }
-        // g^{cd}(Ddphi_{cd} + 2 dphi_c dphi_d) - all factors symmetric in
-        // (c,d), so use triangular sum with 2x off-diagonal factor.
-        for (int c = 0; c < NDIM; ++c)
-          for (int d = c; d < NDIM; ++d)
-          {
-            ILOOP1(i)
-            {
-              Rphi_dd(a, b, i) -=
-                ((c == d) ? 2.0 : 4.0) * z4c.g_dd(a, b, k, j, i) *
-                g_uu(c, d, i) *
-                (Ddphi_dd(c, d, i) + 2. * dphi_d(c, i) * dphi_d(d, i));
-            }
-          }
       }
 
     // -----------------------------------------------------------------------------------
@@ -464,29 +474,30 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
     // Ddalpha_dd is SYM2 in (a,b): ddalpha_dd symmetric, dphi*dalpha +
     // dalpha*dphi manifestly symmetric, Gamma^c_{ab} symmetric, g_dd(a,b)
     // symmetric. Use triangular outer loop (b=a).
+    Ddalpha.ZeroClear();
+    for (int c = 0; c < NDIM; ++c)
+      for (int d = 0; d < NDIM; ++d)
+      {
+        ILOOP1(i)
+        {
+          Ddalpha(i) += g_uu(c, d, i) * dphi_d(c, i) * dalpha_d(d, i);
+        }
+      }
     for (int a = 0; a < NDIM; ++a)
       for (int b = a; b < NDIM; ++b)
       {
         ILOOP1(i)
         {
-          Ddalpha_dd(a, b, i) =
-            ddalpha_dd(a, b, i) - 2. * (dphi_d(a, i) * dalpha_d(b, i) +
-                                        dphi_d(b, i) * dalpha_d(a, i));
+          Ddalpha_dd(a, b, i) = ddalpha_dd(a, b, i) -
+                                2. * (dphi_d(a, i) * dalpha_d(b, i) +
+                                      dphi_d(b, i) * dalpha_d(a, i)) +
+                                2. * z4c.g_dd(a, b, k, j, i) * Ddalpha(i);
         }
         for (int c = 0; c < NDIM; ++c)
         {
           ILOOP1(i)
           {
             Ddalpha_dd(a, b, i) -= Gamma_udd(c, a, b, i) * dalpha_d(c, i);
-          }
-          for (int d = 0; d < NDIM; ++d)
-          {
-            ILOOP1(i)
-            {
-              Ddalpha_dd(a, b, i) += 2. * z4c.g_dd(a, b, k, j, i) *
-                                     g_uu(c, d, i) * dphi_d(c, i) *
-                                     dalpha_d(d, i);
-            }
           }
         }
       }
@@ -506,19 +517,26 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 
     // -----------------------------------------------------------------------------------
     // Contractions of A_ab, inverse, and derivatives
-    //
+    A_ud.ZeroClear();
+    for (int c = 0; c < NDIM; ++c)
+      for (int b = 0; b < NDIM; ++b)
+        for (int d = 0; d < NDIM; ++d)
+        {
+          ILOOP1(i)
+          {
+            A_ud(c, b, i) += g_uu(c, d, i) * z4c.A_dd(d, b, k, j, i);
+          }
+        }
     AA_dd.ZeroClear();
     for (int a = 0; a < NDIM; ++a)
       for (int b = a; b < NDIM; ++b)
         for (int c = 0; c < NDIM; ++c)
-          for (int d = 0; d < NDIM; ++d)
+        {
+          ILOOP1(i)
           {
-            ILOOP1(i)
-            {
-              AA_dd(a, b, i) += g_uu(c, d, i) * z4c.A_dd(a, c, k, j, i) *
-                                z4c.A_dd(d, b, k, j, i);
-            }
+            AA_dd(a, b, i) += z4c.A_dd(a, c, k, j, i) * A_ud(c, b, i);
           }
+        }
     // trAA = g^{ab} AA_{ab}; both symmetric in (a,b), so use triangular
     // sum with 2x off-diagonal factor.
     trAA.ZeroClear();
@@ -534,14 +552,12 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
     for (int a = 0; a < NDIM; ++a)
       for (int b = a; b < NDIM; ++b)
         for (int c = 0; c < NDIM; ++c)
-          for (int d = 0; d < NDIM; ++d)
+        {
+          ILOOP1(i)
           {
-            ILOOP1(i)
-            {
-              A_uu(a, b, i) +=
-                g_uu(a, c, i) * g_uu(b, d, i) * z4c.A_dd(c, d, k, j, i);
-            }
+            A_uu(a, b, i) += g_uu(b, c, i) * A_ud(a, c, i);
           }
+        }
     DA_u.ZeroClear();
     for (int a = 0; a < NDIM; ++a)
     {
@@ -761,7 +777,6 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
     // harmonic gauge terms
     if (std::fabs(opt.shift_alpha2Gamma) > 0.0)
     {
-      // coutBoldBlue("opt.shift_alpha2Gamma\n");
       for (int a = 0; a < NDIM; ++a)
       {
         ILOOP1(i)
@@ -775,7 +790,6 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 
     if (std::fabs(opt.shift_H) > 0.0)
     {
-      // coutBoldRed("opt.shift_H\n");
       for (int a = 0; a < NDIM; ++a)
       {
         for (int b = 0; b < NDIM; ++b)

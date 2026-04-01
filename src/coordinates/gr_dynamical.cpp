@@ -175,6 +175,7 @@ GRDynamical::GRDynamical(MeshBlock* pmb, ParameterInput* pin, bool coarse_flag)
     sqrt_detgamma_.NewAthenaTensor(nc1);
 
     alpha_.NewAthenaTensor(nc1);
+    oo_alpha_.NewAthenaTensor(nc1);
     beta_u_.NewAthenaTensor(nc1);
     gamma_dd_.NewAthenaTensor(nc1);
     gamma_uu_.NewAthenaTensor(nc1);
@@ -289,6 +290,11 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
       CC_PCO_ILOOP1(i)
       {
         alpha_(i) = regularize_near_zero(alpha_(i), eps_alpha__);
+      }
+
+      CC_PCO_ILOOP1(i)
+      {
+        oo_alpha_(i) = OO(alpha_(i));
       }
 
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
@@ -420,7 +426,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         {
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             b0_(i) += q_scB_u_(a, i) * w_util_d_(a, i) * oo_alpha_i;
           }
         }
@@ -430,7 +436,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         for (int a = 0; a < NDIM; ++a)
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             bi_u_(a, i) =
               (q_scB_u_(a, i) / W_(i) +
                alpha_(i) * b0_(i) *
@@ -487,7 +493,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         // -----------------------------------------
         CC_PCO_ILOOP1(i)
         {
-          const Real oo_alpha_i = OO(alpha_(i));
+          const Real oo_alpha_i = oo_alpha_(i);
           T00(i) = ((w_hrho_(i) + b2_(i)) * SQR(W_(i) * oo_alpha_i) +
                     (w_p(k, j, i) + b2_(i) / 2.0) * (-1.0 * SQR(oo_alpha_i)) -
                     b0_(i) * b0_(i));
@@ -497,7 +503,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         {
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             T0i_u(a, i) =
               ((w_hrho_(i) + b2_(i)) * W_(i) * oo_alpha_i *
                  (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) +
@@ -507,13 +513,11 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
           }
         }
 
-        // BD: TODO - why was this loop written like this?
         for (int a = 0; a < NDIM; ++a)
-        // for (int b=0; b<NDIM; ++b)
         {
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             T0i_d(a, i) =
               (((w_hrho_(i) + b2_(i)) * W_(i) * w_util_d_(a, i)) * oo_alpha_i -
                b0_(i) * bi_d_(a, i));
@@ -525,7 +529,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
           {
             CC_PCO_ILOOP1(i)
             {
-              const Real oo_alpha_i = OO(alpha_(i));
+              const Real oo_alpha_i = oo_alpha_(i);
               Tij_uu(a, b, i) =
                 ((w_hrho_(i) + b2_(i)) *
                    (w_util_u_(a, i) - W_(i) * beta_u_(a, i) * oo_alpha_i) *
@@ -656,7 +660,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         {
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             Stau_(i) -= w_hrho_(i) * W_(i) * w_util_u_(a, i) *
                         dalpha_d_(a, i) * oo_alpha_i;
           }
@@ -694,7 +698,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         {
           CC_PCO_ILOOP1(i)
           {
-            const Real oo_alpha_i = OO(alpha_(i));
+            const Real oo_alpha_i = oo_alpha_(i);
             SS_d_(a, i)           = -(w_hrho_(i) * SQR(W_(i)) - w_p(k, j, i)) *
                           dalpha_d_(a, i) * oo_alpha_i;
           }
@@ -703,7 +707,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
           {
             CC_PCO_ILOOP1(i)
             {
-              const Real oo_alpha_i = OO(alpha_(i));
+              const Real oo_alpha_i = oo_alpha_(i);
               SS_d_(a, i) += w_hrho_(i) * W_(i) * w_util_d_(b, i) *
                              dbeta_du_(a, b, i) * oo_alpha_i;
             }

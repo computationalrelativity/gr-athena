@@ -1486,6 +1486,7 @@ class GRDynamical : public Coordinates
   AT_N_sca sqrt_detgamma_;
 
   AT_N_sca alpha_;
+  AT_N_sca oo_alpha_;
   AT_N_vec beta_u_;
   AT_N_sym gamma_dd_;
   AT_N_sym gamma_uu_;

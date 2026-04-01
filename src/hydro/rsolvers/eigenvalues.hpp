@@ -89,6 +89,8 @@ inline void HydroEigenvalues(Real cs_sq,
 //----------------------------------------------------------------------------------------
 // MHDEigenvalues
 //
+// Computes fast magnetosonic eigenvalues for the GR MHD system.
+//
 // Additional inputs beyond HydroEigenvalues:
 //   cs_sq:   sound speed squared (pre-computed, already clamped if
 //   restrict_cs2) rho_h:   rho * h  (rest-mass density times specific
@@ -99,33 +101,35 @@ inline void MHDEigenvalues(Real cs_sq,
                            Real rho_h,
                            Real bsq,
                            Real vi,
-                           Real v2,
+                           Real Wlor,
                            Real alpha,
                            Real betai,
                            Real gammaii,
                            Real* plambda_plus,
-                           Real* plambda_minus)
+                           Real* plambda_minus,
+                           bool /*Wlor_is_precomputed*/)
 {
-  // Reconstruct 4-velocity and contravariant metric components
-  Real Wlor = std::sqrt(1.0 - v2);
-  Wlor      = 1.0 / Wlor;
-  Real u0   = Wlor / alpha;
-  Real g00  = -1.0 / (alpha * alpha);
-  Real g01  = betai / (alpha * alpha);
-  Real u1   = (vi - betai / alpha) * Wlor;
-  Real g11  = gammaii - betai * betai / (alpha * alpha);
+  // Compute contravariant 4-metric and 4-velocity from pre-computed W
+  const Real oo_alpha2 = 1.0 / (alpha * alpha);
+  const Real u0        = Wlor / alpha;
+  const Real g00       = -oo_alpha2;
+  const Real g01       = betai * oo_alpha2;
+  const Real u1        = (vi * alpha - betai) * u0;
+  const Real g11       = gammaii - betai * betai * oo_alpha2;
 
   Real va_sq  = bsq / (bsq + rho_h);
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 
   // Solve quadratic for fast magnetosonic eigenvalues
-  Real a      = SQR(u0) - (g00 + SQR(u0)) * cms_sq;
-  Real b      = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
-  Real c      = SQR(u1) - (g11 + SQR(u1)) * cms_sq;
-  Real d      = std::max(SQR(b) - 4.0 * a * c, 0.0);
-  Real d_sqrt = std::sqrt(d);
-  Real root_1 = (-b + d_sqrt) / (2.0 * a);
-  Real root_2 = (-b - d_sqrt) / (2.0 * a);
+  const Real u0sq = SQR(u0);
+  const Real u1sq = SQR(u1);
+  Real a          = u0sq - (g00 + u0sq) * cms_sq;
+  Real b          = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
+  Real c          = u1sq - (g11 + u1sq) * cms_sq;
+  Real d          = std::max(SQR(b) - 4.0 * a * c, 0.0);
+  Real d_sqrt     = std::sqrt(d);
+  Real root_1     = (-b + d_sqrt) / (2.0 * a);
+  Real root_2     = (-b - d_sqrt) / (2.0 * a);
 
   if (!std::isfinite(root_1 + root_2))
   {
@@ -143,6 +147,37 @@ inline void MHDEigenvalues(Real cs_sq,
     *plambda_plus  = root_2;
     *plambda_minus = root_1;
   }
+}
+
+//----------------------------------------------------------------------------------------
+// MHDEigenvalues
+//
+// Takes v^2 instead of W and reconstructs the Lorentz factor internally.
+
+inline void MHDEigenvalues(Real cs_sq,
+                           Real rho_h,
+                           Real bsq,
+                           Real vi,
+                           Real v2,
+                           Real alpha,
+                           Real betai,
+                           Real gammaii,
+                           Real* plambda_plus,
+                           Real* plambda_minus)
+{
+  // Reconstruct Lorentz factor from v^2, delegate to optimized overload
+  Real Wlor = 1.0 / std::sqrt(1.0 - v2);
+  MHDEigenvalues(cs_sq,
+                 rho_h,
+                 bsq,
+                 vi,
+                 Wlor,
+                 alpha,
+                 betai,
+                 gammaii,
+                 plambda_plus,
+                 plambda_minus,
+                 true);
 }
 
 }  // namespace Eigenvalues

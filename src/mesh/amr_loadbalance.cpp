@@ -711,9 +711,14 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot)
 #endif
   // Cache is fresh - RebuildBlockByGid() was called above.
   const auto& pmb_array = GetMeshBlocksCached();
-  for (auto* mb : pmb_array)
+  // Each block writes only to its own NeighborConnectivity; tree/ranklist/
+  // nslist are read-only at this point, so the loop is embarrassingly
+  // parallel.
+  const int n_pmb = static_cast<int>(pmb_array.size());
+#pragma omp parallel for schedule(static)
+  for (int idx = 0; idx < n_pmb; ++idx)
   {
-    mb->SearchAndSetNeighbors(tree, ranklist, nslist);
+    pmb_array[idx]->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
   Initialize(initialize_style::regrid, pin);
 

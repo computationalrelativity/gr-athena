@@ -434,6 +434,25 @@ void Z4c::ADMConstraints(AthenaArray<Real>& u_con,
         }
       }
 
+    // --- Precompute oochi (and chi_pow for general p) once per pencil ---
+    if (p == -4.)
+    {
+      ILOOP1(i)
+      {
+        oochi(i) = 1.0 / chiRegularized(z4c.chi(k, j, i));
+      }
+    }
+    else
+    {
+      const Real fac_pre = 4.0 / p;
+      ILOOP1(i)
+      {
+        const Real chi_g = chiRegularized(z4c.chi(k, j, i));
+        oochi(i)         = 1.0 / chi_g;
+        oopsi4(i)        = std::pow(chi_g, fac_pre);
+      }
+    }
+
     if (p == -4.)
     {
       // --- Specialized path: p == -4, fac = -1, fac2 = -2, chi^(4/p) = 1/chi
@@ -446,10 +465,11 @@ void Z4c::ADMConstraints(AthenaArray<Real>& u_con,
           {
             ILOOP1(i)
             {
-              const Real oochi   = 1.0 / chiRegularized(z4c.chi(k, j, i));
-              dg_ddd(c, a, b, i) = oochi * (dg_ddd_3d(c, a, b, k, j, i) -
-                                            oochi * z4c.g_dd(a, b, k, j, i) *
-                                              dchi_d_3d(c, k, j, i));
+              const Real oochi_l = oochi(i);
+              dg_ddd(c, a, b, i) =
+                oochi_l *
+                (dg_ddd_3d(c, a, b, k, j, i) -
+                 oochi_l * z4c.g_dd(a, b, k, j, i) * dchi_d_3d(c, k, j, i));
               dK_ddd(c, a, b, i) = fd->Dx(c, adm.K_dd(a, b, k, j, i));
             }
           }
@@ -464,33 +484,34 @@ void Z4c::ADMConstraints(AthenaArray<Real>& u_con,
               {
                 ILOOP1(i)
                 {
-                  const Real oochi    = 1.0 / chiRegularized(z4c.chi(k, j, i));
+                  const Real oochi_l  = oochi(i);
                   const Real dchi_a   = dchi_d_3d(a, k, j, i);
                   const Real gtil_cd  = z4c.g_dd(c, d, k, j, i);
                   const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c, d, k, j, i));
                   ddg_dddd(a, a, c, d, i) =
-                    oochi *
+                    oochi_l *
                     (ddg_conf -
-                     oochi * (2.0 * dchi_a * dg_ddd_3d(a, c, d, k, j, i) +
-                              ddchi_dd(a, a, i) * gtil_cd) +
-                     2.0 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
+                     oochi_l * (2.0 * dchi_a * dg_ddd_3d(a, c, d, k, j, i) +
+                                ddchi_dd(a, a, i) * gtil_cd) +
+                     2.0 * oochi_l * oochi_l * dchi_a * dchi_a * gtil_cd);
                 }
               }
               else
               {
                 ILOOP1(i)
                 {
-                  const Real oochi    = 1.0 / chiRegularized(z4c.chi(k, j, i));
+                  const Real oochi_l  = oochi(i);
                   const Real dchi_a   = dchi_d_3d(a, k, j, i);
                   const Real dchi_b   = dchi_d_3d(b, k, j, i);
                   const Real gtil_cd  = z4c.g_dd(c, d, k, j, i);
                   const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b, c, d, k, j, i));
                   ddg_dddd(a, b, c, d, i) =
-                    oochi * (ddg_conf -
-                             oochi * (dchi_a * dg_ddd_3d(b, c, d, k, j, i) +
-                                      dchi_b * dg_ddd_3d(a, c, d, k, j, i) +
-                                      ddchi_dd(a, b, i) * gtil_cd) +
-                             2.0 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
+                    oochi_l *
+                    (ddg_conf -
+                     oochi_l * (dchi_a * dg_ddd_3d(b, c, d, k, j, i) +
+                                dchi_b * dg_ddd_3d(a, c, d, k, j, i) +
+                                ddchi_dd(a, b, i) * gtil_cd) +
+                     2.0 * oochi_l * oochi_l * dchi_a * dchi_b * gtil_cd);
                 }
               }
             }
@@ -508,12 +529,11 @@ void Z4c::ADMConstraints(AthenaArray<Real>& u_con,
           {
             ILOOP1(i)
             {
-              const Real chi_g = chiRegularized(z4c.chi(k, j, i));
-              const Real psi4  = std::pow(chi_g, fac);
-              const Real oochi = 1.0 / chi_g;
+              const Real oochi_l = oochi(i);
+              const Real psi4    = oopsi4(i);
               dg_ddd(c, a, b, i) =
                 psi4 * (dg_ddd_3d(c, a, b, k, j, i) +
-                        fac * oochi * z4c.g_dd(a, b, k, j, i) *
+                        fac * oochi_l * z4c.g_dd(a, b, k, j, i) *
                           dchi_d_3d(c, k, j, i));
               dK_ddd(c, a, b, i) = fd->Dx(c, adm.K_dd(a, b, k, j, i));
             }
@@ -529,40 +549,38 @@ void Z4c::ADMConstraints(AthenaArray<Real>& u_con,
               {
                 ILOOP1(i)
                 {
-                  const Real chi_g    = chiRegularized(z4c.chi(k, j, i));
-                  const Real psi4     = std::pow(chi_g, fac);
-                  const Real oochi    = 1.0 / chi_g;
+                  const Real oochi_l  = oochi(i);
+                  const Real psi4     = oopsi4(i);
                   const Real dchi_a   = dchi_d_3d(a, k, j, i);
                   const Real gtil_cd  = z4c.g_dd(c, d, k, j, i);
                   const Real ddg_conf = fd->Dxx(a, z4c.g_dd(c, d, k, j, i));
                   ddg_dddd(a, a, c, d, i) =
-                    psi4 *
-                    (ddg_conf +
-                     fac * oochi *
-                       (2.0 * dchi_a * dg_ddd_3d(a, c, d, k, j, i) +
-                        ddchi_dd(a, a, i) * gtil_cd) +
-                     fac * fac2 * oochi * oochi * dchi_a * dchi_a * gtil_cd);
+                    psi4 * (ddg_conf +
+                            fac * oochi_l *
+                              (2.0 * dchi_a * dg_ddd_3d(a, c, d, k, j, i) +
+                               ddchi_dd(a, a, i) * gtil_cd) +
+                            fac * fac2 * oochi_l * oochi_l * dchi_a * dchi_a *
+                              gtil_cd);
                 }
               }
               else
               {
                 ILOOP1(i)
                 {
-                  const Real chi_g    = chiRegularized(z4c.chi(k, j, i));
-                  const Real psi4     = std::pow(chi_g, fac);
-                  const Real oochi    = 1.0 / chi_g;
+                  const Real oochi_l  = oochi(i);
+                  const Real psi4     = oopsi4(i);
                   const Real dchi_a   = dchi_d_3d(a, k, j, i);
                   const Real dchi_b   = dchi_d_3d(b, k, j, i);
                   const Real gtil_cd  = z4c.g_dd(c, d, k, j, i);
                   const Real ddg_conf = fd->Dx(a, dg_ddd_3d(b, c, d, k, j, i));
                   ddg_dddd(a, b, c, d, i) =
-                    psi4 *
-                    (ddg_conf +
-                     fac * oochi *
-                       (dchi_a * dg_ddd_3d(b, c, d, k, j, i) +
-                        dchi_b * dg_ddd_3d(a, c, d, k, j, i) +
-                        ddchi_dd(a, b, i) * gtil_cd) +
-                     fac * fac2 * oochi * oochi * dchi_a * dchi_b * gtil_cd);
+                    psi4 * (ddg_conf +
+                            fac * oochi_l *
+                              (dchi_a * dg_ddd_3d(b, c, d, k, j, i) +
+                               dchi_b * dg_ddd_3d(a, c, d, k, j, i) +
+                               ddchi_dd(a, b, i) * gtil_cd) +
+                            fac * fac2 * oochi_l * oochi_l * dchi_a * dchi_b *
+                              gtil_cd);
                 }
               }
             }

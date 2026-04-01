@@ -179,6 +179,7 @@ struct ThreadCache
     const int base = dir * N_FC_GEOM_FIELDS;
     const int d    = ivx - 1;  // diagonal index for gamma_uu
 
+#pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
       fc_geom(base + FC_ALPHA, k, j, i)         = alpha(i);
@@ -215,9 +216,9 @@ struct ThreadCache
     const int base = dir * N_FC_GEOM_FIELDS;
     const int d    = ivx - 1;
 
+#pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      // Load primary cached fields
       alpha(i)          = fc_geom(base + FC_ALPHA, k, j, i);
       beta_u(0, i)      = fc_geom(base + FC_BETA_X, k, j, i);
       beta_u(1, i)      = fc_geom(base + FC_BETA_Y, k, j, i);
