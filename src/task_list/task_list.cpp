@@ -28,7 +28,12 @@
 // C++ aux. headers
 #ifdef DBG_TASKLIST_HANG
 #include <chrono>
-#include <iostream>
+#include <cstdio>   // std::printf
+#include <cstdlib>  // std::exit (non-MPI fallback)
+#endif
+
+#ifdef MPI_PARALLEL
+#include <mpi.h>
 #endif
 
 #ifdef OPENMP_PARALLEL
@@ -43,6 +48,10 @@ struct alignas(64) PaddedFlag
 {
   std::atomic<bool> locked{ false };
 };
+
+#ifdef DBG_TASKLIST_HANG
+constexpr double kHangTimeoutSeconds = 45.0;
+#endif
 }  // namespace
 
 //----------------------------------------------------------------------------------------
@@ -205,10 +214,10 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
       }
 
 #ifdef DBG_TASKLIST_HANG
-      // Detect hangs: if no block has completed for > 60 s, dump and abort.
-      // We track a "generation" counter that any thread bumps on block
-      // completion.  If the counter hasn't changed, the wall-clock timer
-      // accumulates; completing any block resets it.
+      // Detect hangs: if no block has completed for > kHangTimeoutSeconds,
+      // dump diagnostic and abort.  We track a "generation" counter that any
+      // thread bumps on block completion.  If the counter hasn't changed, the
+      // wall-clock timer accumulates; completing any block resets it.
       int current_gen = progress_gen.load(std::memory_order_relaxed);
       if (current_gen != local_gen)
       {
@@ -219,40 +228,12 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
       {
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed = now - local_clock;
-        if (elapsed.count() > 60.0)
+        if (elapsed.count() > kHangTimeoutSeconds)
         {
 // Only one thread should print the diagnostic.
 #pragma omp critical
           {
-            std::cout
-              << "The task list has been stuck for longer than 1 minute.\n";
-            for (int i = 0; i < nmb; ++i)
-            {
-              if (completed[i])
-                continue;
-              std::cout << "  MeshBlock: " << i << "\n";
-              std::cout << "  " << pmb_array[i]->tasks.num_tasks_left
-                        << " tasks remaining.\n";
-              std::cout << "  Unfinished tasks:\n";
-              for (int m = pmb_array[i]->tasks.indx_first_task; m < ntasks;
-                   m++)
-              {
-                if (pmb_array[i]->tasks.finished_tasks.IsUnfinished(
-                      task_list_[m].task_id))
-                {
-                  std::uint64_t id = task_list_[m].task_id.bitfld_[0];
-                  int k            = 1;
-                  while (id > 1)
-                  {
-                    id = id >> 1;
-                    k++;
-                  }
-                  std::cout << "    TaskID: " << k << "\n";
-                }
-              }
-            }
-            std::cout << "Terminating...\n";
-            std::exit(EXIT_FAILURE);
+            DumpHangDiagnostic(pmesh, stage, pmb_array, completed, nmb);
           }
         }
       }
@@ -262,3 +243,103 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
   return;
 }
+
+//----------------------------------------------------------------------------------------
+// \!fn void TaskList::DumpHangDiagnostic
+//  \brief Print enriched diagnostic when the task list stall detector fires,
+//  then abort.  Called from inside #pragma omp critical so only one thread
+//  prints at a time.
+
+#ifdef DBG_TASKLIST_HANG
+void TaskList::DumpHangDiagnostic(Mesh* pmesh,
+                                  int stage,
+                                  MeshBlock** pmb_array,
+                                  const std::vector<char>& completed,
+                                  int nmb) const
+{
+  std::printf(
+    "[HANG] Task list stalled for > %.0f s  rank=%d  cycle=%d  time=%.15e"
+    "  stage=%d\n",
+    kHangTimeoutSeconds,
+    Globals::my_rank,
+    pmesh->ncycle,
+    pmesh->time,
+    stage);
+
+  for (int i = 0; i < nmb; ++i)
+  {
+    if (completed[i])
+      continue;
+
+    MeshBlock* pmb = pmb_array[i];
+    std::printf("  MeshBlock gid=%d lid=%d level=%d  tasks_left=%d\n",
+                pmb->gid,
+                pmb->lid,
+                pmb->loc.level,
+                pmb->tasks.num_tasks_left);
+
+    for (int m = pmb->tasks.indx_first_task; m < ntasks; ++m)
+    {
+      if (!pmb->tasks.finished_tasks.IsUnfinished(task_list_[m].task_id))
+        continue;
+
+      // Compute 1-based TaskID ordinal from the single-bit position.
+      std::uint64_t raw_id = task_list_[m].task_id.bitfld_[0];
+      int id_ordinal       = 1;
+      {
+        std::uint64_t tmp = raw_id;
+        while (tmp > 1)
+        {
+          tmp >>= 1;
+          id_ordinal++;
+        }
+      }
+
+      // Determine which dependency bits are still unfinished.
+      std::uint64_t dep_bits   = task_list_[m].dependency.bitfld_[0];
+      std::uint64_t done_bits  = pmb->tasks.finished_tasks.bitfld_[0];
+      std::uint64_t blocked_by = dep_bits & ~done_bits;
+
+      // List the individual blocking task ordinals.
+      if (blocked_by != 0)
+      {
+        std::printf("    TaskID %d  blocked_by=[", id_ordinal);
+        bool first              = true;
+        std::uint64_t remaining = blocked_by;
+        while (remaining != 0)
+        {
+          // Isolate lowest set bit.
+          std::uint64_t bit = remaining & (~remaining + 1);
+          remaining &= ~bit;
+
+          int blocker_ordinal = 1;
+          std::uint64_t tmp2  = bit;
+          while (tmp2 > 1)
+          {
+            tmp2 >>= 1;
+            blocker_ordinal++;
+          }
+          std::printf("%s%d", first ? "" : ",", blocker_ordinal);
+          first = false;
+        }
+        std::printf("]\n");
+      }
+      else
+      {
+        std::printf(
+          "    TaskID %d  blocked_by=[] (deps met, task returning fail)\n",
+          id_ordinal);
+      }
+    }
+  }
+
+  std::printf("[HANG] Aborting.\n");
+  std::fflush(stdout);
+
+#ifdef MPI_PARALLEL
+  MPI_Abort(MPI_COMM_WORLD, 1);
+#else
+  std::exit(EXIT_FAILURE);
+#endif
+}
+#endif  // DBG_TASKLIST_HANG

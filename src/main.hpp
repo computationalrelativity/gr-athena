@@ -132,6 +132,10 @@ inline void Init(int argc, char* argv[])
   MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &value, &flag);
   Globals::mpi_tag_ub = *(int*)value;
 
+  // Return error codes instead of aborting, so we can log diagnostics
+  // before calling MPI_Abort ourselves.
+  MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+
 #else   // no MPI
   Globals::my_rank    = 0;
   Globals::nranks     = 1;

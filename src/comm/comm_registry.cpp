@@ -8,6 +8,7 @@
 #include "comm_registry.hpp"
 
 #include <algorithm>  // std::max
+#include <cstdio>     // std::printf
 #include <sstream>
 #include <stdexcept>
 
@@ -18,10 +19,44 @@
 #include "physical_bcs.hpp"
 #include "refinement_ops.hpp"
 
-#ifdef DBG_FUSED_COMM
 #ifdef MPI_PARALLEL
 #include <mpi.h>
-#endif
+
+namespace
+{
+void CheckMPIResult(int rc,
+                    const char* call_site,
+                    int my_rank,
+                    int my_gid,
+                    int nb_rank,
+                    int nb_gid,
+                    int bufid,
+                    int fused_group)
+{
+  if (rc == MPI_SUCCESS)
+    return;
+  int err_class = 0;
+  MPI_Error_class(rc, &err_class);
+  char err_str[MPI_MAX_ERROR_STRING];
+  int err_len = 0;
+  MPI_Error_string(rc, err_str, &err_len);
+  std::printf(
+    "[MPI ERROR] %s failed on rank %d (gid %d)\n"
+    "  error_class=%d error_string=\"%.*s\"\n"
+    "  nb_rank=%d nb_gid=%d bufid=%d fused_group=%d\n",
+    call_site,
+    my_rank,
+    my_gid,
+    err_class,
+    err_len,
+    err_str,
+    nb_rank,
+    nb_gid,
+    bufid,
+    fused_group);
+  MPI_Abort(MPI_COMM_WORLD, rc);
+}
+}  // anonymous namespace
 #endif
 
 namespace comm
@@ -855,7 +890,14 @@ void CommRegistry::SendBoundaryBuffersFused(CommGroup group,
     else
     {
 #ifdef MPI_PARALLEL
-      MPI_Start(&fs.req_send[nb.bufid]);
+      CheckMPIResult(MPI_Start(&fs.req_send[nb.bufid]),
+                     "MPI_Start(SendBoundaryFused)",
+                     Globals::my_rank,
+                     pmb->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     g);
 #endif
     }
     fs.send_flag[nb.bufid].store(BoundaryStatus::completed,
@@ -905,7 +947,14 @@ bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
     {
       int test_flag = 0;
       MPI_Status mpi_status;
-      MPI_Test(&fs.req_recv[nb.bufid], &test_flag, &mpi_status);
+      CheckMPIResult(MPI_Test(&fs.req_recv[nb.bufid], &test_flag, &mpi_status),
+                     "MPI_Test(RecvBoundaryFused)",
+                     Globals::my_rank,
+                     pmb->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     g);
       if (test_flag)
         fs.recv_flag[nb.bufid].store(BoundaryStatus::arrived,
                                      std::memory_order_release);
@@ -1037,7 +1086,14 @@ bool CommRegistry::ClearBoundaryFused(CommGroup group,
       {
         int flag;
         MPI_Status mpi_status;
-        MPI_Test(&fs.req_send[nb.bufid], &flag, &mpi_status);
+        CheckMPIResult(MPI_Test(&fs.req_send[nb.bufid], &flag, &mpi_status),
+                       "MPI_Test(ClearBoundaryFused)",
+                       Globals::my_rank,
+                       pmb->gid,
+                       nb.snb.rank,
+                       nb.snb.gid,
+                       nb.bufid,
+                       g);
         if (!flag)
           return false;  // at least one send still pending - retry later
       }
@@ -1062,7 +1118,14 @@ bool CommRegistry::ClearBoundaryFused(CommGroup group,
     if (wait && nb.snb.rank != Globals::my_rank)
     {
       MPI_Status mpi_status;
-      MPI_Wait(&fs.req_send[nb.bufid], &mpi_status);
+      CheckMPIResult(MPI_Wait(&fs.req_send[nb.bufid], &mpi_status),
+                     "MPI_Wait(ClearBoundaryFused)",
+                     Globals::my_rank,
+                     pmb->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     g);
     }
 #endif
   }
@@ -1102,7 +1165,14 @@ void CommRegistry::StartReceivingFused(CommGroup group,
     if (!any_active)
       continue;
 
-    MPI_Start(&fs.req_recv[nb.bufid]);
+    CheckMPIResult(MPI_Start(&fs.req_recv[nb.bufid]),
+                   "MPI_Start(StartRecvFused)",
+                   Globals::my_rank,
+                   pmb->gid,
+                   nb.snb.rank,
+                   nb.snb.gid,
+                   nb.bufid,
+                   g);
   }
 #endif
 }

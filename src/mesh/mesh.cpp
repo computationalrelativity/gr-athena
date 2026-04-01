@@ -16,6 +16,7 @@
 #include <cinttypes>  // format macro "PRId64" for fixed-width integer type std::int64_t
 #include <cmath>    // std::abs(), std::pow()
 #include <cstdint>  // std::int64_t fixed-wdith integer type alias
+#include <cstdio>   // std::printf
 #include <cstdlib>
 #include <cstring>  // std::memcpy()
 #include <iomanip>  // std::setprecision()
@@ -1859,7 +1860,25 @@ void Mesh::NewTimeStepFinish()
 {
 #ifdef MPI_PARALLEL
   MPI_Status mpi_status;
-  MPI_Wait(&dt_reduce_req_, &mpi_status);
+  {
+    int rc = MPI_Wait(&dt_reduce_req_, &mpi_status);
+    if (rc != MPI_SUCCESS)
+    {
+      int err_class = 0;
+      MPI_Error_class(rc, &err_class);
+      char err_str[MPI_MAX_ERROR_STRING];
+      int err_len = 0;
+      MPI_Error_string(rc, err_str, &err_len);
+      std::printf(
+        "[MPI ERROR] MPI_Wait(NewTimeStepFinish) failed on rank %d\n"
+        "  error_class=%d error_string=\"%.*s\"\n",
+        Globals::my_rank,
+        err_class,
+        err_len,
+        err_str);
+      MPI_Abort(MPI_COMM_WORLD, rc);
+    }
+  }
 
   dt            = dt_reduce_buf_[0];
   dt_hyperbolic = dt_reduce_buf_[1];

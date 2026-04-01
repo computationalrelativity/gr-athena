@@ -8,6 +8,7 @@
 #include "comm_channel.hpp"
 
 #include <algorithm>  // std::max
+#include <cstdio>     // std::printf
 #include <cstring>    // std::memcpy
 #include <sstream>
 #include <stdexcept>
@@ -27,6 +28,42 @@
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
+
+namespace
+{
+void CheckMPIResult(int rc,
+                    const char* call_site,
+                    int my_rank,
+                    int my_gid,
+                    int nb_rank,
+                    int nb_gid,
+                    int bufid,
+                    int channel_id)
+{
+  if (rc == MPI_SUCCESS)
+    return;
+  int err_class = 0;
+  MPI_Error_class(rc, &err_class);
+  char err_str[MPI_MAX_ERROR_STRING];
+  int err_len = 0;
+  MPI_Error_string(rc, err_str, &err_len);
+  std::printf(
+    "[MPI ERROR] %s failed on rank %d (gid %d)\n"
+    "  error_class=%d error_string=\"%.*s\"\n"
+    "  nb_rank=%d nb_gid=%d bufid=%d channel=%d\n",
+    call_site,
+    my_rank,
+    my_gid,
+    err_class,
+    err_len,
+    err_str,
+    nb_rank,
+    nb_gid,
+    bufid,
+    channel_id);
+  MPI_Abort(MPI_COMM_WORLD, rc);
+}
+}  // anonymous namespace
 #endif
 
 namespace comm
@@ -605,7 +642,15 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
       else
       {
 #ifdef MPI_PARALLEL
-        MPI_Start(&req_send_[nb.bufid]);
+        int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+        CheckMPIResult(mpi_rc,
+                       "MPI_Start(SendBoundary)",
+                       Globals::my_rank,
+                       pmy_block_->gid,
+                       nb.snb.rank,
+                       nb.snb.gid,
+                       nb.bufid,
+                       channel_id_);
 #endif
       }
       send_flag_[nb.bufid].store(BoundaryStatus::completed,
@@ -674,7 +719,15 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
     else
     {
 #ifdef MPI_PARALLEL
-      MPI_Start(&req_send_[nb.bufid]);
+      int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Start(SendBoundary)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
 #endif
     }
     send_flag_[nb.bufid].store(BoundaryStatus::completed,
@@ -711,7 +764,15 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
     {
       int test_flag = 0;
       MPI_Status mpi_status;
-      MPI_Test(&req_recv_[nb.bufid], &test_flag, &mpi_status);
+      int mpi_rc = MPI_Test(&req_recv_[nb.bufid], &test_flag, &mpi_status);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Test(PollReceive)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
       if (test_flag)
         recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
                                    std::memory_order_release);
@@ -1292,7 +1353,15 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
       {
         int flag;
         MPI_Status mpi_status;
-        MPI_Test(&req_send_[nb.bufid], &flag, &mpi_status);
+        int mpi_rc = MPI_Test(&req_send_[nb.bufid], &flag, &mpi_status);
+        CheckMPIResult(mpi_rc,
+                       "MPI_Test(ClearBoundary)",
+                       Globals::my_rank,
+                       pmy_block_->gid,
+                       nb.snb.rank,
+                       nb.snb.gid,
+                       nb.bufid,
+                       channel_id_);
         if (!flag)
           return false;  // at least one send still pending - retry later
       }
@@ -1317,7 +1386,15 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
     if (wait && nb.snb.rank != Globals::my_rank)
     {
       MPI_Status mpi_status;
-      MPI_Wait(&req_send_[nb.bufid], &mpi_status);
+      int mpi_rc = MPI_Wait(&req_send_[nb.bufid], &mpi_status);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Wait(ClearBoundary)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
     }
 #endif
   }
@@ -1344,7 +1421,15 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
     if (!HasTarget(eff, nbt))
       continue;
 
-    MPI_Start(&req_recv_[nb.bufid]);
+    int mpi_rc = MPI_Start(&req_recv_[nb.bufid]);
+    CheckMPIResult(mpi_rc,
+                   "MPI_Start(StartReceive)",
+                   Globals::my_rank,
+                   pmy_block_->gid,
+                   nb.snb.rank,
+                   nb.snb.gid,
+                   nb.bufid,
+                   channel_id_);
   }
 #endif
 }
@@ -2035,7 +2120,15 @@ void CommChannel::PackAndSendFluxCorrCC(const NeighborConnectivity& nc)
 #ifdef MPI_PARALLEL
     else
     {
-      MPI_Start(&req_flcor_send_[nb.bufid]);
+      int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Start(SendFluxCorrCC)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
     }
 #endif
     flcor_send_flag_[nb.bufid].store(BoundaryStatus::completed,
@@ -2112,7 +2205,15 @@ void CommChannel::PackAndSendFluxCorrFC(const NeighborConnectivity& nc)
 #ifdef MPI_PARALLEL
     else
     {
-      MPI_Start(&req_flcor_send_[nb.bufid]);
+      int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Start(SendFluxCorrFC)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
     }
 #endif
     flcor_send_flag_[nb.bufid].store(BoundaryStatus::completed,
@@ -2537,7 +2638,15 @@ bool CommChannel::PollReceiveFluxCorrCC(const NeighborConnectivity& nc)
     {
       int test = 0;
       MPI_Status mpi_status;
-      MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+      int mpi_rc = MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+      CheckMPIResult(mpi_rc,
+                     "MPI_Test(PollRecvFluxCorr)",
+                     Globals::my_rank,
+                     pmy_block_->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
       if (test)
       {
         flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -2612,7 +2721,16 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
         {
           int test = 0;
           MPI_Status mpi_status;
-          MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+          int mpi_rc =
+            MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+          CheckMPIResult(mpi_rc,
+                         "MPI_Test(PollRecvFluxCorrFC_SL)",
+                         Globals::my_rank,
+                         pmy_block_->gid,
+                         nb.snb.rank,
+                         nb.snb.gid,
+                         nb.bufid,
+                         channel_id_);
           if (test)
           {
             flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -2686,7 +2804,15 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
       {
         int test = 0;
         MPI_Status mpi_status;
-        MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+        int mpi_rc = MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+        CheckMPIResult(mpi_rc,
+                       "MPI_Test(PollRecvFluxCorrFC_FF)",
+                       Globals::my_rank,
+                       pmy_block_->gid,
+                       nb.snb.rank,
+                       nb.snb.gid,
+                       nb.bufid,
+                       channel_id_);
         if (test)
         {
           flcor_recv_flag_[nb.bufid].store(BoundaryStatus::arrived,
@@ -3501,7 +3627,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
       // CC: receive only from finer face neighbors
       if (nb.ni.type == NeighborConnect::face && nb.snb.level > mylevel)
       {
-        MPI_Start(&req_flcor_recv_[nb.bufid]);
+        int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+        CheckMPIResult(mpi_rc,
+                       "MPI_Start(StartFluxCorrRecv)",
+                       Globals::my_rank,
+                       pmy_block_->gid,
+                       nb.snb.rank,
+                       nb.snb.gid,
+                       nb.bufid,
+                       channel_id_);
       }
     }
     else
@@ -3514,7 +3648,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
         if (nb.snb.level > mylevel)
         {
           // From finer: always receive
-          MPI_Start(&req_flcor_recv_[nb.bufid]);
+          int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+          CheckMPIResult(mpi_rc,
+                         "MPI_Start(StartFluxCorrRecv)",
+                         Globals::my_rank,
+                         pmy_block_->gid,
+                         nb.snb.rank,
+                         nb.snb.gid,
+                         nb.bufid,
+                         channel_id_);
         }
         else if (nb.snb.level == mylevel)
         {
@@ -3523,7 +3665,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
           if (nb.ni.type == NeighborConnect::face ||
               (nb.ni.type == NeighborConnect::edge && edge_flag_[nb.eid]))
           {
-            MPI_Start(&req_flcor_recv_[nb.bufid]);
+            int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+            CheckMPIResult(mpi_rc,
+                           "MPI_Start(StartFluxCorrRecv)",
+                           Globals::my_rank,
+                           pmy_block_->gid,
+                           nb.snb.rank,
+                           nb.snb.gid,
+                           nb.bufid,
+                           channel_id_);
           }
         }
       }
@@ -3602,7 +3752,14 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
         continue;
       int flag;
       MPI_Status mpi_status;
-      MPI_Test(&req_flcor_send_[nb.bufid], &flag, &mpi_status);
+      CheckMPIResult(MPI_Test(&req_flcor_send_[nb.bufid], &flag, &mpi_status),
+                     "MPI_Test(ClearFluxCorr)",
+                     Globals::my_rank,
+                     pmb->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
       if (!flag)
         return false;  // at least one send still pending - retry later
     }
@@ -3626,7 +3783,14 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
     if (wait && nb.snb.rank != Globals::my_rank && NeighborHasSend(nb))
     {
       MPI_Status mpi_status;
-      MPI_Wait(&req_flcor_send_[nb.bufid], &mpi_status);
+      CheckMPIResult(MPI_Wait(&req_flcor_send_[nb.bufid], &mpi_status),
+                     "MPI_Wait(ClearFluxCorr)",
+                     Globals::my_rank,
+                     pmb->gid,
+                     nb.snb.rank,
+                     nb.snb.gid,
+                     nb.bufid,
+                     channel_id_);
     }
 #endif
   }
