@@ -2247,18 +2247,21 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
       // ----------------------------------------------------------------------
 
       // Deal with matter prol. & BC ------------------------------------------
+      // N.B. FinalizeHydroConsRP internally skips prolongation for
+      // single-level meshes; physical BCs and bcc recomputation always run.
+      // The full-domain C2P must run unconditionally so that ghost-zone
+      // primitives are valid after load-balance redistribution.
 #if FLUID_ENABLED
-      if (multilevel)
-        if ((init_style == initialize_style::pgen) ||
-            (init_style == initialize_style::regrid) ||
-            (init_style == initialize_style::restart))
-        {
-          FinalizeHydroConsRP(pmb_array);
+      if ((init_style == initialize_style::pgen) ||
+          (init_style == initialize_style::regrid) ||
+          (init_style == initialize_style::restart))
+      {
+        FinalizeHydroConsRP(pmb_array);
 
-          // C2P on full domain after prolongation. skip_physical avoids
-          // floor corrections in ghost zones when Z4c provides the metric.
-          PreparePrimitives(pmb_array, false, Z4C_ENABLED);
-        }
+        // C2P on full domain after prolongation. skip_physical avoids
+        // floor corrections in ghost zones when Z4c provides the metric.
+        PreparePrimitives(pmb_array, false, Z4C_ENABLED);
+      }
 #endif
       // ----------------------------------------------------------------------
 
