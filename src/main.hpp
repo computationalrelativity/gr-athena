@@ -299,6 +299,7 @@ struct Flags
 // Command line parsing -------------------------------------------------------
 inline void ParseCommandLine(int argc, char* argv[], Pathing* ppat, Flags* pfl)
 {
+  bool used_cap_I = false;
   for (int i = 1; i < argc; i++)
   {
     // If argv[i] is a 2 character string of the form "-?" then:
@@ -335,6 +336,11 @@ inline void ParseCommandLine(int argc, char* argv[], Pathing* ppat, Flags* pfl)
         case 'i':  // -i <input_filename>
           ppat->input_filename = argv[++i];
           pfl->iarg            = 1;
+          break;
+        case 'I':  // -I <input_filename> (allows use with -r)
+          ppat->input_filename = argv[++i];
+          pfl->iarg            = 1;
+          used_cap_I           = true;
           break;
         case 'r':  // -r <restart_file>
           pfl->res               = 1;
@@ -385,6 +391,19 @@ inline void ParseCommandLine(int argc, char* argv[], Pathing* ppat, Flags* pfl)
       }
     }  // else if argv[i] not of form "-?" ignore it here (tested in
        // ModifyFromCmdline)
+  }
+
+  if (pfl->iarg == 1 && pfl->res == 1 && !used_cap_I)
+  {
+    if (Globals::my_rank == 0)
+    {
+      std::cout << "### FATAL ERROR in main" << std::endl
+                << "Using -i with -r results in unexpected behaviour under "
+                << "certain conditions. If you are certain you want this "
+                << "use -I instead." << std::endl;
+    }
+    gra::parallelism::Teardown();
+    std::exit(0);
   }
 
   if (ppat->restart_filename == nullptr && ppat->input_filename == nullptr)
