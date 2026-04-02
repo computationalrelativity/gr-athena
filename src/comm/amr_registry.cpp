@@ -870,16 +870,25 @@ void AMRRegistry::FillSameRankFineToCoarse(MeshBlock* src_block,
       // Copy x1f
       for (int k = kl, fk = src_block->cks; fk <= src_block->cke; k++, fk++)
         for (int j = jl, fj = src_block->cjs; fj <= src_block->cje; j++, fj++)
-          for (int i = il, fi = src_block->cis; fi <= src_block->cie + 1;
-               i++, fi++)
-            ds.face_var->x1f(k, j, i) = ss.coarse_face_var->x1f(fk, fj, fi);
+        {
+          const int fi0 = src_block->cis - il;
+#pragma omp simd
+          for (int i = il; i <= il + (src_block->cie + 1 - src_block->cis);
+               i++)
+            ds.face_var->x1f(k, j, i) =
+              ss.coarse_face_var->x1f(fk, fj, i + fi0);
+        }
       // Copy x2f
       for (int k = kl, fk = src_block->cks; fk <= src_block->cke; k++, fk++)
         for (int j = jl, fj = src_block->cjs; fj <= src_block->cje + f2;
              j++, fj++)
-          for (int i = il, fi = src_block->cis; fi <= src_block->cie;
-               i++, fi++)
-            ds.face_var->x2f(k, j, i) = ss.coarse_face_var->x2f(fk, fj, fi);
+        {
+          const int fi0 = src_block->cis - il;
+#pragma omp simd
+          for (int i = il; i <= il + (src_block->cie - src_block->cis); i++)
+            ds.face_var->x2f(k, j, i) =
+              ss.coarse_face_var->x2f(fk, fj, i + fi0);
+        }
       if (dst_block->block_size.nx2 == 1)
       {
         int iu = il + b_hsz1 - 1;
@@ -891,9 +900,13 @@ void AMRRegistry::FillSameRankFineToCoarse(MeshBlock* src_block,
       for (int k = kl, fk = src_block->cks; fk <= src_block->cke + f3;
            k++, fk++)
         for (int j = jl, fj = src_block->cjs; fj <= src_block->cje; j++, fj++)
-          for (int i = il, fi = src_block->cis; fi <= src_block->cie;
-               i++, fi++)
-            ds.face_var->x3f(k, j, i) = ss.coarse_face_var->x3f(fk, fj, fi);
+        {
+          const int fi0 = src_block->cis - il;
+#pragma omp simd
+          for (int i = il; i <= il + (src_block->cie - src_block->cis); i++)
+            ds.face_var->x3f(k, j, i) =
+              ss.coarse_face_var->x3f(fk, fj, i + fi0);
+        }
       if (dst_block->block_size.nx3 == 1)
       {
         int iu = il + b_hsz1 - 1;
@@ -990,8 +1003,12 @@ void AMRRegistry::FillSameRankFineToCoarse(MeshBlock* src_block,
     for (int nv = 0; nv <= nu; nv++)
       for (int k = dkl, fk = ckl; fk <= cku; k++, fk++)
         for (int j = djl, fj = cjl; fj <= cju; j++, fj++)
-          for (int i = dil, fi = cil; fi <= ciu; i++, fi++)
-            dst_a(nv, k, j, i) = src_a(nv, fk, fj, fi);
+        {
+          const int fi0 = cil - dil;
+#pragma omp simd
+          for (int i = dil; i <= dil + (ciu - cil); i++)
+            dst_a(nv, k, j, i) = src_a(nv, fk, fj, i + fi0);
+        }
   }
 }
 
@@ -1037,16 +1054,31 @@ void AMRRegistry::FillSameRankCoarseToFine(MeshBlock* src_block,
       // Copy src fine-level into dst coarse buffer
       for (int k = kl, ck = cks; k <= ku; k++, ck++)
         for (int j = jl, cj = cjs; j <= ju; j++, cj++)
-          for (int i = il, ci = cis; i <= iu + 1; i++, ci++)
-            ds.coarse_face_var->x1f(k, j, i) = ss.face_var->x1f(ck, cj, ci);
+        {
+          const int ci0 = cis - il;
+#pragma omp simd
+          for (int i = il; i <= il + (iu + 1 - il); i++)
+            ds.coarse_face_var->x1f(k, j, i) =
+              ss.face_var->x1f(ck, cj, i + ci0);
+        }
       for (int k = kl, ck = cks; k <= ku; k++, ck++)
         for (int j = jl, cj = cjs; j <= ju + f2; j++, cj++)
-          for (int i = il, ci = cis; i <= iu; i++, ci++)
-            ds.coarse_face_var->x2f(k, j, i) = ss.face_var->x2f(ck, cj, ci);
+        {
+          const int ci0 = cis - il;
+#pragma omp simd
+          for (int i = il; i <= iu; i++)
+            ds.coarse_face_var->x2f(k, j, i) =
+              ss.face_var->x2f(ck, cj, i + ci0);
+        }
       for (int k = kl, ck = cks; k <= ku + f3; k++, ck++)
         for (int j = jl, cj = cjs; j <= ju; j++, cj++)
-          for (int i = il, ci = cis; i <= iu; i++, ci++)
-            ds.coarse_face_var->x3f(k, j, i) = ss.face_var->x3f(ck, cj, ci);
+        {
+          const int ci0 = cis - il;
+#pragma omp simd
+          for (int i = il; i <= iu; i++)
+            ds.coarse_face_var->x3f(k, j, i) =
+              ss.face_var->x3f(ck, cj, i + ci0);
+        }
 
       // Prolongate on dst
       pmr->ProlongateSharedFieldX1(ds.coarse_face_var->x1f,
@@ -1169,8 +1201,12 @@ void AMRRegistry::FillSameRankCoarseToFine(MeshBlock* src_block,
     for (int nv = 0; nv <= nu; nv++)
       for (int k = ckl, ck = cks; k <= cku; k++, ck++)
         for (int j = cjl, cj = cjs; j <= cju; j++, cj++)
-          for (int i = cil, ci = cis; i <= ciu; i++, ci++)
-            dst_a(nv, k, j, i) = src_a(nv, ck, cj, ci);
+        {
+          const int ci0 = cis - cil;
+#pragma omp simd
+          for (int i = cil; i <= ciu; i++)
+            dst_a(nv, k, j, i) = src_a(nv, ck, cj, i + ci0);
+        }
 
     // Prolongate using the registered operator
     switch (ds.prolong_op)

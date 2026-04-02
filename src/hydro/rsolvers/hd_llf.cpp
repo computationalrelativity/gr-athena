@@ -209,6 +209,7 @@ void Hydro::RiemannSolver(const int ivx,
   }
   else
   {
+#pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
       const Real norm2_utilde_l =
@@ -338,9 +339,8 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    const Real alpha_vmb_l_u_ = (
-      alpha_(i) * w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i)
-    );
+    const Real alpha_vmb_l_u_ =
+      (alpha_(i) * w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i));
 
     flux_l_(IDN, i) = cons_l_(IDN, i) * alpha_vmb_l_u_;
     flux_l_(IEN, i) =
@@ -353,9 +353,8 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      const Real alpha_vmb_l_u_ = (
-        alpha_(i) * w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i)
-      );
+      const Real alpha_vmb_l_u_ =
+        (alpha_(i) * w_v_u_l_(ivx - 1, i) - beta_u_(ivx - 1, i));
       flux_l_(IVX + a, i) = cons_l_(IVX + a, i) * alpha_vmb_l_u_;
     }
   }
@@ -392,9 +391,8 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    const Real alpha_vmb_r_u_ = (
-      alpha_(i) * w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i)
-    );
+    const Real alpha_vmb_r_u_ =
+      (alpha_(i) * w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i));
 
     flux_r_(IDN, i) = cons_r_(IDN, i) * alpha_vmb_r_u_;
     flux_r_(IEN, i) =
@@ -407,9 +405,8 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      const Real alpha_vmb_r_u_ = (
-        alpha_(i) * w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i)
-      );
+      const Real alpha_vmb_r_u_ =
+        (alpha_(i) * w_v_u_r_(ivx - 1, i) - beta_u_(ivx - 1, i));
 
       flux_r_(IVX + a, i) = cons_r_(IVX + a, i) * alpha_vmb_r_u_;
     }
@@ -426,31 +423,36 @@ void Hydro::RiemannSolver(const int ivx,
 
   if (use_hlle)
   {
+#pragma omp simd
+    for (int i = il; i <= iu; ++i)
+    {
+      lam_l_(i)   = std::min(lambda_m_l(i), lambda_m_r(i));
+      lam_r_(i)   = std::max(lambda_p_l(i), lambda_p_r(i));
+      oo_dlam_(i) = 1.0 / (lam_r_(i) - lam_l_(i));
+    }
+
     for (int n = 0; n < NHYDRO; ++n)
     {
 #pragma omp simd
       for (int i = il; i <= iu; ++i)
       {
-        const Real lam_l__ = std::min(lambda_m_l(i), lambda_m_r(i));
-        const Real lam_r__ = std::max(lambda_p_l(i), lambda_p_r(i));
-
         const Real flx_l__ = flux_l_(n, i);
         const Real flx_r__ = flux_r_(n, i);
 
-        if (lam_l__ >= 0.0)
+        if (lam_l_(i) >= 0.0)
         {
           flux(n, k, j, i) = flx_l__;
         }
-        else if (lam_r__ <= 0.0)
+        else if (lam_r_(i) <= 0.0)
         {
           flux(n, k, j, i) = flx_r__;
         }
         else
         {
           flux(n, k, j, i) =
-            ((lam_r__ * flx_l__ - lam_l__ * flx_r__) +
-             lam_l__ * lam_r__ * (cons_r_(n, i) - cons_l_(n, i))) /
-            (lam_r__ - lam_l__);
+            ((lam_r_(i) * flx_l__ - lam_l_(i) * flx_r__) +
+             lam_l_(i) * lam_r_(i) * (cons_r_(n, i) - cons_l_(n, i))) *
+            oo_dlam_(i);
         }
 
         // LLF fallback - probably better with a floor
@@ -485,27 +487,24 @@ void Hydro::RiemannSolver(const int ivx,
 #pragma omp simd
         for (int i = il; i <= iu; ++i)
         {
-          const Real lam_l__ = std::min(lambda_m_l(i), lambda_m_r(i));
-          const Real lam_r__ = std::max(lambda_p_l(i), lambda_p_r(i));
-
           const Real flx_l__ = flux_l_(IDN, i) * pscalars_l_(n, i);
           const Real flx_r__ = flux_r_(IDN, i) * pscalars_r_(n, i);
 
-          if (lam_l__ >= 0.0)
+          if (lam_l_(i) >= 0.0)
           {
             s_flux(n, k, j, i) = flx_l__;
           }
-          else if (lam_r__ <= 0.0)
+          else if (lam_r_(i) <= 0.0)
           {
             s_flux(n, k, j, i) = flx_r__;
           }
           else
           {
-            s_flux(n, k, j, i) = ((lam_r__ * flx_l__ - lam_l__ * flx_r__) +
-                                  lam_l__ * lam_r__ *
+            s_flux(n, k, j, i) = ((lam_r_(i) * flx_l__ - lam_l_(i) * flx_r__) +
+                                  lam_l_(i) * lam_r_(i) *
                                     (cons_r_(IDN, i) * pscalars_r_(n, i) -
-                                     cons_l_(IDN, i) * pscalars_l_(n, i))) /
-                                 (lam_r__ - lam_l__);
+                                     cons_l_(IDN, i) * pscalars_l_(n, i))) *
+                                 oo_dlam_(i);
           }
 
           if (!std::isfinite(s_flux(n, k, j, i)))

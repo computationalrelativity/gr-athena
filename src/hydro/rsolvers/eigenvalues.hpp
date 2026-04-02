@@ -58,15 +58,13 @@ inline void HydroEigenvalues(Real cs_sq,
                              Real* plambda_plus,
                              Real* plambda_minus)
 {
-  const Real cs = std::sqrt(cs_sq);
-
-  const Real sqrt_term = std::sqrt(
-    (1 - v2) * (gammaii * (1.0 - v2 * cs_sq) - vi * vi * (1.0 - cs_sq)));
-
-  Real root_1 =
-    alpha * (vi * (1.0 - cs_sq) + cs * sqrt_term) / (1.0 - v2 * cs_sq) - betai;
-  Real root_2 =
-    alpha * (vi * (1.0 - cs_sq) - cs * sqrt_term) / (1.0 - v2 * cs_sq) - betai;
+  const Real cs_sqrt_term =
+    std::sqrt(cs_sq * (1 - v2) *
+              (gammaii * (1.0 - v2 * cs_sq) - vi * vi * (1.0 - cs_sq)));
+  const Real oo_denom = 1.0 / (1.0 - v2 * cs_sq);
+  const Real vi_term  = vi * (1.0 - cs_sq);
+  Real root_1         = alpha * (vi_term + cs_sqrt_term) * oo_denom - betai;
+  Real root_2         = alpha * (vi_term - cs_sqrt_term) * oo_denom - betai;
 
   if (!std::isfinite(root_1 + root_2))
   {
@@ -121,15 +119,16 @@ inline void MHDEigenvalues(Real cs_sq,
   Real cms_sq = cs_sq + va_sq - cs_sq * va_sq;
 
   // Solve quadratic for fast magnetosonic eigenvalues
-  const Real u0sq = SQR(u0);
-  const Real u1sq = SQR(u1);
-  Real a          = u0sq - (g00 + u0sq) * cms_sq;
-  Real b          = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
-  Real c          = u1sq - (g11 + u1sq) * cms_sq;
-  Real d          = std::max(SQR(b) - 4.0 * a * c, 0.0);
-  Real d_sqrt     = std::sqrt(d);
-  Real root_1     = (-b + d_sqrt) / (2.0 * a);
-  Real root_2     = (-b - d_sqrt) / (2.0 * a);
+  const Real u0sq  = SQR(u0);
+  const Real u1sq  = SQR(u1);
+  Real a           = u0sq - (g00 + u0sq) * cms_sq;
+  Real b           = -2.0 * (u0 * u1 - (g01 + u0 * u1) * cms_sq);
+  Real c           = u1sq - (g11 + u1sq) * cms_sq;
+  Real d           = std::max(SQR(b) - 4.0 * a * c, 0.0);
+  Real d_sqrt      = std::sqrt(d);
+  const Real oo_2a = 0.5 / a;
+  Real root_1      = (-b + d_sqrt) * oo_2a;
+  Real root_2      = (-b - d_sqrt) * oo_2a;
 
   if (!std::isfinite(root_1 + root_2))
   {

@@ -257,6 +257,10 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   lambda_m_r.NewAthenaTensor(nn1);
   lambda.NewAthenaTensor(nn1);
 
+  lam_l_.NewAthenaTensor(nn1);
+  lam_r_.NewAthenaTensor(nn1);
+  oo_dlam_.NewAthenaTensor(nn1);
+
   w_util_d_l_.NewAthenaTensor(nn1);
   w_util_d_r_.NewAthenaTensor(nn1);
 
@@ -275,6 +279,8 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
 #if MAGNETIC_FIELDS_ENABLED
   oo_W_l_.NewAthenaTensor(nn1);
   oo_W_r_.NewAthenaTensor(nn1);
+
+  oo_alpha_.NewAthenaTensor(nn1);
 
   w_v_d_l_.NewAthenaTensor(nn1);
   w_v_d_r_.NewAthenaTensor(nn1);
@@ -299,18 +305,5 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   bi_d_l_.NewAthenaTensor(nn1);
   bi_d_r_.NewAthenaTensor(nn1);
 #endif  // MAGNETIC_FIELDS_ENABLED
-
 #endif
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx,
-//! Real dt)
-//  \brief Calculate the weighting factor for the constrained transport method
-
-Real Hydro::GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt)
-{
-  Real v_over_c = (1024.0) * dt * dflx / (dx * (rhol + rhor));
-  Real tmp_min  = std::min(static_cast<Real>(0.5), v_over_c);
-  return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
 }

@@ -175,6 +175,10 @@ class Hydro
   AT_C_sca lambda_m_r;
   AT_C_sca lambda;
 
+  AT_C_sca lam_l_;
+  AT_C_sca lam_r_;
+  AT_C_sca oo_dlam_;
+
   // primitive vel. (covar.)
   AT_N_vec w_util_d_l_;
   AT_N_vec w_util_d_r_;
@@ -197,6 +201,8 @@ class Hydro
   // Particular to magnetic fields --------------------------------------------
   AT_C_sca oo_W_l_;
   AT_C_sca oo_W_r_;
+
+  AT_C_sca oo_alpha_;
 
   AT_N_vec w_v_d_l_;
   AT_N_vec w_v_d_r_;
@@ -379,7 +385,12 @@ class Hydro
 
   TimeStepFunc UserTimeStep_;
 
-  Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt);
+  Real GetWeightForCT(Real dflx, Real rhol, Real rhor, Real dx, Real dt)
+  {
+    Real v_over_c = (1024.0) * dt * dflx / (dx * (rhol + rhor));
+    Real tmp_min  = std::min(static_cast<Real>(0.5), v_over_c);
+    return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
+  }
 };
 
 namespace fluxes
