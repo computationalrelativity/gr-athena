@@ -473,6 +473,9 @@ class Z4c
   // one-time initialization of 3D derivative arrays for fresh MeshBlocks
   void InitializeZ4cDerivatives(AA& u);
 
+  // Flag: have 3D derivative arrays been initialized?
+  bool z4c_derivs_initialized = false;
+
   void PrepareAuxExtended(AA& u_aux_extended, AA& u, AA& u_adm);
 
   void Z4cToADM(AA& u,
@@ -615,9 +618,6 @@ class Z4c
 
   private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
-
-  // Flag: have 3D derivative arrays been initialized?
-  bool z4c_derivs_initialized = false;
 
   // auxiliary tensors
   AT_N_sca r;            // radial coordinate

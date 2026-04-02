@@ -157,7 +157,10 @@ void Mesh::FinalizeZ4cADMGhosts(const std::vector<MeshBlock*>& pmb_array,
                  pz->mbi.nn3 - 1,
                  skip_physical);
 
-    // Initialize 3D derivative arrays + storage.aux for fresh MeshBlocks
+    // Recompute 3D derivative arrays for all blocks.  After ghost exchange,
+    // surviving blocks may have new neighbour data, invalidating stencil-
+    // dependent derivatives near block boundaries.
+    pz->z4c_derivs_initialized = false;
     pz->InitializeZ4cDerivatives(pz->storage.u);
   }
 #endif  // Z4C_ENABLED

@@ -2319,14 +2319,14 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
     // ------------------------------------------------------------------------
 
     // Prepare z4c diagnostic quantities --------------------------------------
-#if FLUID_ENABLED
+#if Z4C_ENABLED
     if ((init_style == initialize_style::pgen) ||
         (init_style == initialize_style::regrid) ||
         (init_style == initialize_style::restart))
     {
       CalculateZ4cInitDiagnostics();
     }
-#endif  // FLUID_ENABLED
+#endif  // Z4C_ENABLED
     // ------------------------------------------------------------------------
 
     // Further re-gridding as required ----------------------------------------
