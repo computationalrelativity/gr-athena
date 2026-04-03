@@ -192,17 +192,23 @@ void GRMHD_Z4c_Phase_MHD::StartupTaskList(MeshBlock* pmb, int stage)
 //-----------------------------------------------------------------------------
 // Wait on MHD-owned flux correction sends and reset channel flags.
 // Per-channel clear avoids touching M1's channel in the shared FluxCorr group.
-// Split-phase MHD path is GTS-only - blocking MPI_Wait is faster than
-// spinning on MPI_Test when there is no useful work to steal.
+// Non-blocking (wait=false): return fail to let the work-stealing scheduler
+// advance other blocks while sends complete, avoiding MPI_Wait deadlocks.
 TaskStatus GRMHD_Z4c_Phase_MHD::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
   if (pmb->pmy_mesh->multilevel)
   {
-    pmb->pcomm->ClearFluxCorrSingleChannel(pmb->phydro->comm_channel_id);
+    if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->phydro->comm_channel_id,
+                                                false))
+      return TaskStatus::fail;
     if (MAGNETIC_FIELDS_ENABLED)
-      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pfield->comm_channel_id);
+      if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pfield->comm_channel_id,
+                                                  false))
+        return TaskStatus::fail;
     if (NSCALARS > 0)
-      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pscalars->comm_channel_id);
+      if (!pmb->pcomm->ClearFluxCorrSingleChannel(
+            pmb->pscalars->comm_channel_id, false))
+        return TaskStatus::fail;
   }
   return TaskStatus::next;
 }

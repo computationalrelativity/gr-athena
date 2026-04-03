@@ -208,21 +208,26 @@ void M1N0::StartupTaskList(MeshBlock* pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Wait on M1 ghost exchange and flux correction sends, reset channel flags.
-// M1 task list is GTS-only - blocking MPI_Wait is faster than spinning on
-// MPI_Test when there is no useful work to steal.
+// Non-blocking clear of M1 ghost exchange and flux correction sends, reset
+// channel flags.  Uses MPI_Test (wait=false) so that the per-block
+// work-stealing lock is released immediately when sends are still in flight,
+// preventing deadlocks where all threads block inside MPI_Wait simultaneously.
 TaskStatus M1N0::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
   Mesh* pm = pmb->pmy_mesh;
 
-  // Wait on M1 ghost exchange sends and reset channel flags.
-  pmb->pcomm->ClearBoundary(comm::CommGroup::M1);
+  // Non-blocking clear of M1 ghost exchange sends and channel flags.
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::M1, comm::CommTarget::All, false))
+    return TaskStatus::fail;
 
-  // Wait on M1-owned flux correction sends and reset flags (if multilevel).
+  // Non-blocking clear of M1-owned flux correction sends (if multilevel).
   // Per-channel clear avoids touching MHD's channels in the shared FluxCorr
   // group.
   if (pm->multilevel)
-    pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pm1->comm_channel_id);
+    if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pm1->comm_channel_id,
+                                                false))
+      return TaskStatus::fail;
 
   return TaskStatus::next;
 }
@@ -1036,14 +1041,16 @@ TaskStatus M1N0::UpdateSourceHyd(MeshBlock* pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Wait on M1Rescatter sends and reset channel flags.
+// Non-blocking clear of M1Rescatter sends and channel flag reset.
 // See ClearAllBoundary comment.
 TaskStatus M1N0::ClearMainInt(MeshBlock* pmb, int stage)
 {
   if (stage != nstages)
     return TaskStatus::next;
 
-  pmb->pcomm->ClearBoundary(comm::CommGroup::M1Rescatter);
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::M1Rescatter, comm::CommTarget::All, false))
+    return TaskStatus::fail;
   return TaskStatus::next;
 }
 

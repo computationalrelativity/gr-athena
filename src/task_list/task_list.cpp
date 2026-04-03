@@ -17,6 +17,7 @@
 
 // C++ headers
 #include <atomic>
+#include <thread>  // std::this_thread::yield
 #include <vector>
 
 // Athena++ headers
@@ -170,6 +171,8 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
     while (nmb_left.load(std::memory_order_relaxed) > 0)
     {
+      bool made_progress = false;
+
       // Scan up to nmb blocks looking for one we can lock and advance.
       for (int attempt = 0; attempt < nmb; ++attempt)
       {
@@ -210,8 +213,19 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
         // Release the per-block lock.
         block_lock[idx].locked.store(false, std::memory_order_release);
+        if (status != TaskListStatus::stuck &&
+            status != TaskListStatus::nothing_to_do)
+          made_progress = true;
         break;  // go back to the outer while-loop to re-check nmb_left
       }
+
+      // If no block could be locked and advanced (all were either completed
+      // or held by other threads), yield the CPU.  This avoids busy-spinning
+      // when all remaining blocks are stuck waiting on MPI receives and
+      // ensures MPI asynchronous progress threads (or other ranks sharing
+      // the node) get scheduled.
+      if (!made_progress)
+        std::this_thread::yield();
 
 #ifdef DBG_TASKLIST_HANG
       // Detect hangs: if no block has completed for > kHangTimeoutSeconds,

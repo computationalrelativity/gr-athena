@@ -119,12 +119,15 @@ void GRMHD_Z4c_Phase_Z4c::StartupTaskList(MeshBlock* pmb, int stage)
 }
 
 //-----------------------------------------------------------------------------
-// Wait on outstanding Z4c ghost sends and reset channel flags.
-// Split-phase Z4c path is GTS-only - blocking MPI_Wait is faster than
-// spinning on MPI_Test when there is no useful work to steal.
+// Non-blocking clear of outstanding Z4c ghost sends and channel flag reset.
+// Uses MPI_Test (wait=false) so that the per-block work-stealing lock is
+// released immediately when sends are still in flight, preventing deadlocks
+// where all threads block inside MPI_Wait simultaneously.
 TaskStatus GRMHD_Z4c_Phase_Z4c::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
-  pmb->pcomm->ClearBoundary(comm::CommGroup::Z4c);
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::Z4c, comm::CommTarget::All, false))
+    return TaskStatus::fail;
   return TaskStatus::next;
 }
 

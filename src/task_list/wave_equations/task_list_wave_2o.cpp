@@ -100,12 +100,15 @@ void Wave_2O::StartupTaskList(MeshBlock* pmb, int stage)
 }
 
 // ----------------------------------------------------------------------------
-// Clear outstanding Wave ghost sends and reset channel flags.
-// Wave task list is GTS-only - blocking MPI_Wait is faster than spinning on
-// MPI_Test when there is no useful work to steal.
+// Non-blocking clear of outstanding Wave ghost sends and channel flag reset.
+// Uses MPI_Test (wait=false) so that the per-block work-stealing lock is
+// released immediately when sends are still in flight, preventing deadlocks
+// where all threads block inside MPI_Wait simultaneously.
 TaskStatus Wave_2O::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
-  pmb->pcomm->ClearBoundary(comm::CommGroup::Wave);
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::Wave, comm::CommTarget::All, false))
+    return TaskStatus::fail;
   return TaskStatus::next;
 }
 

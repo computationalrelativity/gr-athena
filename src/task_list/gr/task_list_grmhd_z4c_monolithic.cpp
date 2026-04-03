@@ -921,19 +921,25 @@ TaskStatus GRMHD_Z4c_Monolithic::SendHydro(MeshBlock* pmb, int stage)
 }
 
 // ---------------------------------------------------------------------------
-// Wait on flux-correction sends and reset channel flags (multilevel only).
-// Separate from ClearMainInt because flux-correction and ghost-zone sends
-// use different CommGroups (FluxCorr vs MainInt).  GTS monolithic path uses
-// blocking MPI_Wait (no useful work to steal while sends complete).
+// Non-blocking clear of flux-correction sends and channel flag reset
+// (multilevel only).  Separate from ClearMainInt because flux-correction and
+// ghost-zone sends use different CommGroups (FluxCorr vs MainInt).  Uses
+// MPI_Test (wait=false) to avoid blocking under the work-stealing lock.
 TaskStatus GRMHD_Z4c_Monolithic::ClearFluxCorrection(MeshBlock* pmb, int stage)
 {
   if (pmb->pmy_mesh->multilevel)
   {
-    pmb->pcomm->ClearFluxCorrSingleChannel(pmb->phydro->comm_channel_id);
+    if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->phydro->comm_channel_id,
+                                                false))
+      return TaskStatus::fail;
     if (MAGNETIC_FIELDS_ENABLED)
-      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pfield->comm_channel_id);
+      if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pfield->comm_channel_id,
+                                                  false))
+        return TaskStatus::fail;
     if (NSCALARS > 0)
-      pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pscalars->comm_channel_id);
+      if (!pmb->pcomm->ClearFluxCorrSingleChannel(
+            pmb->pscalars->comm_channel_id, false))
+        return TaskStatus::fail;
   }
   return TaskStatus::next;
 }
@@ -1264,21 +1270,27 @@ TaskStatus GRMHD_Z4c_Monolithic::CheckRefinement(MeshBlock* pmb, int stage)
 //                           CLEANUP
 // ===========================================================================
 
-// Wait on outstanding Z4c ghost sends and reset channel flags.
-// This is the GTS monolithic path - all blocks finish compute simultaneously,
-// so there is no useful work to steal while sends complete.  Blocking
-// MPI_Wait is faster than spinning on MPI_Test with TaskStatus::fail retries.
+// Non-blocking clear of outstanding Z4c ghost sends and channel flag reset.
+// Uses MPI_Test (wait=false) so that the per-block work-stealing lock is
+// released immediately when sends are still in flight.  This prevents a
+// deadlock where every thread blocks inside MPI_Wait while holding a block
+// lock, leaving no thread free to drive MPI_Test on the receive side of
+// other blocks -- which is required for the remote MPI_Wait to complete.
 TaskStatus GRMHD_Z4c_Monolithic::ClearZ4c(MeshBlock* pmb, int stage)
 {
-  pmb->pcomm->ClearBoundary(comm::CommGroup::Z4c);
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::Z4c, comm::CommTarget::All, false))
+    return TaskStatus::fail;
   return TaskStatus::next;
 }
 
-// Wait on outstanding MainInt ghost sends and reset channel flags.
-// See ClearZ4c comment.
+// Non-blocking clear of outstanding MainInt ghost sends and channel flag
+// reset. See ClearZ4c comment.
 TaskStatus GRMHD_Z4c_Monolithic::ClearMainInt(MeshBlock* pmb, int stage)
 {
-  pmb->pcomm->ClearBoundary(comm::CommGroup::MainInt);
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::MainInt, comm::CommTarget::All, false))
+    return TaskStatus::fail;
   return TaskStatus::next;
 }
 
