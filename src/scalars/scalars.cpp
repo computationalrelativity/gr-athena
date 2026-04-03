@@ -67,7 +67,8 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
     s2.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
 
   // Register with AMR redistribution system (new comm layer).
-  if (pm->multilevel)
+  // Needed unconditionally: LB redistribution can occur on single-level
+  // meshes.
   {
     comm::AMRSpec amr;
     amr.label       = "scalars_s";

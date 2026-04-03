@@ -109,24 +109,22 @@ M1::M1(MeshBlock* pmb, ParameterInput* pin)
              { N_GRPS, N_SPCS } }
 {
   // Registration of boundary variables for refinement etc. -------------------
-  if (pmy_mesh->multilevel)
+  // Register with AMR redistribution system (new comm layer).
+  // Needed unconditionally: LB redistribution can occur on single-level
+  // meshes. Single AMRSpec in M1 group replaces dual enrollment in pvars_cc_
+  // and pvars_m1_cc_. The group-based selection handles multi-pass.
   {
-    // Register with AMR redistribution system (new comm layer).
-    // Single AMRSpec in M1 group replaces dual enrollment in pvars_cc_
-    // and pvars_m1_cc_. The group-based selection handles multi-pass.
-    {
-      const int nvar = ixn_Lab::N * N_GS;
-      comm::AMRSpec amr;
-      amr.label       = "m1_u";
-      amr.var         = &storage.u;
-      amr.coarse_var  = &coarse_u_;
-      amr.nvar        = nvar;
-      amr.sampling    = comm::Sampling::CC;
-      amr.group       = comm::AMRGroup::M1;
-      amr.prolong_op  = comm::ProlongOp::MinmodLinear;
-      amr.restrict_op = comm::RestrictOp::VolumeWeighted;
-      pmb->pamr->Register(amr);
-    }
+    const int nvar = ixn_Lab::N * N_GS;
+    comm::AMRSpec amr;
+    amr.label       = "m1_u";
+    amr.var         = &storage.u;
+    amr.coarse_var  = &coarse_u_;
+    amr.nvar        = nvar;
+    amr.sampling    = comm::Sampling::CC;
+    amr.group       = comm::AMRGroup::M1;
+    amr.prolong_op  = comm::ProlongOp::MinmodLinear;
+    amr.restrict_op = comm::RestrictOp::VolumeWeighted;
+    pmb->pamr->Register(amr);
   }
 
   // Register M1 radiation variables with the new comm system.

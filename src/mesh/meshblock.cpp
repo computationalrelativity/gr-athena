@@ -160,8 +160,8 @@ MeshBlock::MeshBlock(int igid,
 
   if (pm->multilevel)
     pmr = new MeshRefinement(this, pin);
-  if (pm->multilevel)
-    pamr = new comm::AMRRegistry(this);
+  // AMRRegistry is needed for LB redistribution even on single-level meshes.
+  pamr = new comm::AMRRegistry(this);
 
   // physics-related, per-MeshBlock objects: may depend on Coordinates for
   // diffusion terms, and may enroll quantities in AMR via MeshRefinement
@@ -325,8 +325,8 @@ MeshBlock::MeshBlock(int igid,
 
   if (pm->multilevel)
     pmr = new MeshRefinement(this, pin);
-  if (pm->multilevel)
-    pamr = new comm::AMRRegistry(this);
+  // AMRRegistry is needed for LB redistribution even on single-level meshes.
+  pamr = new comm::AMRRegistry(this);
 
   // (re-)create physics-related objects in MeshBlock
 
@@ -491,8 +491,7 @@ MeshBlock::~MeshBlock()
     delete precon;
   if (pmy_mesh->multilevel)
     delete pmr;
-  if (pmy_mesh->multilevel)
-    delete pamr;
+  delete pamr;
 
   if (FLUID_ENABLED)
     delete phydro;

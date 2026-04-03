@@ -152,7 +152,8 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   }
 
   // Register with AMR redistribution system (new comm layer).
-  if (pm->multilevel)
+  // Needed unconditionally: LB redistribution can occur on single-level
+  // meshes.
   {
     comm::AMRSpec amr;
     amr.label       = "hydro_cons";

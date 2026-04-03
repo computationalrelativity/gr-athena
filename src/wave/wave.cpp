@@ -224,31 +224,30 @@ Wave::Wave(MeshBlock* pmb, ParameterInput* pin)
     use_Sommerfeld = true;
 
   // Register with AMR redistribution system (new comm layer).
-  if (pm->multilevel)
+  // Needed unconditionally: LB redistribution can occur on single-level
+  // meshes.
   {
-    {
-      const comm::Sampling samp_amr = WAVE_SW_CC_CX_VC(
-        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
-      const comm::ProlongOp prol_amr =
-        WAVE_SW_CC_CX_VC(comm::ProlongOp::MinmodLinear,
-                         comm::ProlongOp::LagrangeChildren,
-                         comm::ProlongOp::LagrangeUniform);
-      const comm::RestrictOp rest_amr =
-        WAVE_SW_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
-                         comm::RestrictOp::LagrangeFull,
-                         comm::RestrictOp::Injection);
+    const comm::Sampling samp_amr = WAVE_SW_CC_CX_VC(
+      comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol_amr =
+      WAVE_SW_CC_CX_VC(comm::ProlongOp::MinmodLinear,
+                       comm::ProlongOp::LagrangeChildren,
+                       comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest_amr =
+      WAVE_SW_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
+                       comm::RestrictOp::LagrangeFull,
+                       comm::RestrictOp::Injection);
 
-      comm::AMRSpec amr;
-      amr.label       = "wave_u";
-      amr.var         = &u;
-      amr.coarse_var  = &coarse_u_;
-      amr.nvar        = NWAVE_CPT;
-      amr.sampling    = samp_amr;
-      amr.group       = comm::AMRGroup::Main;
-      amr.prolong_op  = prol_amr;
-      amr.restrict_op = rest_amr;
-      pmb->pamr->Register(amr);
-    }
+    comm::AMRSpec amr;
+    amr.label       = "wave_u";
+    amr.var         = &u;
+    amr.coarse_var  = &coarse_u_;
+    amr.nvar        = NWAVE_CPT;
+    amr.sampling    = samp_amr;
+    amr.group       = comm::AMRGroup::Main;
+    amr.prolong_op  = prol_amr;
+    amr.restrict_op = rest_amr;
+    pmb->pamr->Register(amr);
   }
 
   // Register wave variables with the new comm system.

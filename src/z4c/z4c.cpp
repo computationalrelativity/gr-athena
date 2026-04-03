@@ -110,31 +110,30 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   pz4c_amr = new Z4c_AMR(pz4c, pmb, pin);
 
   // Register with AMR redistribution system (new comm layer).
-  if (pm->multilevel)
+  // Needed unconditionally: LB redistribution can occur on single-level
+  // meshes.
   {
-    {
-      const comm::Sampling samp_amr = FCN_CC_CX_VC(
-        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
-      const comm::ProlongOp prol_amr =
-        FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
-                     comm::ProlongOp::LagrangeChildren,
-                     comm::ProlongOp::LagrangeUniform);
-      const comm::RestrictOp rest_amr =
-        FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
-                     comm::RestrictOp::LagrangeFull,
-                     comm::RestrictOp::Injection);
+    const comm::Sampling samp_amr =
+      FCN_CC_CX_VC(comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol_amr =
+      FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
+                   comm::ProlongOp::LagrangeChildren,
+                   comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest_amr =
+      FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
+                   comm::RestrictOp::LagrangeFull,
+                   comm::RestrictOp::Injection);
 
-      comm::AMRSpec amr;
-      amr.label       = "z4c_u";
-      amr.var         = &storage.u;
-      amr.coarse_var  = &coarse_u_;
-      amr.nvar        = N_Z4c;
-      amr.sampling    = samp_amr;
-      amr.group       = comm::AMRGroup::Main;
-      amr.prolong_op  = prol_amr;
-      amr.restrict_op = rest_amr;
-      pmb->pamr->Register(amr);
-    }
+    comm::AMRSpec amr;
+    amr.label       = "z4c_u";
+    amr.var         = &storage.u;
+    amr.coarse_var  = &coarse_u_;
+    amr.nvar        = N_Z4c;
+    amr.sampling    = samp_amr;
+    amr.group       = comm::AMRGroup::Main;
+    amr.prolong_op  = prol_amr;
+    amr.restrict_op = rest_amr;
+    pmb->pamr->Register(amr);
   }
 
   // BD:
@@ -146,61 +145,55 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   // BD: TODO - still required?
 #if defined(DBG_REDUCE_AUX_COMM)
   // Add here so we refine it only for inter-MB BC?
-  if (pm->multilevel)
   {
     // Register Weyl in Aux group (excluded from main AMR redistribution).
-    {
-      const comm::Sampling samp_amr = FCN_CC_CX_VC(
-        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
-      const comm::ProlongOp prol_amr =
-        FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
-                     comm::ProlongOp::LagrangeChildren,
-                     comm::ProlongOp::LagrangeUniform);
-      const comm::RestrictOp rest_amr =
-        FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
-                     comm::RestrictOp::LagrangeFull,
-                     comm::RestrictOp::Injection);
+    const comm::Sampling samp_amr =
+      FCN_CC_CX_VC(comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol_amr =
+      FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
+                   comm::ProlongOp::LagrangeChildren,
+                   comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest_amr =
+      FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
+                   comm::RestrictOp::LagrangeFull,
+                   comm::RestrictOp::Injection);
 
-      comm::AMRSpec amr;
-      amr.label       = "z4c_weyl";
-      amr.var         = &storage.weyl;
-      amr.coarse_var  = &coarse_a_;
-      amr.nvar        = N_WEY;
-      amr.sampling    = samp_amr;
-      amr.group       = comm::AMRGroup::Aux;
-      amr.prolong_op  = prol_amr;
-      amr.restrict_op = rest_amr;
-      pmb->pamr->Register(amr);
-    }
+    comm::AMRSpec amr;
+    amr.label       = "z4c_weyl";
+    amr.var         = &storage.weyl;
+    amr.coarse_var  = &coarse_a_;
+    amr.nvar        = N_WEY;
+    amr.sampling    = samp_amr;
+    amr.group       = comm::AMRGroup::Aux;
+    amr.prolong_op  = prol_amr;
+    amr.restrict_op = rest_amr;
+    pmb->pamr->Register(amr);
   }
 #else
   // Add here so we refine it during LoadBalance?
-  if (pm->multilevel)
   {
     // Register Weyl in Main group (participates in AMR redistribution).
-    {
-      const comm::Sampling samp_amr = FCN_CC_CX_VC(
-        comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
-      const comm::ProlongOp prol_amr =
-        FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
-                     comm::ProlongOp::LagrangeChildren,
-                     comm::ProlongOp::LagrangeUniform);
-      const comm::RestrictOp rest_amr =
-        FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
-                     comm::RestrictOp::LagrangeFull,
-                     comm::RestrictOp::Injection);
+    const comm::Sampling samp_amr =
+      FCN_CC_CX_VC(comm::Sampling::CC, comm::Sampling::CX, comm::Sampling::VC);
+    const comm::ProlongOp prol_amr =
+      FCN_CC_CX_VC(comm::ProlongOp::MinmodLinear,
+                   comm::ProlongOp::LagrangeChildren,
+                   comm::ProlongOp::LagrangeUniform);
+    const comm::RestrictOp rest_amr =
+      FCN_CC_CX_VC(comm::RestrictOp::VolumeWeighted,
+                   comm::RestrictOp::LagrangeFull,
+                   comm::RestrictOp::Injection);
 
-      comm::AMRSpec amr;
-      amr.label       = "z4c_weyl";
-      amr.var         = &storage.weyl;
-      amr.coarse_var  = &coarse_a_;
-      amr.nvar        = N_WEY;
-      amr.sampling    = samp_amr;
-      amr.group       = comm::AMRGroup::Main;
-      amr.prolong_op  = prol_amr;
-      amr.restrict_op = rest_amr;
-      pmb->pamr->Register(amr);
-    }
+    comm::AMRSpec amr;
+    amr.label       = "z4c_weyl";
+    amr.var         = &storage.weyl;
+    amr.coarse_var  = &coarse_a_;
+    amr.nvar        = N_WEY;
+    amr.sampling    = samp_amr;
+    amr.group       = comm::AMRGroup::Main;
+    amr.prolong_op  = prol_amr;
+    amr.restrict_op = rest_amr;
+    pmb->pamr->Register(amr);
   }
 #endif  // DBG_REDUCE_AUX_COMM
 
