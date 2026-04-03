@@ -179,6 +179,9 @@
 // MPI parallelization (MPI_PARALLEL or NOT_MPI_PARALLEL)
 #define @MPI_OPTION@
 
+// Disable persistent MPI requests (MPI_NO_PERSIST or NO_MPI_NO_PERSIST)
+#define @MPI_NO_PERSIST_OPTION@
+
 // OpenMP parallelization (OPENMP_PARALLEL or NOT_OPENMP_PARALLEL)
 #define @OPENMP_OPTION@
 

@@ -64,6 +64,12 @@ struct FusedGroupState
 #ifdef MPI_PARALLEL
   MPI_Request req_send[kMaxNeighbor];
   MPI_Request req_recv[kMaxNeighbor];
+#ifdef MPI_NO_PERSIST
+  int send_count[kMaxNeighbor];
+  int send_tag[kMaxNeighbor];
+  int recv_count[kMaxNeighbor];
+  int recv_tag[kMaxNeighbor];
+#endif  // MPI_NO_PERSIST
 #endif
 
   // Zero-copy target: for same-rank neighbors, points to the target block's
@@ -84,6 +90,12 @@ struct FusedGroupState
 #ifdef MPI_PARALLEL
       req_send[n] = MPI_REQUEST_NULL;
       req_recv[n] = MPI_REQUEST_NULL;
+#ifdef MPI_NO_PERSIST
+      send_count[n] = 0;
+      send_tag[n]   = 0;
+      recv_count[n] = 0;
+      recv_tag[n]   = 0;
+#endif  // MPI_NO_PERSIST
 #endif
     }
   }

@@ -491,6 +491,14 @@ parser.add_argument(
   help="enable parallelization with MPI",
 )
 
+# -mpi_no_persist argument
+parser.add_argument(
+  "-mpi_no_persist",
+  action="store_true",
+  default=False,
+  help="disable persistent MPI requests (use MPI_Isend/MPI_Irecv instead)",
+)
+
 # -omp argument
 parser.add_argument(
   "-omp",
@@ -1446,6 +1454,12 @@ if args["mpi"]:
 else:
   definitions["MPI_OPTION"] = "NOT_MPI_PARALLEL"
 
+# -mpi_no_persist argument
+if args["mpi_no_persist"]:
+  definitions["MPI_NO_PERSIST_OPTION"] = "MPI_NO_PERSIST"
+else:
+  definitions["MPI_NO_PERSIST_OPTION"] = "NO_MPI_NO_PERSIST"
+
 # -omp argument
 if args["omp"]:
   definitions["OPENMP_OPTION"] = "OPENMP_PARALLEL"
@@ -2038,6 +2052,11 @@ print(
   + definitions["NUMBER_EXTRAPOLATION_POINTS"]
 )
 print("  MPI parallelism:              " + ("ON" if args["mpi"] else "OFF"))
+if args["mpi"]:
+  print(
+    "  MPI persistent requests:      "
+    + ("OFF" if args["mpi_no_persist"] else "ON")
+  )
 print("  OpenMP parallelism:           " + ("ON" if args["omp"] else "OFF"))
 print("  HDF5 output:                  " + ("ON" if args["hdf5"] else "OFF"))
 if args["hdf5"]:

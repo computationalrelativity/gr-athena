@@ -135,6 +135,16 @@ CommChannel::CommChannel(const CommSpec& spec, MeshBlock* pmb, int channel_id)
     req_recv_[n]       = MPI_REQUEST_NULL;
     req_flcor_send_[n] = MPI_REQUEST_NULL;
     req_flcor_recv_[n] = MPI_REQUEST_NULL;
+#ifdef MPI_NO_PERSIST
+    gz_send_count_[n]    = 0;
+    gz_send_tag_[n]      = 0;
+    gz_recv_count_[n]    = 0;
+    gz_recv_tag_[n]      = 0;
+    flcor_send_count_[n] = 0;
+    flcor_send_tag_[n]   = 0;
+    flcor_recv_count_[n] = 0;
+    flcor_recv_tag_[n]   = 0;
+#endif  // MPI_NO_PERSIST
 #endif
   }
   for (int e = 0; e < 12; ++e)
@@ -198,6 +208,24 @@ CommChannel::CommChannel(CommChannel&& other) noexcept
     req_flcor_recv_[n]       = other.req_flcor_recv_[n];
     other.req_flcor_send_[n] = MPI_REQUEST_NULL;
     other.req_flcor_recv_[n] = MPI_REQUEST_NULL;
+#ifdef MPI_NO_PERSIST
+    gz_send_count_[n]          = other.gz_send_count_[n];
+    gz_send_tag_[n]            = other.gz_send_tag_[n];
+    gz_recv_count_[n]          = other.gz_recv_count_[n];
+    gz_recv_tag_[n]            = other.gz_recv_tag_[n];
+    other.gz_send_count_[n]    = 0;
+    other.gz_send_tag_[n]      = 0;
+    other.gz_recv_count_[n]    = 0;
+    other.gz_recv_tag_[n]      = 0;
+    flcor_send_count_[n]       = other.flcor_send_count_[n];
+    flcor_send_tag_[n]         = other.flcor_send_tag_[n];
+    flcor_recv_count_[n]       = other.flcor_recv_count_[n];
+    flcor_recv_tag_[n]         = other.flcor_recv_tag_[n];
+    other.flcor_send_count_[n] = 0;
+    other.flcor_send_tag_[n]   = 0;
+    other.flcor_recv_count_[n] = 0;
+    other.flcor_recv_tag_[n]   = 0;
+#endif  // MPI_NO_PERSIST
 #endif
   }
   for (int e = 0; e < 12; ++e)
@@ -261,6 +289,24 @@ CommChannel& CommChannel::operator=(CommChannel&& other) noexcept
       req_flcor_recv_[n]       = other.req_flcor_recv_[n];
       other.req_flcor_send_[n] = MPI_REQUEST_NULL;
       other.req_flcor_recv_[n] = MPI_REQUEST_NULL;
+#ifdef MPI_NO_PERSIST
+      gz_send_count_[n]          = other.gz_send_count_[n];
+      gz_send_tag_[n]            = other.gz_send_tag_[n];
+      gz_recv_count_[n]          = other.gz_recv_count_[n];
+      gz_recv_tag_[n]            = other.gz_recv_tag_[n];
+      other.gz_send_count_[n]    = 0;
+      other.gz_send_tag_[n]      = 0;
+      other.gz_recv_count_[n]    = 0;
+      other.gz_recv_tag_[n]      = 0;
+      flcor_send_count_[n]       = other.flcor_send_count_[n];
+      flcor_send_tag_[n]         = other.flcor_send_tag_[n];
+      flcor_recv_count_[n]       = other.flcor_recv_count_[n];
+      flcor_recv_tag_[n]         = other.flcor_recv_tag_[n];
+      other.flcor_send_count_[n] = 0;
+      other.flcor_send_tag_[n]   = 0;
+      other.flcor_recv_count_[n] = 0;
+      other.flcor_recv_tag_[n]   = 0;
+#endif  // MPI_NO_PERSIST
 #endif
     }
     for (int e = 0; e < 12; ++e)
@@ -485,6 +531,10 @@ void CommChannel::SetupPersistentMPI(const NeighborConnectivity& nc,
     // Send tag: receiver's (lid, targetid, channel_id).
     int tag =
       MakeTag(nb.snb.lid, nb.targetid, channel_id_, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+    gz_send_count_[nb.bufid] = ssize;
+    gz_send_tag_[nb.bufid]   = tag;
+#else
     if (req_send_[nb.bufid] != MPI_REQUEST_NULL)
       MPI_Request_free(&req_send_[nb.bufid]);
     MPI_Send_init(send_buf_[nb.bufid],
@@ -494,9 +544,14 @@ void CommChannel::SetupPersistentMPI(const NeighborConnectivity& nc,
                   tag,
                   MPI_COMM_WORLD,
                   &req_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
 
     // Recv tag: this block's (lid, bufid, channel_id).
     tag = MakeTag(pmb->lid, nb.bufid, channel_id_, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+    gz_recv_count_[nb.bufid] = rsize;
+    gz_recv_tag_[nb.bufid]   = tag;
+#else
     if (req_recv_[nb.bufid] != MPI_REQUEST_NULL)
       MPI_Request_free(&req_recv_[nb.bufid]);
     MPI_Recv_init(recv_buf_[nb.bufid],
@@ -506,6 +561,7 @@ void CommChannel::SetupPersistentMPI(const NeighborConnectivity& nc,
                   tag,
                   MPI_COMM_WORLD,
                   &req_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
   }
 #endif
 }
@@ -642,7 +698,17 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
       else
       {
 #ifdef MPI_PARALLEL
+#ifdef MPI_NO_PERSIST
+        int mpi_rc = MPI_Isend(send_buf_[nb.bufid],
+                               gz_send_count_[nb.bufid],
+                               MPI_ATHENA_REAL,
+                               nb.snb.rank,
+                               gz_send_tag_[nb.bufid],
+                               MPI_COMM_WORLD,
+                               &req_send_[nb.bufid]);
+#else
         int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
         CheckMPIResult(mpi_rc,
                        "MPI_Start(SendBoundary)",
                        Globals::my_rank,
@@ -719,7 +785,17 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
     else
     {
 #ifdef MPI_PARALLEL
+#ifdef MPI_NO_PERSIST
+      int mpi_rc = MPI_Isend(send_buf_[nb.bufid],
+                             gz_send_count_[nb.bufid],
+                             MPI_ATHENA_REAL,
+                             nb.snb.rank,
+                             gz_send_tag_[nb.bufid],
+                             MPI_COMM_WORLD,
+                             &req_send_[nb.bufid]);
+#else
       int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendBoundary)",
                      Globals::my_rank,
@@ -1421,7 +1497,17 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
     if (!HasTarget(eff, nbt))
       continue;
 
+#ifdef MPI_NO_PERSIST
+    int mpi_rc = MPI_Irecv(recv_buf_[nb.bufid],
+                           gz_recv_count_[nb.bufid],
+                           MPI_ATHENA_REAL,
+                           nb.snb.rank,
+                           gz_recv_tag_[nb.bufid],
+                           MPI_COMM_WORLD,
+                           &req_recv_[nb.bufid]);
+#else
     int mpi_rc = MPI_Start(&req_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
     CheckMPIResult(mpi_rc,
                    "MPI_Start(StartReceive)",
                    Globals::my_rank,
@@ -1755,6 +1841,10 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
         // This block is finer -> send restricted flux to coarser neighbor.
         int tag =
           MakeTag(nb.snb.lid, nb.targetid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+        flcor_send_count_[nb.bufid] = buf_size;
+        flcor_send_tag_[nb.bufid]   = tag;
+#else
         if (req_flcor_send_[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&req_flcor_send_[nb.bufid]);
         MPI_Send_init(flcor_send_buf_[nb.bufid],
@@ -1764,6 +1854,7 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                       tag,
                       MPI_COMM_WORLD,
                       &req_flcor_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       }
       else if (nb.snb.level > mylevel)
       {
@@ -1771,6 +1862,10 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
         // neighbor.
         int tag =
           MakeTag(pmb->lid, nb.bufid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+        flcor_recv_count_[nb.bufid] = buf_size;
+        flcor_recv_tag_[nb.bufid]   = tag;
+#else
         if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&req_flcor_recv_[nb.bufid]);
         MPI_Recv_init(flcor_recv_buf_[nb.bufid],
@@ -1780,6 +1875,7 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                       tag,
                       MPI_COMM_WORLD,
                       &req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       }
       // Same-level: CC flux correction has no same-level exchange.
     }
@@ -1801,6 +1897,10 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
           // Send
           int tag = MakeTag(
             nb.snb.lid, nb.targetid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+          flcor_send_count_[nb.bufid] = buf_size;
+          flcor_send_tag_[nb.bufid]   = tag;
+#else
           if (req_flcor_send_[nb.bufid] != MPI_REQUEST_NULL)
             MPI_Request_free(&req_flcor_send_[nb.bufid]);
           MPI_Send_init(flcor_send_buf_[nb.bufid],
@@ -1810,9 +1910,14 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                         tag,
                         MPI_COMM_WORLD,
                         &req_flcor_send_[nb.bufid]);
-          // Recv
+#endif  // MPI_NO_PERSIST
+        // Recv
           tag =
             MakeTag(pmb->lid, nb.bufid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+          flcor_recv_count_[nb.bufid] = buf_size;
+          flcor_recv_tag_[nb.bufid]   = tag;
+#else
           if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
             MPI_Request_free(&req_flcor_recv_[nb.bufid]);
           MPI_Recv_init(flcor_recv_buf_[nb.bufid],
@@ -1822,6 +1927,7 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                         tag,
                         MPI_COMM_WORLD,
                         &req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
         }
       }
       else if (nb.snb.level < mylevel)
@@ -1833,6 +1939,10 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
         // (over-allocates for to-coarser).
         int tag =
           MakeTag(nb.snb.lid, nb.targetid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+        flcor_send_count_[nb.bufid] = buf_size;
+        flcor_send_tag_[nb.bufid]   = tag;
+#else
         if (req_flcor_send_[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&req_flcor_send_[nb.bufid]);
         MPI_Send_init(flcor_send_buf_[nb.bufid],
@@ -1842,12 +1952,17 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                       tag,
                       MPI_COMM_WORLD,
                       &req_flcor_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       }
       else
       {
         // Coarser <- finer: receive restricted EMF.
         int tag =
           MakeTag(pmb->lid, nb.bufid, flcor_ch, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+        flcor_recv_count_[nb.bufid] = buf_size;
+        flcor_recv_tag_[nb.bufid]   = tag;
+#else
         if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
           MPI_Request_free(&req_flcor_recv_[nb.bufid]);
         MPI_Recv_init(flcor_recv_buf_[nb.bufid],
@@ -1857,6 +1972,7 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                       tag,
                       MPI_COMM_WORLD,
                       &req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       }
     }
   }
@@ -2120,7 +2236,17 @@ void CommChannel::PackAndSendFluxCorrCC(const NeighborConnectivity& nc)
 #ifdef MPI_PARALLEL
     else
     {
+#ifdef MPI_NO_PERSIST
+      int mpi_rc = MPI_Isend(flcor_send_buf_[nb.bufid],
+                             flcor_send_count_[nb.bufid],
+                             MPI_ATHENA_REAL,
+                             nb.snb.rank,
+                             flcor_send_tag_[nb.bufid],
+                             MPI_COMM_WORLD,
+                             &req_flcor_send_[nb.bufid]);
+#else
       int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendFluxCorrCC)",
                      Globals::my_rank,
@@ -2205,7 +2331,17 @@ void CommChannel::PackAndSendFluxCorrFC(const NeighborConnectivity& nc)
 #ifdef MPI_PARALLEL
     else
     {
+#ifdef MPI_NO_PERSIST
+      int mpi_rc = MPI_Isend(flcor_send_buf_[nb.bufid],
+                             flcor_send_count_[nb.bufid],
+                             MPI_ATHENA_REAL,
+                             nb.snb.rank,
+                             flcor_send_tag_[nb.bufid],
+                             MPI_COMM_WORLD,
+                             &req_flcor_send_[nb.bufid]);
+#else
       int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendFluxCorrFC)",
                      Globals::my_rank,
@@ -3627,7 +3763,17 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
       // CC: receive only from finer face neighbors
       if (nb.ni.type == NeighborConnect::face && nb.snb.level > mylevel)
       {
+#ifdef MPI_NO_PERSIST
+        int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                               flcor_recv_count_[nb.bufid],
+                               MPI_ATHENA_REAL,
+                               nb.snb.rank,
+                               flcor_recv_tag_[nb.bufid],
+                               MPI_COMM_WORLD,
+                               &req_flcor_recv_[nb.bufid]);
+#else
         int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
         CheckMPIResult(mpi_rc,
                        "MPI_Start(StartFluxCorrRecv)",
                        Globals::my_rank,
@@ -3648,7 +3794,17 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
         if (nb.snb.level > mylevel)
         {
           // From finer: always receive
+#ifdef MPI_NO_PERSIST
+          int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                                 flcor_recv_count_[nb.bufid],
+                                 MPI_ATHENA_REAL,
+                                 nb.snb.rank,
+                                 flcor_recv_tag_[nb.bufid],
+                                 MPI_COMM_WORLD,
+                                 &req_flcor_recv_[nb.bufid]);
+#else
           int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
           CheckMPIResult(mpi_rc,
                          "MPI_Start(StartFluxCorrRecv)",
                          Globals::my_rank,
@@ -3665,7 +3821,17 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
           if (nb.ni.type == NeighborConnect::face ||
               (nb.ni.type == NeighborConnect::edge && edge_flag_[nb.eid]))
           {
+#ifdef MPI_NO_PERSIST
+            int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                                   flcor_recv_count_[nb.bufid],
+                                   MPI_ATHENA_REAL,
+                                   nb.snb.rank,
+                                   flcor_recv_tag_[nb.bufid],
+                                   MPI_COMM_WORLD,
+                                   &req_flcor_recv_[nb.bufid]);
+#else
             int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+#endif  // MPI_NO_PERSIST
             CheckMPIResult(mpi_rc,
                            "MPI_Start(StartFluxCorrRecv)",
                            Globals::my_rank,

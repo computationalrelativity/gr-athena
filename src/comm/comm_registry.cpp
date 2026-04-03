@@ -785,6 +785,15 @@ void CommRegistry::FinalizeFused()
       // convention).
       int stag = FusedMakeTag(
         nb.snb.lid, nb.targetid, fused_ch_id, bufid_bits, channel_bits);
+      // Recv tag: keyed on this block's lid and bufid.
+      int rtag = FusedMakeTag(
+        pmb->lid, nb.bufid, fused_ch_id, bufid_bits, channel_bits);
+#ifdef MPI_NO_PERSIST
+      fs.send_count[nb.bufid] = send_size;
+      fs.send_tag[nb.bufid]   = stag;
+      fs.recv_count[nb.bufid] = recv_size;
+      fs.recv_tag[nb.bufid]   = rtag;
+#else
       if (fs.req_send[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&fs.req_send[nb.bufid]);
       MPI_Send_init(fs.send_buf[nb.bufid],
@@ -795,9 +804,6 @@ void CommRegistry::FinalizeFused()
                     MPI_COMM_WORLD,
                     &fs.req_send[nb.bufid]);
 
-      // Recv tag: keyed on this block's lid and bufid.
-      int rtag = FusedMakeTag(
-        pmb->lid, nb.bufid, fused_ch_id, bufid_bits, channel_bits);
       if (fs.req_recv[nb.bufid] != MPI_REQUEST_NULL)
         MPI_Request_free(&fs.req_recv[nb.bufid]);
       MPI_Recv_init(fs.recv_buf[nb.bufid],
@@ -807,6 +813,7 @@ void CommRegistry::FinalizeFused()
                     rtag,
                     MPI_COMM_WORLD,
                     &fs.req_recv[nb.bufid]);
+#endif  // MPI_NO_PERSIST
     }
 #endif  // MPI_PARALLEL
 
@@ -890,7 +897,17 @@ void CommRegistry::SendBoundaryBuffersFused(CommGroup group,
     else
     {
 #ifdef MPI_PARALLEL
+#ifdef MPI_NO_PERSIST
+      CheckMPIResult(MPI_Isend(fs.send_buf[nb.bufid],
+                               fs.send_count[nb.bufid],
+                               MPI_ATHENA_REAL,
+                               nb.snb.rank,
+                               fs.send_tag[nb.bufid],
+                               MPI_COMM_WORLD,
+                               &fs.req_send[nb.bufid]),
+#else
       CheckMPIResult(MPI_Start(&fs.req_send[nb.bufid]),
+#endif  // MPI_NO_PERSIST
                      "MPI_Start(SendBoundaryFused)",
                      Globals::my_rank,
                      pmb->gid,
@@ -1165,7 +1182,17 @@ void CommRegistry::StartReceivingFused(CommGroup group,
     if (!any_active)
       continue;
 
+#ifdef MPI_NO_PERSIST
+    CheckMPIResult(MPI_Irecv(fs.recv_buf[nb.bufid],
+                             fs.recv_count[nb.bufid],
+                             MPI_ATHENA_REAL,
+                             nb.snb.rank,
+                             fs.recv_tag[nb.bufid],
+                             MPI_COMM_WORLD,
+                             &fs.req_recv[nb.bufid]),
+#else
     CheckMPIResult(MPI_Start(&fs.req_recv[nb.bufid]),
+#endif  // MPI_NO_PERSIST
                    "MPI_Start(StartRecvFused)",
                    Globals::my_rank,
                    pmb->gid,

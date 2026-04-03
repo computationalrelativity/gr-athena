@@ -318,6 +318,12 @@ class CommChannel
 #ifdef MPI_PARALLEL
   MPI_Request req_send_[kMaxNeighbor];
   MPI_Request req_recv_[kMaxNeighbor];
+#ifdef MPI_NO_PERSIST
+  int gz_send_count_[kMaxNeighbor];
+  int gz_send_tag_[kMaxNeighbor];
+  int gz_recv_count_[kMaxNeighbor];
+  int gz_recv_tag_[kMaxNeighbor];
+#endif  // MPI_NO_PERSIST
 #endif
 
   bool finalized_;  // true after Finalize() has been called
@@ -346,6 +352,12 @@ class CommChannel
 #ifdef MPI_PARALLEL
   MPI_Request req_flcor_send_[kMaxNeighbor];
   MPI_Request req_flcor_recv_[kMaxNeighbor];
+#ifdef MPI_NO_PERSIST
+  int flcor_send_count_[kMaxNeighbor];
+  int flcor_send_tag_[kMaxNeighbor];
+  int flcor_recv_count_[kMaxNeighbor];
+  int flcor_recv_tag_[kMaxNeighbor];
+#endif  // MPI_NO_PERSIST
 #endif
 
   // Maximum buffer index used by flux correction (may differ from ghost
