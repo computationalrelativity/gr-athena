@@ -306,7 +306,7 @@ void Mesh::FinalizeM1(const std::vector<MeshBlock*>& pmb_array)
 #endif  // M1_ENABLED
 }
 
-void Mesh::FinalizeHydro_pgen(const std::vector<MeshBlock*>& pmb_array)
+void Mesh::FinalizeHydroState(const std::vector<MeshBlock*>& pmb_array)
 {
 #if FLUID_ENABLED
   MeshBlock* pmb;

@@ -2234,28 +2234,18 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
 #endif
       // ----------------------------------------------------------------------
 
-      // ----------------------------------------------------------------------
-      // Deal with retention of old prim state of fluid in case of rootfinder
+      // Hydro finalization: seed w1, prolongation & BC, C2P -----------------
+      // FinalizeHydroState seeds w1 from current w for potential C2P
+      // warm-start.  FinalizeHydroConsRP handles prolongation (if
+      // multilevel), physical BCs, and bcc recomputation.  PreparePrimitives
+      // runs full-domain C2P so that ghost-zone primitives are valid after
+      // load-balance redistribution, and updates w1 via RetainState.
 #if FLUID_ENABLED
       if ((init_style == initialize_style::pgen) ||
           (init_style == initialize_style::regrid) ||
           (init_style == initialize_style::restart))
       {
-        FinalizeHydro_pgen(pmb_array);
-      }
-#endif
-      // ----------------------------------------------------------------------
-
-      // Deal with matter prol. & BC ------------------------------------------
-      // N.B. FinalizeHydroConsRP internally skips prolongation for
-      // single-level meshes; physical BCs and bcc recomputation always run.
-      // The full-domain C2P must run unconditionally so that ghost-zone
-      // primitives are valid after load-balance redistribution.
-#if FLUID_ENABLED
-      if ((init_style == initialize_style::pgen) ||
-          (init_style == initialize_style::regrid) ||
-          (init_style == initialize_style::restart))
-      {
+        FinalizeHydroState(pmb_array);
         FinalizeHydroConsRP(pmb_array);
 
         // C2P on full domain after prolongation. skip_physical avoids
@@ -2333,9 +2323,10 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
     if (adaptive)
       if (init_style == initialize_style::pgen)
       {
-        iflag             = false;
-        int onb           = nbtotal;
-        bool mesh_updated = LoadBalancingAndAdaptiveMeshRefinement(pin);
+        iflag                   = false;
+        int onb                 = nbtotal;
+        const bool mesh_updated = (LoadBalancingAndAdaptiveMeshRefinement(
+                                     pin) != AMRStatus::unchanged);
 
         if (nbtotal == onb)
         {

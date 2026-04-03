@@ -599,8 +599,13 @@ class Mesh
   void ResetAllBlockDt();
   void OutputCycleDiagnostics();
 
-  // returns true when Mesh changes, false otherwise
-  bool LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin);
+  enum class AMRStatus
+  {
+    unchanged,
+    redistributed,
+    refined
+  };
+  AMRStatus LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin);
 
   MeshBlock* FindMeshBlock(int tgid);
   void ApplyUserWorkBeforeOutput(ParameterInput* pin);
@@ -648,7 +653,7 @@ class Mesh
 
   void FinalizeM1(const std::vector<MeshBlock*>& pmb_array);
 
-  void FinalizeHydro_pgen(const std::vector<MeshBlock*>& pmb_array);
+  void FinalizeHydroState(const std::vector<MeshBlock*>& pmb_array);
 
   void FinalizeHydroConsRP(const std::vector<MeshBlock*>& pmb_array);
 

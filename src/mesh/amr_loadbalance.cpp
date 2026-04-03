@@ -41,7 +41,8 @@
 // \!fn void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin)
 // \brief Main function for adaptive mesh refinement
 
-bool Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin)
+Mesh::AMRStatus Mesh::LoadBalancingAndAdaptiveMeshRefinement(
+  ParameterInput* pin)
 {
   int nnew = 0, ndel = 0;
 
@@ -53,13 +54,14 @@ bool Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin)
   }
 
   // at least one (de)refinement happened
-  bool mesh_updated = nnew != 0 || ndel != 0;
+  AMRStatus status =
+    (nnew != 0 || ndel != 0) ? AMRStatus::refined : AMRStatus::unchanged;
 
   lb_flag_ |= lb_automatic_;
 
   UpdateCostList();
 
-  if (mesh_updated)
+  if (status == AMRStatus::refined)
   {
     // Return value intentionally discarded: redistribution is unconditional
     // when the mesh topology changed.  The call is needed for its MPI gather
@@ -70,11 +72,14 @@ bool Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput* pin)
   else if (lb_flag_ && step_since_lb >= lb_interval_)
   {
     if (!GatherCostListAndCheckBalance())  // load imbalance detected
+    {
       RedistributeAndRefineMeshBlocks(pin, nbtotal);
+      status = AMRStatus::redistributed;
+    }
     lb_flag_ = false;
   }
 
-  return mesh_updated;
+  return status;
 }
 
 //----------------------------------------------------------------------------------------

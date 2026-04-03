@@ -230,45 +230,65 @@ int main(int argc, char* argv[])
 
     pclk->Elapsed_pause();  // ignore regrid time in evo/hr estimate
 
-    bool mesh_updated = pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
-    if (mesh_updated)
+    const Mesh::AMRStatus amr_status =
+      pmesh->LoadBalancingAndAdaptiveMeshRefinement(pinput);
+
+    // Any redistribution (AMR or LB-only)
+    if (amr_status != Mesh::AMRStatus::unchanged)
     {
       pmesh->InitializePostMainUpdatedMesh(pinput);
+
+      // surface interpolators hold stale MeshBlock* pointers and must be
+      // rebuilt.
       for (auto psurf : pmesh->psurfs)
       {
         psurf->ReinitializeSurfaces(pmesh->ncycle, pmesh->time);
       }
     }
 
-    // Post AMR hook;
-    // While state vectors are suitably populated on the blocks, other derived
-    // quantities such as e.g. ADM constraints, Weyl scalar are not.
-    //
-    // Some quantities, e.g. ADM constraints also _should not_ be interpolated.
-    //
-    // To rectify, we add a final task-list dealing with such quantities before
-    // output.
-
-    if (mesh_updated)
+    // Post-AMR pgen hook: only needed when mesh topology changed
+    // (refinement/coarsening creates new blocks whose state the pgen hook
+    // may need to customize).
+    if (amr_status == Mesh::AMRStatus::refined)
     {
       pmesh->ApplyUserWorkMeshUpdatedPrePostAMRHooks(pinput);
 
-      // N.B.
-      // At this stage Mesh::Initialize(2, pinputs) has been called
+      // Recompute Weyl scalars on new blocks for output consistency.
+      // Weyl is AMR-registered (transferred during redistribution), so
+      // only newly refined blocks (with prolongated data) need
+      // recomputation.
       if (Z4C_ENABLED)
       {
-        // 1 stage
-        ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);
+        // TimeExceedsNextOutputTime uses substring matching so e.g.
+        // geom.weyl* is matched
+        if (pouts->TimeExceedsNextOutputTime("geom", pmesh->time) ||
+            pouts->TimeExceedsNextOutputTime("hst", pmesh->time))
+        {
+          ptlc.postamr_z4c->DoTaskListOneStage(pmesh, 1);
+        }
       }
+    }
 
+    // M1 derived quantities (fiducial-frame fields, opacities) are not
+    // AMR-registered and are not recomputed by Initialize(regrid) /
+    // FinalizeM1.  Recompute them after any redistribution so that
+    // outputs on this cycle see consistent data.
+    if (amr_status != Mesh::AMRStatus::unchanged)
+    {
       if (M1_ENABLED)
       {
-        // 1 stage
-        ptlc.postamr_m1n0->DoTaskListOneStage(pmesh, 1);
+        if (pouts->TimeExceedsNextOutputTime("M1", pmesh->time) ||
+            pouts->TimeExceedsNextOutputTime("hst", pmesh->time))
+        {
+          ptlc.postamr_m1n0->DoTaskListOneStage(pmesh, 1);
+        }
       }
+    }
 
+    // Clear new_from_amr flags after any redistribution.
+    if (amr_status != Mesh::AMRStatus::unchanged)
+    {
       pmesh->FinalizePostAMR();
-
       // reset the timer to exclude recent regridding
       // pclk->evo_rate_reset();
     }
