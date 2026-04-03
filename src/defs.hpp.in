@@ -63,6 +63,14 @@
 // Fuse all channels within a CommGroup into a single MPI message per neighbor
 #define DBG_FUSED_COMM
 
+// CX prolongation: use tensor-product 1D sweep separation (3 passes)
+// instead of fused 3D stencil.
+#define DBG_CX_PROLONG_TENSORPRODUCT
+
+// CX restriction: use tensor-product 1D sweep separation (3 passes)
+// instead of fused 3D stencil.
+#define DBG_CX_RESTRICT_TENSORPRODUCT
+
 // For N+1 NR problems, fix N
 #define NDIM 3
 //----------------------------------------------------------------------------------------

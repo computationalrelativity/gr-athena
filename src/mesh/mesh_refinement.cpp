@@ -252,6 +252,103 @@ MeshRefinement::MeshRefinement(MeshBlock* pmb, ParameterInput* pin)
       new interp_nd(x1_t, x1_s, Nt_x1, Ns_x1, d, NCGHOST_CX, NGHOST);
   }
   // --------------------------------------------------------------------------
+
+  // Pre-allocate scratch for CX tensor-product restrict/prolong.
+  // Worst-case sizes taken over restrict (R) and prolong (P) per buffer:
+  //   scratch1 = tmp1:  R: nc * nfe^(N-1),   P: nf * ext^(N-1)
+  //   scratch2 = tmp2:  R: nc^(N-1) * nfe,   P: nf^(N-1) * ext   (3D only)
+  //   scratch3 = result, scratch4 = accum:  R: prod(nc),  P: prod(nf)
+  // where nc=nx/2, nfe=nx+2*H_R-2, nf=nx+NGHOST, ext=(nf+1)/2+S_P-1.
+#if defined(DBG_CX_RESTRICT_TENSORPRODUCT) || \
+  defined(DBG_CX_PROLONG_TENSORPRODUCT)
+  {
+    const int nx1 = pmb->block_size.nx1;
+    const int nx2 = pmb->block_size.nx2;
+    const int nx3 = pmb->block_size.nx3;
+
+    constexpr int H_R = NGHOST;
+    constexpr int H_P = (2 * NCGHOST_CX - NGHOST) / 2 + 1;
+    constexpr int S_P = 2 * H_P + 1;
+
+    int sz1 = 0, sz2 = 0, sz34 = 0;
+
+    if (nx3 > 1)
+    {
+      const int n_arr[3] = { nx1, nx2, nx3 };
+      int max_nc_r = 0, max_nfe_r = 0;
+      int max_nf_p = 0, max_ext_p = 0;
+      int res_r = 1, res_p = 1;
+      for (int d = 0; d < 3; ++d)
+      {
+        const int nc_r  = n_arr[d] / 2;
+        const int nfe_r = n_arr[d] + 2 * H_R - 2;
+        max_nc_r        = std::max(max_nc_r, nc_r);
+        max_nfe_r       = std::max(max_nfe_r, nfe_r);
+        res_r *= nc_r;
+
+        const int nf_p  = n_arr[d] + NGHOST;
+        const int nc_p  = (nf_p + 1) / 2;
+        const int ext_p = nc_p + S_P - 1;
+        max_nf_p        = std::max(max_nf_p, nf_p);
+        max_ext_p       = std::max(max_ext_p, ext_p);
+        res_p *= nf_p;
+      }
+      sz1  = std::max(max_nc_r * max_nfe_r * max_nfe_r,
+                     max_nf_p * max_ext_p * max_ext_p);
+      sz2  = std::max(max_nc_r * max_nc_r * max_nfe_r,
+                     max_nf_p * max_nf_p * max_ext_p);
+      sz34 = std::max(res_r, res_p);
+    }
+    else if (nx2 > 1)
+    {
+      const int n_arr[2] = { nx1, nx2 };
+      int max_nc_r = 0, max_nfe_r = 0;
+      int max_nf_p = 0, max_ext_p = 0;
+      int res_r = 1, res_p = 1;
+      for (int d = 0; d < 2; ++d)
+      {
+        const int nc_r  = n_arr[d] / 2;
+        const int nfe_r = n_arr[d] + 2 * H_R - 2;
+        max_nc_r        = std::max(max_nc_r, nc_r);
+        max_nfe_r       = std::max(max_nfe_r, nfe_r);
+        res_r *= nc_r;
+
+        const int nf_p  = n_arr[d] + NGHOST;
+        const int nc_p  = (nf_p + 1) / 2;
+        const int ext_p = nc_p + S_P - 1;
+        max_nf_p        = std::max(max_nf_p, nf_p);
+        max_ext_p       = std::max(max_ext_p, ext_p);
+        res_p *= nf_p;
+      }
+      sz1  = std::max(max_nc_r * max_nfe_r, max_nf_p * max_ext_p);
+      sz2  = 0;  // no tmp2 in 2D
+      sz34 = std::max(res_r, res_p);
+    }
+
+    cx_scratch1_.NewAthenaArray(sz1);
+    if (sz2 > 0)
+      cx_scratch2_.NewAthenaArray(sz2);
+    cx_scratch3_.NewAthenaArray(sz34);
+    cx_scratch4_.NewAthenaArray(sz34);
+  }
+#endif
+
+  {
+    Mesh* pm = pmb->pmy_mesh;
+    bool uc  = pm->use_uniform_meshgen_fn_[X1DIR];
+    if (pmb->block_size.nx2 > 1)
+      uc = uc && pm->use_uniform_meshgen_fn_[X2DIR];
+    if (pmb->block_size.nx3 > 1)
+      uc = uc && pm->use_uniform_meshgen_fn_[X3DIR];
+    uniform_cart_ = uc;
+    if (uc)
+    {
+      Coordinates* pco = pmb->pcoord;
+      uc_h1_           = pco->dx1f(0);
+      uc_h2_           = (pmb->block_size.nx2 > 1) ? pco->dx2f(0) : 0.0;
+      uc_h3_           = (pmb->block_size.nx3 > 1) ? pco->dx3f(0) : 0.0;
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------

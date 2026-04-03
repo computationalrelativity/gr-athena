@@ -308,6 +308,15 @@ class MeshRefinement
   Real *x1c_cx, *x2c_cx, *x3c_cx;
   Real *x1f_cx, *x2f_cx, *x3f_cx;
 #endif  // DBG_CX_ALL_BARY_RP
+
+#if defined(DBG_CX_RESTRICT_TENSORPRODUCT) || \
+  defined(DBG_CX_PROLONG_TENSORPRODUCT)
+  AthenaArray<Real> cx_scratch1_, cx_scratch2_, cx_scratch3_, cx_scratch4_;
+#endif
+
+  bool uniform_cart_;
+  Real uc_h1_, uc_h2_, uc_h3_;
+
   // --------------------------------------------------------------------------
 };
 
