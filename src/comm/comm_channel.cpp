@@ -23,11 +23,16 @@
 #include "comm_registry.hpp"
 #include "comm_spec.hpp"
 #include "index_utilities.hpp"
+#include "mpi_guard.hpp"
 #include "neighbor_connectivity.hpp"
 #include "parity.hpp"
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
+
+#ifdef DBG_MPI_SPINLOCK
+std::atomic_flag gra::mpi_guard::spinlock_ = ATOMIC_FLAG_INIT;
+#endif
 
 namespace
 {
@@ -699,15 +704,15 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
       {
 #ifdef MPI_PARALLEL
 #ifdef MPI_NO_PERSIST
-        int mpi_rc = MPI_Isend(send_buf_[nb.bufid],
-                               gz_send_count_[nb.bufid],
-                               MPI_ATHENA_REAL,
-                               nb.snb.rank,
-                               gz_send_tag_[nb.bufid],
-                               MPI_COMM_WORLD,
-                               &req_send_[nb.bufid]);
+        int mpi_rc = gra::mpi_guard::MPI_Isend(send_buf_[nb.bufid],
+                                               gz_send_count_[nb.bufid],
+                                               MPI_ATHENA_REAL,
+                                               nb.snb.rank,
+                                               gz_send_tag_[nb.bufid],
+                                               MPI_COMM_WORLD,
+                                               &req_send_[nb.bufid]);
 #else
-        int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+        int mpi_rc = gra::mpi_guard::MPI_Start(&req_send_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
         CheckMPIResult(mpi_rc,
                        "MPI_Start(SendBoundary)",
@@ -786,15 +791,15 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
     {
 #ifdef MPI_PARALLEL
 #ifdef MPI_NO_PERSIST
-      int mpi_rc = MPI_Isend(send_buf_[nb.bufid],
-                             gz_send_count_[nb.bufid],
-                             MPI_ATHENA_REAL,
-                             nb.snb.rank,
-                             gz_send_tag_[nb.bufid],
-                             MPI_COMM_WORLD,
-                             &req_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Isend(send_buf_[nb.bufid],
+                                             gz_send_count_[nb.bufid],
+                                             MPI_ATHENA_REAL,
+                                             nb.snb.rank,
+                                             gz_send_tag_[nb.bufid],
+                                             MPI_COMM_WORLD,
+                                             &req_send_[nb.bufid]);
 #else
-      int mpi_rc = MPI_Start(&req_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Start(&req_send_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendBoundary)",
@@ -814,6 +819,11 @@ void CommChannel::PackAndSend(const NeighborConnectivity& nc,
 //----------------------------------------------------------------------------------------
 // Poll for received data.  Returns true when all expected receives have
 // arrived.
+//
+// Short-circuits on the first non-arrived neighbor: the caller will retry
+// shortly via the work-stealing scheduler, so testing remaining neighbors
+// would only add MPI global-lock contention under MPI_THREAD_MULTIPLE
+// (OpenMPI serialises every MPI_Test through a single mutex).
 
 bool CommChannel::PollReceive(const NeighborConnectivity& nc,
                               CommTarget target_filter)
@@ -822,7 +832,6 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
   const int mylevel    = pmb->loc.level;
   const CommTarget eff = spec_.targets & target_filter;
 
-  bool all_arrived = true;
   for (int n = 0; n < nc.num_neighbors(); ++n)
   {
     const NeighborBlock& nb = nc.neighbor(n);
@@ -840,7 +849,8 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
     {
       int test_flag = 0;
       MPI_Status mpi_status;
-      int mpi_rc = MPI_Test(&req_recv_[nb.bufid], &test_flag, &mpi_status);
+      int mpi_rc = gra::mpi_guard::MPI_Test(
+        &req_recv_[nb.bufid], &test_flag, &mpi_status);
       CheckMPIResult(mpi_rc,
                      "MPI_Test(PollReceive)",
                      Globals::my_rank,
@@ -857,10 +867,10 @@ bool CommChannel::PollReceive(const NeighborConnectivity& nc,
 
     if (recv_flag_[nb.bufid].load(std::memory_order_acquire) !=
         BoundaryStatus::arrived)
-      all_arrived = false;
+      return false;
   }
 
-  return all_arrived;
+  return true;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1429,7 +1439,8 @@ bool CommChannel::Clear(const NeighborConnectivity& nc,
       {
         int flag;
         MPI_Status mpi_status;
-        int mpi_rc = MPI_Test(&req_send_[nb.bufid], &flag, &mpi_status);
+        int mpi_rc =
+          gra::mpi_guard::MPI_Test(&req_send_[nb.bufid], &flag, &mpi_status);
         CheckMPIResult(mpi_rc,
                        "MPI_Test(ClearBoundary)",
                        Globals::my_rank,
@@ -1498,15 +1509,15 @@ void CommChannel::StartReceiving(const NeighborConnectivity& nc,
       continue;
 
 #ifdef MPI_NO_PERSIST
-    int mpi_rc = MPI_Irecv(recv_buf_[nb.bufid],
-                           gz_recv_count_[nb.bufid],
-                           MPI_ATHENA_REAL,
-                           nb.snb.rank,
-                           gz_recv_tag_[nb.bufid],
-                           MPI_COMM_WORLD,
-                           &req_recv_[nb.bufid]);
+    int mpi_rc = gra::mpi_guard::MPI_Irecv(recv_buf_[nb.bufid],
+                                           gz_recv_count_[nb.bufid],
+                                           MPI_ATHENA_REAL,
+                                           nb.snb.rank,
+                                           gz_recv_tag_[nb.bufid],
+                                           MPI_COMM_WORLD,
+                                           &req_recv_[nb.bufid]);
 #else
-    int mpi_rc = MPI_Start(&req_recv_[nb.bufid]);
+    int mpi_rc = gra::mpi_guard::MPI_Start(&req_recv_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
     CheckMPIResult(mpi_rc,
                    "MPI_Start(StartReceive)",
@@ -2237,15 +2248,15 @@ void CommChannel::PackAndSendFluxCorrCC(const NeighborConnectivity& nc)
     else
     {
 #ifdef MPI_NO_PERSIST
-      int mpi_rc = MPI_Isend(flcor_send_buf_[nb.bufid],
-                             flcor_send_count_[nb.bufid],
-                             MPI_ATHENA_REAL,
-                             nb.snb.rank,
-                             flcor_send_tag_[nb.bufid],
-                             MPI_COMM_WORLD,
-                             &req_flcor_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Isend(flcor_send_buf_[nb.bufid],
+                                             flcor_send_count_[nb.bufid],
+                                             MPI_ATHENA_REAL,
+                                             nb.snb.rank,
+                                             flcor_send_tag_[nb.bufid],
+                                             MPI_COMM_WORLD,
+                                             &req_flcor_send_[nb.bufid]);
 #else
-      int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Start(&req_flcor_send_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendFluxCorrCC)",
@@ -2332,15 +2343,15 @@ void CommChannel::PackAndSendFluxCorrFC(const NeighborConnectivity& nc)
     else
     {
 #ifdef MPI_NO_PERSIST
-      int mpi_rc = MPI_Isend(flcor_send_buf_[nb.bufid],
-                             flcor_send_count_[nb.bufid],
-                             MPI_ATHENA_REAL,
-                             nb.snb.rank,
-                             flcor_send_tag_[nb.bufid],
-                             MPI_COMM_WORLD,
-                             &req_flcor_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Isend(flcor_send_buf_[nb.bufid],
+                                             flcor_send_count_[nb.bufid],
+                                             MPI_ATHENA_REAL,
+                                             nb.snb.rank,
+                                             flcor_send_tag_[nb.bufid],
+                                             MPI_COMM_WORLD,
+                                             &req_flcor_send_[nb.bufid]);
 #else
-      int mpi_rc = MPI_Start(&req_flcor_send_[nb.bufid]);
+      int mpi_rc = gra::mpi_guard::MPI_Start(&req_flcor_send_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
       CheckMPIResult(mpi_rc,
                      "MPI_Start(SendFluxCorrFC)",
@@ -2741,12 +2752,14 @@ bool CommChannel::PollReceiveFluxCorr(const NeighborConnectivity& nc)
 //----------------------------------------------------------------------------------------
 // CC flux correction poll: check face neighbors with level == mylevel+1.
 // Does NOT unpack - that's done in UnpackFluxCorr.
+//
+// Short-circuits on the first non-arrived neighbor to minimise
+// MPI global-lock contention (see CommChannel::PollReceive).
 
 bool CommChannel::PollReceiveFluxCorrCC(const NeighborConnectivity& nc)
 {
   MeshBlock* pmb    = pmy_block_;
   const int mylevel = pmb->loc.level;
-  bool all_arrived  = true;
 
   for (int n = 0; n < nc.num_neighbors(); ++n)
   {
@@ -2765,16 +2778,15 @@ bool CommChannel::PollReceiveFluxCorrCC(const NeighborConnectivity& nc)
 
     // Still waiting - probe MPI if cross-rank.
     if (nb.snb.rank == Globals::my_rank)
-    {
-      all_arrived = false;
-      continue;
-    }
+      return false;
+
 #ifdef MPI_PARALLEL
     if (req_flcor_recv_[nb.bufid] != MPI_REQUEST_NULL)
     {
       int test = 0;
       MPI_Status mpi_status;
-      int mpi_rc = MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+      int mpi_rc = gra::mpi_guard::MPI_Test(
+        &req_flcor_recv_[nb.bufid], &test, &mpi_status);
       CheckMPIResult(mpi_rc,
                      "MPI_Test(PollRecvFluxCorr)",
                      Globals::my_rank,
@@ -2790,18 +2802,18 @@ bool CommChannel::PollReceiveFluxCorrCC(const NeighborConnectivity& nc)
       }
       else
       {
-        all_arrived = false;
+        return false;
       }
     }
     else
     {
-      all_arrived = false;
+      return false;
     }
 #else
-    all_arrived = false;
+    return false;
 #endif
   }
-  return all_arrived;
+  return true;
 }
 
 //----------------------------------------------------------------------------------------
@@ -2857,8 +2869,8 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
         {
           int test = 0;
           MPI_Status mpi_status;
-          int mpi_rc =
-            MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+          int mpi_rc = gra::mpi_guard::MPI_Test(
+            &req_flcor_recv_[nb.bufid], &test, &mpi_status);
           CheckMPIResult(mpi_rc,
                          "MPI_Test(PollRecvFluxCorrFC_SL)",
                          Globals::my_rank,
@@ -2940,7 +2952,8 @@ bool CommChannel::PollReceiveFluxCorrFC(const NeighborConnectivity& nc)
       {
         int test = 0;
         MPI_Status mpi_status;
-        int mpi_rc = MPI_Test(&req_flcor_recv_[nb.bufid], &test, &mpi_status);
+        int mpi_rc = gra::mpi_guard::MPI_Test(
+          &req_flcor_recv_[nb.bufid], &test, &mpi_status);
         CheckMPIResult(mpi_rc,
                        "MPI_Test(PollRecvFluxCorrFC_FF)",
                        Globals::my_rank,
@@ -3764,15 +3777,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
       if (nb.ni.type == NeighborConnect::face && nb.snb.level > mylevel)
       {
 #ifdef MPI_NO_PERSIST
-        int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
-                               flcor_recv_count_[nb.bufid],
-                               MPI_ATHENA_REAL,
-                               nb.snb.rank,
-                               flcor_recv_tag_[nb.bufid],
-                               MPI_COMM_WORLD,
-                               &req_flcor_recv_[nb.bufid]);
+        int mpi_rc = gra::mpi_guard::MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                                               flcor_recv_count_[nb.bufid],
+                                               MPI_ATHENA_REAL,
+                                               nb.snb.rank,
+                                               flcor_recv_tag_[nb.bufid],
+                                               MPI_COMM_WORLD,
+                                               &req_flcor_recv_[nb.bufid]);
 #else
-        int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+        int mpi_rc = gra::mpi_guard::MPI_Start(&req_flcor_recv_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
         CheckMPIResult(mpi_rc,
                        "MPI_Start(StartFluxCorrRecv)",
@@ -3795,15 +3808,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
         {
           // From finer: always receive
 #ifdef MPI_NO_PERSIST
-          int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
-                                 flcor_recv_count_[nb.bufid],
-                                 MPI_ATHENA_REAL,
-                                 nb.snb.rank,
-                                 flcor_recv_tag_[nb.bufid],
-                                 MPI_COMM_WORLD,
-                                 &req_flcor_recv_[nb.bufid]);
+          int mpi_rc = gra::mpi_guard::MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                                                 flcor_recv_count_[nb.bufid],
+                                                 MPI_ATHENA_REAL,
+                                                 nb.snb.rank,
+                                                 flcor_recv_tag_[nb.bufid],
+                                                 MPI_COMM_WORLD,
+                                                 &req_flcor_recv_[nb.bufid]);
 #else
-          int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+          int mpi_rc = gra::mpi_guard::MPI_Start(&req_flcor_recv_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
           CheckMPIResult(mpi_rc,
                          "MPI_Start(StartFluxCorrRecv)",
@@ -3822,15 +3835,15 @@ void CommChannel::StartReceivingFluxCorr(const NeighborConnectivity& nc)
               (nb.ni.type == NeighborConnect::edge && edge_flag_[nb.eid]))
           {
 #ifdef MPI_NO_PERSIST
-            int mpi_rc = MPI_Irecv(flcor_recv_buf_[nb.bufid],
-                                   flcor_recv_count_[nb.bufid],
-                                   MPI_ATHENA_REAL,
-                                   nb.snb.rank,
-                                   flcor_recv_tag_[nb.bufid],
-                                   MPI_COMM_WORLD,
-                                   &req_flcor_recv_[nb.bufid]);
+            int mpi_rc = gra::mpi_guard::MPI_Irecv(flcor_recv_buf_[nb.bufid],
+                                                   flcor_recv_count_[nb.bufid],
+                                                   MPI_ATHENA_REAL,
+                                                   nb.snb.rank,
+                                                   flcor_recv_tag_[nb.bufid],
+                                                   MPI_COMM_WORLD,
+                                                   &req_flcor_recv_[nb.bufid]);
 #else
-            int mpi_rc = MPI_Start(&req_flcor_recv_[nb.bufid]);
+            int mpi_rc = gra::mpi_guard::MPI_Start(&req_flcor_recv_[nb.bufid]);
 #endif  // MPI_NO_PERSIST
             CheckMPIResult(mpi_rc,
                            "MPI_Start(StartFluxCorrRecv)",
@@ -3918,7 +3931,8 @@ bool CommChannel::ClearFluxCorr(const NeighborConnectivity& nc, bool wait)
         continue;
       int flag;
       MPI_Status mpi_status;
-      CheckMPIResult(MPI_Test(&req_flcor_send_[nb.bufid], &flag, &mpi_status),
+      CheckMPIResult(gra::mpi_guard::MPI_Test(
+                       &req_flcor_send_[nb.bufid], &flag, &mpi_status),
                      "MPI_Test(ClearFluxCorr)",
                      Globals::my_rank,
                      pmb->gid,

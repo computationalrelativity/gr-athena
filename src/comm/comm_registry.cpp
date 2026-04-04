@@ -15,6 +15,7 @@
 #include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "index_utilities.hpp"
+#include "mpi_guard.hpp"
 #include "node_multiplicity.hpp"
 #include "physical_bcs.hpp"
 #include "refinement_ops.hpp"
@@ -898,15 +899,15 @@ void CommRegistry::SendBoundaryBuffersFused(CommGroup group,
     {
 #ifdef MPI_PARALLEL
 #ifdef MPI_NO_PERSIST
-      CheckMPIResult(MPI_Isend(fs.send_buf[nb.bufid],
-                               fs.send_count[nb.bufid],
-                               MPI_ATHENA_REAL,
-                               nb.snb.rank,
-                               fs.send_tag[nb.bufid],
-                               MPI_COMM_WORLD,
-                               &fs.req_send[nb.bufid]),
+      CheckMPIResult(gra::mpi_guard::MPI_Isend(fs.send_buf[nb.bufid],
+                                               fs.send_count[nb.bufid],
+                                               MPI_ATHENA_REAL,
+                                               nb.snb.rank,
+                                               fs.send_tag[nb.bufid],
+                                               MPI_COMM_WORLD,
+                                               &fs.req_send[nb.bufid]),
 #else
-      CheckMPIResult(MPI_Start(&fs.req_send[nb.bufid]),
+      CheckMPIResult(gra::mpi_guard::MPI_Start(&fs.req_send[nb.bufid]),
 #endif  // MPI_NO_PERSIST
                      "MPI_Start(SendBoundaryFused)",
                      Globals::my_rank,
@@ -925,6 +926,9 @@ void CommRegistry::SendBoundaryBuffersFused(CommGroup group,
 //----------------------------------------------------------------------------------------
 // ReceiveBoundaryBuffersFused: poll fused recv flags / MPI_Test.
 // Returns true when all neighbors have arrived.
+//
+// Short-circuits on the first non-arrived neighbor to minimise
+// MPI global-lock contention (see CommChannel::PollReceive).
 
 bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
                                                CommTarget target_filter)
@@ -934,7 +938,6 @@ bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
   int g               = static_cast<int>(group);
   FusedGroupState& fs = fused_[g];
 
-  bool all_arrived = true;
   for (int n = 0; n < nc_.num_neighbors(); ++n)
   {
     const NeighborBlock& nb = nc_.neighbor(n);
@@ -964,7 +967,8 @@ bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
     {
       int test_flag = 0;
       MPI_Status mpi_status;
-      CheckMPIResult(MPI_Test(&fs.req_recv[nb.bufid], &test_flag, &mpi_status),
+      CheckMPIResult(gra::mpi_guard::MPI_Test(
+                       &fs.req_recv[nb.bufid], &test_flag, &mpi_status),
                      "MPI_Test(RecvBoundaryFused)",
                      Globals::my_rank,
                      pmb->gid,
@@ -980,10 +984,10 @@ bool CommRegistry::ReceiveBoundaryBuffersFused(CommGroup group,
 
     if (fs.recv_flag[nb.bufid].load(std::memory_order_acquire) !=
         BoundaryStatus::arrived)
-      all_arrived = false;
+      return false;
   }
 
-  return all_arrived;
+  return true;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1103,14 +1107,15 @@ bool CommRegistry::ClearBoundaryFused(CommGroup group,
       {
         int flag;
         MPI_Status mpi_status;
-        CheckMPIResult(MPI_Test(&fs.req_send[nb.bufid], &flag, &mpi_status),
-                       "MPI_Test(ClearBoundaryFused)",
-                       Globals::my_rank,
-                       pmb->gid,
-                       nb.snb.rank,
-                       nb.snb.gid,
-                       nb.bufid,
-                       g);
+        CheckMPIResult(
+          gra::mpi_guard::MPI_Test(&fs.req_send[nb.bufid], &flag, &mpi_status),
+          "MPI_Test(ClearBoundaryFused)",
+          Globals::my_rank,
+          pmb->gid,
+          nb.snb.rank,
+          nb.snb.gid,
+          nb.bufid,
+          g);
         if (!flag)
           return false;  // at least one send still pending - retry later
       }
@@ -1183,15 +1188,15 @@ void CommRegistry::StartReceivingFused(CommGroup group,
       continue;
 
 #ifdef MPI_NO_PERSIST
-    CheckMPIResult(MPI_Irecv(fs.recv_buf[nb.bufid],
-                             fs.recv_count[nb.bufid],
-                             MPI_ATHENA_REAL,
-                             nb.snb.rank,
-                             fs.recv_tag[nb.bufid],
-                             MPI_COMM_WORLD,
-                             &fs.req_recv[nb.bufid]),
+    CheckMPIResult(gra::mpi_guard::MPI_Irecv(fs.recv_buf[nb.bufid],
+                                             fs.recv_count[nb.bufid],
+                                             MPI_ATHENA_REAL,
+                                             nb.snb.rank,
+                                             fs.recv_tag[nb.bufid],
+                                             MPI_COMM_WORLD,
+                                             &fs.req_recv[nb.bufid]),
 #else
-    CheckMPIResult(MPI_Start(&fs.req_recv[nb.bufid]),
+    CheckMPIResult(gra::mpi_guard::MPI_Start(&fs.req_recv[nb.bufid]),
 #endif  // MPI_NO_PERSIST
                    "MPI_Start(StartRecvFused)",
                    Globals::my_rank,

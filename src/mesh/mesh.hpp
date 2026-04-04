@@ -640,8 +640,6 @@ class Mesh
 
   void CommunicateConserved(const std::vector<MeshBlock*>& pmb_array);
 
-  void CommunicateConservedMatter(const std::vector<MeshBlock*>& pmb_array);
-
   void FinalizeWave(const std::vector<MeshBlock*>& pmb_array);
 
   void FinalizeZ4cADMPhysical(const std::vector<MeshBlock*>& pmb_array,

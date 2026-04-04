@@ -3,6 +3,7 @@
 // C++ headers
 #include <iostream>
 #include <limits>
+#include <thread>  // std::this_thread::yield
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -487,45 +488,14 @@ void Mesh::CommunicateConserved(const std::vector<MeshBlock*>& pmb_array)
       pmb = pmb_array[i];
       while (!pmb->pcomm->ReceiveBoundaryBuffers(grp))
       {
+        std::this_thread::yield();
       }
       pmb->pcomm->SetBoundaries(grp);
-      pmb->pcomm->ClearBoundary(grp);
+      while (!pmb->pcomm->ClearBoundary(grp, comm::CommTarget::All, false))
+      {
+        std::this_thread::yield();
+      }
     }
-  }
-}
-
-void Mesh::CommunicateConservedMatter(const std::vector<MeshBlock*>& pmb_array)
-{
-  MeshBlock* pmb;
-
-  const int nmb = pmb_array.size();
-
-  // MainInt group covers hydro + field + scalars.
-  const auto grp = comm::CommGroup::MainInt;
-
-#pragma omp for private(pmb)
-  for (int i = 0; i < nmb; ++i)
-  {
-    pmb = pmb_array[i];
-    pmb->pcomm->StartReceiving(grp);
-  }
-
-#pragma omp for private(pmb)
-  for (int i = 0; i < nmb; ++i)
-  {
-    pmb = pmb_array[i];
-    pmb->pcomm->SendBoundaryBuffers(grp);
-  }
-
-#pragma omp for private(pmb)
-  for (int i = 0; i < nmb; ++i)
-  {
-    pmb = pmb_array[i];
-    while (!pmb->pcomm->ReceiveBoundaryBuffers(grp))
-    {
-    }
-    pmb->pcomm->SetBoundaries(grp);
-    pmb->pcomm->ClearBoundary(grp);
   }
 }
 
@@ -568,9 +538,13 @@ void Mesh::CommunicateAuxZ4c()
       pmb = pmb_array[i];
       while (!pmb->pcomm->ReceiveBoundaryBuffers(grp))
       {
+        std::this_thread::yield();
       }
       pmb->pcomm->SetBoundaries(grp);
-      pmb->pcomm->ClearBoundary(grp);
+      while (!pmb->pcomm->ClearBoundary(grp, comm::CommTarget::All, false))
+      {
+        std::this_thread::yield();
+      }
     }
 
 #pragma omp for private(pmb)
@@ -639,9 +613,13 @@ void Mesh::CommunicateAuxADM()
       pmb = pmb_array[i];
       while (!pmb->pcomm->ReceiveBoundaryBuffers(grp))
       {
+        std::this_thread::yield();
       }
       pmb->pcomm->SetBoundaries(grp);
-      pmb->pcomm->ClearBoundary(grp);
+      while (!pmb->pcomm->ClearBoundary(grp, comm::CommTarget::All, false))
+      {
+        std::this_thread::yield();
+      }
     }
 
 #pragma omp for private(pmb)
@@ -716,9 +694,14 @@ void Mesh::CommunicateIteratedZ4c(const int iterations)
           pmb = pmb_array[i];
           while (!pmb->pcomm->ReceiveBoundaryBuffers(comm_grp))
           {
+            std::this_thread::yield();
           }
           pmb->pcomm->SetBoundaries(comm_grp);
-          pmb->pcomm->ClearBoundary(comm_grp);
+          while (
+            !pmb->pcomm->ClearBoundary(comm_grp, comm::CommTarget::All, false))
+          {
+            std::this_thread::yield();
+          }
         }
 
 // Prolongation and physical BCs use Z4c group channels.

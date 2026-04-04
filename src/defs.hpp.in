@@ -63,6 +63,10 @@
 // Fuse all channels within a CommGroup into a single MPI message per neighbor
 #define DBG_FUSED_COMM
 
+// Serialize MPI point-to-point calls through an application-level spinlock.
+// Workaround for OpenMPI ob1/BTL thread-safety bugs under MPI_THREAD_MULTIPLE.
+#define DBG_MPI_SPINLOCK
+
 // CX prolongation: use tensor-product 1D sweep separation (3 passes)
 // instead of fused 3D stencil.
 #define DBG_CX_PROLONG_TENSORPRODUCT

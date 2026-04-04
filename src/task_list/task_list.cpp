@@ -225,7 +225,9 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
       // ensures MPI asynchronous progress threads (or other ranks sharing
       // the node) get scheduled.
       if (!made_progress)
+      {
         std::this_thread::yield();
+      }
 
 #ifdef DBG_TASKLIST_HANG
       // Detect hangs: if no block has completed for > kHangTimeoutSeconds,
