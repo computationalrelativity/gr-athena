@@ -141,7 +141,8 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
       },
       AMRFlag_{},
-      UserTimeStep_{}
+      UserTimeStep_{},
+      UserMainLoopBreak_{}
 {
   std::stringstream msg;
   RegionSize block_size;
@@ -828,7 +829,8 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
       },
       AMRFlag_{},
-      UserTimeStep_{}
+      UserTimeStep_{},
+      UserMainLoopBreak_{}
 {
   std::stringstream msg;
   RegionSize block_size;
@@ -1997,6 +1999,27 @@ void Mesh::EnrollUserTimeStepFunction(TimeStepFunc my_func)
 {
   UserTimeStep_ = my_func;
   return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void Mesh::EnrollUserMainLoopBreak(MainLoopBreakFunc my_func)
+//  \brief Enroll a user-defined function to check for early main-loop exit
+
+void Mesh::EnrollUserMainLoopBreak(MainLoopBreakFunc my_func)
+{
+  UserMainLoopBreak_ = my_func;
+  return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn bool Mesh::CheckUserMainLoopBreak(ParameterInput *pin)
+//  \brief Check the enrolled break condition; returns true to break main loop
+
+bool Mesh::CheckUserMainLoopBreak(ParameterInput* pin)
+{
+  if (UserMainLoopBreak_ != nullptr)
+    return UserMainLoopBreak_(this, pin);
+  return false;
 }
 
 //----------------------------------------------------------------------------------------

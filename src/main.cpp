@@ -167,6 +167,10 @@ int main(int argc, char* argv[])
     // Any Mesh-level logic to be called prior to next iter of integration loop
     pmesh->UserWorkBeforeLoop(pinput);
 
+    // Check user-enrolled break condition (e.g. post-bounce short-circuit)
+    if (pmesh->CheckUserMainLoopBreak(pinput))
+      break;
+
     if (Globals::my_rank == 0)
     {
       // pmesh->evo_rate = (
@@ -192,7 +196,8 @@ int main(int argc, char* argv[])
     {
       if (FLUID_ENABLED)
       {
-        if (M1_ENABLED)
+        if (M1_ENABLED &&
+            pinput->GetOrAddBoolean("problem", "M1_enabled", true))
         {
           gra::evolve::Z4c_GRMHD_M1N0(ptlc, pmesh);
         }
@@ -222,7 +227,7 @@ int main(int argc, char* argv[])
     trgs.Update();
     //-------------------------------------------------------------------------
 
-    pmesh->UserWorkInLoop();
+    pmesh->UserWorkInLoop(pinput);
     pmesh->ncycle++;
     pmesh->time += pmesh->dt;
     mbcnt += pmesh->nbtotal;
@@ -275,7 +280,7 @@ int main(int argc, char* argv[])
     // outputs on this cycle see consistent data.
     if (amr_status != Mesh::AMRStatus::unchanged)
     {
-      if (M1_ENABLED)
+      if (M1_ENABLED && pinput->GetOrAddBoolean("problem", "M1_enabled", true))
       {
         if (pouts->TimeExceedsNextOutputTime("M1", pmesh->time) ||
             pouts->TimeExceedsNextOutputTime("hst", pmesh->time))
@@ -323,6 +328,21 @@ int main(int argc, char* argv[])
 
   if (Globals::my_rank == 0 && Flags.wtlim > 0)
     SignalHandler::CancelWallTimeAlarm();
+
+  // If the main loop broke due to a user hook that requested a tagged restart,
+  // write it now (the pgen stored the tag in ParameterInput).
+  if (pinput->DoesParameterExist("problem", "restart_tag"))
+  {
+    const std::string tag = pinput->GetString("problem", "restart_tag");
+    // Clear before writing so the tag is NOT serialized into the restart file.
+    // Otherwise restarting from the tagged file would produce another spurious
+    // tagged restart on every subsequent exit.
+    pinput->SetString("problem", "restart_tag", "");
+    if (!tag.empty())
+    {
+      gra::MakeOutputRestart(pinput, pmesh, pouts, tag);
+    }
+  }
 
   //--- Step 9. --------------------------------------------------------------
   // Make the final outputs; post-loop work.

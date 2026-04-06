@@ -2,8 +2,9 @@
 #define ATHENA_HPP_
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file athena.hpp
 //  \brief contains Athena++ general purpose types, structures, enums, etc.
@@ -45,6 +46,7 @@ using Real = double;
 #define CACHELINE_BYTES 64
 
 // forward declarations needed for function pointer type aliases
+class Mesh;
 class MeshBlock;
 class Coordinates;
 class ParameterInput;
@@ -53,21 +55,28 @@ class ParameterInput;
 //! \struct LogicalLocation
 //  \brief stores logical location and level of MeshBlock
 
-struct LogicalLocation { // aggregate and POD type
-  // These values can exceed the range of std::int32_t even if the root grid has only a
-  // single MeshBlock if >30 levels of AMR are used, since the corresponding max index =
-  // 1*2^31 > INT_MAX = 2^31 -1 for most 32-bit signed integer type impelementations
+struct LogicalLocation
+{  // aggregate and POD type
+  // These values can exceed the range of std::int32_t even if the root grid
+  // has only a single MeshBlock if >30 levels of AMR are used, since the
+  // corresponding max index = 1*2^31 > INT_MAX = 2^31 -1 for most 32-bit
+  // signed integer type impelementations
   std::int64_t lx1, lx2, lx3;
   int level;
 
   // operators useful for sorting
-  bool operator==(LogicalLocation &ll) {
-    return ((ll.level == level) && (ll.lx1 == lx1) && (ll.lx2 == lx2) && (ll.lx3 == lx3));
+  bool operator==(LogicalLocation& ll)
+  {
+    return ((ll.level == level) && (ll.lx1 == lx1) && (ll.lx2 == lx2) &&
+            (ll.lx3 == lx3));
   }
-  static bool Lesser(const LogicalLocation &left, const LogicalLocation &right) {
+  static bool Lesser(const LogicalLocation& left, const LogicalLocation& right)
+  {
     return left.level < right.level;
   }
-  static bool Greater(const LogicalLocation & left, const LogicalLocation &right) {
+  static bool Greater(const LogicalLocation& left,
+                      const LogicalLocation& right)
+  {
     return left.level > right.level;
   }
 };
@@ -76,137 +85,241 @@ struct LogicalLocation { // aggregate and POD type
 //! \struct RegionSize
 //  \brief physical size and number of cells in a Mesh or a MeshBlock
 
-struct RegionSize {  // aggregate and POD type; do NOT reorder member declarations:
+struct RegionSize
+{  // aggregate and POD type; do NOT reorder member declarations:
   Real x1min, x2min, x3min;
   Real x1max, x2max, x3max;
-  Real x1rat, x2rat, x3rat; // ratio of dxf(i)/dxf(i-1)
-  // the size of the root grid or a MeshBlock should not exceed std::int32_t limits
-  int nx1, nx2, nx3;        // number of active cells (not including ghost zones)
+  Real x1rat, x2rat, x3rat;  // ratio of dxf(i)/dxf(i-1)
+  // the size of the root grid or a MeshBlock should not exceed std::int32_t
+  // limits
+  int nx1, nx2, nx3;  // number of active cells (not including ghost zones)
 };
 
 //---------------------------------------------------------------------------------------
 //! \struct FaceField
 //  \brief container for face-centered fields
 
-struct FaceField {
+struct FaceField
+{
   AthenaArray<Real> x1f, x2f, x3f;
   FaceField() = default;
-  FaceField(int ncells3, int ncells2, int ncells1,
-            AthenaArray<Real>::DataStatus init=AthenaArray<Real>::DataStatus::allocated) :
-      x1f(ncells3, ncells2, ncells1+1, init), x2f(ncells3, ncells2+1, ncells1, init),
-      x3f(ncells3+1, ncells2, ncells1, init) {}
+  FaceField(int ncells3,
+            int ncells2,
+            int ncells1,
+            AthenaArray<Real>::DataStatus init =
+              AthenaArray<Real>::DataStatus::allocated)
+      : x1f(ncells3, ncells2, ncells1 + 1, init),
+        x2f(ncells3, ncells2 + 1, ncells1, init),
+        x3f(ncells3 + 1, ncells2, ncells1, init)
+  {
+  }
 };
 
 //----------------------------------------------------------------------------------------
 //! \struct EdgeField
 //  \brief container for edge-centered fields
 
-struct EdgeField {
+struct EdgeField
+{
   AthenaArray<Real> x1e, x2e, x3e;
   EdgeField() = default;
-  EdgeField(int ncells3, int ncells2, int ncells1,
-            AthenaArray<Real>::DataStatus init=AthenaArray<Real>::DataStatus::allocated) :
-      x1e(ncells3+1, ncells2+1, ncells1, init), x2e(ncells3+1, ncells2, ncells1+1, init),
-      x3e(ncells3, ncells2+1, ncells1+1, init) {}
+  EdgeField(int ncells3,
+            int ncells2,
+            int ncells1,
+            AthenaArray<Real>::DataStatus init =
+              AthenaArray<Real>::DataStatus::allocated)
+      : x1e(ncells3 + 1, ncells2 + 1, ncells1, init),
+        x2e(ncells3 + 1, ncells2, ncells1 + 1, init),
+        x3e(ncells3, ncells2 + 1, ncells1 + 1, init)
+  {
+  }
 };
 
-//------------------------------------------------------------------------------------// enums used everywhere
-// (not specifying underlying integral type (C++11) for portability & performance)
+//------------------------------------------------------------------------------------//
+// enums used everywhere
+// (not specifying underlying integral type (C++11) for portability &
+// performance)
 
 // TODO(felker): C++ Core Guidelines Enum.5: Don’t use ALL_CAPS for enumerators
-// (avoid clashes with preprocessor macros). Enumerated type definitions in this file and:
-// io_wrapper.hpp, bvals.hpp,
-// task_list.hpp, ???
+// (avoid clashes with preprocessor macros). Enumerated type definitions in
+// this file and: io_wrapper.hpp, bvals.hpp, task_list.hpp, ???
 
 //------------------
 // named, weakly typed / unscoped enums:
 //------------------
 
-// enumerators only used for indexing AthenaArray and regular arrays; typename and
-// explicitly specified enumerator values aare unnecessary, but provided for clarity:
+// enumerators only used for indexing AthenaArray and regular arrays; typename
+// and explicitly specified enumerator values aare unnecessary, but provided
+// for clarity:
 
-// array indices for conserved: density, momemtum, total energy, face-centered field
+// array indices for conserved: density, momemtum, total energy, face-centered
+// field
 #if FLUID_ENABLED
-enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, IYD=5, NCONS=(NHYDRO)+(MAX_SPECIES)};
+enum ConsIndex
+{
+  IDN   = 0,
+  IM1   = 1,
+  IM2   = 2,
+  IM3   = 3,
+  IEN   = 4,
+  IYD   = 5,
+  NCONS = (NHYDRO) + (MAX_SPECIES)
+};
 #else
-enum ConsIndex {IDN=0, IM1=1, IM2=2, IM3=3, IEN=4, NCONS=(NHYDRO)};
+enum ConsIndex
+{
+  IDN   = 0,
+  IM1   = 1,
+  IM2   = 2,
+  IM3   = 3,
+  IEN   = 4,
+  NCONS = (NHYDRO)
+};
 #endif
-enum MagneticIndex {IB1=0, IB2=1, IB3=2, NMAG=3};
+enum MagneticIndex
+{
+  IB1  = 0,
+  IB2  = 1,
+  IB3  = 2,
+  NMAG = 3
+};
 
 // array indices for 1D primitives: velocity, transverse components of field
 #if FLUID_ENABLED
-enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, ITM=5, IYF=6, IBY=(NHYDRO),
-                IBZ=((NHYDRO)+1), NPRIM=((NHYDRO)+(FLUID_ENABLED)+(MAX_SPECIES))};
+enum PrimIndex
+{
+  IVX   = 1,
+  IVY   = 2,
+  IVZ   = 3,
+  IPR   = 4,
+  ITM   = 5,
+  IYF   = 6,
+  IBY   = (NHYDRO),
+  IBZ   = ((NHYDRO) + 1),
+  NPRIM = ((NHYDRO) + (FLUID_ENABLED) + (MAX_SPECIES))
+};
 #else
-enum PrimIndex {IVX=1, IVY=2, IVZ=3, IPR=4, IBY=(NHYDRO), IBZ=((NHYDRO)+1)};
+enum PrimIndex
+{
+  IVX = 1,
+  IVY = 2,
+  IVZ = 3,
+  IPR = 4,
+  IBY = (NHYDRO),
+  IBZ = ((NHYDRO) + 1)
+};
 #endif
 
 // array indices for 4-metric in GR
-enum MetricIndex {I00=0, I01=1, I02=2, I03=3, I11=4, I12=5, I13=6, I22=7, I23=8, I33=9,
-  NMETRIC=10};
+enum MetricIndex
+{
+  I00     = 0,
+  I01     = 1,
+  I02     = 2,
+  I03     = 3,
+  I11     = 4,
+  I12     = 5,
+  I13     = 6,
+  I22     = 7,
+  I23     = 8,
+  I33     = 9,
+  NMETRIC = 10
+};
 
 // array indices for 3-metric and extrinsic curv in GR in 3D
-enum SpatialMetricIndex {S11=0, S12=1, S13=2, S22=3, S23=4, S33=5,
-  NSPMETRIC=6};
+enum SpatialMetricIndex
+{
+  S11       = 0,
+  S12       = 1,
+  S13       = 2,
+  S22       = 3,
+  S23       = 4,
+  S33       = 5,
+  NSPMETRIC = 6
+};
 
 // Hydro-derived quantities for output:
-enum HydroDerivedIndex {
-  IX_C2P=0,   // c2p status
-  IX_LOR=1,   // Lorentz factor
-  IX_T=2,     // temperature
-  IX_ETH=3,   // enthalpy
-  IX_SPB=4,   // entropy per baryon
-  IX_SEN=5,   // specific internal energy
-  IX_U_d_0=6, // u_t (downstairs)
-  IX_HU_d_0=7,   // h/h_inf u_t
-  IX_CS2=8,   // cs^2
-  IX_OM=9,     // Omega = (- y (alpha v^x -beta^x) + x (alpha v^y - beta^y)) /(x^2 + y^2) angular velocity
-  NDRV_HYDRO=10};
+enum HydroDerivedIndex
+{
+  IX_C2P    = 0,  // c2p status
+  IX_LOR    = 1,  // Lorentz factor
+  IX_T      = 2,  // temperature
+  IX_ETH    = 3,  // enthalpy
+  IX_SPB    = 4,  // entropy per baryon
+  IX_SEN    = 5,  // specific internal energy
+  IX_U_d_0  = 6,  // u_t (downstairs)
+  IX_HU_d_0 = 7,  // h/h_inf u_t
+  IX_CS2    = 8,  // cs^2
+  IX_OM     = 9,  // Omega = (- y (alpha v^x -beta^x) + x (alpha v^y - beta^y))
+                  // /(x^2 + y^2) angular velocity
+  NDRV_HYDRO = 10
+};
 
 // Hydro-derived quantities for internal use
-enum HydroInternalDerivedIndex {
+enum HydroInternalDerivedIndex
+{
   // alpha vtil^j = alpha * util^j / W + beta^j = alpha v^j - beta^j
-  IX_TR_V1   =0,
-  IX_TR_V2   =1,
-  IX_TR_V3   =2,
-  NIDRV_HYDRO=3};
+  IX_TR_V1    = 0,
+  IX_TR_V2    = 1,
+  IX_TR_V3    = 2,
+  NIDRV_HYDRO = 3
+};
 
-  // Field-derived quantities:
-enum FieldDerivedIndex {
-  IX_B2=0,    // B^iB^j adm_gamma_{ij}
-  IX_b0=1,    // W scB^i v_i / alpha
-  IX_b2=2,    // ((alpha b^0)^2 + (scB^i scB^j) adm_gamma_{ij}) / W^2
-  IX_b_U_1=3, // (scB^i + alpha * b^0 * W * vtil^i) / W
-  IX_b_U_2=4,
-  IX_b_U_3=5,
-  IX_MAG=6, // magnetisation B^2/D
-  IX_BET=7, // plasma beta^-1 (2 p / b^2)^-1
-  IX_MRI=8, // fastest growing mode lambda_MRI = b^z / (sqrt(rho) Omega)
-  IX_ALF=9, // Alfven speed v_A = sqrt(B^2 / (4pi rho))
-  NDRV_FIELD=10
+// Field-derived quantities:
+enum FieldDerivedIndex
+{
+  IX_B2      = 0,  // B^iB^j adm_gamma_{ij}
+  IX_b0      = 1,  // W scB^i v_i / alpha
+  IX_b2      = 2,  // ((alpha b^0)^2 + (scB^i scB^j) adm_gamma_{ij}) / W^2
+  IX_b_U_1   = 3,  // (scB^i + alpha * b^0 * W * vtil^i) / W
+  IX_b_U_2   = 4,
+  IX_b_U_3   = 5,
+  IX_MAG     = 6,  // magnetisation B^2/D
+  IX_BET     = 7,  // plasma beta^-1 (2 p / b^2)^-1
+  IX_MRI     = 8,  // fastest growing mode lambda_MRI = b^z / (sqrt(rho) Omega)
+  IX_ALF     = 9,  // Alfven speed v_A = sqrt(B^2 / (4pi rho))
+  NDRV_FIELD = 10
 };
 
 // enumerator types that are used for variables and function parameters:
 
 // needed for arrays dimensioned over grid directions
 // enumerator type only used in Mesh::EnrollUserMeshGenerator()
-enum CoordinateDirection {X1DIR=0, X2DIR=1, X3DIR=2};
+enum CoordinateDirection
+{
+  X1DIR = 0,
+  X2DIR = 1,
+  X3DIR = 2
+};
 
 //------------------
 // strongly typed / scoped enums (C++11):
 //------------------
-enum class UserHistoryOperation {sum, max, min};
+enum class UserHistoryOperation
+{
+  sum,
+  max,
+  min
+};
 
 //----------------------------------------------------------------------------------------
 // function pointer prototypes for user-defined modules set at runtime
 
-using BValFunc = void (*)(
-    MeshBlock *pmb, Coordinates *pco,
-    Real time, Real dt,
-    int is, int ie, int js, int je, int ks, int ke, int ngh);
-using AMRFlagFunc = int (*)(MeshBlock *pmb);
-using MeshGenFunc = Real (*)(Real x, RegionSize rs);
-using TimeStepFunc = Real (*)(MeshBlock *pmb);
-using HistoryOutputFunc = Real (*)(MeshBlock *pmb, int iout);
+using BValFunc          = void (*)(MeshBlock* pmb,
+                          Coordinates* pco,
+                          Real time,
+                          Real dt,
+                          int is,
+                          int ie,
+                          int js,
+                          int je,
+                          int ks,
+                          int ke,
+                          int ngh);
+using AMRFlagFunc       = int (*)(MeshBlock* pmb);
+using MeshGenFunc       = Real (*)(Real x, RegionSize rs);
+using TimeStepFunc      = Real (*)(MeshBlock* pmb);
+using HistoryOutputFunc = Real (*)(MeshBlock* pmb, int iout);
+using MainLoopBreakFunc = bool (*)(Mesh* pm, ParameterInput* pin);
 
-#endif // ATHENA_HPP_
+#endif  // ATHENA_HPP_

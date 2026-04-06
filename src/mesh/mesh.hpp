@@ -619,7 +619,9 @@ class Mesh
   // called in main before each cycle, after potential trigger dt adjustment
   void UserWorkBeforeLoop(ParameterInput* pin);
   // called in main after each cycle
-  void UserWorkInLoop();
+  void UserWorkInLoop(ParameterInput* pin);
+  // check user-enrolled break condition in main loop
+  bool CheckUserMainLoopBreak(ParameterInput* pin);
   // Apply at level of MeshBlock
   void ApplyUserWorkMeshUpdatedPrePostAMRHooks(ParameterInput* pin);
 
@@ -745,6 +747,7 @@ class Mesh
   BValFunc BoundaryFunction_[6];
   AMRFlagFunc AMRFlag_;
   TimeStepFunc UserTimeStep_;
+  MainLoopBreakFunc UserMainLoopBreak_;
   std::vector<std::function<Real(MeshBlock*, int)>> user_history_func_;
 
   void AllocateRealUserMeshDataField(int n);
@@ -774,6 +777,7 @@ class Mesh
   void EnrollUserRefinementCondition(AMRFlagFunc amrflag);
   void EnrollUserMeshGenerator(CoordinateDirection dir, MeshGenFunc my_mg);
   void EnrollUserTimeStepFunction(TimeStepFunc my_func);
+  void EnrollUserMainLoopBreak(MainLoopBreakFunc my_func);
   void EnrollUserHistoryOutput(
     HistoryOutputFunc my_func,
     const char* name,
