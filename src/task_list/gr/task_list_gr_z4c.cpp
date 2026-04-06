@@ -326,11 +326,6 @@ TaskStatus GR_Z4c::UserWork(MeshBlock* pmb, int stage)
 
 TaskStatus GR_Z4c::EnforceAlgConstr(MeshBlock* pmb, int stage)
 {
-#ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages)
-    return TaskStatus::next;  // only do on last stage
-#endif                        // DBG_ALGCONSTR_ALL
-
   Z4c* pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
 

@@ -233,11 +233,8 @@ class Coordinates
 
   // ...to compute geometrical source terms
   virtual void AddCoordTermsDivergence(const Real dt,
-                                       const AthenaArray<Real>* flux,
                                        const AthenaArray<Real>& prim,
-#if FLUID_ENABLED
                                        const AthenaArray<Real>& prim_scalar,
-#endif
                                        const AthenaArray<Real>& bcc,
                                        AthenaArray<Real>& u);
 
@@ -1312,11 +1309,8 @@ class GRDynamical : public Coordinates
 
   // Geometrical source terms
   void AddCoordTermsDivergence(const Real dt,
-                               const AthenaArray<Real>* flux,
                                const AthenaArray<Real>& prim,
-#if FLUID_ENABLED
                                const AthenaArray<Real>& prim_scalar,
-#endif
                                const AthenaArray<Real>& bcc,
                                AthenaArray<Real>& u) final;
 

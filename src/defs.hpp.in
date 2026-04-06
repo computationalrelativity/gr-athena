@@ -44,9 +44,6 @@
 // this will make order actually consistent
 #define DBG_FD_CX_COORDDIV
 
-// enfore algebraic constraints on all t-evo substeps?
-#define DBG_ALGCONSTR_ALL
-
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 

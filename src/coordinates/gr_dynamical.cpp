@@ -230,11 +230,8 @@ GRDynamical::GRDynamical(MeshBlock* pmb, ParameterInput* pin, bool coarse_flag)
 // BD: TODO - Sources are written in two different way, maybe better to pick
 //            one...
 void GRDynamical::AddCoordTermsDivergence(const Real dt,
-                                          const AthenaArray<Real>* flux,
                                           const AthenaArray<Real>& prim,
-#if FLUID_ENABLED
                                           const AthenaArray<Real>& prim_scalar,
-#endif
                                           const AthenaArray<Real>& bb_cc,
                                           AthenaArray<Real>& cons)
 {

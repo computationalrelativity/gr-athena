@@ -640,12 +640,7 @@ TaskStatus GRMHD_Z4c_Monolithic::AddSourceTermsHydro(MeshBlock* pmb, int stage)
 
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
-#if FLUID_ENABLED
-    pc->AddCoordTermsDivergence(
-      dt_scaled, ph->flux, ph->w, ps->r, pf->bcc, ph->u);
-#else
-    pc->AddCoordTermsDivergence(dt_scaled, ph->flux, ph->w, pf->bcc, ph->u);
-#endif
+    pc->AddCoordTermsDivergence(dt_scaled, ph->w, ps->r, pf->bcc, ph->u);
 
     return TaskStatus::next;
   }
@@ -841,11 +836,6 @@ TaskStatus GRMHD_Z4c_Monolithic::PhysicalBoundary_Z4c(MeshBlock* pmb,
 
 TaskStatus GRMHD_Z4c_Monolithic::EnforceAlgConstr(MeshBlock* pmb, int stage)
 {
-#ifndef DBG_ALGCONSTR_ALL
-  if (stage != nstages)
-    return TaskStatus::next;
-#endif
-
   Z4c* pz4c = pmb->pz4c;
   pz4c->AlgConstr(pz4c->storage.u);
   return TaskStatus::next;

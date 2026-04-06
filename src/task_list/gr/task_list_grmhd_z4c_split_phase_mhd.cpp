@@ -482,12 +482,7 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock* pmb, int stage)
     const Real dt_scaled = this->dt_scaled(stage, pmb);
 
     // add coordinate (geometric) source terms
-#if FLUID_ENABLED
-    pc->AddCoordTermsDivergence(
-      dt_scaled, ph->flux, ph->w, ps->r, pf->bcc, ph->u);
-#else
-    pc->AddCoordTermsDivergence(dt_scaled, ph->flux, ph->w, pf->bcc, ph->u);
-#endif
+    pc->AddCoordTermsDivergence(dt_scaled, ph->w, ps->r, pf->bcc, ph->u);
 
     // #if M1_ENABLED
     //     ::M1::M1 * pm1 = pmb->pm1;
