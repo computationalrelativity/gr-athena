@@ -1043,33 +1043,29 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
 
           if (opt_update_entropy)
           {
-            // Prepare chemical potentials
-            // Should read mu_nu := mu_e - mu_n + mu_p
-
-            Real mu_nu = 0.0;
-            const Real mu_b =
-              reos.GetBaryonChemicalPotential(n, aux_T(k, j, i), Y_old);
-            const Real mu_q =
-              reos.GetChargeChemicalPotential(n, aux_T(k, j, i), Y_old);
-            const Real mu_l = reos.GetElectronLeptonChemicalPotential(
+            // mu_nu := mu_e - mu_n + mu_p = mu_l  (CompOSE identity:
+            // species potentials are mu_i = B_i*mu_b + Q_i*mu_q + L_i*mu_l;
+            // the combination mu_e-mu_n+mu_p = (-mu_q+mu_l)-mu_b+(mu_b+mu_q)
+            // = mu_l)
+            const Real mu_nu = reos.GetElectronLeptonChemicalPotential(
               n, aux_T(k, j, i), Y_old);
-
-            const Real mu_n = mu_b;
-            const Real mu_p = mu_b + mu_q;
-            const Real mu_e = mu_l - mu_q;
-
-            mu_nu = mu_e - mu_n + mu_p;
 
             // adjust entropy based on threshold
             if ((mu_nu > E_nu_avg) &&  // MeV units
                 (rho < rho_trap) &&    // code units
                 (delta_Y_e < 0.0))
             {
-              // entropy recalculation and update
+              // aux_s (IX_SPB) only populated on output cycles.
               aux_s(k, j, i) =
                 reos.GetEntropyPerBaryon(n, aux_T(k, j, i), Y_old);
               aux_s(k, j, i) -=
                 delta_Y_e * (mu_nu - E_nu_avg) / aux_T(k, j, i);
+            }
+            else
+            {
+              // as above
+              aux_s(k, j, i) =
+                reos.GetEntropyPerBaryon(n, aux_T(k, j, i), Y_old);
             }
           }
           else
@@ -1179,10 +1175,10 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
             ps->s(IYE, k, j, i) = ph->u(IDN, k, j, i) * Y_e_bar;
 
             // E_nu_avg [MeV] -> [Msun]
-            // BD: TODO- the sign here looks potentially opposite of what it
-            // should be?
+            // Neutrino energy loss: delta_Y_e < 0 from electron capture,
+            // so this term is negative, reducing tau.
             if (delta_Y_e < 0)
-              tau -=
+              tau +=
                 (alpha(k, j, i) * sqrt_detgamma(k, j, i) * aux_W(k, j, i) * n *
                  delta_Y_e * (us_fac_MeV2Msun * E_nu_avg));
 
