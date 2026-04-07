@@ -33,6 +33,7 @@ using namespace gra::aliases;
 class WaveExtractRWZ
 {
   public:
+
   //! Creates the WaveExtractRWZ object
   WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n);
   //! Destructor
@@ -70,6 +71,7 @@ class WaveExtractRWZ
   AthenaArray<Real> Qplus_dr, Qstar_dr;
 
   private:
+
   static const int metric_interp_order = 2 * NGHOST - 1;
 
   //! Functions for grid on spheres
@@ -90,26 +92,6 @@ class WaveExtractRWZ
   int MPoints(const int l);
   int MIndex(const int l, const int m);
   Real RWZnorm(const int l);
-  Real Factorial(const int n);
-  Real SphHarm_Plm(const int l, const int m, const Real x);
-  void SphHarm_Ylm(const int l,
-                   const int m,
-                   const Real theta,
-                   const Real phi,
-                   Real* YlmR,
-                   Real* YlmI);
-  void SphHarm_Ylm_a(const int l,
-                     const int m,
-                     const Real theta,
-                     const Real phi,
-                     Real* YthR,
-                     Real* YthI,
-                     Real* YphR,
-                     Real* YphI,
-                     Real* XR,
-                     Real* XI,
-                     Real* WR,
-                     Real* WI);
   void ComputeSphericalHarmonics();
 
   //! Helper functions

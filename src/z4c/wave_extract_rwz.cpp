@@ -29,6 +29,7 @@
 #include "../parameter_input.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"  // Det, Inv3Metric
+#include "../utils/spherical_harmonics.hpp"
 #include "wave_extract_rwz.hpp"
 #include "z4c.hpp"
 
@@ -737,67 +738,8 @@ int WaveExtractRWZ::MIndex(const int l, const int m)
 // \brief return RWZ normalization factor to strain multipoles
 Real WaveExtractRWZ::RWZnorm(const int l)
 {
-  return std::sqrt(Factorial(l + 2) / Factorial(l - 2));
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::Factorial(const int n)
-// \brief factorial function
-static const Real fact35[] = { 1.,
-                               1.,
-                               2.,
-                               6.,
-                               24.,
-                               120.,
-                               720.,
-                               5040.,
-                               40320.,
-                               362880.,
-                               3628800.,
-                               39916800.,
-                               479001600.,
-                               6227020800.,
-                               87178291200.,
-                               1307674368000.,
-                               20922789888000.,
-                               355687428096000.,
-                               6402373705728000.,
-                               121645100408832000.,
-                               2432902008176640000.,
-                               51090942171709440000.,
-                               1124000727777607680000.,
-                               25852016738884976640000.,
-                               620448401733239439360000.,
-                               15511210043330985984000000.,
-                               403291461126605635584000000.,
-                               10888869450418352160768000000.,
-                               304888344611713860501504000000.,
-                               8841761993739701954543616000000.,
-                               265252859812191058636308480000000.,
-                               8222838654177922817725562880000000.,
-                               263130836933693530167218012160000000.,
-                               8683317618811886495518194401280000000.,
-                               295232799039604140847618609643520000000.,
-                               10333147966386144929666651337523200000000. };
-
-Real WaveExtractRWZ::Factorial(const int n)
-{
-  if (n < 0)
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in WaveExtractRWZ::Factorial" << std::endl
-        << "factorial requires integer nonnegeative argument " << n
-        << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  else if (n <= 35)
-  {
-    return fact35[n];
-  }
-  else
-  {
-    return ((Real)n) * Factorial(n - 1);
-  }
+  return std::sqrt(gra::sph_harm::Factorial(l + 2) /
+                   gra::sph_harm::Factorial(l - 2));
 }
 
 //----------------------------------------------------------------------------------------
@@ -813,145 +755,6 @@ Real WaveExtractRWZ::LeviCivitaSymbol(const int a, const int b, const int c)
     return 1.0;
   else
     return -1.0;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn Real WaveExtractRWZ::SphHarm_Plm(const int l, const int m, const Real
-// x)
-// \brief compute associated Legendre polynomial Plm(x).
-//        m and l are integers satisfying 0 <= m <= l,
-//        while x lies in the range -1 <= x <= 1
-//
-Real WaveExtractRWZ::SphHarm_Plm(const int l, const int m, const Real x)
-{
-  Real pmm = 1.0;
-
-  if (m >= 0)
-  {
-    Real somx2 = std::sqrt((1.0 - x) * (1.0 + x));
-    Real fact  = 1.0;
-    for (int i = 1; i <= m; ++i)
-    {
-      pmm = -pmm * fact * somx2;
-      fact += 2.0;
-    }
-  }
-  else
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in WaveExtractRWZ::SphHarm_Plm" << std::endl
-        << "SphHarm_Plm requires nonnegeative m argument " << m << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  if (l == m)
-  {
-    return pmm;
-  }
-
-  Real pmmp1 = x * (2.0 * m + 1.0) * pmm;
-
-  if (l == (m + 1))
-  {
-    return pmmp1;
-  }
-
-  for (int i = m + 2; i <= l; ++i)
-  {
-    Real pll = (x * ((Real)(2 * i - 1)) * pmmp1 - ((Real)(i + m - 1)) * pmm) /
-               ((Real)(i - m));
-    pmm   = pmmp1;
-    pmmp1 = pll;
-  }
-  return pmmp1;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void WaveExtractRWZ::SphHarm_Ylm(const int l, const int m, const Real
-// theta, const Real phi,
-//             				 Real * YlmR, Real * YlmI)
-// \brief compute scalar spherical harmonics
-//
-//               a    ( 2 l + 1 (l-|m|)! )                      i m phi
-//     Ylm = (-1) SQRT( ------- -------  ) P_l|m| (cos(theta)) e
-//                    (   4 Pi  (l+|m|)! )
-//
-// where
-//
-//      a = m/2 (sign(m)+1)
-void WaveExtractRWZ::SphHarm_Ylm(const int l,
-                                 const int m,
-                                 const Real theta,
-                                 const Real phi,
-                                 Real* YlmR,
-                                 Real* YlmI)
-{
-  const int abs_m      = std::abs(m);
-  const Real fact_norm = Factorial(l + abs_m) / Factorial(l - abs_m);
-
-  const Real a = std::sqrt((Real)(2 * l + 1) / (4.0 * PI * fact_norm));
-  // const int mfac = (m>0)? std::pow(-1.0,abs_m) : 1.0;
-  const int mfac = (m < 0) ? std::pow(-1.0, m) : 1.0;
-  const Real Plm = mfac * a * SphHarm_Plm(l, abs_m, std::cos(theta));
-
-  *YlmR = Plm * std::cos((Real)(m)*phi);
-  *YlmI = Plm * std::sin((Real)(m)*phi);
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void WaveExtractRWZ:::SphHarm_Ylm_a(const int l, const int m, const
-// Real theta, const Real phi,
-//       				    Real * YthR, Real * YthI, Real *
-//       YphR, Real * YphI,
-//             				    Real * XR, Real * XI, Real * WR,
-//             Real * WI)
-// \brief compute vector spherical harmonics basis and functions Xlm and Wlm
-void WaveExtractRWZ::SphHarm_Ylm_a(const int l_,
-                                   const int m_,
-                                   const Real theta,
-                                   const Real phi,
-                                   Real* YthR,
-                                   Real* YthI,
-                                   Real* YphR,
-                                   Real* YphI,
-                                   Real* XR,
-                                   Real* XI,
-                                   Real* WR,
-                                   Real* WI)
-{
-  const Real l = (Real)l_;
-  const Real m = (Real)m_;
-
-  const Real div_sin_theta = 1.0 / (std::sin(theta));
-  const Real cot_theta     = std::cos(theta) * div_sin_theta;
-
-  const Real a = -(l + 1.0) * cot_theta;
-  const Real b =
-    std::sqrt((SQR(l + 1.0) - SQR(m)) * (l + 0.5) / (l + 1.5)) * div_sin_theta;
-
-  Real YR, YI;  // l,m
-  SphHarm_Ylm(l, m, theta, phi, &YR, &YI);
-
-  Real YplusR, YplusI;  // l+1,m
-  SphHarm_Ylm(l + 1, m, theta, phi, &YplusR, &YplusI);
-
-  const Real _YthR = a * YR + b * YplusR;
-  const Real _YthI = a * YI + b * YplusI;
-
-  const Real c = -2.0 * cot_theta;
-  const Real d = (2.0 * SQR(m * div_sin_theta) - l * (l + 1.0));
-
-  *YthR = _YthR;
-  *YthI = _YthI;
-
-  *YphR = -m * YI;
-  *YphI = m * YR;
-
-  *WR = c * (*YthR) + d * YR;
-  *WI = c * (*YthI) + d * YI;
-
-  *XR = 2.0 * m * (cot_theta * YI - _YthI);
-  *XI = 2.0 * m * (_YthR - cot_theta * YR);
 }
 
 //----------------------------------------------------------------------------------------
@@ -985,23 +788,23 @@ void WaveExtractRWZ::ComputeSphericalHarmonics()
         {
           const int lm = MIndex(l, m);
 
-          SphHarm_Ylm(l, m, theta, phi, &YlmR, &YlmI);
+          gra::sph_harm::Ylm(l, m, theta, phi, &YlmR, &YlmI);
 
           Y(i, j, lm, Re) = YlmR;
           Y(i, j, lm, Im) = YlmI;
 
-          SphHarm_Ylm_a(l,
-                        m,
-                        theta,
-                        phi,
-                        &Ylm_thR,
-                        &Ylm_thI,
-                        &Ylm_phR,
-                        &Ylm_phI,
-                        &XlmR,
-                        &XlmI,
-                        &WlmR,
-                        &WlmI);
+          gra::sph_harm::D_Ylm(l,
+                               m,
+                               theta,
+                               phi,
+                               &Ylm_thR,
+                               &Ylm_thI,
+                               &Ylm_phR,
+                               &Ylm_phI,
+                               &XlmR,
+                               &XlmI,
+                               &WlmR,
+                               &WlmI);
 
           Yth(i, j, lm, Re) = Ylm_thR;
           Yth(i, j, lm, Im) = Ylm_thI;
@@ -3756,7 +3559,7 @@ void WaveExtractRWZ::SphOrthogonality()
       if (!havepoint(i, j))
         continue;
 
-      SphHarm_Ylm(0, 0, theta, phi, &YlmR, &YlmI);
+      gra::sph_harm::Ylm(0, 0, theta, phi, &YlmR, &YlmI);
       integrals_sphl0[0] +=
         (Y(i, j, 2, 0) * YlmR + Y(i, j, 2, 1) * YlmI) * vol;
       integrals_sphl0[1] +=
@@ -3765,7 +3568,7 @@ void WaveExtractRWZ::SphOrthogonality()
       for (int m = -1; m <= 1; ++m)
       {
         int l = 1;
-        SphHarm_Ylm(l, m, theta, phi, &YlmR, &YlmI);
+        gra::sph_harm::Ylm(l, m, theta, phi, &YlmR, &YlmI);
         integrals_sphl1[2 * (l + m)] +=
           (Y(i, j, 2, 0) * YlmR + Y(i, j, 2, 1) * YlmI) * vol;
         integrals_sphl1[2 * (l + m) + 1] +=

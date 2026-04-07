@@ -25,6 +25,7 @@
 #include "../mesh/mesh.hpp"
 #include "../mesh/spherical_grid.hpp"
 #include "../parameter_input.hpp"
+#include "../utils/spherical_harmonics.hpp"
 #include "wave_extract.hpp"
 #include "z4c.hpp"
 
@@ -212,7 +213,9 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const& u_R,
       {
         ppatch->psphere->GeodesicGrid::PositionPolar(
           ppatch->idxMap(ip), &theta, &phi);
-        swsh(&ylmR, &ylmI, l, m, theta, phi);
+
+          gra::sph_harm::sYlm(-2, l, m, theta, phi, &ylmR, &ylmI);
+
         // The spherical harmonics transform as Y^s_{l m}( Pi-th, ph ) =
         // (-1)^{l+s} Y^s_{l -m}(th, ph) but the PoisitionPolar function
         // returns theta \in [0,\pi], so these are correct for bitant. With
@@ -228,43 +231,4 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const& u_R,
       psi(l - 2, m + l, 1) = psilmI;
     }
   }
-}
-
-// Factorial
-Real WaveExtractLocal::fac(Real n)
-{
-  if (n == 0 || n == 1)
-  {
-    return 1.0;
-  }
-  else
-  {
-    n = n * fac(n - 1);
-    return n;
-  }
-}
-
-// Calculate spin weighted spherical harmonics sw=-2 using Wigner-d matrix
-// notation see e.g. Eq II.7, II.8 in 0709.0093
-void WaveExtractLocal::swsh(Real* ylmR,
-                            Real* ylmI,
-                            int l,
-                            int m,
-                            Real theta,
-                            Real phi)
-{
-  Real wignerd = 0;
-  int k1, k2, k;
-  k1 = std::max(0, m - 2);
-  k2 = std::min(l + m, l - 2);
-  for (k = k1; k < k2 + 1; ++k)
-  {
-    wignerd += pow((-1), k) *
-               sqrt(fac(l + m) * fac(l - m) * fac(l + 2) * fac(l - 2)) *
-               pow(std::cos(theta / 2.0), 2 * l + m - 2 - 2 * k) *
-               pow(std::sin(theta / 2.0), 2 * k + 2 - m) /
-               (fac(l + m - k) * fac(l - 2 - k) * fac(k) * fac(k + 2 - m));
-  }
-  *ylmR = sqrt((2 * l + 1) / (4 * M_PI)) * wignerd * std::cos(m * phi);
-  *ylmI = sqrt((2 * l + 1) / (4 * M_PI)) * wignerd * std::sin(m * phi);
 }

@@ -163,7 +163,6 @@ class AHF
   void RadiiFromSphericalHarmonics();
   void InitialGuess();
   void ComputeSphericalHarmonics();
-  void ComputeLegendre(const Real theta);
   int lmindex(const int l, const int m);
   int tpindex(const int i, const int j);
   void GLQuad_Nodes_Weights(const Real a,
@@ -172,7 +171,6 @@ class AHF
                             Real* w,
                             const int n);
   void SetGridWeights(std::string method);
-  void factorial_list(Real* fac, const int maxn);
 
   Mesh const* pmesh;
   ParameterInput* pin;

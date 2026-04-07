@@ -34,6 +34,7 @@ enum
 #include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../utils/spherical_harmonics.hpp"
 #include "ahf.hpp"
 #include "puncture_tracker.hpp"
 
@@ -1592,7 +1593,7 @@ void AHF::ComputeSphericalHarmonics()
   {
     const Real theta = th_grid(i);
 
-    ComputeLegendre(theta);
+    gra::sph_harm::NPlm(theta, lmax, P, dPdth, dPdth2);
 
     for (int j = 0; j < nphi; ++j)
     {
@@ -1637,111 +1638,6 @@ void AHF::ComputeSphericalHarmonics()
       }
     }  // phi loop
   }  // theta loop
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::ComputeLegendre(const Real theta)
-// \brief compute Legendre polys for l>=m and derivatives
-void AHF::ComputeLegendre(const Real theta)
-{
-  const Real costh = std::cos(theta);
-  const Real sinth = std::sin(theta);
-  // const Real sqrt3 = std::sqrt(3.);
-
-  int l, m;  // Need persistent indexes
-
-  // Precompute list of factorial
-  Real* fac = new Real[2 * lmax1 + 1];
-  factorial_list(fac, 2 * lmax1);
-
-  // Initialize P, dPdth and dPdth2
-  P.ZeroClear();
-  dPdth.ZeroClear();
-  dPdth2.ZeroClear();
-
-  // Compute the Legendre functions
-  // diagonal terms
-  for (l = 0; l <= lmax; ++l)
-  {
-    P(l, l) = std::sqrt((2 * l + 1) * fac[2 * l] / (4.0 * PI)) /
-              (std::pow(2, l) * fac[l]) * std::pow((-sinth), l);
-  }
-
-  // the loop has special treatment for all (l,l-1) where (l-2,l-1) is not
-  // needed.
-  P(1, 0) = SQRT3 * costh * P(0, 0);
-  for (l = 2; l <= lmax; l++)
-  {
-    for (m = 0; m < l - 1; m++)
-    {
-      P(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
-      P(l, m) *= (std::sqrt((Real)2 * l - 1) * costh * P(l - 1, m) -
-                  std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
-                    P(l - 2, m));
-    }
-    // do (l,l-1) separately otherwise P(l-2,m) not defined
-    P(l, l - 1) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m)) *
-                  (std::sqrt((Real)2 * l - 1) * costh * P(l - 1, m));
-  }
-
-  // Compute first derivatives of the Legendre functions
-  for (l = 0; l <= lmax; l++)
-  {
-    dPdth(l, l) = std::sqrt((2 * l + 1) * fac[2 * l] / (4.0 * PI)) /
-                  (std::pow(2, l) * fac[l]) * l * std::pow((-sinth), l - 1) *
-                  (-costh);
-  }
-
-  dPdth(1, 0) = SQRT3 * (-sinth * P(0, 0) + costh * dPdth(0, 0));
-
-  for (l = 2; l <= lmax; l++)
-  {
-    for (m = 0; m < l - 1; m++)
-    {
-      dPdth(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
-      dPdth(l, m) *=
-        (std::sqrt((Real)2 * l - 1) *
-           (-sinth * P(l - 1, m) + costh * dPdth(l - 1, m)) -
-         std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
-           dPdth(l - 2, m));
-    }
-    dPdth(l, l - 1) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
-    dPdth(l, l - 1) *= (std::sqrt((Real)2 * l - 1) *
-                        (-sinth * P(l - 1, m) + costh * dPdth(l - 1, m)));
-  }
-
-  // Compute second derivatives of the Legendre functions
-  for (l = 0; l <= lmax; l++)
-  {
-    dPdth2(l, l) = std::sqrt((Real)(2 * l + 1) * fac[2 * l] / (4.0 * PI)) /
-                   (std::pow(2, l) * fac[l]) * l *
-                   ((l - 1) * std::pow(-sinth, l - 2) * costh * costh +
-                    std::pow(-sinth, l - 1) * sinth);
-  }
-
-  dPdth2(1, 0) = SQRT3 * (-costh * P(0, 0) - 2.0 * sinth * dPdth(0, 0) +
-                          costh * dPdth2(0, 0));
-
-  for (l = 2; l <= lmax; l++)
-  {
-    for (m = 0; m < l - 1; m++)
-    {
-      dPdth2(l, m) =
-        std::sqrt((Real)(2 * l + 1) / (l * l - m * m)) *
-        (std::sqrt((Real)2 * l - 1) *
-           (-costh * P(l - 1, m) - 2.0 * sinth * dPdth(l - 1, m) +
-            costh * dPdth2(l - 1, m)) -
-         std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
-           dPdth2(l - 2, m));
-    }
-    // m will be l-1
-    dPdth2(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
-    dPdth2(l, m) *= (std::sqrt((Real)2 * l - 1) *
-                     (-costh * P(l - 1, m) - 2.0 * sinth * dPdth(l - 1, m) +
-                      costh * dPdth2(l - 1, m)));
-  }
-
-  delete[] fac;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1879,17 +1775,6 @@ void AHF::SetGridWeights(std::string method)
         << "unknown method  " << method << std::endl;
     ATHENA_ERROR(msg);
   }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::factorial_list(Real * fac, int maxn)
-// \brief ist of factorials up to maxn
-
-void AHF::factorial_list(Real* fac, const int maxn)
-{
-  fac[0] = 1.0;
-  for (int i = 1; i <= maxn; ++i)
-    fac[i] = fac[i - 1] * i;
 }
 
 //----------------------------------------------------------------------------------------

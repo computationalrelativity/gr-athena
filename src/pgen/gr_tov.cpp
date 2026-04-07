@@ -1322,7 +1322,7 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
           {
             Real Yr, Yi;
             Real eps = ceos->GetSpecificInternalEnergy(w_rho_(i));
-            SphHarm_Ylm(l_pert, m_pert, theta, phi, &Yr, &Yi);
+            gra::sph_harm::Ylm(l_pert, m_pert, theta, phi, &Yr, &Yi);
             Real Ylm = Yr;
             Real H0l = lambda * std::sin((n_nodes + 1.) * PI * x_kji / 2.);
             Real dp  = (w_p_(i) + w_rho_(i) * (1 + eps)) * H0l * Ylm;
@@ -1515,18 +1515,18 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
         const Real gaussian_pert =
           0.0001 * std::exp(-SQR((r_(i) - 10.0 * R) / (0.15 * R)));
         Real Ylm_thR, Ylm_thI, Ylm_phR, Ylm_phI, XlmR, XlmI, WlmR, WlmI;
-        SphHarm_Ylm_a(l_pert_odd,
-                      m_pert_odd,
-                      theta_i,
-                      phi_i,
-                      &Ylm_thR,
-                      &Ylm_thI,
-                      &Ylm_phR,
-                      &Ylm_phI,
-                      &XlmR,
-                      &XlmI,
-                      &WlmR,
-                      &WlmI);
+        gra::sph_harm::D_Ylm(l_pert_odd,
+                             m_pert_odd,
+                             theta_i,
+                             phi_i,
+                             &Ylm_thR,
+                             &Ylm_thI,
+                             &Ylm_phR,
+                             &Ylm_phI,
+                             &XlmR,
+                             &XlmI,
+                             &WlmR,
+                             &WlmI);
         // const Real htt = -0.5 * gaussian_pert * XlmI / sinth ;
         // const Real htp =  0.5 * gaussian_pert * WlmR * sinth ;
         // const Real hpp =  0.5 * gaussian_pert * XlmI * sinth ;
