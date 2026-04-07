@@ -34,11 +34,8 @@ enum
 #include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
-#include "../utils/tensor.hpp"
 #include "ahf.hpp"
 #include "puncture_tracker.hpp"
-
-using namespace utils::tensor;
 
 //----------------------------------------------------------------------------------------
 //! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n)
@@ -304,50 +301,6 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
 
 AHF::~AHF()
 {
-  // Grid and weights
-  th_grid.DeleteAthenaArray();
-  ph_grid.DeleteAthenaArray();
-  weights.DeleteAthenaArray();
-
-  // Coefficients
-  a0.DeleteAthenaArray();
-  ac.DeleteAthenaArray();
-  as.DeleteAthenaArray();
-
-  // Spherical harmonics
-  Y0.DeleteAthenaArray();
-  Yc.DeleteAthenaArray();
-  Ys.DeleteAthenaArray();
-
-  dY0dth.DeleteAthenaArray();
-  dYcdth.DeleteAthenaArray();
-  dYcdph.DeleteAthenaArray();
-  dYsdth.DeleteAthenaArray();
-  dYsdph.DeleteAthenaArray();
-
-  dY0dth2.DeleteAthenaArray();
-  dYcdth2.DeleteAthenaArray();
-  dYcdthdph.DeleteAthenaArray();
-  dYcdph2.DeleteAthenaArray();
-  dYsdth2.DeleteAthenaArray();
-  dYsdthdph.DeleteAthenaArray();
-  dYsdph2.DeleteAthenaArray();
-
-  // Fields on the sphere
-  rr.DeleteAthenaArray();
-  rr_dth.DeleteAthenaArray();
-  rr_dph.DeleteAthenaArray();
-
-  g.DeleteAthenaTensor();
-  dg.DeleteAthenaTensor();
-  K.DeleteAthenaTensor();
-
-  // Array computed in surface integrals
-  rho.DeleteAthenaArray();
-
-  // Flag points existing on this mesh
-  havepoint.DeleteAthenaArray();
-
   // Close files
   if (ioproc)
   {
@@ -437,11 +390,8 @@ void AHF::MetricInterp(MeshBlock* pmb)
   Z4c* pz4c = pmb->pz4c;
 
   LagrangeInterpND<metric_interp_order, 3>* pinterp3 = nullptr;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2>
-    adm_g_dd;  // 3-metric  (NDIM=3 in z4c.hpp)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;  // extr.curv.
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AT_N_sym adm_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);  // 3-metric
+  AT_N_sym adm_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);  // extr.curv.
 
   // For interp
   Real origin[NDIM];
@@ -565,9 +515,6 @@ void AHF::MetricInterp(MeshBlock* pmb)
     }  // phi loop
   }  // theta loop
 
-  adm_g_dd.DeleteAthenaTensor();
-  adm_K_dd.DeleteAthenaTensor();
-
 #if (DEBUG_OUTPUT)
   fclose(fp);
   fclose(fp_d);
@@ -585,66 +532,41 @@ void AHF::SurfaceIntegrals()
   const Real min_rp = 1e-10;
 
   // Derivatives of (r,theta,phi) w.r.t (x,y,z)
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> drdi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dthetadi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dphidi;
+  ATP_N_vec drdi;
+  ATP_N_vec dthetadi;
+  ATP_N_vec dphidi;
 
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> drdidj;
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dthetadidj;
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dphididj;
+  ATP_N_sym drdidj;
+  ATP_N_sym dthetadidj;
+  ATP_N_sym dphididj;
 
   // Derivatives of F
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dFdi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dFdi_u;  // upper index
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dFdidj;
+  ATP_N_vec dFdi;
+  ATP_N_vec dFdi_u;  // upper index
+  ATP_N_sym dFdidj;
 
   // Inverse metric
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> ginv;
+  ATP_N_sym ginv;
 
   // Normal
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> R;
+  ATP_N_vec R;
 
   // dx^adth , dx^a/dph
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dXdth;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dXdph;
+  ATP_N_vec dXdth;
+  ATP_N_vec dXdph;
 
   // Flat-space coordinate rotational KV
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phix;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phiy;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phiz;
+  ATP_N_vec phix;
+  ATP_N_vec phiy;
+  ATP_N_vec phiz;
 
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> nnF;
+  ATP_N_sym nnF;
 
   // Initialize integrals
   for (int v = 0; v < invar; v++)
   {
     integrals[v] = 0.0;
   }
-
-  drdi.NewTensorPointwise();
-  dthetadi.NewTensorPointwise();
-  dphidi.NewTensorPointwise();
-
-  drdidj.NewTensorPointwise();
-  dthetadidj.NewTensorPointwise();
-  dphididj.NewTensorPointwise();
-
-  dFdi.NewTensorPointwise();
-  dFdi_u.NewTensorPointwise();
-  dFdidj.NewTensorPointwise();
-
-  ginv.NewTensorPointwise();
-
-  R.NewTensorPointwise();
-
-  dXdth.NewTensorPointwise();
-  dXdph.NewTensorPointwise();
-
-  phix.NewTensorPointwise();
-  phiy.NewTensorPointwise();
-  phiz.NewTensorPointwise();
-
-  nnF.NewTensorPointwise();
 
   rho.ZeroClear();
 
@@ -1124,31 +1046,6 @@ void AHF::SurfaceIntegrals()
   MPI_Allreduce(
     MPI_IN_PLACE, integrals, invar, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
 #endif
-
-  drdi.DeleteTensorPointwise();
-  dthetadi.DeleteTensorPointwise();
-  dphidi.DeleteTensorPointwise();
-
-  drdidj.DeleteTensorPointwise();
-  dthetadidj.DeleteTensorPointwise();
-  dphididj.DeleteTensorPointwise();
-
-  dFdi.DeleteTensorPointwise();
-  dFdi_u.DeleteTensorPointwise();
-  dFdidj.DeleteTensorPointwise();
-
-  ginv.DeleteTensorPointwise();
-
-  R.DeleteTensorPointwise();
-
-  dXdth.DeleteTensorPointwise();
-  dXdph.DeleteTensorPointwise();
-
-  phix.DeleteTensorPointwise();
-  phiy.DeleteTensorPointwise();
-  phiz.DeleteTensorPointwise();
-
-  nnF.DeleteTensorPointwise();
 }
 
 //----------------------------------------------------------------------------------------
@@ -1740,10 +1637,6 @@ void AHF::ComputeSphericalHarmonics()
       }
     }  // phi loop
   }  // theta loop
-
-  P.DeleteAthenaArray();
-  dPdth.DeleteAthenaArray();
-  dPdth2.DeleteAthenaArray();
 }
 
 //----------------------------------------------------------------------------------------

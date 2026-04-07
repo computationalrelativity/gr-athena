@@ -25,14 +25,11 @@
 #include "../parameter_input.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"
-#include "../utils/tensor.hpp"
 #include "../utils/utils.hpp"
 #include "ejecta.hpp"
 
 // External libraries
 // ..
-
-using namespace utils::tensor;
 
 // ============================================================================
 
@@ -400,8 +397,7 @@ void Ejecta::Interp(MeshBlock* pmb)
     z4c_[Z4c::N_Z4c];
   AthenaArray<Real> flux_[NDIM];
 
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> adm_g_dd;
-  adm_g_dd.NewTensorPointwise();
+  ATP_N_sym adm_g_dd;
 
   for (int n = 0; n < NHYDRO; ++n)
   {
@@ -683,33 +679,6 @@ void Ejecta::Interp(MeshBlock* pmb)
       delete pinterp3_cx;
     }  // phi loop
   }  // theta loop
-
-  for (int n = 0; n < NHYDRO; ++n)
-  {
-    prim_[n].DeleteAthenaArray();
-    cons_[n].DeleteAthenaArray();
-  }
-  T_.DeleteAthenaArray();
-  for (int n = 0; n < NSCALARS; ++n)
-  {
-    Y_[n].DeleteAthenaArray();
-  }
-  for (int n = 0; n < NDIM; ++n)
-  {
-    flux_[n].DeleteAthenaArray();
-    Bcc_[n].DeleteAthenaArray();
-  }
-  for (int n = 0; n < Z4c::N_ADM; ++n)
-  {
-    //    vc_adm_[n].DeleteAthenaArray();
-    adm_[n].DeleteAthenaArray();
-  }
-  for (int n = 0; n < Z4c::N_Z4c; ++n)
-  {
-    //    vc_z4c_[n].DeleteAthenaArray();
-    z4c_[n].DeleteAthenaArray();
-  }
-  adm_g_dd.DeleteTensorPointwise();
 }
 
 //-----------------------------------------------------------------------------
@@ -1127,10 +1096,6 @@ void Ejecta::SphericalIntegrals()
 
     }  // end phi loop
   }  // end theta loop
-
-  //     count.DeleteAthenaArray();
-  //     countaz.DeleteAthenaArray();
-  unbound.DeleteAthenaArray();
 }
 
 //-----------------------------------------------------------------------------

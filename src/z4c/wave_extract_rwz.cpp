@@ -29,7 +29,6 @@
 #include "../parameter_input.hpp"
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"  // Det, Inv3Metric
-#include "../utils/tensor.hpp"
 #include "wave_extract_rwz.hpp"
 #include "z4c.hpp"
 
@@ -141,18 +140,6 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   dot_alpha.NewAthenaTensor(Ntheta, Nphi);
 
   // Background 2-metric
-  g_dd.NewTensorPointwise();
-  g_dr_dd.NewTensorPointwise();
-  g_dr2_dd.NewTensorPointwise();
-  g_dot_dd.NewTensorPointwise();
-
-  g_uu.NewTensorPointwise();
-  g_dr_uu.NewTensorPointwise();
-  g_dr2_uu.NewTensorPointwise();
-  g_dot_uu.NewTensorPointwise();
-
-  Gamma_udd.NewTensorPointwise();
-  Gamma_dyn_udd.NewTensorPointwise();
 
   // Number of spherical harmonics (with l = 2 ... lmax)
   lmpoints = MPoints(lmax);  // = lmax*(lmax + 2) - 3;
@@ -314,137 +301,6 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
 
 WaveExtractRWZ::~WaveExtractRWZ()
 {
-  th_grid.DeleteAthenaArray();
-  ph_grid.DeleteAthenaArray();
-  weights.DeleteAthenaArray();
-
-  havepoint.DeleteAthenaArray();
-
-  // Arrays on the sphere with tensor indexes
-
-  // 3+1 metric
-  gamma_dd.DeleteAthenaTensor();
-  dr_gamma_dd.DeleteAthenaTensor();
-  dr2_gamma_dd.DeleteAthenaTensor();  // Not yet implemented
-  dot_gamma_dd.DeleteAthenaTensor();
-  dr_dot_gamma_dd.DeleteAthenaTensor();
-
-  beta_d.DeleteAthenaTensor();
-  dr_beta_d.DeleteAthenaTensor();
-  dr2_beta_d.DeleteAthenaTensor();
-  dot_beta_d.DeleteAthenaTensor();
-
-  beta_u.DeleteAthenaTensor();
-  dr_beta_u.DeleteAthenaTensor();
-  dr2_beta_u.DeleteAthenaTensor();
-  dot_beta_u.DeleteAthenaTensor();
-
-  beta2.DeleteAthenaTensor();
-  dr_beta2.DeleteAthenaTensor();
-  dr2_beta2.DeleteAthenaTensor();
-  dot_beta2.DeleteAthenaTensor();
-
-  alpha.DeleteAthenaTensor();
-  dr_alpha.DeleteAthenaTensor();
-  dr2_alpha.DeleteAthenaTensor();
-  dot_alpha.DeleteAthenaTensor();
-
-  // 2-metric background (pointwise)
-  g_dd.DeleteTensorPointwise();
-  g_uu.DeleteTensorPointwise();
-  g_dr_dd.DeleteTensorPointwise();
-  g_dr2_dd.DeleteTensorPointwise();
-  g_dr_uu.DeleteTensorPointwise();
-  g_dr2_uu.DeleteTensorPointwise();
-  g_dot_dd.DeleteTensorPointwise();
-  g_dot_uu.DeleteTensorPointwise();
-  Gamma_udd.DeleteTensorPointwise();
-  Gamma_dyn_udd.DeleteTensorPointwise();
-
-  // Arrays on the sphere with lm indexes (complex)
-
-  // Spherical harmonics
-  Y.DeleteAthenaArray();
-  Yth.DeleteAthenaArray();
-  Yph.DeleteAthenaArray();
-  X.DeleteAthenaArray();
-  W.DeleteAthenaArray();
-
-  // Even-parity Multipoles & dvrts
-  h00.DeleteAthenaArray();
-  h01.DeleteAthenaArray();
-  h11.DeleteAthenaArray();
-  h0.DeleteAthenaArray();
-  h1.DeleteAthenaArray();
-  G.DeleteAthenaArray();
-  K.DeleteAthenaArray();
-
-  h00_dr.DeleteAthenaArray();
-  h01_dr.DeleteAthenaArray();
-  h11_dr.DeleteAthenaArray();
-  h0_dr.DeleteAthenaArray();
-  h1_dr.DeleteAthenaArray();
-  G_dr.DeleteAthenaArray();
-  K_dr.DeleteAthenaArray();
-
-  h00_dot.DeleteAthenaArray();
-  h01_dot.DeleteAthenaArray();
-  h11_dot.DeleteAthenaArray();
-  h0_dot.DeleteAthenaArray();
-  h1_dot.DeleteAthenaArray();
-  G_dot.DeleteAthenaArray();
-  K_dot.DeleteAthenaArray();
-
-  G_dr2.DeleteAthenaArray();
-  K_dr2.DeleteAthenaArray();
-  G_dr_dot.DeleteAthenaArray();
-  K_dr_dot.DeleteAthenaArray();
-
-  // Odd-parity Multipoles & dvrts
-  H0.DeleteAthenaArray();
-  H1.DeleteAthenaArray();
-  H.DeleteAthenaArray();
-
-  H0_dr.DeleteAthenaArray();
-  H1_dr.DeleteAthenaArray();
-  H_dr.DeleteAthenaArray();
-
-  H0_dot.DeleteAthenaArray();
-  H1_dot.DeleteAthenaArray();
-  H_dot.DeleteAthenaArray();
-
-  H0_dr2.DeleteAthenaArray();
-  H1_dr_dot.DeleteAthenaArray();
-  H_dr2.DeleteAthenaArray();
-
-  // Gauge-invariant
-  // TODO SB: lets not use these:
-  kappa_00.DeleteAthenaArray();
-  kappa_01.DeleteAthenaArray();
-  kappa_11.DeleteAthenaArray();
-  kappa_0.DeleteAthenaArray();
-  kappa_1.DeleteAthenaArray();
-  // ... but these:
-  kappa_dd.DeleteAthenaTensor();
-  kappa_d.DeleteAthenaTensor();
-  kappa.DeleteAthenaArray();
-  Tr_kappa_dd.DeleteAthenaArray();
-
-  // Master funs
-  Psie.DeleteAthenaArray();
-  Psio.DeleteAthenaArray();
-  Psie_dyn.DeleteAthenaArray();
-  Psio_dyn.DeleteAthenaArray();
-  Psie_sch.DeleteAthenaArray();
-  Psio_sch.DeleteAthenaArray();
-  Qplus.DeleteAthenaArray();
-  Qstar.DeleteAthenaArray();
-
-  Psie_dr.DeleteAthenaArray();
-  Psio_dr.DeleteAthenaArray();
-  Qplus_dr.DeleteAthenaArray();
-  Qstar_dr.DeleteAthenaArray();
-
   delete[] integrals_multipoles;
 }
 
@@ -1201,33 +1057,19 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock* pmb)
   Z4c* pz4c = pmb->pz4c;
 
   // 3+1 metric
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd;
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym adm_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_vec adm_beta_u(pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_u;
-  adm_beta_u.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_VS2 adm_dg_ddd(pz4c->storage.aux, Z4c::I_AUX_dgxx_x);
+  AT_N_T2 adm_dbeta_du(pz4c->storage.aux,
+                       Z4c::I_AUX_dbetax_x);  // beta^j,i = d/dx^i beta^j
+  AT_N_vec adm_dalpha_d(pz4c->storage.aux, Z4c::I_AUX_dalpha_x);
 
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha;
-  adm_alpha.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_alpha);
+  AT_N_vec adm_beta_dot_u(pz4c->storage.rhs, Z4c::I_Z4c_betax);
+  AT_N_sca adm_alpha_dot(pz4c->storage.rhs, Z4c::I_Z4c_alpha);
 
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> adm_dg_ddd;
-  adm_dg_ddd.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dgxx_x);
-
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 2>
-    adm_dbeta_du;  // beta^j,i = d/dx^i beta^j
-  adm_dbeta_du.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dbetax_x);
-
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_dalpha_d;
-  adm_dalpha_d.InitWithShallowSlice(pz4c->storage.aux, Z4c::I_AUX_dalpha_x);
-
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 1> adm_beta_dot_u;
-  adm_beta_dot_u.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_betax);
-
-  AthenaTensor<Real, TensorSymm::NONE, NDIM, 0> adm_alpha_dot;
-  adm_alpha_dot.InitWithShallowSlice(pz4c->storage.rhs, Z4c::I_Z4c_alpha);
-
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;
-  adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AT_N_sym adm_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
   // SB since we need K_ab for the ADM integral,
   //    we do not need a storage for gamma_dot on the 3D MB.
@@ -1283,132 +1125,41 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock* pmb)
   delta[2]  = pz4c->mbi.dx3(0);
 
   // Pointwise tensors: Cartesian components
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      Cgamma_dd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      Cgamma_uu;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      CK_dd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3>
-      CK_der_ddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      Cbeta_u;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      Cbeta_d;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 0>
-      Calpha;
+  ATP_N_sym Cgamma_dd;
+  ATP_N_sym Cgamma_uu;
+  ATP_N_sym CK_dd;
+  ATP_N_VS2 CK_der_ddd;
+  ATP_N_vec Cbeta_u;
+  ATP_N_vec Cbeta_d;
+  ATP_N_sca Calpha;
 
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM22, NDIM, 4>
-      Cgamma_der2_dddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3>
-      Cgamma_der_ddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3>
-      interp_Cgamma_der_ddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2>
-      Cbeta_der_du;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::ISYM2, NDIM, 3>
-      Cbeta_der2_ddu;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2>
-      Cbeta_der_dd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::ISYM2, NDIM, 3>
-      Cbeta_der2_ddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      Calpha_der_d;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      Calpha_der2_dd;
+  ATP_N_S2S2 Cgamma_der2_dddd;
+  ATP_N_VS2 Cgamma_der_ddd;
+  ATP_N_VS2 interp_Cgamma_der_ddd;
+  ATP_N_T2 Cbeta_der_du;
+  ATP_N_S2V Cbeta_der2_ddu;
+  ATP_N_T2 Cbeta_der_dd;
+  ATP_N_S2V Cbeta_der2_ddd;
+  ATP_N_vec Calpha_der_d;
+  ATP_N_sym Calpha_der2_dd;
 
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      Cgamma_dot_ddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      Cbeta_dot_du;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      Cbeta_dot_dd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 0>
-      Calpha_dot_d;
+  ATP_N_sym Cgamma_dot_ddd;
+  ATP_N_vec Cbeta_dot_du;
+  ATP_N_vec Cbeta_dot_dd;
+  ATP_N_sca Calpha_dot_d;
 
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 3>
-      Cgamma_derdot_dddd;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      dr_dot_Cgamma_dd;
+  ATP_N_VS2 Cgamma_derdot_dddd;
+  ATP_N_sym dr_dot_Cgamma_dd;
 
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      dr_Cgamma_dd;  // Radial drvts of Cartesian comp.
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::SYM2, NDIM, 2>
-      dr2_Cgamma_dd;  // 2nd Radial drvts of Cartesian comp.
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      dr_Cbeta_u;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      dr2_Cbeta_u;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      dr_Cbeta_d;
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 1>
-      dr2_Cbeta_d;
-
-  Cgamma_dd.NewTensorPointwise();
-  CK_dd.NewTensorPointwise();
-  CK_der_ddd.NewTensorPointwise();
-  Cgamma_uu.NewTensorPointwise();
-  Cbeta_u.NewTensorPointwise();
-  Cbeta_d.NewTensorPointwise();
-  Calpha.NewTensorPointwise();
-
-  Cgamma_der_ddd.NewTensorPointwise();
-  interp_Cgamma_der_ddd.NewTensorPointwise();
-  Cgamma_der2_dddd.NewTensorPointwise();
-  Cbeta_der_du.NewTensorPointwise();
-  Cbeta_der2_ddu.NewTensorPointwise();
-  Cbeta_der_dd.NewTensorPointwise();
-  Cbeta_der2_ddd.NewTensorPointwise();
-  Calpha_der_d.NewTensorPointwise();
-  Calpha_der2_dd.NewTensorPointwise();
-
-  Cgamma_dot_ddd.NewTensorPointwise();
-  Cgamma_derdot_dddd.NewTensorPointwise();
-  Cbeta_dot_du.NewTensorPointwise();
-  Cbeta_dot_dd.NewTensorPointwise();
-  Calpha_dot_d.NewTensorPointwise();
-
-  dr_Cgamma_dd.NewTensorPointwise();
-  dr_dot_Cgamma_dd.NewTensorPointwise();
-  dr2_Cgamma_dd.NewTensorPointwise();
-  dr_Cbeta_u.NewTensorPointwise();
-  dr2_Cbeta_u.NewTensorPointwise();
-  dr_Cbeta_d.NewTensorPointwise();
-  dr2_Cbeta_d.NewTensorPointwise();
+  ATP_N_sym dr_Cgamma_dd;   // Radial drvts of Cartesian comp.
+  ATP_N_sym dr2_Cgamma_dd;  // 2nd Radial drvts of Cartesian comp.
+  ATP_N_vec dr_Cbeta_u;
+  ATP_N_vec dr2_Cbeta_u;
+  ATP_N_vec dr_Cbeta_d;
+  ATP_N_vec dr2_Cbeta_d;
 
   // Cartesian-to-Spherical Jacobian
-  utils::tensor::
-    TensorPointwise<Real, utils::tensor::Symmetries::NONE, NDIM, 2>
-      Jac;
-  Jac.NewTensorPointwise();
+  ATP_N_T2 Jac;
 
   for (int i = 0; i < Ntheta; i++)
   {
@@ -2322,51 +2073,6 @@ void WaveExtractRWZ::InterpMetricToSphere(MeshBlock* pmb)
 
     }  // phi loop
   }  // theta loop
-
-  adm_g_dd.DeleteAthenaTensor();
-  adm_beta_u.DeleteAthenaTensor();
-  adm_alpha.DeleteAthenaTensor();
-
-  adm_dg_ddd.DeleteAthenaTensor();
-  adm_dbeta_du.DeleteAthenaTensor();
-  adm_dalpha_d.DeleteAthenaTensor();
-
-  adm_K_dd.DeleteAthenaTensor();
-  adm_beta_dot_u.DeleteAthenaTensor();
-  adm_alpha_dot.DeleteAthenaTensor();
-
-  Jac.DeleteTensorPointwise();
-
-  Cgamma_dd.DeleteTensorPointwise();
-  CK_dd.DeleteTensorPointwise();
-  CK_der_ddd.DeleteTensorPointwise();
-  Cgamma_uu.DeleteTensorPointwise();
-  Cbeta_u.DeleteTensorPointwise();
-  Cbeta_d.DeleteTensorPointwise();
-  Calpha.DeleteTensorPointwise();
-
-  Cgamma_der_ddd.DeleteTensorPointwise();
-  interp_Cgamma_der_ddd.DeleteTensorPointwise();
-  Cgamma_der2_dddd.DeleteTensorPointwise();
-  Cbeta_der_du.DeleteTensorPointwise();
-  Cbeta_der2_ddu.DeleteTensorPointwise();
-  Cbeta_der_dd.DeleteTensorPointwise();
-  Cbeta_der2_ddd.DeleteTensorPointwise();
-  Calpha_der_d.DeleteTensorPointwise();
-  Calpha_der2_dd.DeleteTensorPointwise();
-
-  Cgamma_dot_ddd.DeleteTensorPointwise();
-  Cgamma_derdot_dddd.DeleteTensorPointwise();
-  Cbeta_dot_du.DeleteTensorPointwise();
-  Cbeta_dot_dd.DeleteTensorPointwise();
-  Calpha_dot_d.DeleteTensorPointwise();
-
-  dr_Cgamma_dd.DeleteTensorPointwise();
-  dr2_Cgamma_dd.DeleteTensorPointwise();
-  dr_Cbeta_u.DeleteTensorPointwise();
-  dr2_Cbeta_u.DeleteTensorPointwise();
-  dr_Cbeta_d.DeleteTensorPointwise();
-  dr2_Cbeta_d.DeleteTensorPointwise();
 }
 
 //----------------------------------------------------------------------------------------
