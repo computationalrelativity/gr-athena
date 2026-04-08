@@ -27,6 +27,13 @@ using namespace gra::aliases;
 class AHF
 {
   public:
+  // -- Types -----------------------------------------------------------------
+  enum class ExpansionFix
+  {
+    do_nothing,
+    cure_divu
+  };
+
   // -- Construction / destruction --------------------------------------------
   AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf);
   ~AHF();
@@ -77,6 +84,7 @@ class AHF
     Real stop_time;
     bool wait_until_punc_are_close;
     bool bitant;
+    ExpansionFix expansion_fix = ExpansionFix::do_nothing;
     int mpi_root;
     std::string ofname_summary;
     std::string ofname_shape;

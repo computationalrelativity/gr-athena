@@ -19,15 +19,6 @@
 #include <mpi.h>
 #endif
 
-#define DEBUG_OUTPUT (0)
-enum
-{
-  DONOTHING,
-  CURE_DIVU,
-  NCURE,
-};
-#define EXPANSIONFIX (CURE_DIVU)
-
 #include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
@@ -162,6 +153,21 @@ void AHF::ReadOptions(ParameterInput* pin)
     opt.ofname_verbose += pin->GetOrAddString(
       "ahf", parkey("horizon_verbose_"), "horizon_verbose_" + n_str);
     opt.ofname_verbose += ".txt";
+  }
+
+  // Expansion fix method
+  std::string expfix_str =
+    pin->GetOrAddString("ahf", "expansion_fix", "cure_divu");
+  if (expfix_str == "do_nothing")
+    opt.expansion_fix = ExpansionFix::do_nothing;
+  else if (expfix_str == "cure_divu")
+    opt.expansion_fix = ExpansionFix::cure_divu;
+  else
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in AHF" << std::endl
+        << "unknown expansion_fix: " << expfix_str << std::endl;
+    ATHENA_ERROR(msg);
   }
 
   // Warn if AHF will run but storage.aux ghost zones won't be communicated
@@ -386,23 +392,6 @@ void AHF::MetricInterp()
 
   const Real zc = center[2];
 
-#if (DEBUG_OUTPUT)
-  FILE *fp, *fp_d;
-  std::string fname = "metricinterp_gxx_iter" + std::to_string(fastflow_iter);
-  std::string fname_d =
-    "metricinterp_dgxxdx_iter" + std::to_string(fastflow_iter);
-#ifdef MPI_PARALLEL
-  int rank_tmp;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank_tmp);
-  fname += "_rank" + std::to_string(rank_tmp);
-  fname_d += "_rank" + std::to_string(rank_tmp);
-#endif
-  fname += ".txt";
-  fname_d += ".txt";
-  fp   = fopen(fname.c_str(), "w");
-  fp_d = fopen(fname_d.c_str(), "w");
-#endif
-
   for (int i = 0; i < grid_.ntheta; ++i)
   {
     const Real theta = grid_.th_grid(i);
@@ -455,20 +444,8 @@ void AHF::MetricInterp()
           }
         }
 
-#if (DEBUG_OUTPUT)
-      const Real phi = grid_.ph_grid(j);
-      fprintf(fp, "%23.15e %23.15e %23.15e\n", theta, phi, g(0, 0, i, j));
-      fprintf(
-        fp_d, "%23.15e %23.15e %23.15e\n", theta, phi, dg(0, 0, 0, i, j));
-#endif
-
     }  // phi loop
   }  // theta loop
-
-#if (DEBUG_OUTPUT)
-  fclose(fp);
-  fclose(fp_d);
-#endif
 }
 //----------------------------------------------------------------------------------------
 //! \fn void AHF::SurfaceIntegrals(const int n)
@@ -517,22 +494,6 @@ void AHF::SurfaceIntegrals()
   }
 
   rho.ZeroClear();
-
-#if (DEBUG_OUTPUT)
-  FILE *fp_dFdxdx, *fp_nnFxx;
-  std::string fname_dFdxdx = "dFdxdx_iter" + std::to_string(fastflow_iter);
-  std::string fname_nnFxx  = "nnFxx_iter" + std::to_string(fastflow_iter);
-#ifdef MPI_PARALLEL
-  int rank_tmp;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank_tmp);
-  fname_dFdxdx += "_rank" + std::to_string(rank_tmp);
-  fname_nnFxx += "_rank" + std::to_string(rank_tmp);
-#endif
-  fname_dFdxdx += ".txt";
-  fname_nnFxx += ".txt";
-  fp_dFdxdx = fopen(fname_dFdxdx.c_str(), "w");
-  fp_nnFxx  = fopen(fname_nnFxx.c_str(), "w");
-#endif
 
   // Loop over surface points
   for (int i = 0; i < grid_.ntheta; i++)
@@ -602,18 +563,9 @@ void AHF::SurfaceIntegrals()
 
       if (rp < min_surface_radius)
       {
-#if (0)
-        std::stringstream msg;
-        msg << "### FATAL ERROR in AHF" << std::endl
-            << "surface radius cannot be zero (rp=" << rp
-            << " < min_surface_radius" << min_surface_radius << ")"
-            << std::endl;
-        ATHENA_ERROR(msg);
-#else
         // Do not stop the code, just AHF failing
         // break the loop and catch the nans in AHF later.
         break;
-#endif
       }
 
       Real const _divrp    = 1.0 / rp;
@@ -671,18 +623,9 @@ void AHF::SurfaceIntegrals()
       for (int a = 0; a < NDIM; ++a)
       {
         dFdi(a) = drdi(a);
-      }
-      for (int a = 0; a < NDIM; ++a)
-      {
         for (int l = 0; l <= opt.lmax; l++)
-        {
           dFdi(a) -= a0(l) * dthetadi(a) * dY0dth(i, j, l);
-        }
-      }
-      for (int a = 0; a < NDIM; ++a)
-      {
         for (int l = 1; l <= opt.lmax; l++)
-        {
           for (int m = 1; m <= l; m++)
           {
             int l1 = lmindex(l, m);
@@ -691,30 +634,18 @@ void AHF::SurfaceIntegrals()
                        as(l1) * (dthetadi(a) * dYsdth(i, j, l1) +
                                  dphidi(a) * dYsdph(i, j, l1));
           }
-        }
       }
 
-      // Compute second derivatives of F
+      // Compute second derivatives of F (symmetric, upper triangle + copy)
       for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
+        for (int b = a; b < NDIM; ++b)
         {
           dFdidj(a, b) = drdidj(a, b);
-        }
-      }
-
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
           for (int l = 0; l <= opt.lmax; l++)
-          {
             dFdidj(a, b) -=
               a0(l) * (dthetadidj(a, b) * dY0dth(i, j, l) +
                        dthetadi(a) * dthetadi(b) * dY0dth2(i, j, l));
-          }
           for (int l = 1; l <= opt.lmax; l++)
-          {
             for (int m = 1; m <= l; m++)
             {
               int l1 = lmindex(l, m);
@@ -732,9 +663,8 @@ void AHF::SurfaceIntegrals()
                           dphidi(a) * (dthetadi(b) * dYsdthdph(i, j, l1) +
                                        dphidi(b) * dYsdph2(i, j, l1)));
             }
-          }
+          dFdidj(b, a) = dFdidj(a, b);
         }
-      }
 
       // Compute dFdi with the index up
       for (int a = 0; a < NDIM; ++a)
@@ -755,113 +685,35 @@ void AHF::SurfaceIntegrals()
 
       Real u = (norm > 0) ? std::sqrt(norm) : 0.0;
 
-      // Compute nabla_a nabla_b F
+      // Compute nabla_a nabla_b F = d_a d_b F - Gamma^c_{ab} d_c F
       for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
+        for (int b = a; b < NDIM; ++b)
         {
           nnF(a, b) = dFdidj(a, b);
+          for (int d = 0; d < NDIM; ++d)
+            nnF(a, b) -=
+              0.5 * dFdi_u(d) *
+              (dg(a, b, d, i, j) + dg(b, a, d, i, j) - dg(d, a, b, i, j));
+          nnF(b, a) = nnF(a, b);
         }
-      }
-      nnF(0, 0) -=
-        0.5 * (dFdi_u(0) * dg(0, 0, 0, i, j) +
-               dFdi_u(1) * (2.0 * dg(0, 1, 0, i, j) - dg(1, 0, 0, i, j)) +
-               dFdi_u(2) * (2.0 * dg(0, 2, 0, i, j) - dg(2, 0, 0, i, j)));
-      nnF(0, 1) -=
-        0.5 * (dFdi_u(0) * dg(1, 0, 0, i, j) + dFdi_u(1) * dg(0, 1, 1, i, j) +
-               dFdi_u(2) *
-                 (dg(0, 2, 1, i, j) + dg(1, 2, 0, i, j) - dg(2, 1, 0, i, j)));
-      nnF(0, 2) -= 0.5 * (dFdi_u(0) * dg(2, 0, 0, i, j) +
-                          dFdi_u(1) * (dg(0, 2, 1, i, j) + dg(2, 1, 0, i, j) -
-                                       dg(1, 2, 0, i, j)) +
-                          dFdi_u(2) * dg(0, 2, 2, i, j));
-      nnF(1, 1) -=
-        0.5 * (dFdi_u(0) * (2.0 * dg(1, 1, 0, i, j) - dg(0, 1, 1, i, j)) +
-               dFdi_u(1) * dg(1, 1, 1, i, j) +
-               dFdi_u(2) * (2.0 * dg(1, 2, 1, i, j) - dg(2, 1, 1, i, j)));
-      nnF(1, 2) -=
-        0.5 * (dFdi_u(0) * (2.0 * dg(1, 2, 0, i, j) + dg(2, 1, 0, i, j) -
-                            dg(0, 2, 1, i, j)) +
-               dFdi_u(1) * dg(2, 1, 1, i, j) + dFdi_u(2) * dg(1, 2, 2, i, j));
-      nnF(2, 2) -=
-        0.5 * (dFdi_u(0) * (2.0 * dg(2, 2, 0, i, j) - dg(0, 2, 2, i, j)) +
-               dFdi_u(1) * (2.0 * dg(2, 2, 1, i, j) - dg(1, 2, 2, i, j)) +
-               dFdi_u(2) * dg(2, 2, 2, i, j));
 
-#if (DEBUG_OUTPUT)
-      fprintf(
-        fp_dFdxdx, "%23.15e %23.15e %23.15e\n", theta, phi, dFdidj(0, 0));
-      fprintf(fp_nnFxx, "%23.15e %23.15e %23.15e\n", theta, phi, nnF(0, 0));
-#endif
-
-      // Compute d2F = g^{ab} nabla_a nabla_b F
-      Real d2F = 0.;
+      // Contract symmetric tensors for expansion
+      Real d2F = 0.0, dFdadFdbKab = 0.0, dFdadFdbFdadb = 0.0;
       for (int a = 0; a < NDIM; ++a)
-      {
         for (int b = 0; b < NDIM; ++b)
         {
           d2F += ginv(a, b) * nnF(a, b);
+          Real ff = dFdi_u(a) * dFdi_u(b);
+          dFdadFdbKab += ff * K(a, b, i, j);
+          dFdadFdbFdadb += ff * nnF(a, b);
         }
-      }
-
-      // Compute dFd^a dFd^b Kab
-      Real dFdadFdbKab = 0.;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          dFdadFdbKab += dFdi_u(a) * dFdi_u(b) * K(a, b, i, j);
-        }
-      }
-
-      // Compute dFd^a dFd^b Fdadb
-      Real dFdadFdbFdadb = 0.;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          dFdadFdbFdadb += dFdi_u(a) * dFdi_u(b) * nnF(a, b);
-        }
-      }
 
       // Expansion & rho = H * u * sigma (sigma=1)
-#if (EXPANSIONFIX == DONOTHING)
-      Real divu = 1.0 / u;
+      Real divu = (opt.expansion_fix == ExpansionFix::cure_divu)
+                  ? ((norm > 0) ? 1.0 / u : 0.0)
+                  : 1.0 / u;
       Real H    = d2F * divu + dFdadFdbKab * (divu * divu) -
                dFdadFdbFdadb * (divu * divu * divu) - TrK;
-#elif (EXPANSIONFIX == CURE_DIVU)
-      Real divu = (norm > 0) ? 1.0 / u : 0.0;
-      Real H    = d2F * divu + dFdadFdbKab * (divu * divu) -
-               dFdadFdbFdadb * (divu * divu * divu) - TrK;
-#else
-      std::stringstream msg;
-      msg << "### FATAL ERROR in AHF" << std::endl
-          << " EXPANSIONFIX set incorrectly " << EXPANSIONFIX << "(0..."
-          << NCURE << ")" << std::endl;
-      ATHENA_ERROR(msg);
-#endif
-
-#if (DEBUG_OUTPUT)
-      if (!(std::isfinite(H)))
-      {
-        if (opt.verbose && (Globals::my_rank == opt.mpi_root))
-        {
-          fprintf(pofile_verbose,
-                  "H not finite at i=%d j=%d (norm=%.3e)\n\
-		  divu=%.3e d2F=%.3e dFdadFdbKab=%.3e dFdadFdbFdadb=%.3e TrK=%.3e detg=%.3e\n",
-                  i,
-                  j,
-                  norm,
-                  divu,
-                  d2F,
-                  dFdadFdbKab,
-                  dFdadFdbFdadb,
-                  TrK,
-                  detg);
-          fflush(pofile_verbose);
-        }
-      }
-#endif
 
       rho(i, j) = H * u;
 
@@ -947,11 +799,6 @@ void AHF::SurfaceIntegrals()
 
     }  // phi loop
   }  // theta loop
-
-#if (DEBUG_OUTPUT)
-  fclose(fp_dFdxdx);
-  fclose(fp_nnFxx);
-#endif
 
 #ifdef MPI_PARALLEL
   MPI_Allreduce(
