@@ -28,26 +28,25 @@ enum
 };
 #define EXPANSIONFIX (CURE_DIVU)
 
-#include "../coordinates/coordinates.hpp"
-#include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/spherical_harmonics.hpp"
 #include "ahf.hpp"
 #include "puncture_tracker.hpp"
+#include "z4c.hpp"
 
 //----------------------------------------------------------------------------------------
-//! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n)
+//! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int nh)
 //  \brief class for apparent horizon finder
-AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
+AHF::AHF(Mesh* pmesh, ParameterInput* pin, int nh)
+    : pmesh(pmesh), pin(pin), nh(nh)
 {
-  nhorizon = pin->GetOrAddInteger("ahf", "num_horizons", 1);
-
-  nh = n;
-  std::string parname;
-  std::string n_str = std::to_string(nh);
+  const std::string n_str = std::to_string(nh);
+  auto parkey             = [&n_str](const char* base)
+  { return std::string(base) + n_str; };
 
   ntheta = pin->GetOrAddInteger("ahf", "ntheta", 5);
   nphi   = pin->GetOrAddInteger("ahf", "nphi", 10);
@@ -62,21 +61,15 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
   lmax  = pin->GetOrAddInteger("ahf", "lmax", 4);
   lmax1 = lmax + 1;
 
-  parname = "flow_iterations_";
-  parname += n_str;
-  flow_iterations = pin->GetOrAddInteger("ahf", parname, 100);
+  flow_iterations =
+    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 100);
 
-  parname = "flow_alpha_beta_const_";
-  parname += n_str;
-  flow_alpha_beta_const = pin->GetOrAddReal("ahf", parname, 1.0);
+  flow_alpha_beta_const =
+    pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
 
-  parname = "hmean_tol_";
-  parname += n_str;
-  hmean_tol = pin->GetOrAddReal("ahf", parname, 100.);
+  hmean_tol = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
 
-  parname = "mass_tol_";
-  parname += n_str;
-  mass_tol = pin->GetOrAddReal("ahf", parname, 1e-2);
+  mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-2);
 
   verbose         = pin->GetOrAddBoolean("ahf", "verbose", false);
   root            = pin->GetOrAddInteger("ahf", "mpi_root", 0);
@@ -84,34 +77,18 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
   bitant          = pin->GetOrAddBoolean("mesh", "bitant", false);
 
   // Initial guess
-  parname = "initial_radius_";
-  parname += n_str;
-  initial_radius = pin->GetOrAddReal("ahf", parname, 1.0);
+  initial_radius = pin->GetOrAddReal("ahf", parkey("initial_radius_"), 1.0);
   rr_min         = -1.0;
 
   expand_guess = pin->GetOrAddReal("ahf", "expand_guess", 1.0);
   npunct       = pin->GetOrAddInteger("z4c", "npunct", 0);
 
   // Center
-  parname = "center_x_";
-  parname += n_str;
-  center[0] = pin->GetOrAddReal("ahf", parname, 0.0);
-  parname   = "center_y_";
-  parname += n_str;
-  center[1] = pin->GetOrAddReal("ahf", parname, 0.0);
-  parname   = "center_z_";
-  parname += n_str;
-  center[2] = pin->GetOrAddReal("ahf", parname, 0.0);
+  center[0] = pin->GetOrAddReal("ahf", parkey("center_x_"), 0.0);
+  center[1] = pin->GetOrAddReal("ahf", parkey("center_y_"), 0.0);
+  center[2] = pin->GetOrAddReal("ahf", parkey("center_z_"), 0.0);
 
-  parname = "use_puncture_";
-  parname += n_str;
-  use_puncture = pin->GetOrAddInteger("ahf", parname, -1);
-
-  // parname = "compute_every_iter_";
-  // parname += n_str;
-  // compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
-  // BD: N.B. this is now covered by the task triggers
-  compute_every_iter = 1;
+  use_puncture = pin->GetOrAddInteger("ahf", parkey("use_puncture_"), -1);
 
   if (use_puncture >= 0)
   {
@@ -125,13 +102,10 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
       throw std::runtime_error(msg.str().c_str());
     }
   }
-  parname = "use_puncture_massweighted_center_";
-  parname += n_str;
-  use_puncture_massweighted_center = pin->GetOrAddBoolean("ahf", parname, 0);
+  use_puncture_massweighted_center = pin->GetOrAddBoolean(
+    "ahf", parkey("use_puncture_massweighted_center_"), 0);
 
-  parname = "use_extrema_";
-  parname += n_str;
-  use_extrema = pin->GetOrAddInteger("ahf", parname, -1);
+  use_extrema = pin->GetOrAddInteger("ahf", parkey("use_extrema_"), -1);
 
   if (use_extrema >= 0)
   {
@@ -145,18 +119,13 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
     }
   }
 
-  parname = "start_time_";
-  parname += n_str;
-  start_time =
-    pin->GetOrAddReal("ahf", parname, std::numeric_limits<double>::max());
+  start_time = pin->GetOrAddReal(
+    "ahf", parkey("start_time_"), std::numeric_limits<double>::max());
 
-  parname = "stop_time_";
-  parname += n_str;
-  stop_time = pin->GetOrAddReal("ahf", parname, -1.0);
+  stop_time = pin->GetOrAddReal("ahf", parkey("stop_time_"), -1.0);
 
-  parname = "wait_until_punc_are_close_";
-  parname += n_str;
-  wait_until_punc_are_close = pin->GetOrAddBoolean("ahf", parname, 0);
+  wait_until_punc_are_close =
+    pin->GetOrAddBoolean("ahf", parkey("wait_until_punc_are_close_"), 0);
 
   // Grid and quadrature weights
   std::string quadrature =
@@ -164,17 +133,12 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
   SetGridWeights(quadrature);
 
   // Initialize last & found
-  parname = "last_a0_";
-  parname += n_str;
-  last_a0 = pin->GetOrAddReal("ahf", parname, -1);
+  last_a0 = pin->GetOrAddReal("ahf", parkey("last_a0_"), -1);
 
-  parname = "ah_found_a0_";
-  parname += n_str;
-  ah_found = pin->GetOrAddBoolean("ahf", parname, false);
+  ah_found = pin->GetOrAddBoolean("ahf", parkey("ah_found_a0_"), false);
 
-  parname = "time_first_found_";
-  parname += n_str;
-  time_first_found = pin->GetOrAddReal("ahf", parname, -1.0);
+  time_first_found =
+    pin->GetOrAddReal("ahf", parkey("time_first_found_"), -1.0);
 
   // Points for sph harm l>=1
   lmpoints = lmax1 * lmax1;  // SB this could/should be lmax^2: check all loop
@@ -229,27 +193,21 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
   }
 
   // Prepare output
-  parname = "horizon_file_summary_";
-  parname += n_str;
   ofname_summary = pin->GetString("job", "problem_id") + ".";
-  ofname_summary +=
-    pin->GetOrAddString("ahf", parname, "horizon_summary_" + n_str);
+  ofname_summary += pin->GetOrAddString(
+    "ahf", parkey("horizon_file_summary_"), "horizon_summary_" + n_str);
   ofname_summary += ".txt";
 
-  parname = "horizon_file_shape_";
-  parname += n_str;
   ofname_shape = pin->GetString("job", "problem_id") + ".";
-  ofname_shape +=
-    pin->GetOrAddString("ahf", parname, "horizon_shape_" + n_str);
+  ofname_shape += pin->GetOrAddString(
+    "ahf", parkey("horizon_file_shape_"), "horizon_shape_" + n_str);
   ofname_shape += ".txt";
 
   if (verbose)
   {
-    parname = "horizon_verbose_";
-    parname += n_str;
     ofname_verbose = pin->GetString("job", "problem_id") + ".";
-    ofname_verbose +=
-      pin->GetOrAddString("ahf", parname, "horizon_verbose_" + n_str);
+    ofname_verbose += pin->GetOrAddString(
+      "ahf", parkey("horizon_verbose_"), "horizon_verbose_" + n_str);
     ofname_verbose += ".txt";
   }
 
@@ -269,7 +227,7 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
       new_file = false;
     }
     pofile_summary = fopen(ofname_summary.c_str(), "a");
-    if (NULL == pofile_summary)
+    if (pofile_summary == nullptr)
     {
       std::stringstream msg;
       msg << "### FATAL ERROR in AHF constructor" << std::endl;
@@ -289,7 +247,7 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int n) : pmesh(pmesh), pin(pin)
     if (verbose)
     {
       pofile_verbose = fopen(ofname_verbose.c_str(), "a");
-      if (NULL == pofile_verbose)
+      if (pofile_verbose == nullptr)
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
@@ -325,8 +283,6 @@ void AHF::Write(int iter, Real time)
       return;
     if (wait_until_punc_are_close && !(PuncAreClose()))
       return;
-    if (iter % compute_every_iter != 0)
-      return;
 
     // Summary file
     fprintf(pofile_summary, "%d %g ", iter, time);
@@ -349,7 +305,7 @@ void AHF::Write(int iter, Real time)
     {
       // Shape file (coefficients)
       pofile_shape = fopen(ofname_shape.c_str(), "a");
-      if (NULL == pofile_shape)
+      if (pofile_shape == nullptr)
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
@@ -977,11 +933,6 @@ void AHF::SurfaceIntegrals()
       // Spin integrand
       // --------------
 
-      // Local coordinates on surface (already defined above)
-      // xp = rr(i,j) * sinth * cosph;
-      // yp = rr(i,j) * sinth * sinph;
-      // zp = rr(i,j) * costh;
-
       // Flat-space coordinate rotational KV
       phix(0) = 0;
       phix(1) = -zp;  // -(z-zc);
@@ -1057,8 +1008,6 @@ void AHF::Find(int iter, Real time)
   if ((time < start_time) || (time > stop_time))
     return;
   if (wait_until_punc_are_close && !(PuncAreClose()))
-    return;
-  if (iter % compute_every_iter != 0)
     return;
   if (verbose && ioproc)
   {
@@ -1287,84 +1236,6 @@ void AHF::FastFlowLoop()
 // \!fn void AHF::UpdateFlowSpectralComponents(const int n)
 // \brief find new spectral components with fast flow
 
-// Old routine: logic seems strange, changed below
-void AHF::UpdateFlowSpectralComponents_old()
-{
-  const Real alpha = flow_alpha_beta_const;
-  const Real beta  = 0.5 * flow_alpha_beta_const;
-  const Real A     = alpha / (lmax * lmax1) + beta;
-  const Real B     = beta / alpha;
-
-  Real* spec0 = new Real[lmax1];
-  Real* specc = new Real[lmpoints];
-  Real* specs = new Real[lmpoints];
-
-  // Local sums
-  for (int l = 0; l <= lmax; l++)
-  {
-    spec0[l] = 0;
-
-    for (int m = 0; m <= l; m++)
-    {
-      int l1 = lmindex(l, m);
-
-      specc[l1] = 0;
-      specs[l1] = 0;
-
-      for (int i = 0; i < ntheta; i++)
-      {
-        for (int j = 0; j < nphi; j++)
-        {
-          if (!havepoint(i, j))
-            continue;
-
-          const Real dw = weights(i, j);
-
-          if (m == 0)
-          {
-            spec0[l] += dw * Y0(i, j, l) * rho(i, j);
-          }
-          specc[l1] += dw * Yc(i, j, l1) * rho(i, j);
-          specs[l1] += dw * Ys(i, j, l1) * rho(i, j);
-
-        }  // phi loop
-      }  // theta loop
-
-    }  // m loop
-  }  // l loop
-
-// MPI reduce
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(
-    MPI_IN_PLACE, spec0, lmax1, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(
-    MPI_IN_PLACE, specc, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(
-    MPI_IN_PLACE, specs, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  // Update the coefs
-  for (int l = 0; l <= lmax; l++)
-  {
-    Real ABfact = A / (1.0 + B * l * (l + 1));
-
-    a0(l) -= ABfact * spec0[l];
-
-    for (int m = 0; m <= l; m++)
-    {
-      int l1 = lmindex(l, m);
-      ac(l1) -= ABfact * specc[l1];
-      as(l1) -= ABfact * specs[l1];
-    }
-  }
-
-  delete[] spec0;
-  delete[] specc;
-  delete[] specs;
-}
-
-// New routine: inverted angular-lm loops
-// better to take care of special case
 void AHF::UpdateFlowSpectralComponents()
 {
   const Real alpha = flow_alpha_beta_const;
@@ -1400,11 +1271,9 @@ void AHF::UpdateFlowSpectralComponents()
     {
       if (!havepoint(i, j))
         continue;
-      // const Real dw = weights(i,j);
       const Real drho = weights(i, j) * rho(i, j);
 
       for (int l = 0; l <= lmax; l++)
-        // spec0[l] += dw * Y0(i,j,l) * rho(i,j);
         spec0[l] += drho * Y0(i, j, l);
 
       for (int l = 1; l <= lmax; l++)
@@ -1412,8 +1281,6 @@ void AHF::UpdateFlowSpectralComponents()
         for (int m = 1; m <= l; m++)
         {
           int l1 = lmindex(l, m);
-          // specc[l1] += dw * Yc(i,j,l1) * rho(i,j);
-          // specs[l1] += dw * Ys(i,j,l1) * rho(i,j);
           specc[l1] += drho * Yc(i, j, l1);
           specs[l1] += drho * Ys(i, j, l1);
         }
@@ -1435,13 +1302,11 @@ void AHF::UpdateFlowSpectralComponents()
   // Update the coefs
   for (int l = 0; l <= lmax; l++)
   {
-    // const Real ABfact = A/(1.0+B*l*(l+1));
     a0(l) -= ABfac[l] * spec0[l];
   }
 
   for (int l = 1; l <= lmax; l++)
   {
-    // const Real ABfact = A/(1.0+B*l*(l+1));
     for (int m = 1; m <= l; m++)
     {
       int l1 = lmindex(l, m);
@@ -1474,7 +1339,6 @@ void AHF::RadiiFromSphericalHarmonics()
       {
         rr(i, j) += a0(l) * Y0(i, j, l);
         rr_dth(i, j) += a0(l) * dY0dth(i, j, l);
-        // rr_dph(i,j) += a0(l) * 0.0;
       }
 
       for (int l = 1; l <= lmax; l++)
@@ -1643,7 +1507,7 @@ void AHF::ComputeSphericalHarmonics()
 //----------------------------------------------------------------------------------------
 // \!fn int AHF::lmindex(const int l, const int m)
 // \brief multipolar single index (l,m) -> index
-int AHF::lmindex(const int l, const int m)
+int AHF::lmindex(const int l, const int m) const
 {
   return l * lmax1 + m;
 }
@@ -1651,7 +1515,7 @@ int AHF::lmindex(const int l, const int m)
 //----------------------------------------------------------------------------------------
 // \!fn int AHF::tpindex(const int i, const int j)
 // \brief spherical grid single index (i,j) -> index
-int AHF::tpindex(const int i, const int j)
+int AHF::tpindex(const int i, const int j) const
 {
   return i * nphi + j;
 }
@@ -1698,7 +1562,7 @@ void AHF::GLQuad_Nodes_Weights(const Real a,
 //----------------------------------------------------------------------------------------
 // \!fn void AHF::SetWeightsIntegral()
 // \brief set nodes on the sphere & weights for the 2D integrals
-void AHF::SetGridWeights(std::string method)
+void AHF::SetGridWeights(const std::string& method)
 {
   if ((nphi + 1) % 2 == 0)
   {

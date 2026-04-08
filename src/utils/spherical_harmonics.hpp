@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <sstream>
+#include <vector>
 
 #include "../athena.hpp"
 
@@ -33,7 +34,8 @@ constexpr std::array<Real, kMaxFactorialTable + 1> factorial_table_ =
   detail::make_factorial_table();
 
 // Factorial n! for integer n >= 0.
-// Uses a lookup table for n <= 35, recursion for n > 35.
+// Uses a lookup table for n <= kMaxFactorialTable, iterative computation
+// otherwise.
 inline Real Factorial(const int n)
 {
   if (n < 0)
@@ -50,7 +52,10 @@ inline Real Factorial(const int n)
   }
   else
   {
-    return ((Real)n) * Factorial(n - 1);
+    Real result = factorial_table_[kMaxFactorialTable];
+    for (int i = kMaxFactorialTable + 1; i <= n; ++i)
+      result *= static_cast<Real>(i);
+    return result;
   }
 }
 
@@ -132,12 +137,9 @@ inline void Ylm(const int l,
                 Real* YlmR,
                 Real* YlmI)
 {
-  const int abs_m      = std::abs(m);
-  const Real fact_norm = Factorial(l + abs_m) / Factorial(l - abs_m);
-
-  const Real a   = std::sqrt((Real)(2 * l + 1) / (4.0 * PI * fact_norm));
-  const int mfac = (m < 0) ? std::pow(-1.0, m) : 1.0;
-  const Real P   = mfac * a * Plm(l, abs_m, std::cos(theta));
+  const int abs_m = std::abs(m);
+  const int sign  = (m < 0 && (abs_m % 2 != 0)) ? -1 : 1;
+  const Real P    = sign * NPlm(l, abs_m, std::cos(theta));
 
   *YlmR = P * std::cos((Real)(m)*phi);
   *YlmI = P * std::sin((Real)(m)*phi);
@@ -238,7 +240,7 @@ inline void sYlm(const int s,
   const int k2 = std::min(l + m, l + s);
   for (int k = k1; k <= k2; ++k)
   {
-    wignerd += std::pow(-1.0, k) *
+    wignerd += ((k % 2 == 0) ? 1.0 : -1.0) *
                std::sqrt(Factorial(l + m) * Factorial(l - m) *
                          Factorial(l - s) * Factorial(l + s)) *
                std::pow(std::cos(theta / 2.0), 2 * l + m + s - 2 * k) *
@@ -281,7 +283,7 @@ inline void NPlm(const Real theta,
   dPdth.ZeroClear();
   dPdth2.ZeroClear();
 
-  Real fac[2 * lmax1 + 1];
+  std::vector<Real> fac(2 * lmax1 + 1);
   fac[0] = 1.0;
   for (int i = 1; i <= 2 * lmax; ++i)
     fac[i] = fac[i - 1] * i;
@@ -297,14 +299,14 @@ inline void NPlm(const Real theta,
   P(1, 0) = SQRT3 * costh * P(0, 0);
   for (int l = 2; l <= lmax; l++)
   {
-    int m;
-    for (m = 0; m < l - 1; m++)
+    for (int m = 0; m < l - 1; m++)
     {
       P(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
       P(l, m) *= (std::sqrt((Real)2 * l - 1) * costh * P(l - 1, m) -
                   std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
                     P(l - 2, m));
     }
+    const int m = l - 1;
     P(l, l - 1) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m)) *
                   (std::sqrt((Real)2 * l - 1) * costh * P(l - 1, m));
   }
@@ -322,8 +324,7 @@ inline void NPlm(const Real theta,
 
   for (int l = 2; l <= lmax; l++)
   {
-    int m;
-    for (m = 0; m < l - 1; m++)
+    for (int m = 0; m < l - 1; m++)
     {
       dPdth(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
       dPdth(l, m) *=
@@ -332,6 +333,7 @@ inline void NPlm(const Real theta,
          std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
            dPdth(l - 2, m));
     }
+    const int m     = l - 1;
     dPdth(l, l - 1) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
     dPdth(l, l - 1) *= (std::sqrt((Real)2 * l - 1) *
                         (-sinth * P(l - 1, m) + costh * dPdth(l - 1, m)));
@@ -352,8 +354,7 @@ inline void NPlm(const Real theta,
 
   for (int l = 2; l <= lmax; l++)
   {
-    int m;
-    for (m = 0; m < l - 1; m++)
+    for (int m = 0; m < l - 1; m++)
     {
       dPdth2(l, m) =
         std::sqrt((Real)(2 * l + 1) / (l * l - m * m)) *
@@ -363,6 +364,7 @@ inline void NPlm(const Real theta,
          std::sqrt((Real)((l - 1) * (l - 1) - m * m) / (2 * l - 3)) *
            dPdth2(l - 2, m));
     }
+    const int m  = l - 1;
     dPdth2(l, m) = std::sqrt((Real)(2 * l + 1) / (l * l - m * m));
     dPdth2(l, m) *= (std::sqrt((Real)2 * l - 1) *
                      (-costh * P(l - 1, m) - 2.0 * sinth * dPdth(l - 1, m) +

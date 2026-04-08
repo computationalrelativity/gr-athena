@@ -6,11 +6,8 @@
 //========================================================================================
 //! \file wave_extract_rwz.cpp
 //  \brief Implementation of metric-based extraction of Regge-Wheeler-Zerilli
-//  functions
-//         Supports bitant symmetry
-
-// TODO 2nd derivatives are not implemented, take them from interpolation.
-// waiting for David to extend the interpolator with drvts
+//  functions.
+//  Supports bitant symmetry
 
 #include <unistd.h>
 

@@ -14,16 +14,13 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
-#include "../utils/lagrange_interp.hpp"
-#include "z4c.hpp"
-#include "z4c_macro.hpp"
 
 // Forward declaration
 class Mesh;
 class MeshBlock;
 class ParameterInput;
 
-#define INTERP_ORDER_2 (0)  // Default: 2*NGHOST-1
+#define AHF_INTERP_ORDER_2 (0)  // Default: 2*NGHOST-1
 
 //! \class AHF
 //! \brief Apparent Horizon Finder
@@ -80,8 +77,6 @@ class AHF
   //! start and stop times for each surface
   Real start_time;
   Real stop_time;
-  //! compute every n iterations
-  int compute_every_iter;
 
   private:
   int npunct;
@@ -90,11 +85,9 @@ class AHF
   int nh;
   bool wait_until_punc_are_close;
   bool bitant;
-  //! Number of horizons
-  int nhorizon;
   //! Arrays for the grid and quadrature weights
   AthenaArray<Real> th_grid, ph_grid, weights;
-#if (INTERP_ORDER_2)
+#if (AHF_INTERP_ORDER_2)
   static const int metric_interp_order = 2;
 #else
   static const int metric_interp_order = 2 * NGHOST - 1;
@@ -102,7 +95,7 @@ class AHF
   int fastflow_iter = 0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
-  //! Arrays of sphericasl harmonics and drvts
+  //! Arrays of spherical harmonics and derivatives
   AthenaArray<Real> Y0, Yc, Ys;
   AthenaArray<Real> dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
   AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2,
@@ -111,6 +104,8 @@ class AHF
   AthenaArray<Real> a0;
   AthenaArray<Real> ac;
   AthenaArray<Real> as;
+  //! Monopole spectral coefficient from the previous iteration (convergence
+  //! check)
   Real last_a0;
   //! Arrays for the various fields on the sphere
   AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g;
@@ -159,24 +154,23 @@ class AHF
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
-  void UpdateFlowSpectralComponents_old();
   void RadiiFromSphericalHarmonics();
   void InitialGuess();
   void ComputeSphericalHarmonics();
-  int lmindex(const int l, const int m);
-  int tpindex(const int i, const int j);
+  int lmindex(const int l, const int m) const;
+  int tpindex(const int i, const int j) const;
   void GLQuad_Nodes_Weights(const Real a,
                             const Real b,
                             Real* x,
                             Real* w,
                             const int n);
-  void SetGridWeights(std::string method);
+  void SetGridWeights(const std::string& method);
 
   Mesh const* pmesh;
   ParameterInput* pin;
 
   int root;
-  int ioproc;
+  bool ioproc;
   std::string ofname_summary;
   std::string ofname_shape;
   std::string ofname_verbose;
