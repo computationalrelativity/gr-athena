@@ -45,7 +45,7 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf)
     : pmesh(pmesh), pin(pin), idx_ahf(idx_ahf)
 {
   ReadOptions(pin);
-  AllocateArrays();
+  PrepareArrays();
   SetupIO();
 }
 
@@ -163,12 +163,30 @@ void AHF::ReadOptions(ParameterInput* pin)
       "ahf", parkey("horizon_verbose_"), "horizon_verbose_" + n_str);
     opt.ofname_verbose += ".txt";
   }
+
+  // Warn if AHF will run but storage.aux ghost zones won't be communicated
+  {
+    const Real dt_ahf = pin->GetOrAddReal("task_triggers", "dt_Z4c_AHF", 0.0);
+    if (dt_ahf > 0.0 &&
+        !pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false))
+    {
+      if (Globals::my_rank == 0)
+      {
+        std::printf(
+          "### WARNING [AHF]: z4c/communicate_aux_adm is false.\n"
+          "  AHF interpolates storage.aux (metric derivatives) near "
+          "MeshBlock\n"
+          "  boundaries where ghost-zone values are uninitialized without\n"
+          "  communication. Results may be inaccurate.\n");
+      }
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------
-//! \fn void AHF::AllocateArrays()
+//! \fn void AHF::PrepareArrays()
 //  \brief allocate spectral, harmonic, and field arrays; compute Ylm tables
-void AHF::AllocateArrays()
+void AHF::PrepareArrays()
 {
   // Points for sph harm l>=1
   lmpoints =
@@ -536,15 +554,16 @@ void AHF::SurfaceIntegrals()
       // -----------------------
 
       // Determinant of 3-metric
-      Real detg = Det3Metric(g(0, 0, i, j),
+      Real detg    = Det3Metric(g(0, 0, i, j),
                              g(0, 1, i, j),
                              g(0, 2, i, j),
                              g(1, 1, i, j),
                              g(1, 2, i, j),
                              g(2, 2, i, j));
+      Real oo_detg = 1.0 / detg;
 
       // Inverse metric
-      Inv3Metric(1.0 / detg,
+      Inv3Metric(oo_detg,
                  g(0, 0, i, j),
                  g(0, 1, i, j),
                  g(0, 2, i, j),
@@ -559,7 +578,7 @@ void AHF::SurfaceIntegrals()
                  &ginv(2, 2));
 
       // Trace of K
-      Real TrK = TraceRank2(1.0 / detg,
+      Real TrK = TraceRank2(oo_detg,
                             g(0, 0, i, j),
                             g(0, 1, i, j),
                             g(0, 2, i, j),
@@ -597,9 +616,16 @@ void AHF::SurfaceIntegrals()
 #endif
       }
 
-      Real const _divrp   = 1.0 / rp;
-      Real const _divrp3  = SQR(_divrp) * _divrp;
-      Real const _divrhop = 1.0 / rhop;
+      Real const _divrp    = 1.0 / rp;
+      Real const _divrp3   = SQR(_divrp) * _divrp;
+      Real const _divrp4   = SQR(_divrp) * SQR(_divrp);
+      Real const _divrhop  = 1.0 / rhop;
+      Real const _divrhop2 = SQR(_divrhop);
+      Real const _divrhop3 = _divrhop2 * _divrhop;
+      Real const _divrhop4 = SQR(_divrhop2);
+      Real const xp2       = SQR(xp);
+      Real const yp2       = SQR(yp);
+      Real const zp2       = SQR(zp);
 
       // First derivatives of (r,theta,phi) with respect to (x,y,z)
       drdi(0) = xp * _divrp;
@@ -610,41 +636,34 @@ void AHF::SurfaceIntegrals()
       dthetadi(1) = zp * yp * (SQR(_divrp) * _divrhop);
       dthetadi(2) = -rhop * SQR(_divrp);
 
-      dphidi(0) = -yp * SQR(_divrhop);
-      dphidi(1) = xp * SQR(_divrhop);
+      dphidi(0) = -yp * _divrhop2;
+      dphidi(1) = xp * _divrhop2;
       dphidi(2) = 0.0;
 
       // Second derivatives of (r,theta,phi) with respect to (x,y,z)
-      drdidj(0, 0) = _divrp - xp * xp * _divrp3;
+      drdidj(0, 0) = _divrp - xp2 * _divrp3;
       drdidj(0, 1) = -xp * yp * _divrp3;
       drdidj(0, 2) = -xp * zp * _divrp3;
-      drdidj(1, 1) = _divrp - yp * yp * _divrp3;
+      drdidj(1, 1) = _divrp - yp2 * _divrp3;
       drdidj(1, 2) = -yp * zp * _divrp3;
-      drdidj(2, 2) = _divrp - zp * zp * _divrp3;
+      drdidj(2, 2) = _divrp - zp2 * _divrp3;
 
-      dthetadidj(0, 0) =
-        zp *
-        (-2.0 * xp * xp * xp * xp - xp * xp * yp * yp + yp * yp * yp * yp +
-         zp * zp * yp * yp) *
-        (SQR(_divrp) * SQR(_divrp) * SQR(_divrhop) * _divrhop);
+      dthetadidj(0, 0) = zp *
+                         (-2.0 * SQR(xp2) - xp2 * yp2 + SQR(yp2) + zp2 * yp2) *
+                         (_divrp4 * _divrhop3);
       dthetadidj(0, 1) =
-        -xp * yp * zp * (3.0 * xp * xp + 3.0 * yp * yp + zp * zp) *
-        (SQR(_divrp) * SQR(_divrp) * SQR(_divrhop) * _divrhop);
-      dthetadidj(0, 2) = xp * (xp * xp + yp * yp - zp * zp) *
-                         (SQR(_divrp) * (SQR(_divrp) * _divrhop));
-      dthetadidj(1, 1) =
-        zp *
-        (-2.0 * yp * yp * yp * yp - yp * yp * xp * xp + xp * xp * xp * xp +
-         zp * zp * xp * xp) *
-        (SQR(_divrp) * SQR(_divrp) * SQR(_divrhop) * _divrhop);
-      dthetadidj(1, 2) = yp * (xp * xp + yp * yp - zp * zp) *
-                         (SQR(_divrp) * (SQR(_divrp) * _divrhop));
-      dthetadidj(2, 2) = 2.0 * zp * rhop / (rp * rp * rp * rp);
+        -xp * yp * zp * (3.0 * xp2 + 3.0 * yp2 + zp2) * (_divrp4 * _divrhop3);
+      dthetadidj(0, 2) = xp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
+      dthetadidj(1, 1) = zp *
+                         (-2.0 * SQR(yp2) - yp2 * xp2 + SQR(xp2) + zp2 * xp2) *
+                         (_divrp4 * _divrhop3);
+      dthetadidj(1, 2) = yp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
+      dthetadidj(2, 2) = 2.0 * zp * rhop * _divrp4;
 
-      dphididj(0, 0) = 2.0 * yp * xp * (SQR(_divrhop) * SQR(_divrhop));
-      dphididj(0, 1) = (yp * yp - xp * xp) * (SQR(_divrhop) * SQR(_divrhop));
+      dphididj(0, 0) = 2.0 * yp * xp * _divrhop4;
+      dphididj(0, 1) = (yp2 - xp2) * _divrhop4;
       dphididj(0, 2) = 0.0;
-      dphididj(1, 1) = -2.0 * yp * xp * (SQR(_divrhop) * SQR(_divrhop));
+      dphididj(1, 1) = -2.0 * yp * xp * _divrhop4;
       dphididj(1, 2) = 0.0;
       dphididj(2, 2) = 0.0;
 
@@ -872,32 +891,15 @@ void AHF::SurfaceIntegrals()
       dXdph(2) = drdp * costh;
 
       // Induced metric on the horizon
-      Real h11 = 0.;
+      Real h11 = 0.0, h12 = 0.0, h22 = 0.0;
       for (int a = 0; a < NDIM; ++a)
-      {
         for (int b = 0; b < NDIM; ++b)
         {
-          h11 += dXdth(a) * dXdth(b) * g(a, b, i, j);
+          Real gab = g(a, b, i, j);
+          h11 += dXdth(a) * dXdth(b) * gab;
+          h12 += dXdth(a) * dXdph(b) * gab;
+          h22 += dXdph(a) * dXdph(b) * gab;
         }
-      }
-
-      Real h12 = 0.;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          h12 += dXdth(a) * dXdph(b) * g(a, b, i, j);
-        }
-      }
-
-      Real h22 = 0.;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          h22 += dXdph(a) * dXdph(b) * g(a, b, i, j);
-        }
-      }
 
       // Determinant of the induced metric
       Real deth = h11 * h22 - h12 * h12;
@@ -918,33 +920,16 @@ void AHF::SurfaceIntegrals()
       phiz(1) = xp;   // (x-xc);
       phiz(2) = 0;
 
-      // Integrand of spin
-      Real intSx = 0;
+      // Integrand of spin: S_d = (1/8pi) oint phi^a_d s^b K_ab dA
+      Real intSx = 0.0, intSy = 0.0, intSz = 0.0;
       for (int a = 0; a < NDIM; ++a)
-      {
         for (int b = 0; b < NDIM; ++b)
         {
-          intSx += phix(a) * R(b) * K(a, b, i, j);
+          Real RbKab = R(b) * K(a, b, i, j);
+          intSx += phix(a) * RbKab;
+          intSy += phiy(a) * RbKab;
+          intSz += phiz(a) * RbKab;
         }
-      }
-
-      Real intSy = 0;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          intSy += phiy(a) * R(b) * K(a, b, i, j);
-        }
-      }
-
-      Real intSz = 0;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        for (int b = 0; b < NDIM; ++b)
-        {
-          intSz += phiz(a) * R(b) * K(a, b, i, j);
-        }
-      }
 
       // Local sums
       // ----------
@@ -1010,7 +995,7 @@ void AHF::FastFlowLoop()
 {
   ah_found = false;
 
-  Real meanradius = a0(0) / std::sqrt(4.0 * PI);
+  Real meanradius = a0(0) / SQRT_4PI;
   Real mass       = 0;
   Real mass_prev  = 0;
   Real area       = 0;
@@ -1086,7 +1071,7 @@ void AHF::FastFlowLoop()
     Sz    = integrals[iSz] / (8 * PI);
     S     = std::sqrt(SQR(Sx) + SQR(Sy) + SQR(Sz));
 
-    meanradius = a0(0) / std::sqrt(4.0 * PI);
+    meanradius = a0(0) / SQRT_4PI;
 
     // Check we get a finite result
     if (!(std::isfinite(area)))
@@ -1198,8 +1183,8 @@ void AHF::FastFlowLoop()
     ah_prop[hSy]         = Sy;
     ah_prop[hSz]         = Sz;
     ah_prop[hS]          = S;
-    ah_prop[hmass] =
-      std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));  // Christodoulu mass
+    // Christodoulou mass
+    ah_prop[hmass] = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
   }
 
   if (opt.verbose && (Globals::my_rank == opt.mpi_root))
@@ -1238,25 +1223,19 @@ void AHF::UpdateFlowSpectralComponents()
   const Real A     = alpha / (opt.lmax * (opt.lmax + 1)) + beta;
   const Real B     = beta / alpha;
 
-  Real* ABfac = new Real[opt.lmax + 1];
-  Real* spec0 = new Real[opt.lmax + 1];
-  Real* specc = new Real[lmpoints];
-  Real* specs = new Real[lmpoints];
+  const int nspec0 = opt.lmax + 1;
+  const int ntotal = nspec0 + 2 * lmpoints;
 
-  // Initialize coefficients to zero
+  Real* ABfac    = new Real[nspec0];
+  Real* spec_buf = new Real[ntotal]();  // zero-initialized
+
+  Real* spec0 = spec_buf;
+  Real* specc = spec_buf + nspec0;
+  Real* specs = specc + lmpoints;
+
   for (int l = 0; l <= opt.lmax; l++)
   {
-    spec0[l] = 0;
     ABfac[l] = A / (1.0 + B * l * (l + 1));
-  }
-  for (int l = 1; l <= opt.lmax; l++)
-  {
-    for (int m = 1; m <= l; m++)
-    {
-      int l1    = lmindex(l, m);
-      specc[l1] = 0;
-      specs[l1] = 0;
-    }
   }
 
   // Local sums
@@ -1284,18 +1263,9 @@ void AHF::UpdateFlowSpectralComponents()
     }  // phi loop
   }  // theta loop
 
-// MPI reduce
 #ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE,
-                spec0,
-                opt.lmax + 1,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
   MPI_Allreduce(
-    MPI_IN_PLACE, specc, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(
-    MPI_IN_PLACE, specs, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+    MPI_IN_PLACE, spec_buf, ntotal, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
   // Update the coefs
@@ -1315,9 +1285,7 @@ void AHF::UpdateFlowSpectralComponents()
   }
 
   delete[] ABfac;
-  delete[] spec0;
-  delete[] specc;
-  delete[] specs;
+  delete[] spec_buf;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1387,7 +1355,7 @@ void AHF::InitialGuess()
     else
     {
       a0(0) = std::max(0.5 * mass, std::min(mass, 0.5 * largedist));
-      a0(0) *= std::sqrt(4.0 * PI);
+      a0(0) *= SQRT_4PI;
     }
     return;
   }
@@ -1417,7 +1385,7 @@ void AHF::InitialGuess()
   }
   else
   {
-    a0(0) = std::sqrt(4.0 * PI) * opt.initial_radius;
+    a0(0) = SQRT_4PI * opt.initial_radius;
   }
 }
 

@@ -252,13 +252,14 @@
 #define SQRT2 1.4142135623730951
 #define SQRT3 1.7320508075688773
 #define SQRT_PI 1.77245385090551603
+#define SQRT_4PI 3.5449077018110318
 #define ONE_OVER_SQRT2 0.70710678118654752
 #define ONE_3RD 0.33333333333333333
 #define TWO_3RD 0.66666666666666667
 #define ONE_6TH 0.16666666666666666
 #define TINY_NUMBER 1.0e-20
 #define HUGE_NUMBER 1.0e+36
-#define OO(x) 1.0 / (x)
+#define OO(x) ( 1.0 / (x) )
 #define SQR(x) ( (x)*(x) )
 #define POW2(x) ( (x)*(x) )
 #define POW3(x) ( (x)*(x)*(x) )

@@ -296,7 +296,8 @@ inline void NPlm(const Real theta,
   }
 
   // Off-diagonal recurrence: P(l,m) for m < l
-  P(1, 0) = SQRT3 * costh * P(0, 0);
+  if (lmax >= 1)
+    P(1, 0) = SQRT3 * costh * P(0, 0);
   for (int l = 2; l <= lmax; l++)
   {
     for (int m = 0; m < l - 1; m++)
@@ -312,7 +313,16 @@ inline void NPlm(const Real theta,
   }
 
   // First theta-derivatives: diagonal seeds
-  for (int l = 0; l <= lmax; l++)
+  // l=0: d/dtheta of constant is identically zero (avoids 0 * pow(0,-1) = NaN)
+  dPdth(0, 0) = 0.0;
+  // l=1: d/dtheta[norm * (-sin theta)] = norm * (-cos theta)
+  //       (avoids pow(0, 0) reliance at exact poles)
+  if (lmax >= 1)
+  {
+    dPdth(1, 1) =
+      std::sqrt(3.0 * fac[2] / (4.0 * PI)) / (2.0 * fac[1]) * (-costh);
+  }
+  for (int l = 2; l <= lmax; l++)
   {
     dPdth(l, l) = std::sqrt((2 * l + 1) * fac[2 * l] / (4.0 * PI)) /
                   (std::pow(2, l) * fac[l]) * l * std::pow((-sinth), l - 1) *
@@ -320,7 +330,8 @@ inline void NPlm(const Real theta,
   }
 
   // First theta-derivatives: off-diagonal recurrence
-  dPdth(1, 0) = SQRT3 * (-sinth * P(0, 0) + costh * dPdth(0, 0));
+  if (lmax >= 1)
+    dPdth(1, 0) = SQRT3 * (-sinth * P(0, 0) + costh * dPdth(0, 0));
 
   for (int l = 2; l <= lmax; l++)
   {
@@ -340,7 +351,16 @@ inline void NPlm(const Real theta,
   }
 
   // Second theta-derivatives: diagonal seeds
-  for (int l = 0; l <= lmax; l++)
+  // l=0: d^2/dtheta^2 of constant is identically zero
+  dPdth2(0, 0) = 0.0;
+  // l=1: general formula has 0 * pow(0,-1) at poles; evaluate analytically:
+  //   d^2/dtheta^2 [(-sin theta)^1] = d/dtheta[-cos theta] = sin theta
+  if (lmax >= 1)
+  {
+    dPdth2(1, 1) =
+      std::sqrt(3.0 * fac[2] / (4.0 * PI)) / (2.0 * fac[1]) * sinth;
+  }
+  for (int l = 2; l <= lmax; l++)
   {
     dPdth2(l, l) = std::sqrt((Real)(2 * l + 1) * fac[2 * l] / (4.0 * PI)) /
                    (std::pow(2, l) * fac[l]) * l *
@@ -349,8 +369,9 @@ inline void NPlm(const Real theta,
   }
 
   // Second theta-derivatives: off-diagonal recurrence
-  dPdth2(1, 0) = SQRT3 * (-costh * P(0, 0) - 2.0 * sinth * dPdth(0, 0) +
-                          costh * dPdth2(0, 0));
+  if (lmax >= 1)
+    dPdth2(1, 0) = SQRT3 * (-costh * P(0, 0) - 2.0 * sinth * dPdth(0, 0) +
+                            costh * dPdth2(0, 0));
 
   for (int l = 2; l <= lmax; l++)
   {

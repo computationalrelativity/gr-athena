@@ -313,6 +313,9 @@ class WaveExtractRWZ
   Mesh const* pmesh;
 
   // -- Private methods -------------------------------------------------------
+  void ReadOptions(ParameterInput* pin, int n);
+  void PrepareArrays();
+
   int MPoints(const int l);
   int MIndex(const int l, const int m);
   Real RWZnorm(const int l);

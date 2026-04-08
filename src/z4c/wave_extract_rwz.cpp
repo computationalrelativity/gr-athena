@@ -41,6 +41,15 @@ char const* const
 WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
     : pmesh(pmesh)
 {
+  ReadOptions(pin, n);
+  PrepareArrays();
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
+//  \brief read all configuration from ParameterInput into opt struct
+void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
+{
   opt.bitant  = pin->GetOrAddBoolean("mesh", "bitant", false);
   opt.verbose = pin->GetOrAddBoolean("rwz_extraction", "verbose", false);
   opt.subtract_background =
@@ -61,15 +70,17 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   // Set method to compute areal radius
   std::string radius_method =
     pin->GetOrAddString("rwz_extraction", "method_areal_radius", "areal");
-  int i;
+  bool found_radius_method = false;
   for (int i = 0; i < NOptRadius; ++i)
   {
     if (radius_method == ArealRadiusMethod[i])
     {
       opt.method_areal_radius = i;
+      found_radius_method     = true;
+      break;
     }
   }
-  if (i == NOptRadius)
+  if (!found_radius_method)
   {
     std::stringstream msg;
     msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
@@ -106,6 +117,79 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
     grid_.Initialize(ntheta, nphi, integral_method);
   }
 
+  // Output configuration
+  opt.mpi_root = pin->GetOrAddInteger("rwz_extraction", "mpi_root", 0);
+  opt.outprec  = pin->GetOrAddInteger("rwz_extraction", "output_digits", 16);
+
+  // Baseline output filenames
+  ofbname[Iof_diagnostic] =
+    pin->GetOrAddString("rwz_extraction", "filename_diagnostic", "diagnostic");
+  ofbname[Iof_adm] =
+    pin->GetOrAddString("rwz_extraction", "filename_adm", "adm");
+  ofbname[Iof_hlm] =
+    pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
+  ofbname[Iof_Psie] =
+    pin->GetOrAddString("rwz_extraction", "filename_psie", "wave_psie");
+  ofbname[Iof_Psio] =
+    pin->GetOrAddString("rwz_extraction", "filename_psio", "wave_psio");
+
+  ofbname[Iof_Psie_dyn] = pin->GetOrAddString(
+    "rwz_extraction", "filename_psie_dyn", "wave_psie_dyn");
+  ofbname[Iof_Psio_dyn] = pin->GetOrAddString(
+    "rwz_extraction", "filename_psio_dyn", "wave_psio_dyn");
+  ofbname[Iof_Qplus] =
+    pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
+  ofbname[Iof_Qstar] =
+    pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
+
+#if (WAVE_EXTRACT_RWZ_EXTRAOUTPUT)
+  ofbname[Iof_H1_dot] =
+    pin->GetOrAddString("rwz_extraction", "filename_H1_dot", "wave_H1dot");
+  ofbname[Iof_H0_dr] =
+    pin->GetOrAddString("rwz_extraction", "filename_H0_dr", "wave_H0dr");
+  ofbname[Iof_H0] =
+    pin->GetOrAddString("rwz_extraction", "filename_H0", "wave_H0");
+  ofbname[Iof_H1] =
+    pin->GetOrAddString("rwz_extraction", "filename_H1", "wave_H1");
+  ofbname[Iof_H] =
+    pin->GetOrAddString("rwz_extraction", "filename_H", "wave_H");
+  ofbname[Iof_H_dr] =
+    pin->GetOrAddString("rwz_extraction", "filename_H_dr", "wave_Hdr");
+
+  ofbname[Iof_Psie_dr] =
+    pin->GetOrAddString("rwz_extraction", "filename_psie_dr", "wave_psie_dr");
+  ofbname[Iof_Psio_dr] =
+    pin->GetOrAddString("rwz_extraction", "filename_psio_dr", "wave_psio_dr");
+  ofbname[Iof_Qplus_dr] = pin->GetOrAddString(
+    "rwz_extraction", "filename_Qplus_dr", "wave_Qplus_dr");
+  ofbname[Iof_Qstar_dr] = pin->GetOrAddString(
+    "rwz_extraction", "filename_Qstar_dr", "wave_Qstar_dr");
+#endif
+
+  // Warn if RWZ will run but storage.aux ghost zones won't be communicated
+  {
+    const Real dt_rwz = pin->GetOrAddReal("task_triggers", "dt_Z4c_RWZ", 0.0);
+    if (dt_rwz > 0.0 &&
+        !pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false))
+    {
+      if (Globals::my_rank == 0)
+      {
+        std::printf(
+          "### WARNING [WaveExtractRWZ]: z4c/communicate_aux_adm is false.\n"
+          "  RWZ interpolates storage.aux (metric derivatives) near "
+          "MeshBlock\n"
+          "  boundaries where ghost-zone values are uninitialized without\n"
+          "  communication. Results may be inaccurate.\n");
+      }
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void WaveExtractRWZ::PrepareArrays()
+//  \brief allocate metric, multipole, and master-function arrays; compute Ylm
+void WaveExtractRWZ::PrepareArrays()
+{
   // 3+1 metric on the sphere
   gamma_dd.NewAthenaTensor(grid_.ntheta, grid_.nphi);
   dr_gamma_dd.NewAthenaTensor(grid_.ntheta, grid_.nphi);
@@ -133,8 +217,6 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   dr_alpha.NewAthenaTensor(grid_.ntheta, grid_.nphi);
   dr2_alpha.NewAthenaTensor(grid_.ntheta, grid_.nphi);
   dot_alpha.NewAthenaTensor(grid_.ntheta, grid_.nphi);
-
-  // Background 2-metric
 
   // Number of spherical harmonics (with l = 2 ... lmax)
   lmpoints = MPoints(opt.lmax);  // = lmax*(lmax + 2) - 3;
@@ -230,59 +312,6 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   Psio_dr.NewAthenaArray(lmpoints, 2);
   Qplus_dr.NewAthenaArray(lmpoints, 2);
   Qstar_dr.NewAthenaArray(lmpoints, 2);
-
-  // Set up stuff for output
-  opt.mpi_root = pin->GetOrAddInteger("rwz_extraction", "mpi_root", 0);
-
-  opt.outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 16);
-
-  // Baseline names
-  ofbname[Iof_diagnostic] =
-    pin->GetOrAddString("rwz_extraction", "filename_diagnostic", "diagnostic");
-  ofbname[Iof_adm] =
-    pin->GetOrAddString("rwz_extraction", "filename_adm", "adm");
-  ofbname[Iof_hlm] =
-    pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
-  ofbname[Iof_Psie] =
-    pin->GetOrAddString("rwz_extraction", "filename_psie", "wave_psie");
-  ofbname[Iof_Psio] =
-    pin->GetOrAddString("rwz_extraction", "filename_psio", "wave_psio");
-
-  // These are assigned, given the choice for Psie/o
-  ofbname[Iof_Psie_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psie_dyn", "wave_psie_dyn");
-  ofbname[Iof_Psio_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psio_dyn", "wave_psio_dyn");
-  ofbname[Iof_Qplus] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
-  ofbname[Iof_Qstar] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
-
-#if (WAVE_EXTRACT_RWZ_EXTRAOUTPUT)
-  // Extra output for debuging
-  ofbname[Iof_H1_dot] =
-    pin->GetOrAddString("rwz_extraction", "filename_H1_dot", "wave_H1dot");
-  ofbname[Iof_H0_dr] =
-    pin->GetOrAddString("rwz_extraction", "filename_H0_dr", "wave_H0dr");
-  ofbname[Iof_H0] =
-    pin->GetOrAddString("rwz_extraction", "filename_H0", "wave_H0");
-  obname[Iof_H1] =
-    pin->GetOrAddString("rwz_extraction", "filename_H1", "wave_H1");
-  ofbname[Iof_H] =
-    pin->GetOrAddString("rwz_extraction", "filename_H", "wave_H");
-  ofbname[Iof_H_dr] =
-    pin->GetOrAddString("rwz_extraction", "filename_H_dr", "wave_Hdr");
-
-  // Drvts of master functions
-  ofbname[Iof_Psie_dr] =
-    pin->GetOrAddString("rwz_extraction", "filename_psie_dr", "wave_psie_dr");
-  ofbname[Iof_Psio_dr] =
-    pin->GetOrAddString("rwz_extraction", "filename_psio_dr", "wave_psio_dr");
-  ofbname[Iof_Qplus_dr] = pin->GetOrAddString(
-    "rwz_extraction", "filename_Qplus_dr", "wave_Qplus_dr");
-  ofbname[Iof_Qstar_dr] = pin->GetOrAddString(
-    "rwz_extraction", "filename_Qstar_dr", "wave_Qstar_dr");
-#endif
 }
 
 //----------------------------------------------------------------------------------------

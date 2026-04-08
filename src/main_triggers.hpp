@@ -357,8 +357,9 @@ class Triggers
         if ((Globals::my_rank == 0) &&
             (pin->GetOrAddInteger("ahf", "num_horizons", 0) > 0) && dt == 0)
         {
-          std::cout << "Warning: ahf/num_horizons > 0 & ";
-          std::cout << "task_triggers/dt_Z4c_AHF = 0 \n";
+          std::printf(
+            "Warning: ahf/num_horizons > 0 & "
+            "task_triggers/dt_Z4c_AHF = 0\n");
         }
         // --------------------------------------------------------------------
         break;
@@ -369,6 +370,17 @@ class Triggers
 
         PopulateTrigger(tri, force_first_iter, allow_rescale_dt, dt);
         triggers[MakeTriggerMeta(tvar, ovar)] = tri;
+
+        // Issue a warning to stdout ------------------------------------------
+        if ((Globals::my_rank == 0) &&
+            (pin->GetOrAddInteger("rwz_extraction", "num_radii", 0) > 0) &&
+            dt == 0)
+        {
+          std::printf(
+            "Warning: rwz_extraction/num_radii > 0 & "
+            "task_triggers/dt_Z4c_RWZ = 0\n");
+        }
+        // --------------------------------------------------------------------
         break;
       }
       case TriggerVariant::Z4c_CCE:

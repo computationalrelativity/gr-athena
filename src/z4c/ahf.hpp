@@ -178,7 +178,7 @@ class AHF
 
   // -- Private methods -------------------------------------------------------
   void ReadOptions(ParameterInput* pin);
-  void AllocateArrays();
+  void PrepareArrays();
   void SetupIO();
   void MetricInterp();
   void SurfaceIntegrals();
