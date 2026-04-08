@@ -11,9 +11,7 @@
 
 #include <string>
 
-#include "../athena.hpp"
-#include "../athena_arrays.hpp"
-#include "../athena_tensor.hpp"
+#include "../athena_aliases.hpp"
 #include "../utils/grid_theta_phi.hpp"
 #include "../utils/lagrange_interp.hpp"
 
@@ -22,102 +20,116 @@ class Mesh;
 class MeshBlock;
 class ParameterInput;
 
-#define AHF_INTERP_ORDER_2 (0)  // Default: 2*NGHOST-1
+using namespace gra::aliases;
 
 //! \class AHF
 //! \brief Apparent Horizon Finder
 class AHF
 {
   public:
-  //! Creates the AHF object
-  AHF(Mesh* pmesh, ParameterInput* pin, int nh);
-  //! Destructor (will close output file)
+  // -- Construction / destruction --------------------------------------------
+  AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf);
   ~AHF();
-  //!
+
+  // -- Main API --------------------------------------------------------------
   void Find(int iter, Real time);
-  //!
   void Write(int iter, Real time);
 
-  Real GetHorizonRadius() const
+  // -- Accessors (read externally by pgens / eos) ----------------------------
+  bool IsFound() const
+  {
+    return ah_found;
+  }
+  Real TimeFound() const
+  {
+    return time_first_found;
+  }
+  Real GetHorizonMeanRadius() const
   {
     return ah_prop[hmeanradius];
   }
-  //! Horizon found
-  bool ah_found;
-  //! Time horizon _first_ found
-  Real time_first_found;
-  //! Initial guess
-  Real initial_radius;
-  //! Minimum radius
-  Real rr_min;
-  Real expand_guess;
-  //! Center
-  Real center[3];
-  //! Fast flow parameters
-  Real hmean_tol;
-  Real mass_tol;
-  int flow_iterations;
-  Real flow_alpha_beta_const;
-  bool verbose;
-  //! Multipoles
-  int lmax;
-
-  //! Interpolation order for metric quantities
-#if (AHF_INTERP_ORDER_2)
-  static const int metric_interp_order = 2;
-#else
-  static const int metric_interp_order = 2 * NGHOST - 1;
-#endif
-
-  //! Theta-phi grid with interpolator pools
-  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3>> grid_;
-
-  //! n surface follows the puncture tracker if use_puncture[n] > 0
-  int use_puncture;
-  //! n surface uses the punctures' mass-weighted center
-  // bool use_puncture_massweighted_center[NHORIZON];
-  bool use_puncture_massweighted_center;
-
-  //! n surface follows the extrema tracker if use_extrema[n] > 0
-  int use_extrema;
-
-  //! Distance in M at which BHs are considered as merged
-  Real merger_distance;
-
-  //! start and stop times for each surface
-  Real start_time;
-  Real stop_time;
+  Real GetHorizonMinRadius() const
+  {
+    return rr_min;
+  }
+  Real GetCenter(int i) const
+  {
+    return center[i];
+  }
 
   private:
-  int npunct;
-  int lmax1;
+  // -- Configuration (set once from ParameterInput) --------------------------
+  struct
+  {
+    Real initial_radius;
+    Real expand_guess;
+    Real hmean_tol;
+    Real mass_tol;
+    int flow_iterations;
+    Real flow_alpha_beta_const;
+    bool verbose;
+    int lmax;
+    int use_puncture;
+    bool use_puncture_massweighted_center;
+    int use_extrema;
+    Real merger_distance;
+    Real start_time;
+    Real stop_time;
+    bool wait_until_punc_are_close;
+    bool bitant;
+    int mpi_root;
+    std::string ofname_summary;
+    std::string ofname_shape;
+    std::string ofname_verbose;
+  } opt;
+
+  // -- Compile-time constants ------------------------------------------------
+  static const int metric_interp_order = 2 * NGHOST - 1;
+  static constexpr Real min_surface_radius =
+    1e-10;  // floor on r(theta,phi) to avoid coordinate singularity
+  static constexpr Real min_mass =
+    1e-10;  // floor on irreducible mass to abort failed flow
+
+  // -- Grid infrastructure ---------------------------------------------------
+  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3>> grid_;
+
+  // -- Spectral decomposition ------------------------------------------------
   int lmpoints;
-  int nh;
-  bool wait_until_punc_are_close;
-  bool bitant;
-  int fastflow_iter = 0;
-  //! Arrays of Legendre polys and drvts
-  AthenaArray<Real> P, dPdth, dPdth2;
-  //! Arrays of spherical harmonics and derivatives
-  AthenaArray<Real> Y0, Yc, Ys;
-  AthenaArray<Real> dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
-  AthenaArray<Real> dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2,
-    dYsdph2;
-  //! Arrays for spectral coefs
-  AthenaArray<Real> a0;
-  AthenaArray<Real> ac;
-  AthenaArray<Real> as;
-  //! Monopole spectral coefficient from the previous iteration (convergence
-  //! check)
+  AA a0, ac, as;
   Real last_a0;
-  //! Arrays for the various fields on the sphere
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> g;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> K;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 3> dg;
-  AthenaArray<Real> rr, rr_dth, rr_dph;
-  // Array computed in SurfaceIntegrals
-  AthenaArray<Real> rho;
-  //! Indexes of surface integrals
+
+  // Derivative multi-index for spherical harmonic tables
+  enum
+  {
+    D00,
+    D10,
+    D01,
+    D20,
+    D11,
+    D02,
+    NDERIV
+  };
+
+  //! Legendre polynomials: P_all(3, lmax+1, lmax+1), sliced by d/dth order
+  AA P_all;
+  AA P, dPdth, dPdth2;
+
+  //! Spherical harmonics: compact storage + named shallow-slice views
+  AA Y0_all;  // (3, ntheta, nphi, lmax+1)        - m=0: value, d/dth, d2/dth2
+  AA Yc_all;  // (NDERIV, ntheta, nphi, lmpoints)  - m>0 cosine
+  AA Ys_all;  // (NDERIV, ntheta, nphi, lmpoints)  - m>0 sine
+  AA Y0, Yc, Ys;
+  AA dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
+  AA dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2, dYsdph2;
+
+  // -- Fields on the sphere --------------------------------------------------
+  AT_N_sym g;
+  AT_N_sym K;
+  AT_N_VS2 dg;
+  AA rr, rr_dth, rr_dph;
+  AA rho;
+
+  // -- Surface integral bookkeeping ------------------------------------------
   enum
   {
     iarea,
@@ -129,9 +141,7 @@ class AHF
     iSz,
     invar
   };
-  //! Array of surface integrals
   Real integrals[invar];
-  //! Indexes of horizon quantities
   enum
   {
     harea,
@@ -147,9 +157,29 @@ class AHF
     hminradius,
     hnvar
   };
-  //! Array of horizon quantities
   Real ah_prop[hnvar];
 
+  // -- Internal state --------------------------------------------------------
+  bool ah_found;
+  Real time_first_found;
+  Real rr_min;
+  Real center[3];
+  int idx_ahf;
+  int fastflow_iter = 0;
+
+  // -- I/O -------------------------------------------------------------------
+  FILE* pofile_summary;
+  FILE* pofile_shape;
+  FILE* pofile_verbose;
+
+  // -- Back-pointers ---------------------------------------------------------
+  Mesh const* pmesh;
+  ParameterInput* pin;
+
+  // -- Private methods -------------------------------------------------------
+  void ReadOptions(ParameterInput* pin);
+  void AllocateArrays();
+  void SetupIO();
   void MetricInterp();
   void SurfaceIntegrals();
   void FastFlowLoop();
@@ -159,19 +189,7 @@ class AHF
   void ComputeSphericalHarmonics();
   int lmindex(const int l, const int m) const;
 
-  Mesh const* pmesh;
-  ParameterInput* pin;
-
-  int root;
-  bool ioproc;
-  std::string ofname_summary;
-  std::string ofname_shape;
-  std::string ofname_verbose;
-  FILE* pofile_summary;
-  FILE* pofile_shape;
-  FILE* pofile_verbose;
-
-  // Functions to interface with puncture tracker
+  // Puncture tracker interface
   Real PuncMaxDistance();
   Real PuncMaxDistance(const int pix);
   Real PuncSumMasses();

@@ -41,20 +41,20 @@ char const* const
 WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
     : pmesh(pmesh)
 {
-  bitant  = pin->GetOrAddBoolean("mesh", "bitant", false);
-  verbose = pin->GetOrAddBoolean("rwz_extraction", "verbose", false);
-  subtract_background =
+  opt.bitant  = pin->GetOrAddBoolean("mesh", "bitant", false);
+  opt.verbose = pin->GetOrAddBoolean("rwz_extraction", "verbose", false);
+  opt.subtract_background =
     pin->GetOrAddBoolean("rwz_extraction", "subtract_background", false);
 
   Nrad              = n;
   std::string n_str = std::to_string(n);
 
-  lmax = pin->GetOrAddInteger("rwz_extraction", "lmax", 2);
-  if ((lmax > 8) || (lmax < 2))
+  opt.lmax = pin->GetOrAddInteger("rwz_extraction", "lmax", 2);
+  if ((opt.lmax > 8) || (opt.lmax < 2))
   {
     std::stringstream msg;
     msg << "### FATAL ERROR in WaveExtractRWZ setup" << std::endl
-        << "lmax must be in [2,8] " << lmax << std::endl;
+        << "lmax must be in [2,8] " << opt.lmax << std::endl;
     ATHENA_ERROR(msg);
   }
 
@@ -66,7 +66,7 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   {
     if (radius_method == ArealRadiusMethod[i])
     {
-      method_areal_radius = i;
+      opt.method_areal_radius = i;
     }
   }
   if (i == NOptRadius)
@@ -79,18 +79,18 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
 
   // Get extraction radii
   std::string parname = "radius_" + n_str;
-  Radius              = pin->GetOrAddReal("rwz_extraction", parname, 10.0);
+  opt.Radius          = pin->GetOrAddReal("rwz_extraction", parname, 10.0);
 
   // Center of the sphere
   parname = "center_x_";
   parname += n_str;
-  center[0] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
-  parname   = "center_y_";
+  opt.center[0] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
+  parname       = "center_y_";
   parname += n_str;
-  center[1] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
-  parname   = "center_z_";
+  opt.center[1] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
+  parname       = "center_z_";
   parname += n_str;
-  center[2] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
+  opt.center[2] = pin->GetOrAddReal("rwz_extraction", parname, 0.0);
 
   // (theta,phi) coordinate points
   {
@@ -137,7 +137,7 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   // Background 2-metric
 
   // Number of spherical harmonics (with l = 2 ... lmax)
-  lmpoints = MPoints(lmax);  // = lmax*(lmax + 2) - 3;
+  lmpoints = MPoints(opt.lmax);  // = lmax*(lmax + 2) - 3;
 
   // Spherical harmonics
   Y.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints, 2);
@@ -232,16 +232,9 @@ WaveExtractRWZ::WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n)
   Qstar_dr.NewAthenaArray(lmpoints, 2);
 
   // Set up stuff for output
-#ifdef MPI_PARALLEL
-  root = pin->GetOrAddInteger("rwz_extraction", "mpi_root", 0);
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  ioproc = (root == rank);
-#else
-  ioproc = true;
-#endif
+  opt.mpi_root = pin->GetOrAddInteger("rwz_extraction", "mpi_root", 0);
 
-  outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 16);
+  opt.outprec = pin->GetOrAddInteger("rwz_extraction", "output_digits", 16);
 
   // Baseline names
   ofbname[Iof_diagnostic] =
@@ -306,7 +299,7 @@ std::string WaveExtractRWZ::OutputFileName(std::string base)
 {
   std::stringstream strObj3;
   strObj3 << std::setfill('0') << std::setw(5) << std::fixed
-          << std::setprecision(2) << Radius;
+          << std::setprecision(2) << opt.Radius;
   std::string fname = base + "_r" + strObj3.str() + ".txt";
   // std::string fname = base +  "_r" + std::to_string(Nrad) + ".txt";
   return fname;
@@ -319,7 +312,7 @@ std::string WaveExtractRWZ::OutputFileName(std::string base)
 //        output frequency is controlled by the RWZ trigger (see main.hpp)
 void WaveExtractRWZ::Write(int iter, Real time)
 {
-  if (!ioproc)
+  if (Globals::my_rank != opt.mpi_root)
     return;
 
   // The diagnostic file is special ...
@@ -338,13 +331,13 @@ void WaveExtractRWZ::Write(int iter, Real time)
       msg << "Could not open file '" << ofname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    outfile << iter << " " << std::setprecision(outprec) << std::scientific
-            << time << " " << std::setprecision(outprec) << std::scientific
-            << Schwarzschild_radius << " " << std::setprecision(outprec)
+    outfile << iter << " " << std::setprecision(opt.outprec) << std::scientific
+            << time << " " << std::setprecision(opt.outprec) << std::scientific
+            << Schwarzschild_radius << " " << std::setprecision(opt.outprec)
             << std::scientific << Schwarzschild_mass << " "
-            << std::setprecision(outprec) << std::scientific << dot_rsch << " "
-            << std::setprecision(outprec) << std::scientific
-            << norm_Delta_Gamma << " " << std::setprecision(outprec)
+            << std::setprecision(opt.outprec) << std::scientific << dot_rsch
+            << " " << std::setprecision(opt.outprec) << std::scientific
+            << norm_Delta_Gamma << " " << std::setprecision(opt.outprec)
             << std::scientific << norm_Tr_kappa_dd << " " << std::endl;
     outfile.close();
   }
@@ -386,11 +379,11 @@ void WaveExtractRWZ::Write(int iter, Real time)
       msg << "Could not open file '" << ofname << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    outfile << iter << " " << std::setprecision(outprec) << std::scientific
+    outfile << iter << " " << std::setprecision(opt.outprec) << std::scientific
             << time << " ";
     for (int i = 0; i < NVADM; ++i)
     {
-      outfile << std::setprecision(outprec) << std::scientific
+      outfile << std::setprecision(opt.outprec) << std::scientific
               << integrals_adm[i] << " ";
     }
     outfile << std::endl;
@@ -464,35 +457,35 @@ void WaveExtractRWZ::Write(int iter, Real time)
         // This should be the last output since there is no storage for hlm:
         // they are computed normalizing the Psi. We also multiply by the
         // coord. radius
-        outfile << iter << " " << std::setprecision(outprec) << std::scientific
-                << time << " ";
-        for (int l = 2; l <= lmax; ++l)
+        outfile << iter << " " << std::setprecision(opt.outprec)
+                << std::scientific << time << " ";
+        for (int l = 2; l <= opt.lmax; ++l)
         {
-          const Real NRWZ = RWZnorm(l) / Radius;
+          const Real NRWZ = RWZnorm(l) / opt.Radius;
           for (int m = -l; m <= l; ++m)
           {
             const int lm     = MIndex(l, m);
             const Real hlm_R = NRWZ * (Psie(lm, Re) - Psio(lm, Im));
             const Real hlm_I = NRWZ * (Psie(lm, Im) + Psio(lm, Re));
-            outfile << std::setprecision(outprec) << std::scientific << hlm_R
-                    << " " << std::setprecision(outprec) << std::scientific
-                    << hlm_I << " ";
+            outfile << std::setprecision(opt.outprec) << std::scientific
+                    << hlm_R << " " << std::setprecision(opt.outprec)
+                    << std::scientific << hlm_I << " ";
           }
         }
         outfile << std::endl;
       }
       else
       {
-        outfile << iter << " " << std::setprecision(outprec) << std::scientific
-                << time << " ";
-        for (int l = 2; l <= lmax; ++l)
+        outfile << iter << " " << std::setprecision(opt.outprec)
+                << std::scientific << time << " ";
+        for (int l = 2; l <= opt.lmax; ++l)
         {
           for (int m = -l; m <= l; ++m)
           {
             const int lm = MIndex(l, m);
-            outfile << std::setprecision(outprec) << std::scientific
+            outfile << std::setprecision(opt.outprec) << std::scientific
                     << (*data[i - 2])(lm, Re) << " "
-                    << std::setprecision(outprec) << std::scientific
+                    << std::setprecision(opt.outprec) << std::scientific
                     << (*data[i - 2])(lm, Im) << " ";
           }
         }
@@ -515,7 +508,7 @@ void WaveExtractRWZ::Write(int iter, Real time)
       }
       outfile << "# 1:iter 2:time";
       int idx = 3;
-      for (int l = 2; l <= lmax; ++l)
+      for (int l = 2; l <= opt.lmax; ++l)
       {
         for (int m = -l; m <= l; ++m)
         {
@@ -598,7 +591,7 @@ void WaveExtractRWZ::ComputeSphericalHarmonics()
     {
       const Real phi = grid_.ph_grid(j);
 
-      for (int l = 2; l <= lmax; ++l)
+      for (int l = 2; l <= opt.lmax; ++l)
       {
         for (int m = -l; m <= l; ++m)
         {
@@ -655,9 +648,9 @@ void WaveExtractRWZ::MetricToSphere()
   // Prepare cycle)
   if (!grid_.prepared)
   {
-    const Real xc = center[0];
-    const Real yc = center[1];
-    const Real zc = center[2];
+    const Real xc = opt.center[0];
+    const Real yc = opt.center[1];
+    const Real zc = opt.center[2];
 
     for (int i = 0; i < grid_.ntheta; ++i)
     {
@@ -671,12 +664,12 @@ void WaveExtractRWZ::MetricToSphere()
         const Real sinph = std::sin(phi);
         const Real cosph = std::cos(phi);
 
-        Real x = xc + Radius * sinth * cosph;
-        Real y = yc + Radius * sinth * sinph;
-        Real z = zc + Radius * costh;
+        Real x = xc + opt.Radius * sinth * cosph;
+        Real y = yc + opt.Radius * sinth * sinph;
+        Real z = zc + opt.Radius * costh;
 
         // Bitant: fold z < 0 to z > 0
-        if (bitant)
+        if (opt.bitant)
           z = std::abs(z);
 
         grid_.x_cart(0, i, j) = x;
@@ -708,13 +701,13 @@ void WaveExtractRWZ::InterpMetricToSphere()
   using InterpType = LagrangeInterpND<metric_interp_order, 3, true>;
 
   // Center of the sphere
-  const Real xc = center[0];
-  const Real yc = center[1];
-  const Real zc = center[2];
+  const Real xc = opt.center[0];
+  const Real yc = opt.center[1];
+  const Real zc = opt.center[2];
 
-  const Real r     = Radius;
-  const Real r2    = SQR(Radius);
-  const Real div_r = 1.0 / (Radius);
+  const Real r     = opt.Radius;
+  const Real r2    = SQR(opt.Radius);
+  const Real div_r = 1.0 / (opt.Radius);
 
   // Pointwise tensors: Cartesian components
   ATP_N_sym Cgamma_dd;
@@ -807,7 +800,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
       n[2] = (z - zc) * div_r;
 
       // Impose bitant symmetry below
-      bool bitant_sym = (bitant && z < 0) ? true : false;
+      bool bitant_sym = (opt.bitant && z < 0) ? true : false;
 
       // Interpolate Cartesian components at point (theta_i,phi_j)
       // ----------------------------------------------------------
@@ -1773,7 +1766,7 @@ void WaveExtractRWZ::BackgroundReduce()
 
       const Real dthdph = vol * div_sinth;
 
-      if (method_areal_radius == areal)
+      if (opt.method_areal_radius == areal)
       {
         const Real aux_r2 =
           std::sqrt(gamma_dd(1, 1, i, j) * gamma_dd(2, 2, i, j) -
@@ -1813,7 +1806,7 @@ void WaveExtractRWZ::BackgroundReduce()
            0.125 * aux_r2_d * aux_r2_dot * std::pow(div_aux_r2, 3)) *
           dthdph;
       }
-      else if (method_areal_radius == areal_simple)
+      else if (opt.method_areal_radius == areal_simple)
       {
         const Real aux_r2 =
           std::sqrt(gamma_dd(1, 1, i, j) * gamma_dd(2, 2, i, j));
@@ -1845,7 +1838,7 @@ void WaveExtractRWZ::BackgroundReduce()
            0.125 * aux_r2_d * aux_r2_dot * std::pow(div_aux_r2, 3)) *
           dthdph;
       }
-      else if (method_areal_radius == average_schw)
+      else if (opt.method_areal_radius == average_schw)
       {
         int_r2 = 0.5 *
                  (gamma_dd(1, 1, i, j) + gamma_dd(2, 2, i, j) * div_sinth2) *
@@ -1868,7 +1861,7 @@ void WaveExtractRWZ::BackgroundReduce()
                              dr_dot_gamma_dd(2, 2, i, j) * div_sinth2) *
                             vol;
       }
-      else if (method_areal_radius == schw_gthth)
+      else if (opt.method_areal_radius == schw_gthth)
       {
         int_r2          = gamma_dd(1, 1, i, j) * vol;
         int_drsch_dri   = 0.5 * dr_gamma_dd(1, 1, i, j) * vol;
@@ -1877,7 +1870,7 @@ void WaveExtractRWZ::BackgroundReduce()
         int_r2dot         = 0.5 * dot_gamma_dd(1, 1, i, j) * vol;
         int_drsch_dri_dot = 0.5 * dr_dot_gamma_dd(1, 1, i, j) * vol;
       }
-      else if (method_areal_radius == schw_gphph)
+      else if (opt.method_areal_radius == schw_gphph)
       {
         int_r2          = gamma_dd(2, 2, i, j) * div_sinth2 * vol;
         int_drsch_dri   = 0.5 * dr_gamma_dd(2, 2, i, j) * div_sinth2 * vol;
@@ -2003,7 +1996,7 @@ void WaveExtractRWZ::BackgroundReduce()
 
   // Subtract background metric ?
 
-  if (subtract_background)
+  if (opt.subtract_background)
   {
     for (int i = 0; i < grid_.ntheta; i++)
     {
@@ -2033,7 +2026,7 @@ void WaveExtractRWZ::BackgroundReduce()
   // dr_schwarzschild/dr_isotropic & Time derivatives of Schwarzschild radius
   // Some integrals must be corrected for extra terms
 
-  // if (method_areal_radius==average_schw) {
+  // if (opt.method_areal_radius==average_schw) {
 
   drsch_dri *= div_rsch;
   dri_drsch = 1.0 / drsch_dri;
@@ -2055,9 +2048,9 @@ void WaveExtractRWZ::BackgroundReduce()
   //} else {
 
   // TODO implement other cases
-  //  } else if (method_areal_radius==areal_simple) {}
-  //  } else if (method_areal_radius==schw_gthth) {}
-  // } else if (method_areal_radius==schw_gphph) {}
+  //  } else if (opt.method_areal_radius==areal_simple) {}
+  //  } else if (opt.method_areal_radius==schw_gthth) {}
+  // } else if (opt.method_areal_radius==schw_gphph) {}
 
   // dri_drsch = 1.0/drsch_dri; // general
   // d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
@@ -2382,7 +2375,7 @@ void WaveExtractRWZ::MultipoleReduce()
             gamma_dd(a, b, i, j) * beta_u(a, i, j) * dot_beta_u(b, i, j);
         }
 
-      for (int l = 2; l <= lmax; ++l)
+      for (int l = 2; l <= opt.lmax; ++l)
       {
         const Real lambda              = l * (l + 1);
         const Real div_lambda          = 1.0 / (lambda);
@@ -2408,7 +2401,7 @@ void WaveExtractRWZ::MultipoleReduce()
 
             integrals_multipoles[lmpoints_x2 * Ih00 + 2 * lm + c] -=
               vol * (SQR(alpha(i, j)) - beta2(i, j)) * sY;
-            if (subtract_background)
+            if (opt.subtract_background)
             {
               integrals_multipoles[lmpoints_x2 * Ih00 + 2 * lm + c] -=
                 vol * (integrals_background[Ig00]) * sY;
@@ -2683,7 +2676,7 @@ void WaveExtractRWZ::MultipoleReduce()
 #endif
 
   // Everything is here, store the multipoles.
-  for (int l = 2; l <= lmax; ++l)
+  for (int l = 2; l <= opt.lmax; ++l)
   {
     const Real lambda = l * (l + 1);
     for (int m = -l; m <= l; ++m)
@@ -2805,7 +2798,7 @@ void WaveExtractRWZ::MasterFuns()
   const Real abs_detg = std::fabs(g_dd(0, 0) * g_dd(1, 1) - SQR(g_dd(0, 1)));
   const Real div_sqrtdetg = 1.0 / (std::sqrt(abs_detg));
 
-  for (int l = 2; l <= lmax; ++l)
+  for (int l = 2; l <= opt.lmax; ++l)
   {
     const Real lambda       = l * (l + 1);
     const Real div_lambda_2 = 1.0 / (lambda - 2.0);
@@ -3246,7 +3239,7 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
 
   norm_Tr_kappa_dd = 0.0;
 
-  for (int l = 2; l <= lmax; ++l)
+  for (int l = 2; l <= opt.lmax; ++l)
   {
     for (int m = -l; m <= l; ++m)
     {
@@ -3374,7 +3367,7 @@ void WaveExtractRWZ::SphOrthogonality()
           (-Y(i, j, 2, 0) * YlmI + Y(i, j, 2, 1) * YlmR) * vol;
       }
 
-      for (int l = 2; l <= lmax; ++l)
+      for (int l = 2; l <= opt.lmax; ++l)
       {
         for (int m = -l; m <= l; ++m)
         {
@@ -3429,7 +3422,7 @@ void WaveExtractRWZ::SphOrthogonality()
            integrals_sphl1[2 * (l + m) + 1]);
   }
 
-  for (int l = 2; l <= lmax; ++l)
+  for (int l = 2; l <= opt.lmax; ++l)
   {
     for (int m = -l; m <= l; ++m)
     {

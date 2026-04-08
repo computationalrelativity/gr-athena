@@ -173,13 +173,13 @@ bool EquationOfState::CanExcisePoint(const bool is_slice,
     Real horizon_radius;
     for (auto pah_f : pm->pah_finder)
     {
-      if (not pah_f->ah_found)
+      if (not pah_f->IsFound())
         continue;
-      horizon_radius = pah_f->rr_min;
+      horizon_radius = pah_f->GetHorizonMinRadius();
       horizon_radius *= ph->opt_excision.horizon_factor;
-      const Real r_2 = SQR(x1(i) - pah_f->center[0]) +
-                       SQR(x2(j) - pah_f->center[1]) +
-                       SQR(x3(k) - pah_f->center[2]);
+      const Real r_2 = SQR(x1(i) - pah_f->GetCenter(0)) +
+                       SQR(x2(j) - pah_f->GetCenter(1)) +
+                       SQR(x3(k) - pah_f->GetCenter(2));
 
       if (ph->opt_excision.hybrid_hydro)
       {
@@ -234,15 +234,15 @@ bool EquationOfState::CanExcisePoint(Real& excision_factor,
 
     for (auto pah_f : pm->pah_finder)
     {
-      if (not pah_f->ah_found)
+      if (not pah_f->IsFound())
         continue;
 
-      horizon_radius = pah_f->rr_min;
+      horizon_radius = pah_f->GetHorizonMinRadius();
       horizon_radius *= ph->opt_excision.horizon_factor;
 
-      const Real r_2 = SQR(x1(i) - pah_f->center[0]) +
-                       SQR(x2(j) - pah_f->center[1]) +
-                       SQR(x3(k) - pah_f->center[2]);
+      const Real r_2 = SQR(x1(i) - pah_f->GetCenter(0)) +
+                       SQR(x2(j) - pah_f->GetCenter(1)) +
+                       SQR(x3(k) - pah_f->GetCenter(2));
 
       if (ph->opt_excision.hybrid_hydro)
       {
@@ -312,7 +312,7 @@ bool EquationOfState::CanExcisePoint(Real& excision_factor,
           const Real min_x       = ph->opt_excision.taper_min;
 
           // smooth taper (time)
-          const Real tf        = pah_f->time_first_found;
+          const Real tf        = pah_f->TimeFound();
           const Real t_elapsed = pmb->pmy_mesh->time - tf;
           const Real t_arg =
             (dt_response > 0)

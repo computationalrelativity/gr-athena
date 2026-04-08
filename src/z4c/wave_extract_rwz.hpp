@@ -22,8 +22,6 @@ class ParameterInput;
 
 using namespace gra::aliases;
 
-// #define NDIM (3) // already defined
-
 // output extra field (DEBUG)
 #define WAVE_EXTRACT_RWZ_EXTRAOUTPUT (0)  // 0=false, 1=true
 
@@ -32,70 +30,47 @@ using namespace gra::aliases;
 class WaveExtractRWZ
 {
   public:
-  //! Creates the WaveExtractRWZ object
+  // -- Construction / destruction --------------------------------------------
   WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n);
-  //! Destructor
   ~WaveExtractRWZ();
 
-  //! Step 1 ... 4 of the extraction:
+  // -- Main API --------------------------------------------------------------
   void MetricToSphere();
   void BackgroundReduce();
   void MultipoleReduce();
   void Write(int iter, Real time);
 
-  //! Sphere parameters
-  Real Radius;  // Coordinate radius
-  Real center[3];
-  Real Schwarzschild_radius;
-  Real Schwarzschild_mass;
-
-  //! Interpolation order for the metric
+  // -- Grid infrastructure (public: needed by AMR teardown hook) -------------
   static const int metric_interp_order = 2 * NGHOST - 1;
-
-  //! Shared theta-phi grid with interpolator pools
   GridThetaPhi<LagrangeInterpND<metric_interp_order, 3, true>> grid_;
 
-  //! Id of this extraction radius
-  int Nrad;
+  private:
+  // -- Configuration (set once from ParameterInput) --------------------------
+  struct
+  {
+    int lmax;
+    Real Radius;
+    Real center[3];
+    bool verbose;
+    bool bitant;
+    bool subtract_background;
+    int mpi_root;
+    int outprec;
+    int method_areal_radius;
+  } opt;
 
-  //! Multipoles
-  int lmax;
+  // -- Derived constants -----------------------------------------------------
+  int Nrad;
   int lmpoints;
 
-  //! Master functions & multipoles
-  AthenaArray<Real> Psie, Psio;
-  AthenaArray<Real> Psie_dyn, Psio_dyn;
-  AthenaArray<Real> Psie_sch, Psio_sch;
-  AthenaArray<Real> Qplus, Qstar;
-  AthenaArray<Real> Psie_dr, Psio_dr;
-  AthenaArray<Real> Qplus_dr, Qstar_dr;
-
-  private:
-  //! Functions for spherical harmonics
-  int MPoints(const int l);
-  int MIndex(const int l, const int m);
-  Real RWZnorm(const int l);
-  void ComputeSphericalHarmonics();
-
-  //! Helper functions
-  Real LeviCivitaSymbol(const int a, const int b, const int c);
-  void InterpMetricToSphere();
-  void MasterFuns();
-  void MultipolesGaugeInvariant();
-  void SphOrthogonality();
-
-  //! Functions for output
-  std::string OutputFileName(std::string base);
-
-  //! Schwarzschild radius, its time drvt,
-  //  the (dr_schwarzschild/dr_isotropic) Jacobians and its time drvt
+  // -- Schwarzschild quantities ----------------------------------------------
+  Real Schwarzschild_radius;
+  Real Schwarzschild_mass;
   Real rsch, dot_rsch, dot2_rsch;
   Real drsch_dri, d2rsch_dri2, drsch_dri_dot, d3rsch_dri3;
   Real dri_drsch, d2ri_drsch2, dri_drsch_dot, d3ri_drsch3;
 
-  //! Arrays for the various fields on the sphere
-
-  //! 3+1 metric on the sphere
+  // -- 3+1 metric on the sphere ----------------------------------------------
   AT_N_sym gamma_dd;
   AT_N_sym dr_gamma_dd;
   AT_N_sym dr2_gamma_dd;  // TODO 2nd dvtrs not yet implemented
@@ -122,10 +97,10 @@ class WaveExtractRWZ
   AT_N_sca dr2_alpha;
   AT_N_sca dot_alpha;
 
-  //! Spherical harmonics on the sphere (complex -> 2 components)
-  AthenaArray<Real> Y, Yth, Yph, X, W;
+  // -- Spherical harmonics on the sphere (complex -> 2 components) -----------
+  AA Y, Yth, Yph, X, W;
 
-  //! Spherical metric on M^2
+  // -- Spherical metric on M^2 -----------------------------------------------
   ATP_M_sym g_dd;
   ATP_M_sym g_uu;
   ATP_M_sym g_dr_dd;   // d/dr g_AB
@@ -139,36 +114,40 @@ class WaveExtractRWZ
   ATP_M_VS2 Gamma_dyn_udd;  // Christoffels (time-dep)
   Real norm_Delta_Gamma;
 
-  //! Multipoles (complex)
-  AthenaArray<Real> h00, h01, h11, h0, h1, G, K;  // even
-  AthenaArray<Real> h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr,
-    K_dr;                                // d/dr drvts
-  AthenaArray<Real> G_dr2, K_dr2;        // d2/dr2 drvts
-  AthenaArray<Real> G_dr_dot, K_dr_dot;  // d/dr d/dt drvts
-  AthenaArray<Real> h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot,
-    K_dot;                                           // d/dt drvts
-  AthenaArray<Real> H0, H01, H, H1;                  // odd
-  AthenaArray<Real> H0_dr, H01_dr, H_dr, H1_dr;      // d/dr drvts
-  AthenaArray<Real> H0_dot, H01_dot, H_dot, H1_dot;  // d/dt drvts
-  AthenaArray<Real> H0_dr2, H_dr2;                   // d2/dr2 drvts
-  AthenaArray<Real> H1_dr_dot;                       // d/dr d/dt drvts
+  // -- Multipoles (even) -----------------------------------------------------
+  AA h00, h01, h11, h0, h1, G, K;
+  AA h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr, K_dr;  // d/dr drvts
+  AA G_dr2, K_dr2;                                      // d2/dr2 drvts
+  AA G_dr_dot, K_dr_dot;                                // d/dr d/dt drvts
+  AA h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot, K_dot;  // d/dt drvts
 
-  //! Gauge-invariant multipoles
-  AthenaArray<Real> kappa_00, kappa_01, kappa_11, kappa_0,
+  // -- Multipoles (odd) ------------------------------------------------------
+  AA H0, H01, H, H1;
+  AA H0_dr, H01_dr, H_dr, H1_dr;      // d/dr drvts
+  AA H0_dot, H01_dot, H_dot, H1_dot;  // d/dt drvts
+  AA H0_dr2, H_dr2;                   // d2/dr2 drvts
+  AA H1_dr_dot;                       // d/dr d/dt drvts
+
+  // -- Gauge-invariant multipoles --------------------------------------------
+  AA kappa_00, kappa_01, kappa_11, kappa_0,
     kappa_1;  // SB lets not use this!
-  // utils::tensor::TensorPointwise<Real, utils::tensor::Symmetries::SYM2,
-  // MDIM, 2> kappa_dd; utils::tensor::TensorPointwise<Real,
-  // utils::tensor::Symmetries::NONE, MDIM, 1> kappa_d;
-  //  SB The above variables are defined at a points, but the kappa's have a
-  //  multipolar index. These var type was incorrect. They require 1 dimension
-  //  for the multipolar index and 1 for the Re/Im part, the following should
-  //  work:
+  // SB The above variables are defined at a points, but the kappa's have a
+  // multipolar index. These var type was incorrect. They require 1 dimension
+  // for the multipolar index and 1 for the Re/Im part:
   AT_M_sym kappa_dd;
   AT_M_vec kappa_d;
-  AthenaArray<Real> kappa, Tr_kappa_dd;
+  AA kappa, Tr_kappa_dd;
   Real norm_Tr_kappa_dd;
 
-  //! Indexes for real/imag (0/1) part of complex fields
+  // -- Master functions ------------------------------------------------------
+  AA Psie, Psio;
+  AA Psie_dyn, Psio_dyn;
+  AA Psie_sch, Psio_sch;
+  AA Qplus, Qstar;
+  AA Psie_dr, Psio_dr;
+  AA Qplus_dr, Qstar_dr;
+
+  // -- Surface integral bookkeeping ------------------------------------------
   enum
   {
     Re,
@@ -176,7 +155,6 @@ class WaveExtractRWZ
     RealImag
   };
 
-  //! Arrays for sphere integrals
   enum
   {
     I_ADM_M,
@@ -271,7 +249,7 @@ class WaveExtractRWZ
     NVMultipoles,
   };
 
-  //! Options for areal radius
+  // -- Areal radius options --------------------------------------------------
   enum
   {
     areal,
@@ -282,18 +260,8 @@ class WaveExtractRWZ
     NOptRadius,
   };
   static char const* const ArealRadiusMethod[NOptRadius];
-  int method_areal_radius;
 
-  //! msc
-  Mesh const* pmesh;
-  bool verbose;
-  bool bitant;
-  bool subtract_background;
-  int root;
-  int ioproc;
-  int outprec;
-
-  // Indexes for basenames of various output files
+  // -- I/O -------------------------------------------------------------------
 #if (WAVE_EXTRACT_RWZ_EXTRAOUTPUT)
   // includes indexes of various extra output files
   enum
@@ -340,6 +308,23 @@ class WaveExtractRWZ
   std::string ofname;
   FILE* pofile;
   std::ofstream outfile;
+
+  // -- Back-pointers ---------------------------------------------------------
+  Mesh const* pmesh;
+
+  // -- Private methods -------------------------------------------------------
+  int MPoints(const int l);
+  int MIndex(const int l, const int m);
+  Real RWZnorm(const int l);
+  void ComputeSphericalHarmonics();
+
+  Real LeviCivitaSymbol(const int a, const int b, const int c);
+  void InterpMetricToSphere();
+  void MasterFuns();
+  void MultipolesGaugeInvariant();
+  void SphOrthogonality();
+
+  std::string OutputFileName(std::string base);
 };
 
 #endif

@@ -1278,12 +1278,12 @@ int RefinementCondition(MeshBlock* pmb)
 
         for (auto pah_f : pmesh->pah_finder)
         {
-          if (not pah_f->ah_found)
+          if (not pah_f->IsFound())
             continue;
 
-          if (pah_f->rr_min < horizon_radius)
+          if (pah_f->GetHorizonMinRadius() < horizon_radius)
           {
-            horizon_radius = pah_f->rr_min;
+            horizon_radius = pah_f->GetHorizonMinRadius();
           }
           else
           {
@@ -1291,10 +1291,11 @@ int RefinementCondition(MeshBlock* pmb)
           }
 
           // populate the tracker with AHF based information
-          // ptracker_extrema->c_x1(n-1) = pah_f->center[0];
-          // ptracker_extrema->c_x2(n-1) = pah_f->center[1];
-          // ptracker_extrema->c_x3(n-1) = pah_f->center[2];
-          ptracker_extrema->ref_zone_radius(n - 1) = (pah_f->rr_min);
+          // ptracker_extrema->c_x1(n-1) = pah_f->GetCenter(0);
+          // ptracker_extrema->c_x2(n-1) = pah_f->GetCenter(1);
+          // ptracker_extrema->c_x3(n-1) = pah_f->GetCenter(2);
+          ptracker_extrema->ref_zone_radius(n - 1) =
+            (pah_f->GetHorizonMinRadius());
 
           use = true;
         }
