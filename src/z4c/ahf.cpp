@@ -448,344 +448,388 @@ void AHF::MetricInterp()
   }  // theta loop
 }
 //----------------------------------------------------------------------------------------
-//! \fn void AHF::SurfaceIntegrals(const int n)
-//  \brief compute expansion, surface element and spin integrand on surface n
-// Needs metric and extr. curv. interpolated on the surface
-// Performs local sums and MPI reduce
-void AHF::SurfaceIntegrals()
+//! \fn bool AHF::LevelSetGradient(...)
+//  \brief Compute Cartesian coords, inverse spherical Jacobian, and level-set
+//  function derivatives dFdi, dFdidj via chain rule with spectral coefficients
+//  and spherical harmonic tables.  Returns false if the surface radius is
+//  below min_surface_radius (caller should break).
+bool AHF::LevelSetGradient(int i,
+                           int j,
+                           Real sinth,
+                           Real costh,
+                           Real sinph,
+                           Real cosph,
+                           ATP_N_vec& dFdi,
+                           ATP_N_sym& dFdidj,
+                           Real& xp,
+                           Real& yp,
+                           Real& zp)
 {
-  using namespace LinearAlgebra;
+  // Cartesian coordinates of the surface point (relative to center)
+  xp = rr(i, j) * sinth * cosph;
+  yp = rr(i, j) * sinth * sinph;
+  zp = rr(i, j) * costh;
 
-  // Derivatives of (r,theta,phi) w.r.t (x,y,z)
+  Real const rp   = std::sqrt(xp * xp + yp * yp + zp * zp);
+  Real const rhop = std::sqrt(xp * xp + yp * yp);
+
+  if (rp < min_surface_radius)
+    return false;
+
+  Real const _divrp    = 1.0 / rp;
+  Real const _divrp3   = SQR(_divrp) * _divrp;
+  Real const _divrp4   = SQR(_divrp) * SQR(_divrp);
+  Real const _divrhop  = 1.0 / rhop;
+  Real const _divrhop2 = SQR(_divrhop);
+  Real const _divrhop3 = _divrhop2 * _divrhop;
+  Real const _divrhop4 = SQR(_divrhop2);
+  Real const xp2       = SQR(xp);
+  Real const yp2       = SQR(yp);
+  Real const zp2       = SQR(zp);
+
+  // Derivatives of (r,theta,phi) w.r.t. (x,y,z)
   ATP_N_vec drdi;
   ATP_N_vec dthetadi;
   ATP_N_vec dphidi;
-
   ATP_N_sym drdidj;
   ATP_N_sym dthetadidj;
   ATP_N_sym dphididj;
 
-  // Derivatives of F
-  ATP_N_vec dFdi;
-  ATP_N_vec dFdi_u;  // upper index
-  ATP_N_sym dFdidj;
+  // First derivatives
+  drdi(0) = xp * _divrp;
+  drdi(1) = yp * _divrp;
+  drdi(2) = zp * _divrp;
+
+  dthetadi(0) = zp * xp * (SQR(_divrp) * _divrhop);
+  dthetadi(1) = zp * yp * (SQR(_divrp) * _divrhop);
+  dthetadi(2) = -rhop * SQR(_divrp);
+
+  dphidi(0) = -yp * _divrhop2;
+  dphidi(1) = xp * _divrhop2;
+  dphidi(2) = 0.0;
+
+  // Second derivatives
+  drdidj(0, 0) = _divrp - xp2 * _divrp3;
+  drdidj(0, 1) = -xp * yp * _divrp3;
+  drdidj(0, 2) = -xp * zp * _divrp3;
+  drdidj(1, 1) = _divrp - yp2 * _divrp3;
+  drdidj(1, 2) = -yp * zp * _divrp3;
+  drdidj(2, 2) = _divrp - zp2 * _divrp3;
+
+  dthetadidj(0, 0) = zp *
+                     (-2.0 * SQR(xp2) - xp2 * yp2 + SQR(yp2) + zp2 * yp2) *
+                     (_divrp4 * _divrhop3);
+  dthetadidj(0, 1) =
+    -xp * yp * zp * (3.0 * xp2 + 3.0 * yp2 + zp2) * (_divrp4 * _divrhop3);
+  dthetadidj(0, 2) = xp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
+  dthetadidj(1, 1) = zp *
+                     (-2.0 * SQR(yp2) - yp2 * xp2 + SQR(xp2) + zp2 * xp2) *
+                     (_divrp4 * _divrhop3);
+  dthetadidj(1, 2) = yp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
+  dthetadidj(2, 2) = 2.0 * zp * rhop * _divrp4;
+
+  dphididj(0, 0) = 2.0 * yp * xp * _divrhop4;
+  dphididj(0, 1) = (yp2 - xp2) * _divrhop4;
+  dphididj(0, 2) = 0.0;
+  dphididj(1, 1) = -2.0 * yp * xp * _divrhop4;
+  dphididj(1, 2) = 0.0;
+  dphididj(2, 2) = 0.0;
+
+  // Chain rule: dF/dx^a = dr/dx^a - sum_{lm} c_{lm} * (dY/dtheta * dtheta/dx^a
+  //                                                    + dY/dphi   *
+  //                                                    dphi/dx^a)
+  for (int a = 0; a < NDIM; ++a)
+  {
+    dFdi(a) = drdi(a);
+    for (int l = 0; l <= opt.lmax; l++)
+      dFdi(a) -= a0(l) * dthetadi(a) * dY0dth(i, j, l);
+    for (int l = 1; l <= opt.lmax; l++)
+      for (int m = 1; m <= l; m++)
+      {
+        int l1 = lmindex(l, m);
+        dFdi(a) -=
+          ac(l1) *
+            (dthetadi(a) * dYcdth(i, j, l1) + dphidi(a) * dYcdph(i, j, l1)) +
+          as(l1) *
+            (dthetadi(a) * dYsdth(i, j, l1) + dphidi(a) * dYsdph(i, j, l1));
+      }
+  }
+
+  // Second chain rule (symmetric, upper triangle + copy)
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      dFdidj(a, b) = drdidj(a, b);
+      for (int l = 0; l <= opt.lmax; l++)
+        dFdidj(a, b) -= a0(l) * (dthetadidj(a, b) * dY0dth(i, j, l) +
+                                 dthetadi(a) * dthetadi(b) * dY0dth2(i, j, l));
+      for (int l = 1; l <= opt.lmax; l++)
+        for (int m = 1; m <= l; m++)
+        {
+          int l1 = lmindex(l, m);
+          dFdidj(a, b) -=
+            ac(l1) * (dthetadidj(a, b) * dYcdth(i, j, l1) +
+                      dthetadi(a) * (dthetadi(b) * dYcdth2(i, j, l1) +
+                                     dphidi(b) * dYcdthdph(i, j, l1)) +
+                      dphididj(a, b) * dYcdph(i, j, l1) +
+                      dphidi(a) * (dthetadi(b) * dYcdthdph(i, j, l1) +
+                                   dphidi(b) * dYcdph2(i, j, l1))) +
+            as(l1) * (dthetadidj(a, b) * dYsdth(i, j, l1) +
+                      dthetadi(a) * (dthetadi(b) * dYsdth2(i, j, l1) +
+                                     dphidi(b) * dYsdthdph(i, j, l1)) +
+                      dphididj(a, b) * dYsdph(i, j, l1) +
+                      dphidi(a) * (dthetadi(b) * dYsdthdph(i, j, l1) +
+                                   dphidi(b) * dYsdph2(i, j, l1)));
+        }
+      dFdidj(b, a) = dFdidj(a, b);
+    }
+
+  return true;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::ExpansionAndNormal(...)
+//  \brief Compute the expansion H and outward unit normal R from the metric,
+//  extrinsic curvature, metric derivatives, and level-set derivatives at
+//  surface point (i,j).
+void AHF::ExpansionAndNormal(int i,
+                             int j,
+                             const ATP_N_vec& dFdi,
+                             const ATP_N_sym& dFdidj,
+                             ATP_N_vec& R,
+                             Real& H,
+                             Real& u)
+{
+  using namespace LinearAlgebra;
+
+  // Determinant of 3-metric
+  Real detg    = Det3Metric(g(0, 0, i, j),
+                         g(0, 1, i, j),
+                         g(0, 2, i, j),
+                         g(1, 1, i, j),
+                         g(1, 2, i, j),
+                         g(2, 2, i, j));
+  Real oo_detg = 1.0 / detg;
 
   // Inverse metric
   ATP_N_sym ginv;
+  Inv3Metric(oo_detg,
+             g(0, 0, i, j),
+             g(0, 1, i, j),
+             g(0, 2, i, j),
+             g(1, 1, i, j),
+             g(1, 2, i, j),
+             g(2, 2, i, j),
+             &ginv(0, 0),
+             &ginv(0, 1),
+             &ginv(0, 2),
+             &ginv(1, 1),
+             &ginv(1, 2),
+             &ginv(2, 2));
 
-  // Normal
-  ATP_N_vec R;
+  // Trace of K
+  Real TrK = TraceRank2(oo_detg,
+                        g(0, 0, i, j),
+                        g(0, 1, i, j),
+                        g(0, 2, i, j),
+                        g(1, 1, i, j),
+                        g(1, 2, i, j),
+                        g(2, 2, i, j),
+                        K(0, 0, i, j),
+                        K(0, 1, i, j),
+                        K(0, 2, i, j),
+                        K(1, 1, i, j),
+                        K(1, 2, i, j),
+                        K(2, 2, i, j));
 
-  // dx^adth , dx^a/dph
-  ATP_N_vec dXdth;
-  ATP_N_vec dXdph;
-
-  // Flat-space coordinate rotational KV
-  ATP_N_vec phix;
-  ATP_N_vec phiy;
-  ATP_N_vec phiz;
-
-  ATP_N_sym nnF;
-
-  // Initialize integrals
-  for (int v = 0; v < invar; v++)
+  // Raise index: dFdi_u^a = g^{ab} dFdi_b
+  ATP_N_vec dFdi_u;
+  for (int a = 0; a < NDIM; ++a)
   {
-    integrals[v] = 0.0;
+    dFdi_u(a) = 0;
+    for (int b = 0; b < NDIM; ++b)
+      dFdi_u(a) += ginv(a, b) * dFdi(b);
   }
 
+  // Norm of gradient: |nabla F|^2
+  Real norm = 0;
+  for (int a = 0; a < NDIM; ++a)
+    norm += dFdi_u(a) * dFdi(a);
+
+  u = (norm > 0) ? std::sqrt(norm) : 0.0;
+
+  // Covariant Hessian: nabla_a nabla_b F = d_a d_b F - Gamma^c_{ab} d_c F
+  ATP_N_sym nnF;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      nnF(a, b) = dFdidj(a, b);
+      for (int d = 0; d < NDIM; ++d)
+        nnF(a, b) -=
+          0.5 * dFdi_u(d) *
+          (dg(a, b, d, i, j) + dg(b, a, d, i, j) - dg(d, a, b, i, j));
+      nnF(b, a) = nnF(a, b);
+    }
+
+  // Contract symmetric tensors for expansion
+  Real d2F = 0.0, dFdadFdbKab = 0.0, dFdadFdbFdadb = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      d2F += ginv(a, b) * nnF(a, b);
+      Real ff = dFdi_u(a) * dFdi_u(b);
+      dFdadFdbKab += ff * K(a, b, i, j);
+      dFdadFdbFdadb += ff * nnF(a, b);
+    }
+
+  // Expansion: Theta = div(s) = (1/u) nabla^2 F + (1/u^3) dF^a dF^b K_ab
+  //                            - (1/u^3) dF^a dF^b nabla_a nabla_b F - K
+  Real divu = (opt.expansion_fix == ExpansionFix::cure_divu)
+              ? ((norm > 0) ? 1.0 / u : 0.0)
+              : 1.0 / u;
+  H         = d2F * divu + dFdadFdbKab * (divu * divu) -
+      dFdadFdbFdadb * (divu * divu * divu) - TrK;
+
+  // Outward unit normal: s^a = dF^a / |nabla F|
+  for (int a = 0; a < NDIM; ++a)
+    R(a) = dFdi_u(a) * divu;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real AHF::SurfaceElement(...)
+//  \brief Compute the determinant of the induced 2-metric on the horizon
+//  surface at point (i,j).  Returns det(h) (clamped >= 0).
+Real AHF::SurfaceElement(int i,
+                         int j,
+                         Real sinth,
+                         Real costh,
+                         Real sinph,
+                         Real cosph)
+{
+  Real const drdt = rr_dth(i, j);
+  Real const drdp = rr_dph(i, j);
+
+  // Tangent vector d(x,y,z)/dtheta
+  ATP_N_vec dXdth;
+  dXdth(0) = (drdt * sinth + rr(i, j) * costh) * cosph;
+  dXdth(1) = (drdt * sinth + rr(i, j) * costh) * sinph;
+  dXdth(2) = drdt * costh - rr(i, j) * sinth;
+
+  // Tangent vector d(x,y,z)/dphi
+  ATP_N_vec dXdph;
+  dXdph(0) = (drdp * cosph - rr(i, j) * sinph) * sinth;
+  dXdph(1) = (drdp * sinph + rr(i, j) * cosph) * sinth;
+  dXdph(2) = drdp * costh;
+
+  // Induced 2-metric h_{AB} = g_{ab} e^a_A e^b_B
+  Real h11 = 0.0, h12 = 0.0, h22 = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      Real gab = g(a, b, i, j);
+      h11 += dXdth(a) * dXdth(b) * gab;
+      h12 += dXdth(a) * dXdph(b) * gab;
+      h22 += dXdph(a) * dXdph(b) * gab;
+    }
+
+  Real deth = h11 * h22 - h12 * h12;
+  if (deth < 0.)
+    deth = 0.0;
+
+  return deth;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::SpinIntegrand(...)
+//  \brief Compute the spin angular momentum integrand at a surface point.
+//  S_d = (1/8pi) oint phi^a_d s^b K_ab dA, where phi^a_d are flat-space
+//  rotational Killing vectors and s^b is the unit outward normal.
+void AHF::SpinIntegrand(Real xp,
+                        Real yp,
+                        Real zp,
+                        const ATP_N_vec& R,
+                        int i,
+                        int j,
+                        Real& Sx,
+                        Real& Sy,
+                        Real& Sz)
+{
+  // Flat-space coordinate rotational Killing vectors
+  ATP_N_vec phix;
+  phix(0) = 0;
+  phix(1) = -zp;
+  phix(2) = yp;
+
+  ATP_N_vec phiy;
+  phiy(0) = zp;
+  phiy(1) = 0;
+  phiy(2) = -xp;
+
+  ATP_N_vec phiz;
+  phiz(0) = -yp;
+  phiz(1) = xp;
+  phiz(2) = 0;
+
+  Sx = 0.0;
+  Sy = 0.0;
+  Sz = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      Real RbKab = R(b) * K(a, b, i, j);
+      Sx += phix(a) * RbKab;
+      Sy += phiy(a) * RbKab;
+      Sz += phiz(a) * RbKab;
+    }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::SurfaceIntegrals()
+//  \brief Compute expansion, surface element and spin integrand on surface.
+//  Needs metric and extrinsic curvature interpolated on the surface.
+//  Performs local sums and MPI reduce.
+void AHF::SurfaceIntegrals()
+{
+  for (int v = 0; v < invar; v++)
+    integrals[v] = 0.0;
   rho.ZeroClear();
 
-  // Loop over surface points
+  ATP_N_vec dFdi;
+  ATP_N_sym dFdidj;
+  ATP_N_vec R;
+
   for (int i = 0; i < grid_.ntheta; i++)
   {
-    Real const theta = grid_.th_grid(i);
-    Real const sinth = std::sin(theta);
-    Real const costh = std::cos(theta);
+    Real const sinth = std::sin(grid_.th_grid(i));
+    Real const costh = std::cos(grid_.th_grid(i));
 
     for (int j = 0; j < grid_.nphi; j++)
     {
       if (!grid_.IsOwned(i, j))
         continue;
 
-      Real const phi   = grid_.ph_grid(j);
-      Real const sinph = std::sin(phi);
-      Real const cosph = std::cos(phi);
+      Real const sinph = std::sin(grid_.ph_grid(j));
+      Real const cosph = std::cos(grid_.ph_grid(j));
 
-      // Calculate the expansion
-      // -----------------------
-
-      // Determinant of 3-metric
-      Real detg    = Det3Metric(g(0, 0, i, j),
-                             g(0, 1, i, j),
-                             g(0, 2, i, j),
-                             g(1, 1, i, j),
-                             g(1, 2, i, j),
-                             g(2, 2, i, j));
-      Real oo_detg = 1.0 / detg;
-
-      // Inverse metric
-      Inv3Metric(oo_detg,
-                 g(0, 0, i, j),
-                 g(0, 1, i, j),
-                 g(0, 2, i, j),
-                 g(1, 1, i, j),
-                 g(1, 2, i, j),
-                 g(2, 2, i, j),
-                 &ginv(0, 0),
-                 &ginv(0, 1),
-                 &ginv(0, 2),
-                 &ginv(1, 1),
-                 &ginv(1, 2),
-                 &ginv(2, 2));
-
-      // Trace of K
-      Real TrK = TraceRank2(oo_detg,
-                            g(0, 0, i, j),
-                            g(0, 1, i, j),
-                            g(0, 2, i, j),
-                            g(1, 1, i, j),
-                            g(1, 2, i, j),
-                            g(2, 2, i, j),
-                            K(0, 0, i, j),
-                            K(0, 1, i, j),
-                            K(0, 2, i, j),
-                            K(1, 1, i, j),
-                            K(1, 2, i, j),
-                            K(2, 2, i, j));
-
-      // Local coordinates of the surface (re-used below)
-      Real const xp = rr(i, j) * sinth * cosph;
-      Real const yp = rr(i, j) * sinth * sinph;
-      Real const zp = rr(i, j) * costh;
-
-      Real const rp   = std::sqrt(xp * xp + yp * yp + zp * zp);
-      Real const rhop = std::sqrt(xp * xp + yp * yp);
-
-      if (rp < min_surface_radius)
-      {
-        // Do not stop the code, just AHF failing
-        // break the loop and catch the nans in AHF later.
+      // Level-set derivatives (Jacobian + Ylm chain rule)
+      Real xp, yp, zp;
+      if (!LevelSetGradient(
+            i, j, sinth, costh, sinph, cosph, dFdi, dFdidj, xp, yp, zp))
         break;
-      }
 
-      Real const _divrp    = 1.0 / rp;
-      Real const _divrp3   = SQR(_divrp) * _divrp;
-      Real const _divrp4   = SQR(_divrp) * SQR(_divrp);
-      Real const _divrhop  = 1.0 / rhop;
-      Real const _divrhop2 = SQR(_divrhop);
-      Real const _divrhop3 = _divrhop2 * _divrhop;
-      Real const _divrhop4 = SQR(_divrhop2);
-      Real const xp2       = SQR(xp);
-      Real const yp2       = SQR(yp);
-      Real const zp2       = SQR(zp);
-
-      // First derivatives of (r,theta,phi) with respect to (x,y,z)
-      drdi(0) = xp * _divrp;
-      drdi(1) = yp * _divrp;
-      drdi(2) = zp * _divrp;
-
-      dthetadi(0) = zp * xp * (SQR(_divrp) * _divrhop);
-      dthetadi(1) = zp * yp * (SQR(_divrp) * _divrhop);
-      dthetadi(2) = -rhop * SQR(_divrp);
-
-      dphidi(0) = -yp * _divrhop2;
-      dphidi(1) = xp * _divrhop2;
-      dphidi(2) = 0.0;
-
-      // Second derivatives of (r,theta,phi) with respect to (x,y,z)
-      drdidj(0, 0) = _divrp - xp2 * _divrp3;
-      drdidj(0, 1) = -xp * yp * _divrp3;
-      drdidj(0, 2) = -xp * zp * _divrp3;
-      drdidj(1, 1) = _divrp - yp2 * _divrp3;
-      drdidj(1, 2) = -yp * zp * _divrp3;
-      drdidj(2, 2) = _divrp - zp2 * _divrp3;
-
-      dthetadidj(0, 0) = zp *
-                         (-2.0 * SQR(xp2) - xp2 * yp2 + SQR(yp2) + zp2 * yp2) *
-                         (_divrp4 * _divrhop3);
-      dthetadidj(0, 1) =
-        -xp * yp * zp * (3.0 * xp2 + 3.0 * yp2 + zp2) * (_divrp4 * _divrhop3);
-      dthetadidj(0, 2) = xp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
-      dthetadidj(1, 1) = zp *
-                         (-2.0 * SQR(yp2) - yp2 * xp2 + SQR(xp2) + zp2 * xp2) *
-                         (_divrp4 * _divrhop3);
-      dthetadidj(1, 2) = yp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
-      dthetadidj(2, 2) = 2.0 * zp * rhop * _divrp4;
-
-      dphididj(0, 0) = 2.0 * yp * xp * _divrhop4;
-      dphididj(0, 1) = (yp2 - xp2) * _divrhop4;
-      dphididj(0, 2) = 0.0;
-      dphididj(1, 1) = -2.0 * yp * xp * _divrhop4;
-      dphididj(1, 2) = 0.0;
-      dphididj(2, 2) = 0.0;
-
-      // Compute first derivatives of F
-      for (int a = 0; a < NDIM; ++a)
-      {
-        dFdi(a) = drdi(a);
-        for (int l = 0; l <= opt.lmax; l++)
-          dFdi(a) -= a0(l) * dthetadi(a) * dY0dth(i, j, l);
-        for (int l = 1; l <= opt.lmax; l++)
-          for (int m = 1; m <= l; m++)
-          {
-            int l1 = lmindex(l, m);
-            dFdi(a) -= ac(l1) * (dthetadi(a) * dYcdth(i, j, l1) +
-                                 dphidi(a) * dYcdph(i, j, l1)) +
-                       as(l1) * (dthetadi(a) * dYsdth(i, j, l1) +
-                                 dphidi(a) * dYsdph(i, j, l1));
-          }
-      }
-
-      // Compute second derivatives of F (symmetric, upper triangle + copy)
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = a; b < NDIM; ++b)
-        {
-          dFdidj(a, b) = drdidj(a, b);
-          for (int l = 0; l <= opt.lmax; l++)
-            dFdidj(a, b) -=
-              a0(l) * (dthetadidj(a, b) * dY0dth(i, j, l) +
-                       dthetadi(a) * dthetadi(b) * dY0dth2(i, j, l));
-          for (int l = 1; l <= opt.lmax; l++)
-            for (int m = 1; m <= l; m++)
-            {
-              int l1 = lmindex(l, m);
-              dFdidj(a, b) -=
-                ac(l1) * (dthetadidj(a, b) * dYcdth(i, j, l1) +
-                          dthetadi(a) * (dthetadi(b) * dYcdth2(i, j, l1) +
-                                         dphidi(b) * dYcdthdph(i, j, l1)) +
-                          dphididj(a, b) * dYcdph(i, j, l1) +
-                          dphidi(a) * (dthetadi(b) * dYcdthdph(i, j, l1) +
-                                       dphidi(b) * dYcdph2(i, j, l1))) +
-                as(l1) * (dthetadidj(a, b) * dYsdth(i, j, l1) +
-                          dthetadi(a) * (dthetadi(b) * dYsdth2(i, j, l1) +
-                                         dphidi(b) * dYsdthdph(i, j, l1)) +
-                          dphididj(a, b) * dYsdph(i, j, l1) +
-                          dphidi(a) * (dthetadi(b) * dYsdthdph(i, j, l1) +
-                                       dphidi(b) * dYsdph2(i, j, l1)));
-            }
-          dFdidj(b, a) = dFdidj(a, b);
-        }
-
-      // Compute dFdi with the index up
-      for (int a = 0; a < NDIM; ++a)
-      {
-        dFdi_u(a) = 0;
-        for (int b = 0; b < NDIM; ++b)
-        {
-          dFdi_u(a) += ginv(a, b) * dFdi(b);
-        }
-      }
-
-      // Compute norm of dFdi
-      Real norm = 0;
-      for (int a = 0; a < NDIM; ++a)
-      {
-        norm += dFdi_u(a) * dFdi(a);
-      }
-
-      Real u = (norm > 0) ? std::sqrt(norm) : 0.0;
-
-      // Compute nabla_a nabla_b F = d_a d_b F - Gamma^c_{ab} d_c F
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = a; b < NDIM; ++b)
-        {
-          nnF(a, b) = dFdidj(a, b);
-          for (int d = 0; d < NDIM; ++d)
-            nnF(a, b) -=
-              0.5 * dFdi_u(d) *
-              (dg(a, b, d, i, j) + dg(b, a, d, i, j) - dg(d, a, b, i, j));
-          nnF(b, a) = nnF(a, b);
-        }
-
-      // Contract symmetric tensors for expansion
-      Real d2F = 0.0, dFdadFdbKab = 0.0, dFdadFdbFdadb = 0.0;
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = 0; b < NDIM; ++b)
-        {
-          d2F += ginv(a, b) * nnF(a, b);
-          Real ff = dFdi_u(a) * dFdi_u(b);
-          dFdadFdbKab += ff * K(a, b, i, j);
-          dFdadFdbFdadb += ff * nnF(a, b);
-        }
-
-      // Expansion & rho = H * u * sigma (sigma=1)
-      Real divu = (opt.expansion_fix == ExpansionFix::cure_divu)
-                  ? ((norm > 0) ? 1.0 / u : 0.0)
-                  : 1.0 / u;
-      Real H    = d2F * divu + dFdadFdbKab * (divu * divu) -
-               dFdadFdbFdadb * (divu * divu * divu) - TrK;
-
+      // Expansion and outward unit normal
+      Real H, u;
+      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u);
       rho(i, j) = H * u;
 
-      // Normal vector
-      for (int a = 0; a < NDIM; ++a)
-      {
-        R(a) = dFdi_u(a) * divu;
-      }
+      // Surface area element
+      Real deth = SurfaceElement(i, j, sinth, costh, sinph, cosph);
 
-      // Surface Element
-      // ---------------
+      // Spin angular momentum integrand
+      Real Sx, Sy, Sz;
+      SpinIntegrand(xp, yp, zp, R, i, j, Sx, Sy, Sz);
 
-      // Derivatives of (x,y,z) vs (thetas, phi)
-
-      // dr/dtheta, dr/dphi
-      Real const drdt = rr_dth(i, j);
-      Real const drdp = rr_dph(i, j);
-
-      // Derivatives of (x,y,z) with respect to theta
-      dXdth(0) = (drdt * sinth + rr(i, j) * costh) * cosph;
-      dXdth(1) = (drdt * sinth + rr(i, j) * costh) * sinph;
-      dXdth(2) = drdt * costh - rr(i, j) * sinth;
-
-      // Derivatives of (x,y,z) with respect to phi
-      dXdph(0) = (drdp * cosph - rr(i, j) * sinph) * sinth;
-      dXdph(1) = (drdp * sinph + rr(i, j) * cosph) * sinth;
-      dXdph(2) = drdp * costh;
-
-      // Induced metric on the horizon
-      Real h11 = 0.0, h12 = 0.0, h22 = 0.0;
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = 0; b < NDIM; ++b)
-        {
-          Real gab = g(a, b, i, j);
-          h11 += dXdth(a) * dXdth(b) * gab;
-          h12 += dXdth(a) * dXdph(b) * gab;
-          h22 += dXdph(a) * dXdph(b) * gab;
-        }
-
-      // Determinant of the induced metric
-      Real deth = h11 * h22 - h12 * h12;
-      if (deth < 0.)
-        deth = 0.0;
-
-      // Spin integrand
-      // --------------
-
-      // Flat-space coordinate rotational KV
-      phix(0) = 0;
-      phix(1) = -zp;  // -(z-zc);
-      phix(2) = yp;   // (y-yc);
-      phiy(0) = zp;   // (z-zc);
-      phiy(1) = 0;
-      phiy(2) = -xp;  // -(x-xc);
-      phiz(0) = -yp;  // -(y-yc);
-      phiz(1) = xp;   // (x-xc);
-      phiz(2) = 0;
-
-      // Integrand of spin: S_d = (1/8pi) oint phi^a_d s^b K_ab dA
-      Real intSx = 0.0, intSy = 0.0, intSz = 0.0;
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = 0; b < NDIM; ++b)
-        {
-          Real RbKab = R(b) * K(a, b, i, j);
-          intSx += phix(a) * RbKab;
-          intSy += phiy(a) * RbKab;
-          intSz += phiz(a) * RbKab;
-        }
-
-      // Local sums
-      // ----------
-
+      // Accumulate weighted integrals
       const Real wght = grid_.weights(i, j);
       const Real da   = wght * std::sqrt(deth) / sinth;
 
@@ -793,9 +837,9 @@ void AHF::SurfaceIntegrals()
       integrals[icoarea] += wght * SQR(rr(i, j));
       integrals[ihrms] += da * SQR(H);
       integrals[ihmean] += da * H;
-      integrals[iSx] += da * intSx;
-      integrals[iSy] += da * intSy;
-      integrals[iSz] += da * intSz;
+      integrals[iSx] += da * Sx;
+      integrals[iSy] += da * Sy;
+      integrals[iSz] += da * Sz;
 
     }  // phi loop
   }  // theta loop

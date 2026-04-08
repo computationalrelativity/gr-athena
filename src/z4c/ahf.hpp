@@ -197,6 +197,40 @@ class AHF
   void ComputeSphericalHarmonics();
   int lmindex(const int l, const int m) const;
 
+  bool LevelSetGradient(int i,
+                        int j,
+                        Real sinth,
+                        Real costh,
+                        Real sinph,
+                        Real cosph,
+                        ATP_N_vec& dFdi,
+                        ATP_N_sym& dFdidj,
+                        Real& xp,
+                        Real& yp,
+                        Real& zp);
+  void ExpansionAndNormal(int i,
+                          int j,
+                          const ATP_N_vec& dFdi,
+                          const ATP_N_sym& dFdidj,
+                          ATP_N_vec& R,
+                          Real& H,
+                          Real& u);
+  Real SurfaceElement(int i,
+                      int j,
+                      Real sinth,
+                      Real costh,
+                      Real sinph,
+                      Real cosph);
+  void SpinIntegrand(Real xp,
+                     Real yp,
+                     Real zp,
+                     const ATP_N_vec& R,
+                     int i,
+                     int j,
+                     Real& Sx,
+                     Real& Sy,
+                     Real& Sz);
+
   // Puncture tracker interface
   Real PuncMaxDistance();
   Real PuncMaxDistance(const int pix);
