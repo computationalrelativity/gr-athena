@@ -20,6 +20,8 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
+#include "../utils/grid_theta_phi.hpp"
+#include "../utils/lagrange_interp.hpp"
 #include "z4c.hpp"
 
 // Forward declaration
@@ -50,8 +52,11 @@ class Ejecta
   ~Ejecta();
 
   Real radius;
-  //! Grid points
-  int ntheta, nphi;
+
+  //! GridThetaPhi instance (cc pool for hydro, vc pool for metric when Z4c is
+  //! VC)
+  static constexpr int ejecta_interp_order = 2 * NGHOST - 1;
+  GridThetaPhi<LagrangeInterpND<ejecta_interp_order, 3>> grid_;
 
   //! start and stop times for each surface
   Real start_time;
@@ -71,7 +76,6 @@ class Ejecta
   AA prim[NHYDRO], cons[NHYDRO], Y[NSCALARS], T, Bcc[3];
   AA z4c[Z4c::N_Z4c], adm[Z4c::N_ADM];
   AA other[NOTHER];
-  AA theta, phi;
   Real mass_contained;
   Real Mdot_total;
 
@@ -113,23 +117,15 @@ class Ejecta
   Real delta_hist[n_hist];
   int n_bins[n_hist];
 
-  //! Flag points
-  AthenaArray<int> havepoint;
   AA integrals_unbound, az_integrals_unbound;
 
-  void Interp(MeshBlock* pmb);
+  void Interp();
   void Mass(MeshBlock* pmb);
 
   void Write_hdf5(const Real time);
   void Write_scalars(const Real time);
 
   void SphericalIntegrals();
-
-  int tpindex(const int i, const int j);
-  Real th_grid(const int i);
-  Real ph_grid(const int j);
-  Real dth_grid();
-  Real dph_grid();
 
   Mesh* pmesh;
   ParameterInput* pin;

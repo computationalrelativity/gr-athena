@@ -14,6 +14,8 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../athena_tensor.hpp"
+#include "../utils/grid_theta_phi.hpp"
+#include "../utils/lagrange_interp.hpp"
 
 // Forward declaration
 class Mesh;
@@ -59,8 +61,16 @@ class AHF
   bool verbose;
   //! Multipoles
   int lmax;
-  //! Grid points
-  int ntheta, nphi;
+
+  //! Interpolation order for metric quantities
+#if (AHF_INTERP_ORDER_2)
+  static const int metric_interp_order = 2;
+#else
+  static const int metric_interp_order = 2 * NGHOST - 1;
+#endif
+
+  //! Theta-phi grid with interpolator pools
+  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3>> grid_;
 
   //! n surface follows the puncture tracker if use_puncture[n] > 0
   int use_puncture;
@@ -85,13 +95,6 @@ class AHF
   int nh;
   bool wait_until_punc_are_close;
   bool bitant;
-  //! Arrays for the grid and quadrature weights
-  AthenaArray<Real> th_grid, ph_grid, weights;
-#if (AHF_INTERP_ORDER_2)
-  static const int metric_interp_order = 2;
-#else
-  static const int metric_interp_order = 2 * NGHOST - 1;
-#endif
   int fastflow_iter = 0;
   //! Arrays of Legendre polys and drvts
   AthenaArray<Real> P, dPdth, dPdth2;
@@ -147,10 +150,7 @@ class AHF
   //! Array of horizon quantities
   Real ah_prop[hnvar];
 
-  //! Flag points
-  AthenaArray<int> havepoint;
-
-  void MetricInterp(MeshBlock* pmb);
+  void MetricInterp();
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
@@ -158,13 +158,6 @@ class AHF
   void InitialGuess();
   void ComputeSphericalHarmonics();
   int lmindex(const int l, const int m) const;
-  int tpindex(const int i, const int j) const;
-  void GLQuad_Nodes_Weights(const Real a,
-                            const Real b,
-                            Real* x,
-                            Real* w,
-                            const int n);
-  void SetGridWeights(const std::string& method);
 
   Mesh const* pmesh;
   ParameterInput* pin;

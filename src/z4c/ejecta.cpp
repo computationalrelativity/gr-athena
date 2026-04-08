@@ -23,10 +23,10 @@
 #include "../mesh/mesh.hpp"
 #include "../outputs/outputs.hpp"
 #include "../parameter_input.hpp"
-#include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
 #include "ejecta.hpp"
+#include "z4c_macro.hpp"
 
 // External libraries
 // ..
@@ -83,15 +83,10 @@ Ejecta::Ejecta(Mesh* pmesh, ParameterInput* pin, int n)
   std::string parname;
   std::string n_str = std::to_string(nr);
 
-  ntheta = pin->GetOrAddInteger("ejecta", "ntheta", 10);
-  nphi   = pin->GetOrAddInteger("ejecta", "nphi", 6);
-
-  if ((nphi + 1) % 2 == 0)
   {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in Ejecta setup" << std::endl
-        << "nphi must be even " << nphi << std::endl;
-    ATHENA_ERROR(msg);
+    const int ntheta_local = pin->GetOrAddInteger("ejecta", "ntheta", 10);
+    const int nphi_local   = pin->GetOrAddInteger("ejecta", "nphi", 6);
+    grid_.Initialize(ntheta_local, nphi_local, "midpoint");
   }
 
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
@@ -103,52 +98,37 @@ Ejecta::Ejecta(Mesh* pmesh, ParameterInput* pin, int n)
   start_time = pin->GetOrAddReal("ejecta", "start_time", 0.0);
   stop_time  = pin->GetOrAddReal("ejecta", "stop_time", 10000.0);
 
-  theta.NewAthenaArray(ntheta);
-  phi.NewAthenaArray(nphi);
   mass_contained = 0.0;
 
   for (int n = 0; n < NHYDRO; ++n)
   {
-    prim[n].NewAthenaArray(ntheta, nphi);
-    cons[n].NewAthenaArray(ntheta, nphi);
+    prim[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
+    cons[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
   for (int n = 0; n < NDIM; ++n)
   {
-    Bcc[n].NewAthenaArray(ntheta, nphi);
+    Bcc[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
 #if FLUID_ENABLED
   for (int n = 0; n < NSCALARS; ++n)
   {
-    Y[n].NewAthenaArray(ntheta, nphi);
+    Y[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
-  T.NewAthenaArray(ntheta, nphi);
+  T.NewAthenaArray(grid_.ntheta, grid_.nphi);
 #endif
 
   for (int n = 0; n < Z4c::N_ADM; ++n)
   {
-    adm[n].NewAthenaArray(ntheta, nphi);
+    adm[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
   for (int n = 0; n < Z4c::N_Z4c; ++n)
   {
-    z4c[n].NewAthenaArray(ntheta, nphi);
+    z4c[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
   for (int n = 0; n < NOTHER; ++n)
   {
-    other[n].NewAthenaArray(ntheta, nphi);
+    other[n].NewAthenaArray(grid_.ntheta, grid_.nphi);
   }
-
-  for (int i = 0; i < ntheta; ++i)
-  {
-    theta(i) = th_grid(i);
-  }
-
-  for (int j = 0; j < nphi; ++j)
-  {
-    phi(j) = ph_grid(j);
-  }
-
-  // Flag points existing on this mesh
-  havepoint.NewAthenaArray(ntheta, nphi);
   // n iterates over unboundedness criteria, m over variables, l over bins in
   // histogram i over theta j over phi
 
@@ -184,7 +164,7 @@ Ejecta::Ejecta(Mesh* pmesh, ParameterInput* pin, int n)
   }
 
   integrals_unbound.NewAthenaArray(n_unbound, n_int);
-  az_integrals_unbound.NewAthenaArray(n_unbound, n_int, ntheta);
+  az_integrals_unbound.NewAthenaArray(n_unbound, n_int, grid_.ntheta);
   for (int m = 0; m < n_hist; ++m)
   {
     hist[m].NewAthenaArray(n_unbound, n_bins[m]);
@@ -377,134 +357,77 @@ void Ejecta::Mass(MeshBlock* pmb)
 }
 
 //-----------------------------------------------------------------------------
-// \!fn void Ejecta::Interp(MeshBlock * pmb)
-// \brief interpolate quantities on the surface n
-// Flag here the surface points contained in the MB
-void Ejecta::Interp(MeshBlock* pmb)
+// \!fn void Ejecta::Interp()
+// \brief interpolate quantities on the sphere using pre-built interpolator
+// pools
+void Ejecta::Interp()
 {
   using namespace LinearAlgebra;
+  using InterpType = LagrangeInterpND<ejecta_interp_order, 3>;
 
-  int is = pmb->is, ie = pmb->ie, js = pmb->js, je = pmb->je, ks = pmb->ks,
-      ke                                           = pmb->ke;
-  LagrangeInterpND<2 * NGHOST - 1, 3>* pinterp3    = nullptr;
-  LagrangeInterpND<2 * NGHOST - 1, 3>* pinterp3_cx = nullptr;
-  //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fx = nullptr;
-  //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fy = nullptr;
-  //  LagrangeInterpND<2*NGHOST-1, 3> * pinterp3_fz = nullptr;
-
-  AthenaArray<Real> prim_[NHYDRO], cons_[NHYDRO], T_, Y_[NSCALARS], Bcc_[NDIM];
-  AthenaArray<Real> vc_adm_[Z4c::N_ADM], vc_z4c_[Z4c::N_Z4c], adm_[Z4c::N_ADM],
-    z4c_[Z4c::N_Z4c];
-  AthenaArray<Real> flux_[NDIM];
+  // Pool references
+  std::vector<InterpType>& pool_cc = grid_.interp_pool_cc;
+  std::vector<InterpType>& pool_met =
+    SW_CCX_VC(grid_.interp_pool_cc, grid_.interp_pool_vc);
 
   ATP_N_sym adm_g_dd;
 
-  for (int n = 0; n < NHYDRO; ++n)
+  for (int i = 0; i < grid_.ntheta; ++i)
   {
-    prim_[n].InitWithShallowSlice(pmb->phydro->w, IDN + n, 1);
-    cons_[n].InitWithShallowSlice(pmb->phydro->u, IDN + n, 1);
-  }
-#if FLUID_ENABLED
-  for (int n = 0; n < NSCALARS; ++n)
-  {
-    Y_[n].InitWithShallowSlice(pmb->pscalars->r, IYF + n, 1);
-  }
-  // T not in ghosts - rather than comm Temp, calculate from other prims on
-  // sphere
-#endif
+    const Real sinth = std::sin(grid_.th_grid(i));
+    const Real costh = std::cos(grid_.th_grid(i));
 
-  for (int n = 0; n < NDIM; ++n)
-  {
-    flux_[n].InitWithShallowSlice(pmb->phydro->flux[n], IDN, 1);
-    if (MAGNETIC_FIELDS_ENABLED)
+    for (int j = 0; j < grid_.nphi; ++j)
     {
-      Bcc_[n].InitWithShallowSlice(pmb->pfield->bcc, IB1 + n, 1);
-    }
-  }
-
-  for (int n = 0; n < Z4c::N_ADM; ++n)
-  {
-    adm_[n].InitWithShallowSlice(pmb->pz4c->storage.adm, n, 1);
-  }
-
-  for (int n = 0; n < Z4c::N_Z4c; ++n)
-  {
-    z4c_[n].InitWithShallowSlice(pmb->pz4c->storage.u, n, 1);
-  }
-
-  // For interp of CC hydro vars
-  Real origin[NDIM] = { pmb->pcoord->x1v(0),
-                        pmb->pcoord->x2v(0),
-                        pmb->pcoord->x3v(0) };
-  Real delta[NDIM]  = { pmb->pcoord->dx1v(0),
-                        pmb->pcoord->dx2v(0),
-                        pmb->pcoord->dx3v(0) };
-  int size[NDIM]    = { pmb->ncells1, pmb->ncells2, pmb->ncells3 };
-  Real coord[NDIM];
-
-  //  For interp of VC/CX metric vars
-  Real origin_cx[NDIM] = { pmb->pz4c->mbi.x1(0),
-                           pmb->pz4c->mbi.x2(0),
-                           pmb->pz4c->mbi.x3(0) };
-  Real delta_cx[NDIM]  = { pmb->pz4c->mbi.dx1(0),
-                           pmb->pz4c->mbi.dx2(0),
-                           pmb->pz4c->mbi.dx3(0) };
-  int size_cx[NDIM]    = { pmb->pz4c->mbi.nn1,
-                           pmb->pz4c->mbi.nn2,
-                           pmb->pz4c->mbi.nn3 };
-
-  // none of the f stuff is used actually
-  Real origin_f[NDIM] = { pmb->pcoord->x1f(0),
-                          pmb->pcoord->x2f(0),
-                          pmb->pcoord->x3f(0) };
-  Real delta_f[NDIM]  = { pmb->pcoord->dx1f(0),
-                          pmb->pcoord->dx2f(0),
-                          pmb->pcoord->dx3f(0) };
-  int size_fx[NDIM]   = { pmb->ncells1 + 1, pmb->ncells2, pmb->ncells3 };
-  int size_fy[NDIM]   = { pmb->ncells1, pmb->ncells2 + 1, pmb->ncells3 };
-  int size_fz[NDIM]   = { pmb->ncells1, pmb->ncells2, pmb->ncells3 + 1 };
-
-  for (int i = 0; i < ntheta; i++)
-  {
-    Real sinth = std::sin(theta(i));
-    Real costh = std::cos(theta(i));
-    for (int j = 0; j < nphi; j++)
-    {
-      Real sinph = std::sin(phi(j));
-      Real cosph = std::cos(phi(j));
-
-      coord[0] = radius * sinth * cosph;
-      coord[1] = radius * sinth * sinph;
-      coord[2] = radius * costh;
-      // Impose bitant symmetry below
-      bool bitant_sym = (bitant && coord[2] < 0) ? true : false;
-      // Associate z -> -z if bitant
-      if (bitant)
-        coord[2] = std::abs(coord[2]);
-
-      if (!pmb->PointContained(coord[0], coord[1], coord[2]))
+      if (!grid_.IsOwned(i, j))
         continue;
 
-      // this surface point is in this MB
-      havepoint(i, j) += 1;
+      MeshBlock* pmb         = grid_.mask_mb(i, j);
+      const int pidx         = grid_.mask_interp_idx(i, j);
+      InterpType& interp_cc  = pool_cc[pidx];
+      InterpType& interp_met = pool_met[pidx];
 
-      // Interpolate
-      pinterp3 =
-        new LagrangeInterpND<2 * NGHOST - 1, 3>(origin, delta, size, coord);
-      pinterp3_cx = new LagrangeInterpND<2 * NGHOST - 1, 3>(
-        origin_cx, delta_cx, size_cx, coord);
-
+      // Shallow slices for this MeshBlock
+      AthenaArray<Real> prim_[NHYDRO], cons_[NHYDRO];
       for (int n = 0; n < NHYDRO; ++n)
       {
-        prim[n](i, j) = pinterp3->eval(&(prim_[n](0, 0, 0)));
-        cons[n](i, j) = pinterp3->eval(&(cons_[n](0, 0, 0)));
+        prim_[n].InitWithShallowSlice(pmb->phydro->w, IDN + n, 1);
+        cons_[n].InitWithShallowSlice(pmb->phydro->u, IDN + n, 1);
+      }
+#if FLUID_ENABLED
+      AthenaArray<Real> Y_[NSCALARS];
+      for (int n = 0; n < NSCALARS; ++n)
+      {
+        Y_[n].InitWithShallowSlice(pmb->pscalars->r, IYF + n, 1);
+      }
+#endif
+      AthenaArray<Real> Bcc_[NDIM];
+      for (int n = 0; n < NDIM; ++n)
+      {
+        if (MAGNETIC_FIELDS_ENABLED)
+          Bcc_[n].InitWithShallowSlice(pmb->pfield->bcc, IB1 + n, 1);
+      }
+
+      AthenaArray<Real> adm_[Z4c::N_ADM], z4c_[Z4c::N_Z4c];
+      for (int n = 0; n < Z4c::N_ADM; ++n)
+        adm_[n].InitWithShallowSlice(pmb->pz4c->storage.adm, n, 1);
+      for (int n = 0; n < Z4c::N_Z4c; ++n)
+        z4c_[n].InitWithShallowSlice(pmb->pz4c->storage.u, n, 1);
+
+      const Real sinph = std::sin(grid_.ph_grid(j));
+      const Real cosph = std::cos(grid_.ph_grid(j));
+
+      // Interpolate hydro (CC pool)
+      for (int n = 0; n < NHYDRO; ++n)
+      {
+        prim[n](i, j) = interp_cc.eval(&(prim_[n](0, 0, 0)));
+        cons[n](i, j) = interp_cc.eval(&(cons_[n](0, 0, 0)));
       }
 #if FLUID_ENABLED
       for (int n = 0; n < NSCALARS; ++n)
       {
-        Y[n](i, j) = pinterp3->eval(&(Y_[n](0, 0, 0)));
+        Y[n](i, j) = interp_cc.eval(&(Y_[n](0, 0, 0)));
       }
-      //      T(i,j) = pinterp3->eval(&(T_(0,0,0)));
       Real Ypt[NSCALARS];
       for (int n = 0; n < NSCALARS; ++n)
       {
@@ -521,17 +444,18 @@ void Ejecta::Interp(MeshBlock* pmb)
       {
         for (int n = 0; n < NDIM; ++n)
         {
-          Bcc[n](i, j) = pinterp3->eval(&(Bcc_[n](0, 0, 0)));
+          Bcc[n](i, j) = interp_cc.eval(&(Bcc_[n](0, 0, 0)));
         }
       }
 
+      // Interpolate metric (CC or VC pool, depending on Z4c centering)
       for (int n = 0; n < Z4c::N_ADM; ++n)
       {
-        adm[n](i, j) = pinterp3_cx->eval(&(adm_[n](0, 0, 0)));
+        adm[n](i, j) = interp_met.eval(&(adm_[n](0, 0, 0)));
       }
       for (int n = 0; n < Z4c::N_Z4c; ++n)
       {
-        z4c[n](i, j) = pinterp3_cx->eval(&(z4c_[n](0, 0, 0)));
+        z4c[n](i, j) = interp_met.eval(&(z4c_[n](0, 0, 0)));
       }
       other[I_detg](i, j) = Det3Metric(adm[0](i, j),
                                        adm[1](i, j),
@@ -540,16 +464,6 @@ void Ejecta::Interp(MeshBlock* pmb)
                                        adm[4](i, j),
                                        adm[5](i, j));
 
-      /*
-      pinterp3_fx = new LagrangeInterpND<2*NGHOST-1, 3>(origin_f, delta_f,
-      size_fx, coord); pinterp3_fy = new LagrangeInterpND<2*NGHOST-1,
-      3>(origin_f, delta_f, size_fy, coord); pinterp3_fz = new
-      LagrangeInterpND<2*NGHOST-1, 3>(origin_f, delta_f, size_fz, coord);
-
-      Real fx = pinterp3->eval(&(flux_[0](0,0,0)));
-      Real fy = pinterp3->eval(&(flux_[1](0,0,0)));
-      Real fz = pinterp3->eval(&(flux_[2](0,0,0)));
-*/
       adm_g_dd(0, 0) = adm[Z4c::I_ADM_gxx](i, j);
       adm_g_dd(0, 1) = adm[Z4c::I_ADM_gxy](i, j);
       adm_g_dd(0, 2) = adm[Z4c::I_ADM_gxz](i, j);
@@ -616,7 +530,7 @@ void Ejecta::Interp(MeshBlock* pmb)
       }
       for (int a = 0; a < NDIM; ++a)
       {
-        bi_u[a] = Bcc[i](i, j) / other[I_lorentz](i, j) +
+        bi_u[a] = Bcc[a](i, j) / other[I_lorentz](i, j) +
                   z4c[Z4c::I_Z4c_alpha](i, j) * b0_u * prim[IVX + a](i, j) -
                   b0_u * z4c[Z4c::I_Z4c_betax + a](i, j);
       }
@@ -638,20 +552,16 @@ void Ejecta::Interp(MeshBlock* pmb)
                                           z4c[Z4c::I_Z4c_betax + a](i, j) /
                                           z4c[Z4c::I_Z4c_alpha](i, j);
       }
-      Real coord[3];
-      coord[0] = radius * sinth * cosph;
-      coord[1] = radius * sinth * sinph;
-      coord[2] = radius * costh;
 
       Real ur_u = 0.0;
       for (int a = 0; a < NDIM; ++a)
       {
-        ur_u += coord[a] * ui_u[a] / radius;
+        ur_u += grid_.x_cart(a, i, j) * ui_u[a] / radius;
       }
       Real br_u = 0.0;
       for (int a = 0; a < NDIM; ++a)
       {
-        br_u += coord[a] * bi_u[a] / radius;
+        br_u += grid_.x_cart(a, i, j) * bi_u[a] / radius;
       }
 
       Real betasq = 0.0;
@@ -675,8 +585,6 @@ void Ejecta::Interp(MeshBlock* pmb)
 
       other[I_poynting](i, j) = bsq * ur_u * other[I_u_t](i, j) -
                                 br_u * b0_d;  // T^r_t = b^2 u^r u_t - b^r b_t
-      delete pinterp3;
-      delete pinterp3_cx;
     }  // phi loop
   }  // theta loop
 }
@@ -720,10 +628,41 @@ void Ejecta::Calculate(const Real time)
   mass_contained = 0.0;
   Mdot_total     = 0.0;
 
-  const auto& pmb_array = pmesh->GetMeshBlocksCached();
-  for (auto* pmb : pmb_array)
+  // Fill Cartesian coordinates for the fixed-radius sphere
+  for (int i = 0; i < grid_.ntheta; ++i)
   {
-    Interp(pmb);
+    const Real sinth = std::sin(grid_.th_grid(i));
+    const Real costh = std::cos(grid_.th_grid(i));
+    for (int j = 0; j < grid_.nphi; ++j)
+    {
+      const Real sinph = std::sin(grid_.ph_grid(j));
+      const Real cosph = std::cos(grid_.ph_grid(j));
+
+      Real xc = radius * sinth * cosph;
+      Real yc = radius * sinth * sinph;
+      Real zc = radius * costh;
+
+      // Fold bitant: reflect z to positive hemisphere
+      if (bitant)
+        zc = std::abs(zc);
+
+      grid_.x_cart(0, i, j) = xc;
+      grid_.x_cart(1, i, j) = yc;
+      grid_.x_cart(2, i, j) = zc;
+    }
+  }
+
+  // Lazy Prepare (fixed sphere, survives between calls unless TearDown by AMR)
+  if (!grid_.prepared)
+    grid_.Prepare(pmesh, true, SW_CCX_VC(false, true));
+
+  // Interpolate on all owned points
+  Interp();
+
+  // Mass integral (still per-MeshBlock)
+  const std::vector<MeshBlock*>& pmb_array = pmesh->GetMeshBlocksCached();
+  for (MeshBlock* pmb : pmb_array)
+  {
     Mass(pmb);
   }
 
@@ -744,14 +683,14 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  prim[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
                  MPI_COMM_WORLD);
       MPI_Reduce(MPI_IN_PLACE,
                  cons[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -760,7 +699,7 @@ void Ejecta::Calculate(const Real time)
 #if FLUID_ENABLED
     MPI_Reduce(MPI_IN_PLACE,
                T.data(),
-               ntheta * nphi,
+               grid_.ntheta * grid_.nphi,
                MPI_ATHENA_REAL,
                MPI_SUM,
                root,
@@ -769,7 +708,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  Y[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -780,7 +719,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  Bcc[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -791,7 +730,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  adm[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -801,7 +740,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  z4c[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -811,7 +750,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(MPI_IN_PLACE,
                  other[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -827,7 +766,7 @@ void Ejecta::Calculate(const Real time)
                MPI_COMM_WORLD);
     MPI_Reduce(MPI_IN_PLACE,
                az_integrals_unbound.data(),
-               n_unbound * n_int * ntheta,
+               n_unbound * n_int * grid_.ntheta,
                MPI_ATHENA_REAL,
                MPI_SUM,
                root,
@@ -864,14 +803,14 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(prim[n].data(),
                  prim[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
                  MPI_COMM_WORLD);
       MPI_Reduce(cons[n].data(),
                  cons[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -880,7 +819,7 @@ void Ejecta::Calculate(const Real time)
 #if FLUID_ENABLED
     MPI_Reduce(T.data(),
                T.data(),
-               ntheta * nphi,
+               grid_.ntheta * grid_.nphi,
                MPI_ATHENA_REAL,
                MPI_SUM,
                root,
@@ -889,7 +828,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(Y[n].data(),
                  Y[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -900,7 +839,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(Bcc[n].data(),
                  Bcc[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -911,7 +850,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(adm[n].data(),
                  adm[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -921,7 +860,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(z4c[n].data(),
                  z4c[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -931,7 +870,7 @@ void Ejecta::Calculate(const Real time)
     {
       MPI_Reduce(other[n].data(),
                  other[n].data(),
-                 ntheta * nphi,
+                 grid_.ntheta * grid_.nphi,
                  MPI_ATHENA_REAL,
                  MPI_SUM,
                  root,
@@ -947,7 +886,7 @@ void Ejecta::Calculate(const Real time)
                MPI_COMM_WORLD);
     MPI_Reduce(az_integrals_unbound.data(),
                az_integrals_unbound.data(),
-               n_unbound * n_int * ntheta,
+               n_unbound * n_int * grid_.ntheta,
                MPI_ATHENA_REAL,
                MPI_SUM,
                root,
@@ -1003,16 +942,16 @@ void Ejecta::SphericalIntegrals()
     hist[m].ZeroClear();
   }
 
-  for (int i = 0; i < ntheta; i++)
+  for (int i = 0; i < grid_.ntheta; i++)
   {
-    Real sinth = std::sin(theta(i));
-    Real costh = std::cos(theta(i));
-    for (int j = 0; j < nphi; j++)
+    Real sinth = std::sin(grid_.th_grid(i));
+    Real costh = std::cos(grid_.th_grid(i));
+    for (int j = 0; j < grid_.nphi; j++)
     {
-      Real sinph = std::sin(phi(j));
-      Real cosph = std::cos(phi(j));
+      Real sinph = std::sin(grid_.ph_grid(j));
+      Real cosph = std::cos(grid_.ph_grid(j));
 
-      if (!havepoint(i, j))
+      if (!grid_.IsOwned(i, j))
         continue;  // continue if this process doesnt have this point
 
       if (!(other[I_bernoulli](i, j) > 0.0) && !(other[I_u_t](i, j) < -1.0))
@@ -1023,8 +962,9 @@ void Ejecta::SphericalIntegrals()
       Real z = radius * costh;
       Real vrad =
         x * prim[IVX](i, j) + y * prim[IVY](i, j) + z * prim[IVZ](i, j);
-      Real weight = other[I_fD_r](i, j) * SQR(radius) * sinth * dth_grid() *
-                    dph_grid();  // radial mass flux * area elt
+      Real weight = other[I_fD_r](i, j) * SQR(radius) * sinth *
+                    grid_.dtheta() *
+                    grid_.dphi();  // radial mass flux * area elt
 
       // values for integrals over spheres
       integrals[I_int_mass] = weight;  // mass flux
@@ -1049,7 +989,7 @@ void Ejecta::SphericalIntegrals()
       histvals[I_hist_vel]    = other[I_v_mag](i, j);
       histvals[I_hist_ber]    = other[I_bernoulli](i, j);
       histvals[I_hist_velinf] = sqrt(2.0 * (-other[I_u_t](i, j) - 1.0));
-      histvals[I_hist_theta]  = theta(i);
+      histvals[I_hist_theta]  = grid_.th_grid(i);
 
       // unboundedeness criteria
       unbound(I_unbound_bernoulli) =
@@ -1128,8 +1068,8 @@ void Ejecta::Write_hdf5(const Real time)
   hdf5_write_scalar(id_file, "radius", radius);
 
   // 1d arrays [grid] -------------------------------------------------------
-  hdf5_write_arr_nd(id_file, "theta", theta);
-  hdf5_write_arr_nd(id_file, "phi", phi);
+  hdf5_write_arr_nd(id_file, "theta", grid_.th_grid);
+  hdf5_write_arr_nd(id_file, "phi", grid_.ph_grid);
 
   // 2d arrays [matter] -----------------------------------------------------
   for (int n = 0; n < NHYDRO; ++n)
@@ -1220,9 +1160,9 @@ void Ejecta::Write_scalars(const Real time)
   for (int n = 0; n < n_unbound; ++n)
   {
     fprintf(pofile_az_unbound[n], "### Time = %g \n", time);
-    for (int i = 0; i < ntheta; ++i)
+    for (int i = 0; i < grid_.ntheta; ++i)
     {
-      fprintf(pofile_az_unbound[n], "%.15e ", theta(i));
+      fprintf(pofile_az_unbound[n], "%.15e ", grid_.th_grid(i));
       fprintf(pofile_az_unbound[n],
               "%.15e ",
               az_integrals_unbound(n, I_int_mass, i));
@@ -1257,48 +1197,6 @@ void Ejecta::Write_scalars(const Real time)
   }
 }
 
-//-----------------------------------------------------------------------------
-// \!fn int Ejecta::tpindex(const int i, const int j)
-// \brief spherical grid single index (i,j) -> index
-int Ejecta::tpindex(const int i, const int j)
-{
-  return i * nphi + j;
-}
-
-//-----------------------------------------------------------------------------
-// \!fn Real Ejecta::th_grid(const int i)
-// \brief theta coordinate from index
-Real Ejecta::th_grid(const int i)
-{
-  Real dtheta = dth_grid();
-  return dtheta * (0.5 + i);
-}
-
-//-----------------------------------------------------------------------------
-// \!fn Real Ejecta::ph_grid(const int i)
-// \brief phi coordinate from index
-Real Ejecta::ph_grid(const int j)
-{
-  Real dphi = dph_grid();
-  return dphi * (0.5 + j);
-}
-
-//-----------------------------------------------------------------------------
-// \!fn Real Ejecta::dth_grid()
-// \brief compute spacing dtheta
-Real Ejecta::dth_grid()
-{
-  return PI / ntheta;
-}
-
-//-----------------------------------------------------------------------------
-// \!fn Real Ejecta::dph_grid()
-// \brief compute spacing dphi
-Real Ejecta::dph_grid()
-{
-  return 2.0 * PI / nphi;
-}
-
 Real Ejecta::MassLossRate(Real const fx,
                           Real const fy,
                           Real const fz,
@@ -1310,8 +1208,8 @@ Real Ejecta::MassLossRate(Real const fx,
   Real r_x = cosph * sinth;
   Real r_y = sinph * sinth;
   Real r_z = costh;
-  return (fx * r_x + fy * r_y + fz * r_z) * SQR(radius) * sinth * dth_grid() *
-         dph_grid();
+  return (fx * r_x + fy * r_y + fz * r_z) * SQR(radius) * sinth *
+         grid_.dtheta() * grid_.dphi();
 }
 
 Real Ejecta::MassLossRate2(Real const D,
@@ -1335,5 +1233,5 @@ Real Ejecta::MassLossRate2(Real const D,
   Real v_y = alpha * uy / W - betay;
   Real v_z = alpha * uz / W - betaz;
   return D * (v_x * r_x + v_y * r_y + v_z * r_z) * SQR(radius) * sinth *
-         dth_grid() * dph_grid();
+         grid_.dtheta() * grid_.dphi();
 }

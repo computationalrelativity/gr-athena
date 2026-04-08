@@ -12,9 +12,8 @@
 #include <string>
 
 #include "../athena_aliases.hpp"
-// #include "../utils/lagrange_interp.hpp"
-// #include "z4c.hpp"
-// #include "z4c_macro.hpp"
+#include "../utils/grid_theta_phi.hpp"
+#include "../utils/lagrange_interp.hpp"
 
 // Forward declaration
 class Mesh;
@@ -33,14 +32,12 @@ using namespace gra::aliases;
 class WaveExtractRWZ
 {
   public:
-
   //! Creates the WaveExtractRWZ object
   WaveExtractRWZ(Mesh* pmesh, ParameterInput* pin, int n);
   //! Destructor
   ~WaveExtractRWZ();
 
   //! Step 1 ... 4 of the extraction:
-  void FlagSpherePointsContainedMesh();
   void MetricToSphere();
   void BackgroundReduce();
   void MultipoleReduce();
@@ -52,8 +49,11 @@ class WaveExtractRWZ
   Real Schwarzschild_radius;
   Real Schwarzschild_mass;
 
-  //! Grid points
-  int Ntheta, Nphi;
+  //! Interpolation order for the metric
+  static const int metric_interp_order = 2 * NGHOST - 1;
+
+  //! Shared theta-phi grid with interpolator pools
+  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3, true>> grid_;
 
   //! Id of this extraction radius
   int Nrad;
@@ -71,23 +71,6 @@ class WaveExtractRWZ
   AthenaArray<Real> Qplus_dr, Qstar_dr;
 
   private:
-
-  static const int metric_interp_order = 2 * NGHOST - 1;
-
-  //! Functions for grid on spheres
-  Real coord_theta(const int i);
-  Real coord_phi(const int j);
-  Real dth_grid();
-  Real dph_grid();
-  int TPIndex(const int i, const int j);
-  void FlagSpherePointsContained(MeshBlock* pmb);
-  void SetWeightsIntegral(std::string method);
-  void GLQuad_Nodes_Weights(const Real a,
-                            const Real b,
-                            Real* x,
-                            Real* w,
-                            const int n);
-
   //! Functions for spherical harmonics
   int MPoints(const int l);
   int MIndex(const int l, const int m);
@@ -96,7 +79,7 @@ class WaveExtractRWZ
 
   //! Helper functions
   Real LeviCivitaSymbol(const int a, const int b, const int c);
-  void InterpMetricToSphere(MeshBlock* pmb);
+  void InterpMetricToSphere();
   void MasterFuns();
   void MultipolesGaugeInvariant();
   void SphOrthogonality();
@@ -109,13 +92,6 @@ class WaveExtractRWZ
   Real rsch, dot_rsch, dot2_rsch;
   Real drsch_dri, d2rsch_dri2, drsch_dri_dot, d3rsch_dri3;
   Real dri_drsch, d2ri_drsch2, dri_drsch_dot, d3ri_drsch3;
-
-  //! Grid points in theta and phi
-  AthenaArray<Real> th_grid, ph_grid;
-  AthenaArray<Real> weights;
-
-  //! Flag sphere points on this rank
-  AthenaArray<int> havepoint;
 
   //! Arrays for the various fields on the sphere
 

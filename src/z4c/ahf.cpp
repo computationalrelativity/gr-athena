@@ -31,7 +31,6 @@ enum
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
-#include "../utils/lagrange_interp.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/spherical_harmonics.hpp"
 #include "ahf.hpp"
@@ -48,15 +47,14 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int nh)
   auto parkey             = [&n_str](const char* base)
   { return std::string(base) + n_str; };
 
-  ntheta = pin->GetOrAddInteger("ahf", "ntheta", 5);
-  nphi   = pin->GetOrAddInteger("ahf", "nphi", 10);
-  if ((nphi + 1) % 2 == 0)
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in AHF setup" << std::endl
-        << "nphi must be even " << nphi << std::endl;
-    ATHENA_ERROR(msg);
-  }
+  // Grid and quadrature weights
+  const int ntheta_val = pin->GetOrAddInteger("ahf", "ntheta", 5);
+  const int nphi_val   = pin->GetOrAddInteger("ahf", "nphi", 10);
+  std::string quadrature =
+    pin->GetOrAddString("ahf", "quadrature", "gausslegendre");
+  if (quadrature == "sums")
+    quadrature = "midpoint";
+  grid_.Initialize(ntheta_val, nphi_val, quadrature);
 
   lmax  = pin->GetOrAddInteger("ahf", "lmax", 4);
   lmax1 = lmax + 1;
@@ -127,11 +125,6 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int nh)
   wait_until_punc_are_close =
     pin->GetOrAddBoolean("ahf", parkey("wait_until_punc_are_close_"), 0);
 
-  // Grid and quadrature weights
-  std::string quadrature =
-    pin->GetOrAddString("ahf", "quadrature", "gausslegendre");
-  SetGridWeights(quadrature);
-
   // Initialize last & found
   last_a0 = pin->GetOrAddReal("ahf", parkey("last_a0_"), -1);
 
@@ -151,40 +144,37 @@ AHF::AHF(Mesh* pmesh, ParameterInput* pin, int nh)
 
   // Spherical harmonics
   // the spherical grid is the same for all surfaces
-  Y0.NewAthenaArray(ntheta, nphi, lmax1);
-  Yc.NewAthenaArray(ntheta, nphi, lmpoints);
-  Ys.NewAthenaArray(ntheta, nphi, lmpoints);
+  Y0.NewAthenaArray(grid_.ntheta, grid_.nphi, lmax1);
+  Yc.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  Ys.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
 
-  dY0dth.NewAthenaArray(ntheta, nphi, lmax1);
-  dYcdth.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYsdth.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYcdph.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYsdph.NewAthenaArray(ntheta, nphi, lmpoints);
+  dY0dth.NewAthenaArray(grid_.ntheta, grid_.nphi, lmax1);
+  dYcdth.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYsdth.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYcdph.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYsdph.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
 
-  dY0dth2.NewAthenaArray(ntheta, nphi, lmax1);
-  dYcdth2.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYcdthdph.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYsdth2.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYsdthdph.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYcdph2.NewAthenaArray(ntheta, nphi, lmpoints);
-  dYsdph2.NewAthenaArray(ntheta, nphi, lmpoints);
+  dY0dth2.NewAthenaArray(grid_.ntheta, grid_.nphi, lmax1);
+  dYcdth2.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYcdthdph.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYsdth2.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYsdthdph.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYcdph2.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
+  dYsdph2.NewAthenaArray(grid_.ntheta, grid_.nphi, lmpoints);
 
   ComputeSphericalHarmonics();
 
   // Fields on the sphere
-  rr.NewAthenaArray(ntheta, nphi);
-  rr_dth.NewAthenaArray(ntheta, nphi);
-  rr_dph.NewAthenaArray(ntheta, nphi);
+  rr.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  rr_dth.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  rr_dph.NewAthenaArray(grid_.ntheta, grid_.nphi);
 
-  g.NewAthenaTensor(ntheta, nphi);
-  dg.NewAthenaTensor(ntheta, nphi);
-  K.NewAthenaTensor(ntheta, nphi);
+  g.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  dg.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  K.NewAthenaTensor(grid_.ntheta, grid_.nphi);
 
   // Array computed in surface integrals
-  rho.NewAthenaArray(ntheta, nphi);
-
-  // Flag points existing on this mesh
-  havepoint.NewAthenaArray(ntheta, nphi);
+  rho.NewAthenaArray(grid_.ntheta, grid_.nphi);
 
   // Initialize horizon properties to NAN
   for (int v = 0; v < hnvar; ++v)
@@ -339,38 +329,23 @@ void AHF::Write(int iter, Real time)
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::MetricInterp(MeshBlock * pmb)
-// \brief interpolate metric on the surface n
-// Flag here the surface points contained (on this rank)
-void AHF::MetricInterp(MeshBlock* pmb)
+// \!fn void AHF::MetricInterp()
+// \brief interpolate metric on the surface using pre-built interpolator pools
+void AHF::MetricInterp()
 {
-  Z4c* pz4c = pmb->pz4c;
+  using InterpType = LagrangeInterpND<metric_interp_order, 3>;
 
-  LagrangeInterpND<metric_interp_order, 3>* pinterp3 = nullptr;
-  AT_N_sym adm_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);  // 3-metric
-  AT_N_sym adm_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);  // extr.curv.
+  // Select the interpolator pool matching Z4c centering
+  std::vector<InterpType>& pool =
+    SW_CCX_VC(grid_.interp_pool_cc, grid_.interp_pool_vc);
 
-  // For interp
-  Real origin[NDIM];
-  Real delta[NDIM];
-  int size[NDIM];
-  Real coord[NDIM];
-
-  // Center of the surface
-  const Real xc = center[0];
-  const Real yc = center[1];
   const Real zc = center[2];
 
 #if (DEBUG_OUTPUT)
   FILE *fp, *fp_d;
-  std::string fname =
-    "metricinterp_gxx_iter" + std::to_string(fastflow_iter) + "_";
+  std::string fname = "metricinterp_gxx_iter" + std::to_string(fastflow_iter);
   std::string fname_d =
-    "metricinterp_dgxxdx_iter" + std::to_string(fastflow_iter) + "_";
-  std::stringstream ss;
-  ss << pmb;
-  fname += ss.str();
-  fname_d += ss.str();
+    "metricinterp_dgxxdx_iter" + std::to_string(fastflow_iter);
 #ifdef MPI_PARALLEL
   int rank_tmp;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank_tmp);
@@ -383,53 +358,27 @@ void AHF::MetricInterp(MeshBlock* pmb)
   fp_d = fopen(fname_d.c_str(), "w");
 #endif
 
-  for (int i = 0; i < ntheta; i++)
+  for (int i = 0; i < grid_.ntheta; ++i)
   {
-    Real theta = th_grid(i);
-    Real sinth = std::sin(theta);
-    Real costh = std::cos(theta);
+    const Real theta = grid_.th_grid(i);
+    const Real costh = std::cos(theta);
 
-    for (int j = 0; j < nphi; j++)
+    for (int j = 0; j < grid_.nphi; ++j)
     {
-      Real phi   = ph_grid(j);
-      Real sinph = std::sin(phi);
-      Real cosph = std::cos(phi);
-
-      // Global coordinates of the surface
-      Real x = xc + rr(i, j) * sinth * cosph;
-      Real y = yc + rr(i, j) * sinth * sinph;
-      Real z = zc + rr(i, j) * costh;
-
-      // Impose bitant symmetry below
-      bool bitant_sym = (bitant && z < 0) ? true : false;
-      // Associate z -> -z if bitant
-      if (bitant)
-        z = std::abs(z);
-
-      if (!pmb->PointContained(x, y, z))
+      if (!grid_.IsOwned(i, j))
         continue;
 
-      // this surface point is in this MB
-      havepoint(i, j) += 1;
+      MeshBlock* pmb = grid_.mask_mb(i, j);
+      Z4c* pz4c      = pmb->pz4c;
 
-      // Interpolate
-      origin[0] = pz4c->mbi.x1(0);
-      size[0]   = pz4c->mbi.nn1;
-      delta[0]  = pz4c->mbi.dx1(0);
-      coord[0]  = x;
+      AT_N_sym adm_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+      AT_N_sym adm_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-      origin[1] = pz4c->mbi.x2(0);
-      size[1]   = pz4c->mbi.nn2;
-      delta[1]  = pz4c->mbi.dx2(0);
-      coord[1]  = y;
+      InterpType& interp = pool[grid_.mask_interp_idx(i, j)];
 
-      origin[2] = pz4c->mbi.x3(0);
-      size[2]   = pz4c->mbi.nn3;
-      delta[2]  = pz4c->mbi.dx3(0);
-      coord[2]  = z;
-
-      pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(
-        origin, delta, size, coord);
+      // Bitant: check the raw (unreflected) z coordinate
+      const Real z_raw      = zc + rr(i, j) * costh;
+      const bool bitant_sym = (bitant && z_raw < 0);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is
       // encountered.
@@ -445,9 +394,9 @@ void AHF::MetricInterp(MeshBlock* pmb)
               bitant_z_fac *= -1;
           }
           g(a, b, i, j) =
-            pinterp3->eval(&(adm_g_dd(a, b, 0, 0, 0))) * bitant_z_fac;
+            interp.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bitant_z_fac;
           K(a, b, i, j) =
-            pinterp3->eval(&(adm_K_dd(a, b, 0, 0, 0))) * bitant_z_fac;
+            interp.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bitant_z_fac;
           for (int c = 0; c < NDIM; ++c)
           {
             if (bitant_sym)
@@ -456,14 +405,13 @@ void AHF::MetricInterp(MeshBlock* pmb)
                 bitant_z_fac *= -1;
             }
             dg(c, a, b, i, j) =
-              pinterp3->eval(&(pz4c->aux.dg_ddd(c, a, b, 0, 0, 0))) *
+              interp.eval(&(pz4c->aux.dg_ddd(c, a, b, 0, 0, 0))) *
               bitant_z_fac;
           }
         }
 
-      delete pinterp3;
-
 #if (DEBUG_OUTPUT)
+      const Real phi = grid_.ph_grid(j);
       fprintf(fp, "%23.15e %23.15e %23.15e\n", theta, phi, g(0, 0, i, j));
       fprintf(
         fp_d, "%23.15e %23.15e %23.15e\n", theta, phi, dg(0, 0, 0, i, j));
@@ -544,18 +492,18 @@ void AHF::SurfaceIntegrals()
 #endif
 
   // Loop over surface points
-  for (int i = 0; i < ntheta; i++)
+  for (int i = 0; i < grid_.ntheta; i++)
   {
-    Real const theta = th_grid(i);
+    Real const theta = grid_.th_grid(i);
     Real const sinth = std::sin(theta);
     Real const costh = std::cos(theta);
 
-    for (int j = 0; j < nphi; j++)
+    for (int j = 0; j < grid_.nphi; j++)
     {
-      if (!havepoint(i, j))
+      if (!grid_.IsOwned(i, j))
         continue;
 
-      Real const phi   = ph_grid(j);
+      Real const phi   = grid_.ph_grid(j);
       Real const sinph = std::sin(phi);
       Real const cosph = std::cos(phi);
 
@@ -975,7 +923,7 @@ void AHF::SurfaceIntegrals()
       // Local sums
       // ----------
 
-      const Real wght = weights(i, j);
+      const Real wght = grid_.weights(i, j);
       const Real da   = wght * std::sqrt(deth) / sinth;
 
       integrals[iarea] += da;
@@ -1070,22 +1018,37 @@ void AHF::FastFlowLoop()
     // Compute radius r = a_lm Y_lm
     RadiiFromSphericalHarmonics();
 
-    // In MetricInterp() we'll flag the surface points on this mesh
-    // default to 0 (no points)
-    havepoint.ZeroClear();
+    // Fill x_cart with sphere coordinates (bitant-reflected)
+    {
+      const Real xc = center[0];
+      const Real yc = center[1];
+      const Real zc = center[2];
+      for (int i = 0; i < grid_.ntheta; ++i)
+      {
+        const Real sinth = std::sin(grid_.th_grid(i));
+        const Real costh = std::cos(grid_.th_grid(i));
+        for (int j = 0; j < grid_.nphi; ++j)
+        {
+          const Real sinph      = std::sin(grid_.ph_grid(j));
+          const Real cosph      = std::cos(grid_.ph_grid(j));
+          grid_.x_cart(0, i, j) = xc + rr(i, j) * sinth * cosph;
+          grid_.x_cart(1, i, j) = yc + rr(i, j) * sinth * sinph;
+          Real z                = zc + rr(i, j) * costh;
+          if (bitant)
+            z = std::abs(z);
+          grid_.x_cart(2, i, j) = z;
+        }
+      }
+    }
 
-    // Metric interpolated on the surface
+    // Build interpolator pools
+    grid_.Prepare(pmesh, SW_CCX_VC(true, false), SW_CCX_VC(false, true));
+
+    // Zero metric arrays and interpolate on surface
     g.ZeroClear();
     dg.ZeroClear();
     K.ZeroClear();
-
-    // Interpolate metric on surface
-    // Flag surface points contained in the MBs
-    const auto& pmb_array = pmesh->GetMeshBlocksCached();
-    for (auto* pmb : pmb_array)
-    {
-      MetricInterp(pmb);
-    }
+    MetricInterp();
 
     SurfaceIntegrals();
 
@@ -1187,7 +1150,13 @@ void AHF::FastFlowLoop()
 
     // Find new spectral components
     UpdateFlowSpectralComponents();
+
+    // Release pools (AHF rebuilds every iteration)
+    grid_.TearDown();
   }
+
+  // Ensure pools are released after early-exit breaks
+  grid_.TearDown();
 
   if (ah_found)
   {
@@ -1265,13 +1234,13 @@ void AHF::UpdateFlowSpectralComponents()
   }
 
   // Local sums
-  for (int i = 0; i < ntheta; i++)
+  for (int i = 0; i < grid_.ntheta; i++)
   {
-    for (int j = 0; j < nphi; j++)
+    for (int j = 0; j < grid_.nphi; j++)
     {
-      if (!havepoint(i, j))
+      if (!grid_.IsOwned(i, j))
         continue;
-      const Real drho = weights(i, j) * rho(i, j);
+      const Real drho = grid_.weights(i, j) * rho(i, j);
 
       for (int l = 0; l <= lmax; l++)
         spec0[l] += drho * Y0(i, j, l);
@@ -1331,9 +1300,9 @@ void AHF::RadiiFromSphericalHarmonics()
   rr_dph.ZeroClear();
 
   rr_min = std::numeric_limits<Real>::infinity();
-  for (int i = 0; i < ntheta; i++)
+  for (int i = 0; i < grid_.ntheta; i++)
   {
-    for (int j = 0; j < nphi; j++)
+    for (int j = 0; j < grid_.nphi; j++)
     {
       for (int l = 0; l <= lmax; l++)
       {
@@ -1453,15 +1422,15 @@ void AHF::ComputeSphericalHarmonics()
   dPdth.NewAthenaArray(lmax1, lmax1);
   dPdth2.NewAthenaArray(lmax1, lmax1);
 
-  for (int i = 0; i < ntheta; ++i)
+  for (int i = 0; i < grid_.ntheta; ++i)
   {
-    const Real theta = th_grid(i);
+    const Real theta = grid_.th_grid(i);
 
     gra::sph_harm::NPlm(theta, lmax, P, dPdth, dPdth2);
 
-    for (int j = 0; j < nphi; ++j)
+    for (int j = 0; j < grid_.nphi; ++j)
     {
-      const Real phi = ph_grid(j);
+      const Real phi = grid_.ph_grid(j);
 
       // l=0 spherical harmonics and drvts
       for (int l = 0; l <= lmax; l++)
@@ -1510,135 +1479,6 @@ void AHF::ComputeSphericalHarmonics()
 int AHF::lmindex(const int l, const int m) const
 {
   return l * lmax1 + m;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::tpindex(const int i, const int j)
-// \brief spherical grid single index (i,j) -> index
-int AHF::tpindex(const int i, const int j) const
-{
-  return i * nphi + j;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::GLQuad_Nodes_Weights(Real a, Real b, Real * x, Real * w, const
-// int n)
-// \brief Nodes and weights for Gauss-Legendre quadrature
-void AHF::GLQuad_Nodes_Weights(const Real a,
-                               const Real b,
-                               Real* x,
-                               Real* w,
-                               const int n)
-{
-  Real z1, z, xm, xl, pp, p3, p2, p1;
-#define SMALL (1e-14)
-  const int m = (n + 1) / 2;
-  xm          = 0.5 * (b + a);
-  xl          = 0.5 * (b - a);
-  for (int i = 1; i <= m; i++)
-  {
-    z = std::cos(PI * (i - 0.25) / (n + 0.5));
-    do
-    {
-      p1 = 1.0;
-      p2 = 0.0;
-      for (int j = 1; j <= n; j++)
-      {
-        p3 = p2;
-        p2 = p1;
-        p1 = ((2.0 * j - 1.0) * z * p2 - (j - 1.0) * p3) / j;
-      }
-      pp = n * (z * p1 - p2) / (z * z - 1.0);
-      z1 = z;
-      z  = z1 - p1 / pp;
-    } while (std::fabs(z - z1) > SMALL);
-    x[i - 1] = xm - xl * z;
-    x[n - i] = xm + xl * z;
-    w[i - 1] = 2.0 * xl / ((1.0 - z * z) * pp * pp);
-    w[n - i] = w[i - 1];
-  }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::SetWeightsIntegral()
-// \brief set nodes on the sphere & weights for the 2D integrals
-void AHF::SetGridWeights(const std::string& method)
-{
-  if ((nphi + 1) % 2 == 0)
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in AHF" << std::endl
-        << "nphi must be even " << nphi << std::endl;
-    ATHENA_ERROR(msg);
-  }
-
-  th_grid.NewAthenaArray(ntheta);
-  ph_grid.NewAthenaArray(nphi);
-  weights.NewAthenaArray(ntheta, nphi);
-
-  if (method == "sums")
-  {
-    const Real dphi = 2.0 * PI / nphi;
-    for (int j = 0; j < nphi; ++j)
-      ph_grid(j) = dphi * (0.5 + j);
-
-    const Real dtheta = PI / ntheta;
-    for (int i = 0; i < ntheta; ++i)
-    {
-      th_grid(i) = dtheta * (0.5 + i);
-    }
-
-    for (int i = 0; i < ntheta; ++i)
-    {
-      const Real dcosth = std::sin(th_grid(i)) * dtheta;
-      for (int j = 0; j < nphi; ++j)
-      {
-        weights(i, j) = dcosth * dphi;
-      }
-    }
-  }
-  else if (method == "gausslegendre")
-  {
-    if (ntheta != nphi / 2)
-    {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in AHF setup" << std::endl
-          << "ntheta should be nphi/2 = " << nphi / 2 << std::endl;
-      ATHENA_ERROR(msg);
-    }
-
-    const Real dphi = 2.0 * PI / nphi;
-    for (int j = 0; j < nphi; ++j)
-      ph_grid(j) = dphi * (0.5 + j);
-
-    Real* gl_weights = new Real[ntheta];
-    Real* gl_nodes   = new Real[ntheta];
-
-    GLQuad_Nodes_Weights(-1.0, 1.0, gl_nodes, gl_weights, ntheta);
-
-    for (int i = 0; i < ntheta; ++i)
-    {
-      th_grid(i) = std::acos(gl_nodes[i]);
-    }
-
-    for (int i = 0; i < ntheta; ++i)
-    {
-      for (int j = 0; j < nphi; ++j)
-      {
-        weights(i, j) = gl_weights[i] * dphi;
-      }
-    }
-
-    delete[] gl_weights;
-    delete[] gl_nodes;
-  }
-  else
-  {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in AHF::SetWeightsIntegral" << std::endl
-        << "unknown method  " << method << std::endl;
-    ATHENA_ERROR(msg);
-  }
 }
 
 //----------------------------------------------------------------------------------------

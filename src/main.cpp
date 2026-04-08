@@ -249,6 +249,15 @@ int main(int argc, char* argv[])
       {
         psurf->ReinitializeSurfaces(pmesh->ncycle, pmesh->time);
       }
+
+      // GridThetaPhi pools hold stale MeshBlock* pointers; tear down so that
+      // the next Calculate() call lazily rebuilds them.
+      for (WaveExtractRWZ* prwz : pmesh->pwave_extr_rwz)
+        prwz->grid_.TearDown();
+#ifdef EJECTA_ENABLED
+      for (Ejecta* pej : pmesh->pej_extract)
+        pej->grid_.TearDown();
+#endif
     }
 
     // Post-AMR pgen hook: only needed when mesh topology changed
