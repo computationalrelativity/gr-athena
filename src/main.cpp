@@ -119,9 +119,8 @@ int main(int argc, char* argv[])
 
   trgs.Add(tvar::tracker_extrema, ovar::user, true, allow_rescale_dt);
 
-#if defined(TWO_PUNCTURES)
-  trgs.Add(tvar::Z4c_tracker_punctures, ovar::user, true, allow_rescale_dt);
-#endif
+  if (pinput->GetOrAddInteger("z4c", "npunct", 0) > 0)
+    trgs.Add(tvar::Z4c_tracker_punctures, ovar::user, true, allow_rescale_dt);
 
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::hst, true, allow_rescale_dt);
   trgs.Add(tvar::Z4c_ADM_constraints, ovar::data, true, allow_rescale_dt);
