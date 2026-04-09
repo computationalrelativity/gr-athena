@@ -1023,6 +1023,44 @@ void ExtractFrom_ST_Metric_uu(
       }
 }
 
+// ============================================================================
+// 2D metric algebra
+// ============================================================================
+
+// compute determinant of a 2x2 symmetric matrix
+inline Real Det2Metric(Real const g00, Real const g01, Real const g11)
+{
+  return g00 * g11 - SQR(g01);
+}
+
+// compute inverse of a 2x2 symmetric matrix
+// oodetg = 1/det(g) must be provided by the caller
+inline void Inv2Metric(Real const oodetg,
+                       Real const g00,
+                       Real const g01,
+                       Real const g11,
+                       Real& g00_uu,
+                       Real& g01_uu,
+                       Real& g11_uu)
+{
+  g00_uu = g11 * oodetg;
+  g01_uu = -g01 * oodetg;
+  g11_uu = g00 * oodetg;
+}
+
+// Trace of a 2D symmetric rank-2 grid-storage tensor with point-storage
+// inverse metric: g^{AB} T_{AB} = g^00 T_00 + 2 g^01 T_01 + g^11 T_11
+template <typename... Idx>
+inline Real TraceRank2(
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2, TensorStorage::Point> const& g_uu,
+  AthenaTensor<Real, TensorSymm::SYM2, 2, 2> const& T_dd,
+  Idx... idx)
+{
+  return g_uu(0, 0) * T_dd(0, 0, idx...) +
+         2.0 * g_uu(0, 1) * T_dd(0, 1, idx...) +
+         g_uu(1, 1) * T_dd(1, 1, idx...);
+}
+
 }  // namespace LinearAlgebra
 
 // implementation details (for templates) =====================================

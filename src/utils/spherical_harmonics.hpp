@@ -393,6 +393,236 @@ inline void NPlm(const Real theta,
   }
 }
 
+// Multipolar single index (l,m) -> linear index for real spherical harmonics.
+// Used by AHF and related codes that expand in a0(l) * Y0 + ac(lm) * Yc +
+// as(lm) * Ys.
+inline int lmindex_real(int l, int m, int lmax)
+{
+  return l * (lmax + 1) + m;
+}
+
+// Derivative multi-index for the leading dimension of Y0, Yc, Ys.
+// Encodes (dth, dph) pairs: D10 = d/dtheta, D01 = d/dphi, etc.
+// Theta-only derivatives (D00, D10, D20) are first so that Y0, which
+// stores only m=0 harmonics (no phi dependence), can use a leading
+// dimension of 3.
+namespace ix_D
+{
+constexpr int D00    = 0;
+constexpr int D10    = 1;
+constexpr int D20    = 2;
+constexpr int D01    = 3;
+constexpr int D11    = 4;
+constexpr int D02    = 5;
+constexpr int NDERIV = 6;
+}  // namespace ix_D
+
+// ============================================================================
+// RealHarmonicTable
+// ============================================================================
+//! \brief Pre-tabulated real spherical harmonics and angular derivatives on
+//!        a (theta, phi) grid.
+//!
+//! The real-harmonic convention splits each (l, m>0) mode into cosine (Yc)
+//! and sine (Ys) parts, while m=0 modes live in Y0.  All derivatives up to
+//! second order in (theta, phi) are stored.
+//!
+//! Access pattern (derivative enum as leading index):
+//!   Y0(D00, i, j, l)    - value of m=0 harmonic
+//!   Yc(D10, i, j, lm)   - d/dtheta of cosine harmonic
+//!   Ys(D01, i, j, lm)   - d/dphi of sine harmonic
+//!   etc.
+struct RealHarmonicTable
+{
+  int lmax     = 0;
+  int lmpoints = 0;
+
+  //! Backing arrays - accessed via derivative-degree leading index.
+  //!   Y0 : (3, ntheta, nphi, lmax+1)        - m=0 (D00, D10, D20 only)
+  //!   Yc : (NDERIV, ntheta, nphi, lmpoints)  - m>0 cosine
+  //!   Ys : (NDERIV, ntheta, nphi, lmpoints)  - m>0 sine
+  AthenaArray<Real> Y0;
+  AthenaArray<Real> Yc;
+  AthenaArray<Real> Ys;
+
+  //! (l,m) -> linear index
+  int lmindex(int l, int m) const
+  {
+    return lmindex_real(l, m, lmax);
+  }
+
+  // --------------------------------------------------------------------------
+  //! Allocate arrays and compute all harmonics + derivatives on the grid.
+  //! th_grid(ntheta) and ph_grid(nphi) must already be filled.
+  // --------------------------------------------------------------------------
+  void Initialize(int lmax_in,
+                  int ntheta,
+                  int nphi,
+                  const AthenaArray<Real>& th_grid,
+                  const AthenaArray<Real>& ph_grid)
+  {
+    using namespace ix_D;
+    lmax     = lmax_in;
+    lmpoints = (lmax + 1) * (lmax + 1);
+
+    // Legendre scratch (only needed during this call)
+    AthenaArray<Real> P_all, P, dP, d2P;
+    P_all.NewAthenaArray(3, lmax + 1, lmax + 1);
+    P.InitWithShallowSlice(P_all, 3, 0, 1);
+    dP.InitWithShallowSlice(P_all, 3, 1, 1);
+    d2P.InitWithShallowSlice(P_all, 3, 2, 1);
+
+    // Allocate harmonic tables
+    Y0.NewAthenaArray(3, ntheta, nphi, lmax + 1);
+    Yc.NewAthenaArray(NDERIV, ntheta, nphi, lmpoints);
+    Ys.NewAthenaArray(NDERIV, ntheta, nphi, lmpoints);
+    Y0.ZeroClear();
+    Yc.ZeroClear();
+    Ys.ZeroClear();
+
+    // Fill tables
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real theta = th_grid(i);
+      NPlm(theta, lmax, P, dP, d2P);
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        const Real phi = ph_grid(j);
+
+        // m=0 harmonics
+        for (int l = 0; l <= lmax; l++)
+        {
+          Y0(D00, i, j, l) = P(l, 0);
+          Y0(D10, i, j, l) = dP(l, 0);
+          Y0(D20, i, j, l) = d2P(l, 0);
+        }
+
+        // m>0 harmonics
+        for (int l = 1; l <= lmax; l++)
+        {
+          for (int m = 1; m <= l; m++)
+          {
+            const int l1 = lmindex(l, m);
+
+            const Real cosmph = std::cos(m * phi);
+            const Real sinmph = std::sin(m * phi);
+
+            // Values
+            Yc(D00, i, j, l1) = SQRT2 * P(l, m) * cosmph;
+            Ys(D00, i, j, l1) = SQRT2 * P(l, m) * sinmph;
+
+            // First derivatives
+            Yc(D10, i, j, l1) = SQRT2 * dP(l, m) * cosmph;
+            Ys(D10, i, j, l1) = SQRT2 * dP(l, m) * sinmph;
+            Yc(D01, i, j, l1) = -SQRT2 * P(l, m) * m * sinmph;
+            Ys(D01, i, j, l1) = SQRT2 * P(l, m) * m * cosmph;
+
+            // Second derivatives
+            Yc(D20, i, j, l1) = SQRT2 * d2P(l, m) * cosmph;
+            Ys(D20, i, j, l1) = SQRT2 * d2P(l, m) * sinmph;
+            Yc(D11, i, j, l1) = -SQRT2 * dP(l, m) * m * sinmph;
+            Ys(D11, i, j, l1) = SQRT2 * dP(l, m) * m * cosmph;
+            Yc(D02, i, j, l1) = -SQRT2 * P(l, m) * m * m * cosmph;
+            Ys(D02, i, j, l1) = -SQRT2 * P(l, m) * m * m * sinmph;
+          }
+        }
+      }  // phi loop
+    }  // theta loop
+  }
+
+  // --------------------------------------------------------------------------
+  //! Evaluate r(theta,phi) = sum_lm a_lm Y_lm and angular derivatives.
+  //! Also computes rr_min = min over all grid points of rr(i,j).
+  // --------------------------------------------------------------------------
+  void Synthesize(const AthenaArray<Real>& a0,
+                  const AthenaArray<Real>& ac,
+                  const AthenaArray<Real>& as,
+                  int ntheta,
+                  int nphi,
+                  AthenaArray<Real>& rr,
+                  AthenaArray<Real>& rr_dth,
+                  AthenaArray<Real>& rr_dph,
+                  Real& rr_min) const
+  {
+    using namespace ix_D;
+    rr.ZeroClear();
+    rr_dth.ZeroClear();
+    rr_dph.ZeroClear();
+
+    rr_min = std::numeric_limits<Real>::infinity();
+    for (int i = 0; i < ntheta; i++)
+    {
+      for (int j = 0; j < nphi; j++)
+      {
+        for (int l = 0; l <= lmax; l++)
+        {
+          rr(i, j) += a0(l) * Y0(D00, i, j, l);
+          rr_dth(i, j) += a0(l) * Y0(D10, i, j, l);
+        }
+
+        for (int l = 1; l <= lmax; l++)
+        {
+          for (int m = 1; m <= l; m++)
+          {
+            const int l1 = lmindex(l, m);
+            rr(i, j) +=
+              ac(l1) * Yc(D00, i, j, l1) + as(l1) * Ys(D00, i, j, l1);
+            rr_dth(i, j) +=
+              ac(l1) * Yc(D10, i, j, l1) + as(l1) * Ys(D10, i, j, l1);
+            rr_dph(i, j) +=
+              ac(l1) * Yc(D01, i, j, l1) + as(l1) * Ys(D01, i, j, l1);
+          }
+        }
+        rr_min = std::min(rr_min, rr(i, j));
+      }  // phi loop
+    }  // theta loop
+  }
+
+  // --------------------------------------------------------------------------
+  //! Compute weighted inner products <field, Y_lm> (local sums only).
+  //! Caller is responsible for MPI reduction of spec0, specc, specs.
+  //! Arrays spec0[lmax+1], specc[lmpoints], specs[lmpoints] must be
+  //! zero-initialized by the caller.
+  //!
+  //! The is_owned functor should return true for points owned by this rank.
+  // --------------------------------------------------------------------------
+  template <typename IsOwnedFunc>
+  void Project(const AthenaArray<Real>& weights,
+               const AthenaArray<Real>& field,
+               int ntheta,
+               int nphi,
+               Real* spec0,
+               Real* specc,
+               Real* specs,
+               IsOwnedFunc is_owned) const
+  {
+    using namespace ix_D;
+    for (int i = 0; i < ntheta; i++)
+    {
+      for (int j = 0; j < nphi; j++)
+      {
+        if (!is_owned(i, j))
+          continue;
+        const Real drho = weights(i, j) * field(i, j);
+
+        for (int l = 0; l <= lmax; l++)
+          spec0[l] += drho * Y0(D00, i, j, l);
+
+        for (int l = 1; l <= lmax; l++)
+        {
+          for (int m = 1; m <= l; m++)
+          {
+            const int l1 = lmindex(l, m);
+            specc[l1] += drho * Yc(D00, i, j, l1);
+            specs[l1] += drho * Ys(D00, i, j, l1);
+          }
+        }
+      }  // phi loop
+    }  // theta loop
+  }
+};
+
 }  // namespace sph_harm
 }  // namespace gra
 

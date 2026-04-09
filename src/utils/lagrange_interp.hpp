@@ -500,4 +500,22 @@ class LagrangeInterpND
   }
 };
 
+// Runtime dispatch for compile-time derivative direction in
+// LagrangeInterpND::eval<T, der>(). Assumes ndim == 3 spatial dimensions.
+template <typename T, typename Interp>
+inline T InterpDeriv(Interp const& interp, int d, T const* gf)
+{
+  switch (d)
+  {
+    case 0:
+      return interp.template eval<T, 0>(gf);
+    case 1:
+      return interp.template eval<T, 1>(gf);
+    case 2:
+      return interp.template eval<T, 2>(gf);
+    default:
+      return T(0);
+  }
+}
+
 #endif

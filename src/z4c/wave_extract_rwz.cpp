@@ -26,6 +26,7 @@
 #include "../parameter_input.hpp"
 #include "../utils/linear_algebra.hpp"  // Det, Inv3Metric
 #include "../utils/spherical_harmonics.hpp"
+#include "../utils/tensor_symmetry.hpp"
 #include "wave_extract_rwz.hpp"
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
@@ -282,18 +283,7 @@ void WaveExtractRWZ::PrepareArrays()
   H_dr2.NewAthenaArray(lmpoints, 2);
 
   // Gauge-invariant
-  // NB two of these are stored as TensorsPointwise ---> not possible
-  // kappa_dd.NewTensorPointwise();
-  // kappa_d.NewTensorPointwise();
-  // TODO SB lets not use AthenaArrays:
-  kappa_00.NewAthenaArray(lmpoints, 2);
-  kappa_01.NewAthenaArray(lmpoints, 2);
-  kappa_11.NewAthenaArray(lmpoints, 2);
-  kappa_0.NewAthenaArray(lmpoints, 2);
-  kappa_1.NewAthenaArray(lmpoints, 2);
-  // but Tensors (see hpp):
-  kappa_dd.NewAthenaTensor(
-    lmpoints, 2);  // kappa_dd(0,0, lm, c), kappa_dd(0,1, lm, c) ...
+  kappa_dd.NewAthenaTensor(lmpoints, 2);
   kappa_d.NewAthenaTensor(lmpoints, 2);
   kappa.NewAthenaArray(lmpoints, 2);
   Tr_kappa_dd.NewAthenaArray(lmpoints, 2);
@@ -330,9 +320,7 @@ std::string WaveExtractRWZ::OutputFileName(std::string base)
   strObj3 << std::setfill('0') << std::setw(5) << std::fixed
           << std::setprecision(2) << opt.Radius;
   std::string fname = base + "_r" + strObj3.str() + ".txt";
-  // std::string fname = base +  "_r" + std::to_string(Nrad) + ".txt";
   return fname;
-  // return move(fname);
 }
 
 //----------------------------------------------------------------------------------------
@@ -567,7 +555,6 @@ int WaveExtractRWZ::MPoints(const int l)
 // \brief return multipolar single index (l,m) -> k
 int WaveExtractRWZ::MIndex(const int l, const int m)
 {
-  // return MPoints(l-1) + (m+l);
   return ((l - 1) * ((l - 1) + 2) - 3) + (m + l);
 }
 
@@ -749,7 +736,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
 
   ATP_N_S2S2 Cgamma_der2_dddd;
   ATP_N_VS2 Cgamma_der_ddd;
-  ATP_N_VS2 interp_Cgamma_der_ddd;
   ATP_N_T2 Cbeta_der_du;
   ATP_N_S2V Cbeta_der2_ddu;
   ATP_N_T2 Cbeta_der_dd;
@@ -840,54 +826,22 @@ void WaveExtractRWZ::InterpMetricToSphere()
       for (int a = 0; a < NDIM; ++a)
         for (int b = a; b < NDIM; ++b)
         {
-          int bitant_z_fac = 1;
-          if (bitant_sym)
-          {
-            if (a == 2)
-              bitant_z_fac *= -1;
-            if (b == 2)
-              bitant_z_fac *= -1;
-          }
-          Cgamma_dd(a, b) =
-            pinterp3.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bitant_z_fac;
-          CK_dd(a, b) =
-            pinterp3.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bitant_z_fac;
-          // printf("Cgamma_xx = %.6f, Cgamma_yy = %.6f, Cgamma_zz = %.6f \n",
-          // Cgamma_dd(0,0), Cgamma_dd(1,1), Cgamma_dd(2,2));
-          // Cgamma_dot_dd(a,b) =
-          // pinterp3.eval(&(adm_g_dot_dd(a,b,0,0,0)))*bitant_z_fac;//TODO rm
-          // TODO get 2nd drvts from interp
+          const int bsign = BitantSign(bitant_sym, a, b);
+          Cgamma_dd(a, b) = pinterp3.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bsign;
+          CK_dd(a, b)     = pinterp3.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bsign;
         }
 
       // Shift (up)
       for (int a = 0; a < NDIM; ++a)
       {
-        int bitant_z_fac = 1;
-        if ((bitant_sym) && (a == 2))
-          bitant_z_fac *= -1;
-        Cbeta_u(a) = pinterp3.eval(&(adm_beta_u(a, 0, 0, 0))) * bitant_z_fac;
-        // printf("Cbeta^x = %.12e, Cbeta^y = %.12e, Cbeta^z = %.12e \n",
-        // Cbeta_u(0), Cbeta_u(1), Cbeta_u(2));
-        Cbeta_dot_du(a) =
-          pinterp3.eval(&(adm_beta_dot_u(a, 0, 0, 0))) * bitant_z_fac;
-        // TODO get 2nd drvts from interp
+        const int bsign = BitantSign(bitant_sym, a);
+        Cbeta_u(a)      = pinterp3.eval(&(adm_beta_u(a, 0, 0, 0))) * bsign;
+        Cbeta_dot_du(a) = pinterp3.eval(&(adm_beta_dot_u(a, 0, 0, 0))) * bsign;
       }
-
-      // shift (down)
-      // for(int a = 0; a < NDIM; ++a) {
-      // Cbeta_d(a) = 0.0;
-      // Cbeta_dot_dd(a) = 0.0;
-      // for(int b = 0; b < NDIM; ++b) {
-      // Cbeta_d(a) += Cgamma_dd(a,b) * Cbeta_u(b);
-      // Cbeta_dot_d(a) += Cgamma_dd(a,b) * Cbeta_dot_u(b);
-      //}
-      //}
 
       // lapse
       Calpha()       = pinterp3.eval(&(adm_alpha(0, 0, 0)));
       Calpha_dot_d() = pinterp3.eval(&(adm_alpha_dot(0, 0, 0)));
-
-      // TODO get 2nd drvts from interp
 
       // 3-metric spatial drvts
       // NB g_ddd(c,a,b) means d/dx^c g_{ab}
@@ -896,99 +850,23 @@ void WaveExtractRWZ::InterpMetricToSphere()
           for (int c = 0; c < NDIM; ++c)
             for (int d = c; d < NDIM; ++d)
             {
-              int bitant_z_fac = 1;
-              if (bitant_sym)
-              {
-                if (a == 2)
-                  bitant_z_fac *= -1;
-                if (b == 2)
-                  bitant_z_fac *= -1;
-                if (c == 2)
-                  bitant_z_fac *= -1;
-              }
+              const int bsign_abc = BitantSign(bitant_sym, a, b, c);
               Cgamma_der_ddd(c, a, b) =
-                pinterp3.eval(&(adm_dg_ddd(c, a, b, 0, 0, 0))) * bitant_z_fac;
-              if ((bitant_sym) && (d == 2))
-                bitant_z_fac *= -1;
-              if (d == 0)
-              {
-                Cgamma_der2_dddd(d, c, a, b) =
-                  pinterp3.eval<Real, 0>(&(adm_dg_ddd(c, a, b, 0, 0, 0))) *
-                  bitant_z_fac;
-              }
-              if (d == 1)
-              {
-                Cgamma_der2_dddd(d, c, a, b) =
-                  pinterp3.eval<Real, 1>(&(adm_dg_ddd(c, a, b, 0, 0, 0))) *
-                  bitant_z_fac;
-              }
-              if (d == 2)
-              {
-                Cgamma_der2_dddd(d, c, a, b) =
-                  pinterp3.eval<Real, 2>(&(adm_dg_ddd(c, a, b, 0, 0, 0))) *
-                  bitant_z_fac;
-              }
-              // if (!std::isfinite(Cgamma_der2_dddd(d,c,a,b)) ||
-              // Cgamma_der2_dddd(d,c,a,b) > 10) printf("Cgamma_der2(d,c,a,b):
-              // d = %d, c = %d, a = %d, b = %d, i = %d, j = %d, value = %.8e
-              // \n", d, c, a, b, i, j, Cgamma_der2_dddd(d,c,a,b));
+                pinterp3.eval(&(adm_dg_ddd(c, a, b, 0, 0, 0))) * bsign_abc;
+              const int bsign_abcd = BitantSign(bitant_sym, a, b, c, d);
+              Cgamma_der2_dddd(d, c, a, b) =
+                InterpDeriv<Real>(
+                  pinterp3, d, &(adm_dg_ddd(c, a, b, 0, 0, 0))) *
+                bsign_abcd;
             }
-
-      for (int a = 0; a < NDIM; ++a)
-        for (int b = a; b < NDIM; ++b)
-          for (int c = 0; c < NDIM; ++c)
-          {
-            int bitant_z_fac = 1;
-            if (bitant_sym)
-            {
-              if (a == 2)
-                bitant_z_fac *= -1;
-              if (b == 2)
-                bitant_z_fac *= -1;
-            }
-            if ((bitant_sym) && (c == 2))
-              bitant_z_fac *= -1;
-            if (c == 0)
-            {
-              interp_Cgamma_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 0>(&(adm_g_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 1)
-            {
-              interp_Cgamma_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 1>(&(adm_g_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 2)
-            {
-              interp_Cgamma_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 2>(&(adm_g_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            const Real diff = std::abs(interp_Cgamma_der_ddd(c, a, b) -
-                                       Cgamma_der_ddd(c, a, b));
-            // if (diff > 1e-8)
-            // printf("Interp - Storage: c = %d, a = %d, b = %d, i = %d, j =
-            // %d, value = %.8e, storage = %.8e, interp = %.8e \n", c, a, b, i,
-            // j, diff, Cgamma_der_ddd(c,b,a), interp_Cgamma_der_ddd(c,b,a));
-          }
 
       // shift (up) spatial drvts
       for (int a = 0; a < NDIM; ++a)
         for (int b = 0; b < NDIM; ++b)
         {
-          int bitant_z_fac = 1;
-          if (bitant_sym)
-          {
-            if (a == 2)
-              bitant_z_fac *= -1;
-            if (b == 2)
-              bitant_z_fac *= -1;
-          }
+          const int bsign = BitantSign(bitant_sym, a, b);
           Cbeta_der_du(a, b) =
-            pinterp3.eval(&(adm_dbeta_du(a, b, 0, 0, 0))) * bitant_z_fac;
-          // TODO get 2nd drvts from interp
+            pinterp3.eval(&(adm_dbeta_du(a, b, 0, 0, 0))) * bsign;
         }
 
       // shift (up) spatial drvts
@@ -996,80 +874,28 @@ void WaveExtractRWZ::InterpMetricToSphere()
         for (int b = a; b < NDIM; ++b)
           for (int c = 0; c < NDIM; ++c)
           {
-            int bitant_z_fac = 1;
-            if (bitant_sym)
-            {
-              if (a == 2)
-                bitant_z_fac *= -1;
-              if (b == 2)
-                bitant_z_fac *= -1;
-            }
-            if ((bitant_sym) && (c == 2))
-              bitant_z_fac *= -1;
-            if (c == 0)
-            {
-              Cbeta_der2_ddu(c, a, b) =
-                pinterp3.eval<Real, 0>(&(adm_dbeta_du(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 1)
-            {
-              Cbeta_der2_ddu(c, a, b) =
-                pinterp3.eval<Real, 1>(&(adm_dbeta_du(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 2)
-            {
-              Cbeta_der2_ddu(c, a, b) =
-                pinterp3.eval<Real, 2>(&(adm_dbeta_du(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
+            const int bsign = BitantSign(bitant_sym, a, b, c);
+            Cbeta_der2_ddu(c, a, b) =
+              InterpDeriv<Real>(pinterp3, c, &(adm_dbeta_du(a, b, 0, 0, 0))) *
+              bsign;
           }
 
       // lapse spatial drvts
       for (int a = 0; a < NDIM; ++a)
       {
-        int bitant_z_fac = 1;
-        if ((bitant_sym) && (a == 2))
-          bitant_z_fac *= -1;
-        Calpha_der_d(a) =
-          pinterp3.eval(&(adm_dalpha_d(a, 0, 0, 0))) * bitant_z_fac;
-        // TODO get 2nd drvts from interp
+        const int bsign = BitantSign(bitant_sym, a);
+        Calpha_der_d(a) = pinterp3.eval(&(adm_dalpha_d(a, 0, 0, 0))) * bsign;
       }
 
       // lapse 2nd spatial drvts
       for (int a = 0; a < NDIM; ++a)
         for (int c = 0; c < NDIM; ++c)
         {
-          int bitant_z_fac = 1;
-          if (bitant_sym)
-          {
-            if (a == 2)
-              bitant_z_fac *= -1;
-            if (c == 2)
-              bitant_z_fac *= -1;
-          }
-          if (c == 0)
-          {
-            Calpha_der2_dd(c, a) =
-              pinterp3.eval<Real, 0>(&(adm_dalpha_d(a, 0, 0, 0))) *
-              bitant_z_fac;
-          }
-          if (c == 1)
-          {
-            Calpha_der2_dd(c, a) =
-              pinterp3.eval<Real, 1>(&(adm_dalpha_d(a, 0, 0, 0))) *
-              bitant_z_fac;
-          }
-          if (c == 2)
-          {
-            Calpha_der2_dd(c, a) =
-              pinterp3.eval<Real, 2>(&(adm_dalpha_d(a, 0, 0, 0))) *
-              bitant_z_fac;
-          }
+          const int bsign = BitantSign(bitant_sym, a, c);
+          Calpha_der2_dd(c, a) =
+            InterpDeriv<Real>(pinterp3, c, &(adm_dalpha_d(a, 0, 0, 0))) *
+            bsign;
         }
-
-      // (pool-based: no delete needed)
 
       // Auxiliary Cartesian tensor components
       // ----------------------------------------
@@ -1093,34 +919,10 @@ void WaveExtractRWZ::InterpMetricToSphere()
         for (int b = a; b < NDIM; ++b)
           for (int c = 0; c < NDIM; ++c)
           {
-            int bitant_z_fac = 1;
-            if (bitant_sym)
-            {
-              if (a == 2)
-                bitant_z_fac *= -1;
-              if (b == 2)
-                bitant_z_fac *= -1;
-            }
-            if ((bitant_sym) && (c == 2))
-              bitant_z_fac *= -1;
-            if (c == 0)
-            {
-              CK_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 0>(&(adm_K_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 1)
-            {
-              CK_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 1>(&(adm_K_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
-            if (c == 2)
-            {
-              CK_der_ddd(c, a, b) =
-                pinterp3.eval<Real, 2>(&(adm_K_dd(a, b, 0, 0, 0))) *
-                bitant_z_fac;
-            }
+            const int bsign = BitantSign(bitant_sym, a, b, c);
+            CK_der_ddd(c, a, b) =
+              InterpDeriv<Real>(pinterp3, c, &(adm_K_dd(a, b, 0, 0, 0))) *
+              bsign;
           }
 
       // Mixed drvt of the 3-metric
@@ -1148,8 +950,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
           }
         }
 
-      // (pool-based: interpolator lives in grid_.interp_pool)
-
       // Determinant of 3-metric
       const Real det      = LinearAlgebra::Det3Metric(Cgamma_dd(0, 0),
                                                  Cgamma_dd(0, 1),
@@ -1174,17 +974,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
                                 &Cgamma_uu(1, 1),
                                 &Cgamma_uu(1, 2),
                                 &Cgamma_uu(2, 2));
-
-      // TODO rm:
-      //  Cgamma_uu(0,0) = div_det *(Cgamma_dd(1,1)*Cgamma_dd(2,2) -
-      //  SQR(Cgamma_dd(1,2))); Cgamma_uu(0,1) = div_det
-      //  *(Cgamma_dd(0,2)*Cgamma_dd(1,2) - Cgamma_dd(2,2)*Cgamma_dd(0,2));
-      //  Cgamma_uu(0,2) = div_det *(Cgamma_dd(0,1)*Cgamma_dd(1,2) -
-      //  Cgamma_dd(1,1)*Cgamma_dd(0,2)); Cgamma_uu(1,1) = div_det
-      //  *(Cgamma_dd(0,0)*Cgamma_dd(2,2) - SQR(Cgamma_dd(0,2)));
-      //  Cgamma_uu(1,2) = div_det *(Cgamma_dd(0,1)*Cgamma_dd(0,2) -
-      //  Cgamma_dd(0,0)*Cgamma_dd(1,2)); Cgamma_uu(2,2) = div_det
-      //  *(Cgamma_dd(0,0)*Cgamma_dd(1,1) - SQR(Cgamma_dd(0,1)));
 
       // Trace of K_ab
       Real TrK = 0.0;
@@ -1256,10 +1045,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
             {
               dr2_Cgamma_dd(a, b) +=
                 n[d] * n[c] * Cgamma_der2_dddd(d, c, a, b);
-              // if (!std::isfinite(dr2_Cgamma_dd(a,b)))
-              // printf("dr2_Cgamma(d,c,a,b): d = %d, c = %d, a = %d, b = %d, i
-              // = %d, j = %d, value = %.8e \n", d, c, a, b, i, j,
-              // dr2_Cgamma_dd(a,b));
             }
           }
         }
@@ -1310,9 +1095,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
         }
       }
 
-      // printf("Interp:  alpha = %.12e, dr_alpha = %.12e, dot_alpha = %.12e
-      // \n", alpha(i,j), dr_alpha(i,j), dot_alpha(i,j));
-
       // beta^2 & drvts
       beta2(i, j) = 0.0;
       for (int a = 0; a < NDIM; ++a)
@@ -1348,9 +1130,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
             Cgamma_dd(a, b) * dr2_Cbeta_u(a) * Cbeta_u(b) +
             Cgamma_dd(a, b) * Cbeta_u(a) * dr2_Cbeta_u(b);
         }
-
-      // printf("Interp:  beta2 = %.12e, dr_beta2 = %.12e, dot_beta2 = %.12e
-      // \n", beta2(i,j), dr_beta2(i,j), dot_beta2(i,j));
 
       // ADM integrals (based on Cartesian expressions)
       // These integrals will be reduced together with the background integrals
@@ -1706,8 +1485,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
 //        reduce also ADM integrals.
 void WaveExtractRWZ::BackgroundReduce()
 {
-  // dr2_gamma_dd.ZeroClear(); // TODO Not yet implemented
-
   // Zeros the integrals
   for (int i = 0; i < NVBackground; i++)
     integrals_background[i] = 0.0;
@@ -1737,50 +1514,8 @@ void WaveExtractRWZ::BackgroundReduce()
       if (!grid_.IsOwned(i, j))
         continue;
 
-      const Real phi    = grid_.ph_grid(j);
-      const Real sinph  = std::sin(phi);
-      const Real cosph  = std::cos(phi);
-      const Real sinph2 = SQR(sinph);
-      const Real cosph2 = SQR(cosph);
-
-      // const Real vol = dthdph * sinth; // OLD, now in weights:
+      const Real phi = grid_.ph_grid(j);
       const Real vol = grid_.weights(i, j);
-
-      // FIXME what we store exactly?
-      //   beta_d beta_dr_d and beta_dot_d are used in the multipoles, should
-      //   be stored perhaphs storing beta2 and drvts is best alteratively,
-      //   just store 4^g_00 !
-
-      // beta2(i,j) = 0.0;
-      // for (int a=0; a<3; ++a)
-      // beta2(i,j) += beta_u(a,i,j)*beta_d(a,i,j);
-
-      // dr_beta2(i,j) = 0.0;
-      // for (int a=0; a<3; ++a)
-      // for (int b=0; b<3; ++b) {
-      // dr_beta2(i,j) +=
-      // dr_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-      //+ gamma_dd(a,b,i,j) * dr_beta_u(a,i,j) * beta_u(b,i,j)
-      //+ gamma_dd(a,b,i,j) * beta_u(a,i,j) * dr_beta_u(b,i,j);
-      //}
-      // dot_beta2(i,j) = 0.0;
-      // for (int a=0; a<3; ++a)
-      // for (int b=0; b<3; ++b) {
-      // dot_beta2(i,j) +=
-      // dot_gamma_dd(a,b,i,j) * beta_u(a,i,j) * beta_u(b,i,j)
-      //+ gamma_dd(a,b,i,j) * dot_beta_u(a,i,j) * beta_u(b,i,j)
-      //+ gamma_dd(a,b,i,j) * beta_u(a,i,j) * dot_beta_u(b,i,j);
-      //}
-      // Real dot_beta_r = 0.0; // = d(beta_r)/dt
-      // for (int a=0; a<3; ++a)
-      // 	dot_beta_r +=
-      // 	  dot_gamma_dd(a,0,i,j) * beta_u(a,i,j)
-      // 	  gamma_dd(a,0,i,j) * dot_beta_u(a,i,j);
-
-      // printf("alpha = %.12e, dr_alpha = %.12e, dot_alpha = %.12e \n",
-      // alpha(i,j), dr_alpha(i,j), dot_alpha(i,j)); printf("beta2 = %.12e,
-      // dr_beta2 = %.12e, dot_beta2 = %.12e \n", beta2(i,j), dr_beta2(i,j),
-      // dot_beta2(i,j));
 
       Real int_r2            = 0.0;
       Real int_drsch_dri     = 0.0;
@@ -2000,7 +1735,6 @@ void WaveExtractRWZ::BackgroundReduce()
   drsch_dri   = integrals_background[Idrsch_dri];
   d2rsch_dri2 = integrals_background[Id2rsch_dri2];
 
-  // dot_rsch = integrals_background[Idot_rsch2];
   drsch_dri_dot = integrals_background[Idrsch_dri_dot];
 
   const Real g00 = integrals_background[Ig00];
@@ -2059,11 +1793,8 @@ void WaveExtractRWZ::BackgroundReduce()
 
   drsch_dri *= div_rsch;
   dri_drsch = 1.0 / drsch_dri;
-  // printf("R = %.6f, r = %.6f, dr/dR = %.6f dR/dr = %.6f \n", Radius, rsch,
-  // drsch_dri, dri_drsch);
 
   d2rsch_dri2 = -div_rsch * (SQR(drsch_dri) - d2rsch_dri2);
-  // d2rsch_dri2 = 0.5*SQR(1.359930452923210)/std::pow(Radius,3);
   d2ri_drsch2 = -std::pow(dri_drsch, 3) * d2rsch_dri2;
 
   d3rsch_dri3 = -3.0 * div_rsch * drsch_dri *
@@ -2073,18 +1804,6 @@ void WaveExtractRWZ::BackgroundReduce()
 
   drsch_dri_dot = div_rsch * (-dot_rsch * drsch_dri + drsch_dri_dot);
   dri_drsch_dot = -SQR(dri_drsch) * drsch_dri_dot;
-
-  //} else {
-
-  // TODO implement other cases
-  //  } else if (opt.method_areal_radius==areal_simple) {}
-  //  } else if (opt.method_areal_radius==schw_gthth) {}
-  // } else if (opt.method_areal_radius==schw_gphph) {}
-
-  // dri_drsch = 1.0/drsch_dri; // general
-  // d2ri_drsch2 = - std::pow(dri_drsch,3) * d2rsch_dri2; //TODO ?
-
-  //}
 
   // time derivatives of g0r and grr
   const Real dot_g0r = dri_drsch_dot * g0R + dri_drsch * dot_g0R;
@@ -2112,14 +1831,13 @@ void WaveExtractRWZ::BackgroundReduce()
   // Inverse metric & Christoffel's symbols of the background metric
 
   // Determinant
-  const Real detg      = g00 * grr - SQR(g0r);
+  const Real detg      = LinearAlgebra::Det2Metric(g00, g0r, grr);
   const Real div_detg  = (std::fabs(detg) < 1e-12) ? 1.0 : 1.0 / detg;
   const Real div_detg2 = SQR(div_detg);
 
   // Inverse matrix
-  const Real g00_uu = grr * div_detg;
-  const Real g0r_uu = -g0r * div_detg;
-  const Real grr_uu = g00 * div_detg;
+  Real g00_uu, g0r_uu, grr_uu;
+  LinearAlgebra::Inv2Metric(div_detg, g00, g0r, grr, g00_uu, g0r_uu, grr_uu);
 
   // Derivatives of the inverse metric
   const Real dr_div_detg =
@@ -2195,12 +1913,6 @@ void WaveExtractRWZ::BackgroundReduce()
   g_dd(0, 1) = g0r;
   g_dd(1, 1) = grr;
 
-  // printf("M_schw = %.6f \n", Schwarzschild_mass);
-  // printf("detg = %.6f, 1/detg = %.6f \n" , detg, div_detg);
-  // printf("Ig_00 = %.12e, Ig_0R = %.12e, Ig_RR = %.12e \n", g00, g0R, gRR);
-  // printf("g_00 = %.12e, g_01 = %.12e, g_11 = %.12e \n", g_dd(0,0),
-  // g_dd(0,1), g_dd(1,1));
-
   g_dr_dd(0, 0) = dr_g00;
   g_dr_dd(0, 1) = dr_g0r;
   g_dr_dd(1, 1) = dr_grr;
@@ -2209,16 +1921,6 @@ void WaveExtractRWZ::BackgroundReduce()
   g_dr2_dd(0, 1) = dr2_g0r;
   g_dr2_dd(1, 1) = dr2_grr;
 
-  const Real Msch = Schwarzschild_mass;
-  // printf("Exrtaction radius = %.1f, Schwarzschild Mass = %.15f \n", Radius,
-  // Msch); printf("dr/dR = %.15f, Analytical = %.15f \n", drsch_dri,
-  // (1.0+0.5*Msch/Radius)*(1.0-0.5*Msch/Radius)); printf("d2r/dR2 = %.15f,
-  // Analytical = %.15f \n", d2rsch_dri2, 0.5*SQR(Msch)/std::pow(Radius,3));
-  // printf("Iso dR_gRR = %.15f, Analytical = %.15f \n", dR_gRR,
-  // (-2.0*Msch/SQR(Radius))*std::pow(1.0+0.5*Msch/Radius, 3)); printf("dr_grr
-  // = %.15f, Analytical = %.15f \n", dr_grr,
-  // (-2.0*Msch/SQR(rsch))*std::pow(1.0-2.0*Msch/rsch, -2));
-
   g_dot_dd(0, 0) = dot_g00;
   g_dot_dd(0, 1) = dot_g0r;
   g_dot_dd(1, 1) = dot_grr;
@@ -2226,8 +1928,6 @@ void WaveExtractRWZ::BackgroundReduce()
   g_uu(0, 0) = g00_uu;
   g_uu(0, 1) = g0r_uu;
   g_uu(1, 1) = grr_uu;
-  // printf("g^00 = %.12e, g^01 = %.12e, g^11 = %.12e \n", g_uu(0,0),
-  // g_uu(0,1), g_uu(1,1)); printf(" \n");
 
   g_dr_uu(0, 0) = dr_g00_uu;
   g_dr_uu(0, 1) = dr_g0r_uu;
@@ -2372,11 +2072,7 @@ void WaveExtractRWZ::MultipoleReduce()
       if (!grid_.IsOwned(i, j))
         continue;
 
-      const Real phi    = grid_.ph_grid(j);
-      const Real sinph  = std::sin(phi);
-      const Real cosph  = std::cos(phi);
-      const Real sinph2 = SQR(sinph);
-      const Real cosph2 = SQR(cosph);
+      const Real phi = grid_.ph_grid(j);
 
       const Real vol = grid_.weights(i, j);
 
@@ -2460,11 +2156,6 @@ void WaveExtractRWZ::MultipoleReduce()
               ((gamma_dd(1, 1, i, j) - gamma_dd(2, 2, i, j) * div_sinth2) *
                  sW +
                2.0 * gamma_dd(1, 2, i, j) * div_sinth2 * sX);
-
-            // printf("alpha2 = %.6f, beta2 = %.6f \n", SQR(alpha(i,j)),
-            // beta2(i,j)); printf("gamma_rr = %.6f, gamma_tt = %.6f gamma_pp =
-            // %.6f \n", gamma_dd(0,0,i,j), gamma_dd(1,1,i,j),
-            // gamma_dd(2,2,i,j));
 
             // even parity radial drvts
             // -----------------------------
@@ -2795,19 +2486,7 @@ void WaveExtractRWZ::MultipoleReduce()
     }  // for m
   }  // for l
 
-  // printf("Extraction radius: %.2f \n", Radius);
-  // printf("Even multipoles for (l,m)=(2,0): \n");
-  // printf("h00 = %.16e \n", h00(2,0));
-  // printf("h01 = %.16e \n", h01(2,0));
-  // printf("h11 = %.16e \n", h11(2,0));
-  // printf("h0 = %.16e \n", h0(2,0));
-  // printf("h1 = %.16e \n", h1(2,0));
-  // printf("K = %.16e \n", K(2,0));
-  // printf("G = %.16e \n", G(2,0));
-  // printf(" \n");
-
   // Compute the various gauge-invariant functions
-  // SphOrthogonality();
   MultipolesGaugeInvariant();
   MasterFuns();
 }
@@ -2823,8 +2502,9 @@ void WaveExtractRWZ::MasterFuns()
   const Real rdot  = dot_rsch;
   const Real div_r = 1.0 / r;
 
-  const Real S        = (1.0 - 2.0 * M * div_r);
-  const Real abs_detg = std::fabs(g_dd(0, 0) * g_dd(1, 1) - SQR(g_dd(0, 1)));
+  const Real S = (1.0 - 2.0 * M * div_r);
+  const Real abs_detg =
+    std::fabs(LinearAlgebra::Det2Metric(g_dd(0, 0), g_dd(0, 1), g_dd(1, 1)));
   const Real div_sqrtdetg = 1.0 / (std::sqrt(abs_detg));
 
   for (int l = 2; l <= opt.lmax; ++l)
@@ -3242,14 +2922,6 @@ void WaveExtractRWZ::MasterFuns()
 // (time-dependent)
 void WaveExtractRWZ::MultipolesGaugeInvariant()
 {
-  // SB the kappa's tensor have a multipolar index and a Re/Im index,
-  // they were defined with the wrong type, I fixed this, see hpp.
-  kappa_00.ZeroClear();  // TODO SB we should use TensorArrays !
-  kappa_01.ZeroClear();
-  kappa_11.ZeroClear();
-  kappa_0.ZeroClear();
-  kappa_1.ZeroClear();
-  // this should now work:
   kappa_dd.ZeroClear();
   kappa_d.ZeroClear();
   kappa.ZeroClear();
@@ -3263,8 +2935,6 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
   // TODO This is a placeholder, these second drvt of the G multipole are not
   // computed ATM!
   const Real G_dt2 = 0.0;
-  // const Real G_dtdr = 0.0;
-  // const Real G_dr2 = 0.0;
 
   norm_Tr_kappa_dd = 0.0;
 
@@ -3278,35 +2948,38 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
         // even-parity
         // -----------------------------------------
 
-        // kappa_dd ....
+        // gauge-invariant tensor kappa_{AB}
+        // NOTE: G_dt2 is a placeholder (set to 0), so kappa_dd(0,0,...)
+        // is approximate. See TODO above.
 
-        kappa_00(lm, c) = h00(lm, c);
-        kappa_00(lm, c) +=
+        kappa_dd(0, 0, lm, c) = h00(lm, c);
+        kappa_dd(0, 0, lm, c) +=
           -2.0 * h0_dot(lm, c) + 2.0 * (Gamma_dyn_udd(0, 0, 0) * h0(lm, c) +
                                         Gamma_dyn_udd(1, 0, 0) * h1(lm, c));
-        kappa_00(lm, c) +=
+        kappa_dd(0, 0, lm, c) +=
           2.0 * r * rdot * G_dot(lm, c) +
           r2 * (G_dt2 - Gamma_dyn_udd(0, 0, 0) * G_dot(lm, c) -
                 Gamma_dyn_udd(1, 0, 0) * G_dr(lm, c));
 
-        kappa_01(lm, c) = h01(lm, c);
-        kappa_01(lm, c) += -h1_dot(lm, c) - h0_dr(lm, c) +
-                           2.0 * (Gamma_dyn_udd(0, 0, 1) * h0(lm, c) +
-                                  Gamma_dyn_udd(1, 0, 1) * h1(lm, c));
-        kappa_01(lm, c) +=
+        kappa_dd(0, 1, lm, c) = h01(lm, c);
+        kappa_dd(0, 1, lm, c) += -h1_dot(lm, c) - h0_dr(lm, c) +
+                                 2.0 * (Gamma_dyn_udd(0, 0, 1) * h0(lm, c) +
+                                        Gamma_dyn_udd(1, 0, 1) * h1(lm, c));
+        kappa_dd(0, 1, lm, c) +=
           r * rdot * G_dr(lm, c) + r * G_dot(lm, c) +
           r2 * (G_dr_dot(lm, c) - Gamma_dyn_udd(0, 0, 1) * G_dot(lm, c) -
                 Gamma_dyn_udd(1, 0, 1) * G_dr(lm, c));
 
-        kappa_11(lm, c) = h11(lm, c);
-        kappa_11(lm, c) +=
+        kappa_dd(1, 1, lm, c) = h11(lm, c);
+        kappa_dd(1, 1, lm, c) +=
           -2.0 * h1_dr(lm, c) + 2.0 * (Gamma_dyn_udd(0, 1, 1) * h0(lm, c) +
                                        Gamma_dyn_udd(1, 1, 1) * h1(lm, c));
-        kappa_11(lm, c) +=
+        kappa_dd(1, 1, lm, c) +=
           2.0 * r * G_dr(lm, c) +
           r2 * (G_dr2(lm, c) - Gamma_dyn_udd(0, 1, 1) * G_dot(lm, c) -
                 Gamma_dyn_udd(1, 1, 1) * G_dr(lm, c));
 
+        // gauge-invariant scalar kappa
         kappa(lm, c) = K(lm, c);
         kappa(lm, c) -=
           (g_uu(0, 0) * rdot * (2.0 * h0(lm, c) - r2 * G_dot(lm, c)) +
@@ -3318,22 +2991,13 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
         // odd-parity
         // -----------------------------------------
 
-        kappa_0(lm, c) =
+        // gauge-invariant vector kappa_A
+        kappa_d(0, lm, c) =
           H0(lm, c) - H_dot(lm, c) + H(lm, c) * 2.0 * rdot * div_r;
-        kappa_1(lm, c) = H1(lm, c) - H_dr(lm, c) + H(lm, c) * 2.0 * div_r;
+        kappa_d(1, lm, c) = H1(lm, c) - H_dr(lm, c) + H(lm, c) * 2.0 * div_r;
 
-        // Trace constraint
-        // -----------------------------------------
-
-        Tr_kappa_dd(lm, c) = 0.0;
-        // for (int A=0; A<2; ++A)
-        //   for (int B=0; B<2; ++B) {
-        //     Tr_kappa_dd(lm,c) += g_uu(A,B)*kappa_dd(A,B,lm,c);
-        //   }
-
-        Tr_kappa_dd(lm, c) += g_uu(0, 0) * kappa_00(lm, c) +
-                              2.0 * g_uu(0, 1) * kappa_01(lm, c) +
-                              g_uu(1, 1) * kappa_11(lm, c);
+        // Trace constraint: Tr(kappa_AB) = g^{AB} kappa_{AB}
+        Tr_kappa_dd(lm, c) = LinearAlgebra::TraceRank2(g_uu, kappa_dd, lm, c);
         norm_Tr_kappa_dd += SQR(Tr_kappa_dd(lm, c));
 
       }  // real&imag
@@ -3347,6 +3011,10 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
 //----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::SphOrthogonality()
 // \brief Check orthonormality of spherical harmonics
+// DEBUG ----- SphOrthogonality() is disabled (declaration removed from header)
+// To re-enable, restore the declaration in wave_extract_rwz.hpp and uncomment
+// the body below.
+/*
 void WaveExtractRWZ::SphOrthogonality()
 {
   // TODO SB Lets check more systematically for all modes,
@@ -3369,7 +3037,6 @@ void WaveExtractRWZ::SphOrthogonality()
   for (int i = 0; i < grid_.ntheta; i++)
   {
     const Real theta = grid_.th_grid(i);
-    // const Real sinth = std::sin(theta);
 
     for (int j = 0; j < grid_.nphi; j++)
     {
@@ -3464,3 +3131,4 @@ void WaveExtractRWZ::SphOrthogonality()
     }
   }
 }
+*/

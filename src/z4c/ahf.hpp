@@ -14,6 +14,7 @@
 #include "../athena_aliases.hpp"
 #include "../utils/grid_theta_phi.hpp"
 #include "../utils/lagrange_interp.hpp"
+#include "../utils/spherical_harmonics.hpp"
 
 // Forward declaration
 class Mesh;
@@ -102,33 +103,9 @@ class AHF
   GridThetaPhi<LagrangeInterpND<metric_interp_order, 3>> grid_;
 
   // -- Spectral decomposition ------------------------------------------------
-  int lmpoints;
+  gra::sph_harm::RealHarmonicTable ylm_;
   AA a0, ac, as;
   Real last_a0;
-
-  // Derivative multi-index for spherical harmonic tables
-  enum
-  {
-    D00,
-    D10,
-    D01,
-    D20,
-    D11,
-    D02,
-    NDERIV
-  };
-
-  //! Legendre polynomials: P_all(3, lmax+1, lmax+1), sliced by d/dth order
-  AA P_all;
-  AA P, dPdth, dPdth2;
-
-  //! Spherical harmonics: compact storage + named shallow-slice views
-  AA Y0_all;  // (3, ntheta, nphi, lmax+1)        - m=0: value, d/dth, d2/dth2
-  AA Yc_all;  // (NDERIV, ntheta, nphi, lmpoints)  - m>0 cosine
-  AA Ys_all;  // (NDERIV, ntheta, nphi, lmpoints)  - m>0 sine
-  AA Y0, Yc, Ys;
-  AA dY0dth, dYcdth, dYsdth, dYcdph, dYsdph;
-  AA dY0dth2, dYcdth2, dYcdthdph, dYsdth2, dYsdthdph, dYcdph2, dYsdph2;
 
   // -- Fields on the sphere --------------------------------------------------
   AT_N_sym g;
@@ -192,17 +169,10 @@ class AHF
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
-  void RadiiFromSphericalHarmonics();
   void InitialGuess();
-  void ComputeSphericalHarmonics();
-  int lmindex(const int l, const int m) const;
 
   bool LevelSetGradient(int i,
                         int j,
-                        Real sinth,
-                        Real costh,
-                        Real sinph,
-                        Real cosph,
                         ATP_N_vec& dFdi,
                         ATP_N_sym& dFdidj,
                         Real& xp,
@@ -215,12 +185,7 @@ class AHF
                           ATP_N_vec& R,
                           Real& H,
                           Real& u);
-  Real SurfaceElement(int i,
-                      int j,
-                      Real sinth,
-                      Real costh,
-                      Real sinph,
-                      Real cosph);
+  Real SurfaceElement(int i, int j);
   void SpinIntegrand(Real xp,
                      Real yp,
                      Real zp,

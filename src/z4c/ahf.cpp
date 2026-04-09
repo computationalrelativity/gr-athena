@@ -25,6 +25,7 @@
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/spherical_harmonics.hpp"
+#include "../utils/tensor_symmetry.hpp"
 #include "ahf.hpp"
 #include "puncture_tracker.hpp"
 #include "z4c.hpp"
@@ -194,48 +195,14 @@ void AHF::ReadOptions(ParameterInput* pin)
 //  \brief allocate spectral, harmonic, and field arrays; compute Ylm tables
 void AHF::PrepareArrays()
 {
-  // Points for sph harm l>=1
-  lmpoints =
-    (opt.lmax + 1) *
-    (opt.lmax + 1);  // = (lmax+1)^2, matches lmindex(l,m) = l*(lmax+1) + m
+  // Compute spherical harmonic tables on the grid
+  ylm_.Initialize(
+    opt.lmax, grid_.ntheta, grid_.nphi, grid_.th_grid, grid_.ph_grid);
 
   // Coefficients
   a0.NewAthenaArray(opt.lmax + 1);
-  ac.NewAthenaArray(lmpoints);
-  as.NewAthenaArray(lmpoints);
-
-  // Legendre polynomials (scratch, rewritten per theta in
-  // ComputeSphericalHarmonics)
-  P_all.NewAthenaArray(3, opt.lmax + 1, opt.lmax + 1);
-  P.InitWithShallowSlice(P_all, 3, 0, 1);
-  dPdth.InitWithShallowSlice(P_all, 3, 1, 1);
-  dPdth2.InitWithShallowSlice(P_all, 3, 2, 1);
-
-  // m=0 spherical harmonics: Y0_all(3, ntheta, nphi, lmax+1)
-  Y0_all.NewAthenaArray(3, grid_.ntheta, grid_.nphi, opt.lmax + 1);
-  Y0.InitWithShallowSlice(Y0_all, 4, 0, 1);
-  dY0dth.InitWithShallowSlice(Y0_all, 4, 1, 1);
-  dY0dth2.InitWithShallowSlice(Y0_all, 4, 2, 1);
-
-  // m>0 cosine harmonics: Yc_all(NDERIV, ntheta, nphi, lmpoints)
-  Yc_all.NewAthenaArray(NDERIV, grid_.ntheta, grid_.nphi, lmpoints);
-  Yc.InitWithShallowSlice(Yc_all, 4, D00, 1);
-  dYcdth.InitWithShallowSlice(Yc_all, 4, D10, 1);
-  dYcdph.InitWithShallowSlice(Yc_all, 4, D01, 1);
-  dYcdth2.InitWithShallowSlice(Yc_all, 4, D20, 1);
-  dYcdthdph.InitWithShallowSlice(Yc_all, 4, D11, 1);
-  dYcdph2.InitWithShallowSlice(Yc_all, 4, D02, 1);
-
-  // m>0 sine harmonics: Ys_all(NDERIV, ntheta, nphi, lmpoints)
-  Ys_all.NewAthenaArray(NDERIV, grid_.ntheta, grid_.nphi, lmpoints);
-  Ys.InitWithShallowSlice(Ys_all, 4, D00, 1);
-  dYsdth.InitWithShallowSlice(Ys_all, 4, D10, 1);
-  dYsdph.InitWithShallowSlice(Ys_all, 4, D01, 1);
-  dYsdth2.InitWithShallowSlice(Ys_all, 4, D20, 1);
-  dYsdthdph.InitWithShallowSlice(Ys_all, 4, D11, 1);
-  dYsdph2.InitWithShallowSlice(Ys_all, 4, D02, 1);
-
-  ComputeSphericalHarmonics();
+  ac.NewAthenaArray(ylm_.lmpoints);
+  as.NewAthenaArray(ylm_.lmpoints);
 
   // Fields on the sphere
   rr.NewAthenaArray(grid_.ntheta, grid_.nphi);
@@ -274,7 +241,7 @@ void AHF::SetupIO()
     {
       std::stringstream msg;
       msg << "### FATAL ERROR in AHF constructor" << std::endl;
-      msg << "Could not open file '" << pofile_summary << "' for writing!";
+      msg << "Could not open file '" << opt.ofname_summary << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
     if (new_file)
@@ -292,7 +259,8 @@ void AHF::SetupIO()
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << "Could not open file '" << pofile_verbose << "' for writing!";
+        msg << "Could not open file '" << opt.ofname_verbose
+            << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
     }
@@ -350,7 +318,7 @@ void AHF::Write(int iter, Real time)
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << "Could not open file '" << pofile_shape << "' for writing!";
+        msg << "Could not open file '" << opt.ofname_shape << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
       fprintf(pofile_shape, "# iter = %d, Time = %g\n", iter, time);
@@ -360,7 +328,7 @@ void AHF::Write(int iter, Real time)
       {
         for (int m = 1; m <= l; m++)
         {
-          int l1 = lmindex(l, m);
+          int l1 = ylm_.lmindex(l, m);
           fprintf(pofile_shape, "%e ", ac(l1));
           fprintf(pofile_shape, "%e ", as(l1));
         }
@@ -394,8 +362,7 @@ void AHF::MetricInterp()
 
   for (int i = 0; i < grid_.ntheta; ++i)
   {
-    const Real theta = grid_.th_grid(i);
-    const Real costh = std::cos(theta);
+    const Real costh = grid_.cos_theta(i);
 
     for (int j = 0; j < grid_.nphi; ++j)
     {
@@ -419,28 +386,14 @@ void AHF::MetricInterp()
       for (int a = 0; a < NDIM; ++a)
         for (int b = a; b < NDIM; ++b)
         {
-          int bitant_z_fac = 1;
-          if (bitant_sym)
-          {
-            if (a == 2)
-              bitant_z_fac *= -1;
-            if (b == 2)
-              bitant_z_fac *= -1;
-          }
-          g(a, b, i, j) =
-            interp.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bitant_z_fac;
-          K(a, b, i, j) =
-            interp.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bitant_z_fac;
+          const int bsign = BitantSign(bitant_sym, a, b);
+          g(a, b, i, j)   = interp.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bsign;
+          K(a, b, i, j)   = interp.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bsign;
           for (int c = 0; c < NDIM; ++c)
           {
-            if (bitant_sym)
-            {
-              if (c == 2)
-                bitant_z_fac *= -1;
-            }
             dg(c, a, b, i, j) =
               interp.eval(&(pz4c->aux.dg_ddd(c, a, b, 0, 0, 0))) *
-              bitant_z_fac;
+              BitantSign(bitant_sym, a, b, c);
           }
         }
 
@@ -449,109 +402,50 @@ void AHF::MetricInterp()
 }
 //----------------------------------------------------------------------------------------
 //! \fn bool AHF::LevelSetGradient(...)
-//  \brief Compute Cartesian coords, inverse spherical Jacobian, and level-set
-//  function derivatives dFdi, dFdidj via chain rule with spectral coefficients
-//  and spherical harmonic tables.  Returns false if the surface radius is
-//  below min_surface_radius (caller should break).
+//  \brief Compute Cartesian coords and level-set function derivatives dFdi,
+//  dFdidj via chain rule.  Reads precomputed Jacobian from grid_.con_J/con_J2
+//  and spherical harmonic derivatives from ylm_.  Returns false if the surface
+//  radius is below min_surface_radius (caller should break).
 bool AHF::LevelSetGradient(int i,
                            int j,
-                           Real sinth,
-                           Real costh,
-                           Real sinph,
-                           Real cosph,
                            ATP_N_vec& dFdi,
                            ATP_N_sym& dFdidj,
                            Real& xp,
                            Real& yp,
                            Real& zp)
 {
+  using namespace gra::sph_harm::ix_D;
+  const AT_N_T2& con_J        = grid_.con_J;
+  const AT_N_VS2& con_J2      = grid_.con_J2;
+  const AthenaArray<Real>& Y0 = ylm_.Y0;
+  const AthenaArray<Real>& Yc = ylm_.Yc;
+  const AthenaArray<Real>& Ys = ylm_.Ys;
+
   // Cartesian coordinates of the surface point (relative to center)
-  xp = rr(i, j) * sinth * cosph;
-  yp = rr(i, j) * sinth * sinph;
-  zp = rr(i, j) * costh;
+  xp = rr(i, j) * grid_.sin_theta(i) * grid_.cos_phi(j);
+  yp = rr(i, j) * grid_.sin_theta(i) * grid_.sin_phi(j);
+  zp = rr(i, j) * grid_.cos_theta(i);
 
-  Real const rp   = std::sqrt(xp * xp + yp * yp + zp * zp);
-  Real const rhop = std::sqrt(xp * xp + yp * yp);
-
+  const Real rp = std::sqrt(xp * xp + yp * yp + zp * zp);
   if (rp < min_surface_radius)
     return false;
 
-  Real const _divrp    = 1.0 / rp;
-  Real const _divrp3   = SQR(_divrp) * _divrp;
-  Real const _divrp4   = SQR(_divrp) * SQR(_divrp);
-  Real const _divrhop  = 1.0 / rhop;
-  Real const _divrhop2 = SQR(_divrhop);
-  Real const _divrhop3 = _divrhop2 * _divrhop;
-  Real const _divrhop4 = SQR(_divrhop2);
-  Real const xp2       = SQR(xp);
-  Real const yp2       = SQR(yp);
-  Real const zp2       = SQR(zp);
-
-  // Derivatives of (r,theta,phi) w.r.t. (x,y,z)
-  ATP_N_vec drdi;
-  ATP_N_vec dthetadi;
-  ATP_N_vec dphidi;
-  ATP_N_sym drdidj;
-  ATP_N_sym dthetadidj;
-  ATP_N_sym dphididj;
-
-  // First derivatives
-  drdi(0) = xp * _divrp;
-  drdi(1) = yp * _divrp;
-  drdi(2) = zp * _divrp;
-
-  dthetadi(0) = zp * xp * (SQR(_divrp) * _divrhop);
-  dthetadi(1) = zp * yp * (SQR(_divrp) * _divrhop);
-  dthetadi(2) = -rhop * SQR(_divrp);
-
-  dphidi(0) = -yp * _divrhop2;
-  dphidi(1) = xp * _divrhop2;
-  dphidi(2) = 0.0;
-
-  // Second derivatives
-  drdidj(0, 0) = _divrp - xp2 * _divrp3;
-  drdidj(0, 1) = -xp * yp * _divrp3;
-  drdidj(0, 2) = -xp * zp * _divrp3;
-  drdidj(1, 1) = _divrp - yp2 * _divrp3;
-  drdidj(1, 2) = -yp * zp * _divrp3;
-  drdidj(2, 2) = _divrp - zp2 * _divrp3;
-
-  dthetadidj(0, 0) = zp *
-                     (-2.0 * SQR(xp2) - xp2 * yp2 + SQR(yp2) + zp2 * yp2) *
-                     (_divrp4 * _divrhop3);
-  dthetadidj(0, 1) =
-    -xp * yp * zp * (3.0 * xp2 + 3.0 * yp2 + zp2) * (_divrp4 * _divrhop3);
-  dthetadidj(0, 2) = xp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
-  dthetadidj(1, 1) = zp *
-                     (-2.0 * SQR(yp2) - yp2 * xp2 + SQR(xp2) + zp2 * xp2) *
-                     (_divrp4 * _divrhop3);
-  dthetadidj(1, 2) = yp * (xp2 + yp2 - zp2) * (_divrp4 * _divrhop);
-  dthetadidj(2, 2) = 2.0 * zp * rhop * _divrp4;
-
-  dphididj(0, 0) = 2.0 * yp * xp * _divrhop4;
-  dphididj(0, 1) = (yp2 - xp2) * _divrhop4;
-  dphididj(0, 2) = 0.0;
-  dphididj(1, 1) = -2.0 * yp * xp * _divrhop4;
-  dphididj(1, 2) = 0.0;
-  dphididj(2, 2) = 0.0;
-
-  // Chain rule: dF/dx^a = dr/dx^a - sum_{lm} c_{lm} * (dY/dtheta * dtheta/dx^a
-  //                                                    + dY/dphi   *
-  //                                                    dphi/dx^a)
+  // Chain rule: dF/dx^a = dr/dx^a - sum_{lm} c_{lm} * (dY/dth * dth/dx^a
+  //                                                    + dY/dph * dph/dx^a)
+  // con_J(A, a) = d(sph coord A)/d(cart coord a), A: 0=r, 1=th, 2=ph
   for (int a = 0; a < NDIM; ++a)
   {
-    dFdi(a) = drdi(a);
+    dFdi(a) = con_J(0, a, i, j);
     for (int l = 0; l <= opt.lmax; l++)
-      dFdi(a) -= a0(l) * dthetadi(a) * dY0dth(i, j, l);
+      dFdi(a) -= a0(l) * con_J(1, a, i, j) * Y0(D10, i, j, l);
     for (int l = 1; l <= opt.lmax; l++)
       for (int m = 1; m <= l; m++)
       {
-        int l1 = lmindex(l, m);
-        dFdi(a) -=
-          ac(l1) *
-            (dthetadi(a) * dYcdth(i, j, l1) + dphidi(a) * dYcdph(i, j, l1)) +
-          as(l1) *
-            (dthetadi(a) * dYsdth(i, j, l1) + dphidi(a) * dYsdph(i, j, l1));
+        const int l1 = ylm_.lmindex(l, m);
+        dFdi(a) -= ac(l1) * (con_J(1, a, i, j) * Yc(D10, i, j, l1) +
+                             con_J(2, a, i, j) * Yc(D01, i, j, l1)) +
+                   as(l1) * (con_J(1, a, i, j) * Ys(D10, i, j, l1) +
+                             con_J(2, a, i, j) * Ys(D01, i, j, l1));
       }
   }
 
@@ -559,27 +453,30 @@ bool AHF::LevelSetGradient(int i,
   for (int a = 0; a < NDIM; ++a)
     for (int b = a; b < NDIM; ++b)
     {
-      dFdidj(a, b) = drdidj(a, b);
+      dFdidj(a, b) = con_J2(0, a, b, i, j);
       for (int l = 0; l <= opt.lmax; l++)
-        dFdidj(a, b) -= a0(l) * (dthetadidj(a, b) * dY0dth(i, j, l) +
-                                 dthetadi(a) * dthetadi(b) * dY0dth2(i, j, l));
+        dFdidj(a, b) -=
+          a0(l) * (con_J2(1, a, b, i, j) * Y0(D10, i, j, l) +
+                   con_J(1, a, i, j) * con_J(1, b, i, j) * Y0(D20, i, j, l));
       for (int l = 1; l <= opt.lmax; l++)
         for (int m = 1; m <= l; m++)
         {
-          int l1 = lmindex(l, m);
+          const int l1 = ylm_.lmindex(l, m);
           dFdidj(a, b) -=
-            ac(l1) * (dthetadidj(a, b) * dYcdth(i, j, l1) +
-                      dthetadi(a) * (dthetadi(b) * dYcdth2(i, j, l1) +
-                                     dphidi(b) * dYcdthdph(i, j, l1)) +
-                      dphididj(a, b) * dYcdph(i, j, l1) +
-                      dphidi(a) * (dthetadi(b) * dYcdthdph(i, j, l1) +
-                                   dphidi(b) * dYcdph2(i, j, l1))) +
-            as(l1) * (dthetadidj(a, b) * dYsdth(i, j, l1) +
-                      dthetadi(a) * (dthetadi(b) * dYsdth2(i, j, l1) +
-                                     dphidi(b) * dYsdthdph(i, j, l1)) +
-                      dphididj(a, b) * dYsdph(i, j, l1) +
-                      dphidi(a) * (dthetadi(b) * dYsdthdph(i, j, l1) +
-                                   dphidi(b) * dYsdph2(i, j, l1)));
+            ac(l1) *
+              (con_J2(1, a, b, i, j) * Yc(D10, i, j, l1) +
+               con_J(1, a, i, j) * (con_J(1, b, i, j) * Yc(D20, i, j, l1) +
+                                    con_J(2, b, i, j) * Yc(D11, i, j, l1)) +
+               con_J2(2, a, b, i, j) * Yc(D01, i, j, l1) +
+               con_J(2, a, i, j) * (con_J(1, b, i, j) * Yc(D11, i, j, l1) +
+                                    con_J(2, b, i, j) * Yc(D02, i, j, l1))) +
+            as(l1) *
+              (con_J2(1, a, b, i, j) * Ys(D10, i, j, l1) +
+               con_J(1, a, i, j) * (con_J(1, b, i, j) * Ys(D20, i, j, l1) +
+                                    con_J(2, b, i, j) * Ys(D11, i, j, l1)) +
+               con_J2(2, a, b, i, j) * Ys(D01, i, j, l1) +
+               con_J(2, a, i, j) * (con_J(1, b, i, j) * Ys(D11, i, j, l1) +
+                                    con_J(2, b, i, j) * Ys(D02, i, j, l1)));
         }
       dFdidj(b, a) = dFdidj(a, b);
     }
@@ -687,7 +584,9 @@ void AHF::ExpansionAndNormal(int i,
   Real divu = (opt.expansion_fix == ExpansionFix::cure_divu)
               ? ((norm > 0) ? 1.0 / u : 0.0)
               : 1.0 / u;
-  H         = d2F * divu + dFdadFdbKab * (divu * divu) -
+
+  // Assemble
+  H = d2F * divu + dFdadFdbKab * (divu * divu) -
       dFdadFdbFdadb * (divu * divu * divu) - TrK;
 
   // Outward unit normal: s^a = dF^a / |nabla F|
@@ -699,51 +598,26 @@ void AHF::ExpansionAndNormal(int i,
 //! \fn Real AHF::SurfaceElement(...)
 //  \brief Compute the determinant of the induced 2-metric on the horizon
 //  surface at point (i,j).  Returns det(h) (clamped >= 0).
-Real AHF::SurfaceElement(int i,
-                         int j,
-                         Real sinth,
-                         Real costh,
-                         Real sinph,
-                         Real cosph)
+Real AHF::SurfaceElement(int i, int j)
 {
-  Real const drdt = rr_dth(i, j);
-  Real const drdp = rr_dph(i, j);
-
-  // Tangent vector d(x,y,z)/dtheta
-  ATP_N_vec dXdth;
-  dXdth(0) = (drdt * sinth + rr(i, j) * costh) * cosph;
-  dXdth(1) = (drdt * sinth + rr(i, j) * costh) * sinph;
-  dXdth(2) = drdt * costh - rr(i, j) * sinth;
-
-  // Tangent vector d(x,y,z)/dphi
-  ATP_N_vec dXdph;
-  dXdph(0) = (drdp * cosph - rr(i, j) * sinph) * sinth;
-  dXdph(1) = (drdp * sinph + rr(i, j) * cosph) * sinth;
-  dXdph(2) = drdp * costh;
-
-  // Induced 2-metric h_{AB} = g_{ab} e^a_A e^b_B
-  Real h11 = 0.0, h12 = 0.0, h22 = 0.0;
-  for (int a = 0; a < NDIM; ++a)
-    for (int b = 0; b < NDIM; ++b)
-    {
-      Real gab = g(a, b, i, j);
-      h11 += dXdth(a) * dXdth(b) * gab;
-      h12 += dXdth(a) * dXdph(b) * gab;
-      h22 += dXdph(a) * dXdph(b) * gab;
-    }
-
-  Real deth = h11 * h22 - h12 * h12;
-  if (deth < 0.)
-    deth = 0.0;
-
-  return deth;
+  return SurfaceElement2D(rr(i, j),
+                          rr_dth(i, j),
+                          rr_dph(i, j),
+                          grid_.sin_theta(i),
+                          grid_.cos_theta(i),
+                          grid_.sin_phi(j),
+                          grid_.cos_phi(j),
+                          g(0, 0, i, j),
+                          g(0, 1, i, j),
+                          g(0, 2, i, j),
+                          g(1, 1, i, j),
+                          g(1, 2, i, j),
+                          g(2, 2, i, j));
 }
 
 //----------------------------------------------------------------------------------------
 //! \fn void AHF::SpinIntegrand(...)
 //  \brief Compute the spin angular momentum integrand at a surface point.
-//  S_d = (1/8pi) oint phi^a_d s^b K_ab dA, where phi^a_d are flat-space
-//  rotational Killing vectors and s^b is the unit outward normal.
 void AHF::SpinIntegrand(Real xp,
                         Real yp,
                         Real zp,
@@ -800,21 +674,14 @@ void AHF::SurfaceIntegrals()
 
   for (int i = 0; i < grid_.ntheta; i++)
   {
-    Real const sinth = std::sin(grid_.th_grid(i));
-    Real const costh = std::cos(grid_.th_grid(i));
-
     for (int j = 0; j < grid_.nphi; j++)
     {
       if (!grid_.IsOwned(i, j))
         continue;
 
-      Real const sinph = std::sin(grid_.ph_grid(j));
-      Real const cosph = std::cos(grid_.ph_grid(j));
-
       // Level-set derivatives (Jacobian + Ylm chain rule)
       Real xp, yp, zp;
-      if (!LevelSetGradient(
-            i, j, sinth, costh, sinph, cosph, dFdi, dFdidj, xp, yp, zp))
+      if (!LevelSetGradient(i, j, dFdi, dFdidj, xp, yp, zp))
         break;
 
       // Expansion and outward unit normal
@@ -823,15 +690,16 @@ void AHF::SurfaceIntegrals()
       rho(i, j) = H * u;
 
       // Surface area element
-      Real deth = SurfaceElement(i, j, sinth, costh, sinph, cosph);
+      Real deth = SurfaceElement(i, j);
 
       // Spin angular momentum integrand
       Real Sx, Sy, Sz;
       SpinIntegrand(xp, yp, zp, R, i, j, Sx, Sy, Sz);
 
       // Accumulate weighted integrals
-      const Real wght = grid_.weights(i, j);
-      const Real da   = wght * std::sqrt(deth) / sinth;
+      const Real wght  = grid_.weights(i, j);
+      const Real sinth = grid_.sin_theta(i);
+      const Real da    = wght * std::sqrt(deth) / sinth;
 
       integrals[iarea] += da;
       integrals[icoarea] += wght * SQR(rr(i, j));
@@ -918,30 +786,14 @@ void AHF::FastFlowLoop()
     fastflow_iter = k;
 
     // Compute radius r = a_lm Y_lm
-    RadiiFromSphericalHarmonics();
+    ylm_.Synthesize(
+      a0, ac, as, grid_.ntheta, grid_.nphi, rr, rr_dth, rr_dph, rr_min);
 
     // Fill x_cart with sphere coordinates (bitant-reflected)
-    {
-      const Real xc = center[0];
-      const Real yc = center[1];
-      const Real zc = center[2];
-      for (int i = 0; i < grid_.ntheta; ++i)
-      {
-        const Real sinth = std::sin(grid_.th_grid(i));
-        const Real costh = std::cos(grid_.th_grid(i));
-        for (int j = 0; j < grid_.nphi; ++j)
-        {
-          const Real sinph      = std::sin(grid_.ph_grid(j));
-          const Real cosph      = std::cos(grid_.ph_grid(j));
-          grid_.x_cart(0, i, j) = xc + rr(i, j) * sinth * cosph;
-          grid_.x_cart(1, i, j) = yc + rr(i, j) * sinth * sinph;
-          Real z                = zc + rr(i, j) * costh;
-          if (opt.bitant)
-            z = std::abs(z);
-          grid_.x_cart(2, i, j) = z;
-        }
-      }
-    }
+    grid_.FillCartesianCoords(center, rr, opt.bitant);
+
+    // Compute Jacobian d(r,th,ph)/d(x,y,z)
+    grid_.ComputeConJacobian(rr, min_surface_radius);
 
     // Build interpolator pools
     grid_.Prepare(pmesh, SW_CCX_VC(true, false), SW_CCX_VC(false, true));
@@ -1115,44 +967,31 @@ void AHF::UpdateFlowSpectralComponents()
   const Real B     = beta / alpha;
 
   const int nspec0 = opt.lmax + 1;
-  const int ntotal = nspec0 + 2 * lmpoints;
+  const int ntotal = nspec0 + 2 * ylm_.lmpoints;
 
-  Real* ABfac    = new Real[nspec0];
-  Real* spec_buf = new Real[ntotal]();  // zero-initialized
+  std::vector<Real> ABfac_vec(nspec0);
+  std::vector<Real> spec_buf_vec(ntotal, 0.0);  // zero-initialized
+  Real* ABfac    = ABfac_vec.data();
+  Real* spec_buf = spec_buf_vec.data();
 
   Real* spec0 = spec_buf;
   Real* specc = spec_buf + nspec0;
-  Real* specs = specc + lmpoints;
+  Real* specs = specc + ylm_.lmpoints;
 
   for (int l = 0; l <= opt.lmax; l++)
   {
     ABfac[l] = A / (1.0 + B * l * (l + 1));
   }
 
-  // Local sums
-  for (int i = 0; i < grid_.ntheta; i++)
-  {
-    for (int j = 0; j < grid_.nphi; j++)
-    {
-      if (!grid_.IsOwned(i, j))
-        continue;
-      const Real drho = grid_.weights(i, j) * rho(i, j);
-
-      for (int l = 0; l <= opt.lmax; l++)
-        spec0[l] += drho * Y0(i, j, l);
-
-      for (int l = 1; l <= opt.lmax; l++)
-      {
-        for (int m = 1; m <= l; m++)
-        {
-          int l1 = lmindex(l, m);
-          specc[l1] += drho * Yc(i, j, l1);
-          specs[l1] += drho * Ys(i, j, l1);
-        }
-      }
-
-    }  // phi loop
-  }  // theta loop
+  // Local sums via ylm_.Project
+  ylm_.Project(grid_.weights,
+               rho,
+               grid_.ntheta,
+               grid_.nphi,
+               spec0,
+               specc,
+               specs,
+               [this](int i, int j) { return grid_.IsOwned(i, j); });
 
 #ifdef MPI_PARALLEL
   MPI_Allreduce(
@@ -1169,51 +1008,11 @@ void AHF::UpdateFlowSpectralComponents()
   {
     for (int m = 1; m <= l; m++)
     {
-      int l1 = lmindex(l, m);
+      int l1 = ylm_.lmindex(l, m);
       ac(l1) -= ABfac[l] * specc[l1];
       as(l1) -= ABfac[l] * specs[l1];
     }
   }
-
-  delete[] ABfac;
-  delete[] spec_buf;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::RadiiFromSphericalHarmonics()
-// \brief compute the radius of the surface
-void AHF::RadiiFromSphericalHarmonics()
-{
-  rr.ZeroClear();
-  rr_dth.ZeroClear();
-  rr_dph.ZeroClear();
-
-  rr_min = std::numeric_limits<Real>::infinity();
-  for (int i = 0; i < grid_.ntheta; i++)
-  {
-    for (int j = 0; j < grid_.nphi; j++)
-    {
-      for (int l = 0; l <= opt.lmax; l++)
-      {
-        rr(i, j) += a0(l) * Y0(i, j, l);
-        rr_dth(i, j) += a0(l) * dY0dth(i, j, l);
-      }
-
-      for (int l = 1; l <= opt.lmax; l++)
-      {
-        for (int m = 1; m <= l; m++)
-        {
-          int l1 = lmindex(l, m);
-          rr(i, j) += ac(l1) * Yc(i, j, l1) + as(l1) * Ys(i, j, l1);
-          rr_dth(i, j) +=
-            ac(l1) * dYcdth(i, j, l1) + as(l1) * dYsdth(i, j, l1);
-          rr_dph(i, j) +=
-            ac(l1) * dYcdph(i, j, l1) + as(l1) * dYsdph(i, j, l1);
-        }
-      }
-      rr_min = std::min(rr_min, rr(i, j));
-    }  // phi loop
-  }  // theta loop
 }
 
 //----------------------------------------------------------------------------------------
@@ -1278,75 +1077,6 @@ void AHF::InitialGuess()
   {
     a0(0) = SQRT_4PI * opt.initial_radius;
   }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::ComputeSphericalHarmonics()
-// \brief compute spherical harmonics for grid of size ntheta*nphi.
-// Results are used for all horizons.
-void AHF::ComputeSphericalHarmonics()
-{
-  Y0_all.ZeroClear();
-  Yc_all.ZeroClear();
-  Ys_all.ZeroClear();
-
-  for (int i = 0; i < grid_.ntheta; ++i)
-  {
-    const Real theta = grid_.th_grid(i);
-
-    gra::sph_harm::NPlm(theta, opt.lmax, P, dPdth, dPdth2);
-
-    for (int j = 0; j < grid_.nphi; ++j)
-    {
-      const Real phi = grid_.ph_grid(j);
-
-      // l=0 spherical harmonics and drvts
-      for (int l = 0; l <= opt.lmax; l++)
-      {
-        Y0(i, j, l)      = P(l, 0);
-        dY0dth(i, j, l)  = dPdth(l, 0);
-        dY0dth2(i, j, l) = dPdth2(l, 0);
-      }
-
-      // l>=1 spherical harmonics and drvts
-      for (int l = 1; l <= opt.lmax; l++)
-      {
-        for (int m = 1; m <= l; m++)
-        {
-          const int l1 = lmindex(l, m);
-
-          const Real cosmph = std::cos(m * phi);
-          const Real sinmph = std::sin(m * phi);
-
-          // spherical harmonics
-          Yc(i, j, l1) = SQRT2 * P(l, m) * cosmph;
-          Ys(i, j, l1) = SQRT2 * P(l, m) * sinmph;
-
-          // first drvts
-          dYcdth(i, j, l1) = SQRT2 * dPdth(l, m) * cosmph;
-          dYsdth(i, j, l1) = SQRT2 * dPdth(l, m) * sinmph;
-          dYcdph(i, j, l1) = -SQRT2 * P(l, m) * m * sinmph;
-          dYsdph(i, j, l1) = SQRT2 * P(l, m) * m * cosmph;
-
-          // second drvts
-          dYcdth2(i, j, l1)   = SQRT2 * dPdth2(l, m) * cosmph;
-          dYcdthdph(i, j, l1) = -SQRT2 * dPdth(l, m) * m * sinmph;
-          dYsdth2(i, j, l1)   = SQRT2 * dPdth2(l, m) * sinmph;
-          dYsdthdph(i, j, l1) = SQRT2 * dPdth(l, m) * m * cosmph;
-          dYcdph2(i, j, l1)   = -SQRT2 * P(l, m) * m * m * cosmph;
-          dYsdph2(i, j, l1)   = -SQRT2 * P(l, m) * m * m * sinmph;
-        }
-      }
-    }  // phi loop
-  }  // theta loop
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::lmindex(const int l, const int m)
-// \brief multipolar single index (l,m) -> index
-int AHF::lmindex(const int l, const int m) const
-{
-  return l * (opt.lmax + 1) + m;
 }
 
 //----------------------------------------------------------------------------------------

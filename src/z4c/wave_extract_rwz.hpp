@@ -73,7 +73,7 @@ class WaveExtractRWZ
   // -- 3+1 metric on the sphere ----------------------------------------------
   AT_N_sym gamma_dd;
   AT_N_sym dr_gamma_dd;
-  AT_N_sym dr2_gamma_dd;  // TODO 2nd dvtrs not yet implemented
+  AT_N_sym dr2_gamma_dd;
   AT_N_sym dot_gamma_dd;
   AT_N_sym dr_dot_gamma_dd;
 
@@ -129,11 +129,9 @@ class WaveExtractRWZ
   AA H1_dr_dot;                       // d/dr d/dt drvts
 
   // -- Gauge-invariant multipoles --------------------------------------------
-  AA kappa_00, kappa_01, kappa_11, kappa_0,
-    kappa_1;  // SB lets not use this!
-  // SB The above variables are defined at a points, but the kappa's have a
-  // multipolar index. These var type was incorrect. They require 1 dimension
-  // for the multipolar index and 1 for the Re/Im part:
+  // kappa_dd(A,B,lm,c): even-parity gauge-invariant tensor on M^2
+  // kappa_d(A,lm,c):    odd-parity gauge-invariant vector on M^2
+  // kappa(lm,c):        even-parity gauge-invariant scalar
   AT_M_sym kappa_dd;
   AT_M_vec kappa_d;
   AA kappa, Tr_kappa_dd;
@@ -325,7 +323,6 @@ class WaveExtractRWZ
   void InterpMetricToSphere();
   void MasterFuns();
   void MultipolesGaugeInvariant();
-  void SphOrthogonality();
 
   std::string OutputFileName(std::string base);
 };
