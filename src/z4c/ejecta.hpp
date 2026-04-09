@@ -53,10 +53,10 @@ class Ejecta
 
   Real radius;
 
-  //! GridThetaPhi instance (cc pool for hydro, vc pool for metric when Z4c is
+  //! Grid instance (cc pool for hydro, vc pool for metric when Z4c is
   //! VC)
   static constexpr int ejecta_interp_order = 2 * NGHOST - 1;
-  GridThetaPhi<LagrangeInterpND<ejecta_interp_order, 3>> grid_;
+  gra::grids::theta_phi::Grid<LagrangeInterpND<ejecta_interp_order, 3>> grid_;
 
   //! start and stop times for each surface
   Real start_time;

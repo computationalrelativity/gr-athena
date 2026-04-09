@@ -256,7 +256,7 @@ int main(int argc, char* argv[])
         psurf->ReinitializeSurfaces(pmesh->ncycle, pmesh->time);
       }
 
-      // GridThetaPhi pools hold stale MeshBlock* pointers; tear down so that
+      // Grid pools hold stale MeshBlock* pointers; tear down so that
       // the next Calculate() call lazily rebuilds them.
       for (WaveExtractRWZ* prwz : pmesh->pwave_extr_rwz)
         prwz->grid_.TearDown();

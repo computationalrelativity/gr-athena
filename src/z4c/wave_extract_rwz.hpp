@@ -13,7 +13,9 @@
 
 #include "../athena_aliases.hpp"
 #include "../utils/grid_theta_phi.hpp"
+#include "../utils/grid_theta_phi_fields.hpp"
 #include "../utils/lagrange_interp.hpp"
+#include "../utils/spherical_harmonics.hpp"
 
 // Forward declaration
 class Mesh;
@@ -21,9 +23,6 @@ class MeshBlock;
 class ParameterInput;
 
 using namespace gra::aliases;
-
-// output extra field (DEBUG)
-#define WAVE_EXTRACT_RWZ_EXTRAOUTPUT (0)  // 0=false, 1=true
 
 //! \class WaveExtractRWZ
 //! \brief RWZ waveform extraction
@@ -42,7 +41,8 @@ class WaveExtractRWZ
 
   // -- Grid infrastructure (public: needed by AMR teardown hook) -------------
   static const int metric_interp_order = 2 * NGHOST - 1;
-  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3, true>> grid_;
+  gra::grids::theta_phi::Grid<LagrangeInterpND<metric_interp_order, 3, true>>
+    grid_;
 
   private:
   // -- Configuration (set once from ParameterInput) --------------------------
@@ -57,6 +57,7 @@ class WaveExtractRWZ
     int mpi_root;
     int outprec;
     int method_areal_radius;
+    bool extra_output;
   } opt;
 
   // -- Derived constants -----------------------------------------------------
@@ -70,35 +71,17 @@ class WaveExtractRWZ
   Real drsch_dri, d2rsch_dri2, drsch_dri_dot, d3rsch_dri3;
   Real dri_drsch, d2ri_drsch2, dri_drsch_dot, d3ri_drsch3;
 
-  // -- 3+1 metric on the sphere ----------------------------------------------
-  AT_N_sym gamma_dd;
-  AT_N_sym dr_gamma_dd;
-  AT_N_sym dr2_gamma_dd;
-  AT_N_sym dot_gamma_dd;
-  AT_N_sym dr_dot_gamma_dd;
+  // -- 3+1 metric on the sphere (bundled with radial/time derivatives) -------
+  //  Access: gamma(a,b,i,j) for value, gamma(D10,a,b,i,j) for d_r, etc.
+  //  See ix_DRT for derivative index constants.
+  gra::grids::theta_phi::DTensorField<Real, TensorSymm::SYM2, 3, 2> gamma;
+  gra::grids::theta_phi::DTensorField<Real, TensorSymm::NONE, 3, 1> beta_d;
+  gra::grids::theta_phi::DTensorField<Real, TensorSymm::NONE, 3, 1> beta_u;
+  gra::grids::theta_phi::DTensorField<Real, TensorSymm::NONE, 3, 0> alpha;
+  gra::grids::theta_phi::DTensorField<Real, TensorSymm::NONE, 3, 0> beta2;
 
-  AT_N_vec beta_d;
-  AT_N_vec dr_beta_d;
-  AT_N_vec dr2_beta_d;
-  AT_N_vec dot_beta_d;
-
-  AT_N_vec beta_u;
-  AT_N_vec dr_beta_u;
-  AT_N_vec dr2_beta_u;
-  AT_N_vec dot_beta_u;
-
-  AT_N_sca beta2;
-  AT_N_sca dr_beta2;
-  AT_N_sca dr2_beta2;
-  AT_N_sca dot_beta2;
-
-  AT_N_sca alpha;
-  AT_N_sca dr_alpha;
-  AT_N_sca dr2_alpha;
-  AT_N_sca dot_alpha;
-
-  // -- Spherical harmonics on the sphere (complex -> 2 components) -----------
-  AA Y, Yth, Yph, X, W;
+  // -- Spherical harmonics on the sphere (complex, l=2..lmax) ----------------
+  gra::sph_harm::ComplexHarmonicTable ylm_;
 
   // -- Spherical metric on M^2 -----------------------------------------------
   ATP_M_sym g_dd;
@@ -115,18 +98,12 @@ class WaveExtractRWZ
   Real norm_Delta_Gamma;
 
   // -- Multipoles (even) -----------------------------------------------------
-  AA h00, h01, h11, h0, h1, G, K;
-  AA h00_dr, h01_dr, h11_dr, h0_dr, h1_dr, G_dr, K_dr;  // d/dr drvts
-  AA G_dr2, K_dr2;                                      // d2/dr2 drvts
-  AA G_dr_dot, K_dr_dot;                                // d/dr d/dt drvts
-  AA h00_dot, h01_dot, h11_dot, h0_dot, h1_dot, G_dot, K_dot;  // d/dt drvts
+  // Each DMultipoleField bundles D00 (value), D10 (d_r), D20 (d^2_r),
+  // D01 (d_t), D11 (d_r d_t) slots as AthenaArray<Real>(lmpoints, 2).
+  gra::grids::theta_phi::DMultipoleField<Real> h00, h01, h11, h0, h1, G, K;
 
   // -- Multipoles (odd) ------------------------------------------------------
-  AA H0, H01, H, H1;
-  AA H0_dr, H01_dr, H_dr, H1_dr;      // d/dr drvts
-  AA H0_dot, H01_dot, H_dot, H1_dot;  // d/dt drvts
-  AA H0_dr2, H_dr2;                   // d2/dr2 drvts
-  AA H1_dr_dot;                       // d/dr d/dt drvts
+  gra::grids::theta_phi::DMultipoleField<Real> H0, H1, H;
 
   // -- Gauge-invariant multipoles --------------------------------------------
   // kappa_dd(A,B,lm,c): even-parity gauge-invariant tensor on M^2
@@ -260,8 +237,6 @@ class WaveExtractRWZ
   static char const* const ArealRadiusMethod[NOptRadius];
 
   // -- I/O -------------------------------------------------------------------
-#if (WAVE_EXTRACT_RWZ_EXTRAOUTPUT)
-  // includes indexes of various extra output files
   enum
   {
     Iof_diagnostic,  // This should be first!
@@ -287,25 +262,8 @@ class WaveExtractRWZ
     Iof_hlm,  // This should be last!
     Iof_Num,
   };
-#else
-  enum
-  {
-    Iof_diagnostic,  // This should be first!
-    Iof_adm,         // This should be second!
-    Iof_Psie,
-    Iof_Psio,
-    Iof_Psie_dyn,
-    Iof_Psio_dyn,
-    Iof_Qplus,
-    Iof_Qstar,
-    Iof_hlm,  // This should be last!
-    Iof_Num,
-  };
-#endif
   std::string ofbname[Iof_Num];
-  std::string ofname;
-  FILE* pofile;
-  std::ofstream outfile;
+  FILE* ofile[Iof_Num]{};
 
   // -- Back-pointers ---------------------------------------------------------
   Mesh const* pmesh;
@@ -314,17 +272,19 @@ class WaveExtractRWZ
   void ReadOptions(ParameterInput* pin, int n);
   void PrepareArrays();
 
-  int MPoints(const int l);
-  int MIndex(const int l, const int m);
-  Real RWZnorm(const int l);
-  void ComputeSphericalHarmonics();
+  //! RWZ normalization factor: sqrt((l+2)!/(l-2)!)
+  static inline Real RWZnorm(const int l)
+  {
+    return std::sqrt(gra::sph_harm::Factorial(l + 2) /
+                     gra::sph_harm::Factorial(l - 2));
+  }
 
-  Real LeviCivitaSymbol(const int a, const int b, const int c);
   void InterpMetricToSphere();
   void MasterFuns();
   void MultipolesGaugeInvariant();
 
   std::string OutputFileName(std::string base);
+  FILE* OpenOutputFile(int iof);
 };
 
 #endif

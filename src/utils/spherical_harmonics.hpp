@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../athena.hpp"
+#include "grid_theta_phi_fields.hpp"
 
 namespace gra
 {
@@ -416,6 +417,825 @@ constexpr int D11    = 4;
 constexpr int D02    = 5;
 constexpr int NDERIV = 6;
 }  // namespace ix_D
+
+// ============================================================================
+// Complex-harmonic index helpers  (l = 2 .. lmax, m = -l .. +l)
+// ============================================================================
+
+// Real / Imaginary component index for complex harmonics.
+namespace ix_C
+{
+constexpr int Re  = 0;
+constexpr int Im  = 1;
+constexpr int NRI = 2;
+}  // namespace ix_C
+
+// Number of complex (l,m) modes for l = 2 .. lmax.
+//   sum_{l=2}^{lmax} (2l+1) = lmax*(lmax+2) - 3
+inline int lmpoints_complex(int lmax)
+{
+  return lmax * (lmax + 2) - 3;
+}
+
+// Single linear index for a complex (l,m) mode, l >= 2, -l <= m <= l.
+//   Offset of block l is (l-1)*(l+1) - 3, then m+l within the block.
+inline int lmindex_complex(int l, int m)
+{
+  return (l - 1) * ((l - 1) + 2) - 3 + (m + l);
+}
+
+// ============================================================================
+// ComplexHarmonicTable
+// ============================================================================
+//! \brief Pre-tabulated complex spherical harmonics, angular derivatives, and
+//!        tensor harmonics (W, X) on a (theta, phi) grid.
+//!
+//! Stores Y, dY/dtheta, dY/dphi, W_lm, X_lm for l = 2 .. lmax, m = -l .. +l,
+//! with Re/Im in the trailing dimension (index 0 = Re, 1 = Im).
+//!
+//! Access pattern:
+//!   Y(i, j, lm, c)    -- value of Y_l^m at grid point (i,j), component c
+//!   Yth(i, j, lm, c)  -- dY/dtheta
+//!   Yph(i, j, lm, c)  -- dY/dphi = i m Y
+//!   W(i, j, lm, c)    -- electric tensor harmonic
+//!   X(i, j, lm, c)    -- magnetic tensor harmonic
+//!
+//! Projection methods perform full-grid integrals and accumulate into a
+//! caller-supplied buffer (typically a slice of integrals_multipoles).
+struct ComplexHarmonicTable
+{
+  int lmin     = 2;
+  int lmax     = 0;
+  int lmpoints = 0;
+  int ntheta   = 0;
+  int nphi     = 0;
+
+  AthenaArray<Real> Y, Yth, Yph, W, X;  // (ntheta, nphi, lmpoints, 2)
+
+  int lmindex(int l, int m) const
+  {
+    return lmindex_complex(l, m);
+  }
+
+  // --------------------------------------------------------------------------
+  //! Allocate arrays and batch-compute all harmonics + derivatives.
+  //!
+  //! Uses the NPlm recurrence to compute P(l,m) and dP(l,m)/dth for all
+  //! (l,m) at each th, then builds Y, Yth, Yph, W, X from closed-form
+  //! formulas involving P, dP, cos(m*ph), sin(m*ph), and trig of th.
+  // --------------------------------------------------------------------------
+  template <typename GridType>
+  void Initialize(const GridType& grid, int lmax_in)
+  {
+    lmax     = lmax_in;
+    lmpoints = lmpoints_complex(lmax);
+    ntheta   = grid.ntheta;
+    nphi     = grid.nphi;
+
+    Y.NewAthenaArray(ntheta, nphi, lmpoints, ix_C::NRI);
+    Yth.NewAthenaArray(ntheta, nphi, lmpoints, ix_C::NRI);
+    Yph.NewAthenaArray(ntheta, nphi, lmpoints, ix_C::NRI);
+    W.NewAthenaArray(ntheta, nphi, lmpoints, ix_C::NRI);
+    X.NewAthenaArray(ntheta, nphi, lmpoints, ix_C::NRI);
+
+    Y.ZeroClear();
+    Yth.ZeroClear();
+    Yph.ZeroClear();
+    W.ZeroClear();
+    X.ZeroClear();
+
+    // Legendre scratch - P(l,m) and dP(l,m)/dth for 0 <= m <= l <= lmax.
+    // We only need first derivatives for the complex harmonics (no d2P).
+    AthenaArray<Real> P, dP, d2P_unused;
+    P.NewAthenaArray(lmax + 1, lmax + 1);
+    dP.NewAthenaArray(lmax + 1, lmax + 1);
+    d2P_unused.NewAthenaArray(lmax + 1, lmax + 1);
+
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real theta = grid.th_grid(i);
+      NPlm(theta, lmax, P, dP, d2P_unused);
+
+      const Real sinth     = grid.sin_theta(i);
+      const Real costh     = grid.cos_theta(i);
+      const Real div_sinth = 1.0 / sinth;
+      const Real cot_theta = costh * div_sinth;
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        const Real phi = grid.ph_grid(j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          const Real ll = static_cast<Real>(l);
+          for (int m = -l; m <= l; ++m)
+          {
+            const int abs_m = std::abs(m);
+            const Real mm   = static_cast<Real>(m);
+            const int lm    = lmindex(l, m);
+
+            // Sign for negative m: (-1)^|m| when m < 0
+            const int sign = (m < 0 && (abs_m % 2 != 0)) ? -1 : 1;
+
+            // NPlm stores P(l, |m|) with 4pi normalisation and CS phase
+            const Real Plm  = sign * P(l, abs_m);
+            const Real dPlm = sign * dP(l, abs_m);
+
+            const Real cosmph = std::cos(mm * phi);
+            const Real sinmph = std::sin(mm * phi);
+
+            // Y_l^m = P * e^{im*ph}
+            Y(i, j, lm, ix_C::Re) = Plm * cosmph;
+            Y(i, j, lm, ix_C::Im) = Plm * sinmph;
+
+            // dY/dth = dP/dth * e^{im*ph}
+            Yth(i, j, lm, ix_C::Re) = dPlm * cosmph;
+            Yth(i, j, lm, ix_C::Im) = dPlm * sinmph;
+
+            // dY/dph = im * Y
+            Yph(i, j, lm, ix_C::Re) = -mm * Plm * sinmph;
+            Yph(i, j, lm, ix_C::Im) = mm * Plm * cosmph;
+
+            // W_lm = -2 cot(th) dY/dth + (2m^2/sin^2(th) - l(l+1)) Y
+            const Real Wcoeff =
+              2.0 * mm * mm * div_sinth * div_sinth - ll * (ll + 1.0);
+            W(i, j, lm, ix_C::Re) =
+              -2.0 * cot_theta * Yth(i, j, lm, ix_C::Re) +
+              Wcoeff * Y(i, j, lm, ix_C::Re);
+            W(i, j, lm, ix_C::Im) =
+              -2.0 * cot_theta * Yth(i, j, lm, ix_C::Im) +
+              Wcoeff * Y(i, j, lm, ix_C::Im);
+
+            // X_lm = 2m (cot(th) Y_Im - dY_Im/dth, dY_Re/dth - cot(th) Y_Re)
+            // That is: X_Re = 2m (cot(th) Y_Im - Yth_Im)
+            //          X_Im = 2m (Yth_Re - cot(th) Y_Re)
+            X(i, j, lm, ix_C::Re) =
+              2.0 * mm *
+              (cot_theta * Y(i, j, lm, ix_C::Im) - Yth(i, j, lm, ix_C::Im));
+            X(i, j, lm, ix_C::Im) =
+              2.0 * mm *
+              (Yth(i, j, lm, ix_C::Re) - cot_theta * Y(i, j, lm, ix_C::Re));
+          }  // m
+        }  // l
+      }  // j (phi)
+    }  // i (theta)
+  }
+
+  // --------------------------------------------------------------------------
+  //! Scalar projection: accumulate Int f(i,j) Y*_lm(i,j) dOmega into buf.
+  //!
+  //! buf must point to a block of size 2*lmpoints (zeroed by the caller).
+  //! Result is stored as buf[2*lm + c] for c in {Re, Im}.
+  //! The conjugate Y* flips the sign of the Im part.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename ScalarField>
+  void ProjectScalar(Real* buf, const GridType& grid, ScalarField&& f) const
+  {
+    for (int i = 0; i < ntheta; ++i)
+    {
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol  = grid.weights(i, j);
+        const Real fval = f(i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            // Y* = (Y_Re, -Y_Im)
+            buf[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
+            buf[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Scalar projection from a rank-1 DTensorField component.
+  //! Projects v(deriv, a, i, j) against Y*.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectScalar(
+    Real* buf,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 1>& v,
+    int deriv,
+    int a) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+    ProjectScalar(buf,
+                  grid,
+                  [&](int i, int j) -> Real
+                  { return (deriv == D00) ? v(a, i, j) : v(deriv, a, i, j); });
+  }
+
+  // --------------------------------------------------------------------------
+  //! Scalar projection from a rank-2 DTensorField component.
+  //! Projects t(deriv, a, b, i, j) against Y*.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectScalar(
+    Real* buf,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 2>& t,
+    int deriv,
+    int a,
+    int b) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+    ProjectScalar(
+      buf,
+      grid,
+      [&](int i, int j) -> Real
+      { return (deriv == D00) ? t(a, b, i, j) : t(deriv, a, b, i, j); });
+  }
+
+  // --------------------------------------------------------------------------
+  //! Even vector projection:
+  //!   Int (f_th d_th Y* + f_ph (1/sin^2(th)) d_ph Y*) dOmega
+  //!
+  //! The 1/sin^2(th) factor is intrinsic to the angular metric g^{AB} and is
+  //! applied internally using precomputed grid trig values.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename ThetaField, typename PhiField>
+  void ProjectEvenVector(Real* buf,
+                         const GridType& grid,
+                         ThetaField&& f_th,
+                         PhiField&& f_ph) const
+  {
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real div_sinth2 = 1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fth = f_th(i, j);
+        const Real fph = f_ph(i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            // conj: Yth* = (Yth_Re, -Yth_Im), Yph* = (Yph_Re, -Yph_Im)
+            const Real contrib_Re = fth * Yth(i, j, lm, ix_C::Re) +
+                                    fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+            const Real contrib_Im = fth * Yth(i, j, lm, ix_C::Im) +
+                                    fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+
+            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Odd vector projection:
+  //!   Int (1/sin(th)) (-f_th d_ph Y* + f_ph d_th Y*) dOmega
+  //!
+  //! The 1/sin(th) factor comes from the Levi-Civita tensor on the sphere.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename ThetaField, typename PhiField>
+  void ProjectOddVector(Real* buf,
+                        const GridType& grid,
+                        ThetaField&& f_th,
+                        PhiField&& f_ph) const
+  {
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real div_sinth = 1.0 / grid.sin_theta(i);
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fth = f_th(i, j);
+        const Real fph = f_ph(i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            // conj flips Im sign
+            const Real contrib_Re =
+              div_sinth *
+              (-fth * Yph(i, j, lm, ix_C::Re) + fph * Yth(i, j, lm, ix_C::Re));
+            const Real contrib_Im =
+              div_sinth *
+              (-fth * Yph(i, j, lm, ix_C::Im) + fph * Yth(i, j, lm, ix_C::Im));
+
+            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Even tensor projection:
+  //!   Int (f_W W* + f_X X*) dOmega
+  //!
+  //! W and X already contain the angular-metric factors.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename WField, typename XField>
+  void ProjectEvenTensor(Real* buf,
+                         const GridType& grid,
+                         WField&& f_W,
+                         XField&& f_X) const
+  {
+    for (int i = 0; i < ntheta; ++i)
+    {
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fw  = f_W(i, j);
+        const Real fx  = f_X(i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            const Real contrib_Re =
+              fw * W(i, j, lm, ix_C::Re) + fx * X(i, j, lm, ix_C::Re);
+            const Real contrib_Im =
+              fw * W(i, j, lm, ix_C::Im) + fx * X(i, j, lm, ix_C::Im);
+
+            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Odd tensor projection:
+  //!   Int (-f_W X* + f_X W*) dOmega
+  //!
+  //! The sign/swap pattern comes from the dual (Levi-Civita) coupling.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename WField, typename XField>
+  void ProjectOddTensor(Real* buf,
+                        const GridType& grid,
+                        WField&& f_W,
+                        XField&& f_X) const
+  {
+    for (int i = 0; i < ntheta; ++i)
+    {
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fw  = f_W(i, j);
+        const Real fx  = f_X(i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            const Real contrib_Re =
+              -fw * X(i, j, lm, ix_C::Re) + fx * W(i, j, lm, ix_C::Re);
+            const Real contrib_Im =
+              -fw * X(i, j, lm, ix_C::Im) + fx * W(i, j, lm, ix_C::Im);
+
+            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          }
+        }
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Domain-specific projection methods
+  // ==========================================================================
+  //
+  // These methods take DTensorField references directly and bake in the
+  // l-dependent prefactors (1/lam for vectors, 1/(lam(lam-2)) for tensors) so
+  // that buffer values come out correct per-mode.  This eliminates post-MPI
+  // post-multiply steps in the caller.
+  //
+  // "Pair" methods project both even and odd parity in a single grid pass.
+  // Pass nullptr for buf_even or buf_odd to skip a parity.
+  // ==========================================================================
+
+  // --------------------------------------------------------------------------
+  //! Paired even+odd vector projection from a rank-1 DTensorField.
+  //!
+  //! Extracts the angular components v(deriv, 1, i, j) and v(deriv, 2, i, j)
+  //! as th and ph components, then projects:
+  //!   Even: Int (v_th d_th Y* + v_ph (1/sin^2(th)) d_ph Y*) dOmega / lam
+  //!   Odd:  Int (1/sin(th))(-v_th d_ph Y* + v_ph d_th Y*) dOmega / lam
+  //!
+  //! Pass nullptr for buf_even or buf_odd to skip that parity.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectVectorPair(
+    Real* buf_even,
+    Real* buf_odd,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 1>& v,
+    int deriv) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real sinth      = grid.sin_theta(i);
+      const Real div_sinth  = 1.0 / sinth;
+      const Real div_sinth2 = div_sinth * div_sinth;
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fth = (deriv == D00) ? v(1, i, j) : v(deriv, 1, i, j);
+        const Real fph = (deriv == D00) ? v(2, i, j) : v(deriv, 2, i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+
+            if (buf_even)
+            {
+              const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
+                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+              const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
+                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+              buf_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
+              buf_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
+            }
+
+            if (buf_odd)
+            {
+              const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
+                                            fph * Yth(i, j, lm, ix_C::Re));
+              const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
+                                            fph * Yth(i, j, lm, ix_C::Im));
+              buf_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
+              buf_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Paired even+odd vector projection from a rank-2 DTensorField with a
+  //! fixed first index.
+  //!
+  //! Extracts t(deriv, a, 1, i, j) and t(deriv, a, 2, i, j) as th and ph
+  //! components, then projects the same even/odd formulas as above with 1/lam.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectVectorPair(
+    Real* buf_even,
+    Real* buf_odd,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 2>& t,
+    int deriv,
+    int a) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real sinth      = grid.sin_theta(i);
+      const Real div_sinth  = 1.0 / sinth;
+      const Real div_sinth2 = div_sinth * div_sinth;
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+        const Real fth = (deriv == D00) ? t(a, 1, i, j) : t(deriv, a, 1, i, j);
+        const Real fph = (deriv == D00) ? t(a, 2, i, j) : t(deriv, a, 2, i, j);
+
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+
+            if (buf_even)
+            {
+              const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
+                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+              const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
+                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+              buf_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
+              buf_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
+            }
+
+            if (buf_odd)
+            {
+              const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
+                                            fph * Yth(i, j, lm, ix_C::Re));
+              const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
+                                            fph * Yth(i, j, lm, ix_C::Im));
+              buf_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
+              buf_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Paired even+odd tensor projection from a rank-2 DTensorField.
+  //!
+  //! Projects the angular-block (A,B) components of gamma into even (G) and
+  //! odd (H) multipole slots with 1/(lam(lam-2)) prefactor baked in per-mode.
+  //!
+  //! Even side: computes the r-power-corrected (product rule of 1/r^2)
+  //!   f_W = (gamma_th,th - gamma_ph,ph/sin^2(th))/r^2  and  f_X =
+  //!   2*gamma_th,ph/(r^2 sin^2(th)) then projects Int (f_W W* + f_X X*)
+  //!   dOmega / (lam(lam-2)).
+  //!
+  //! Odd side: no r-power correction,
+  //!   f_W = (gamma_th,th - gamma_ph,ph/sin^2(th))/sin(th)  and  f_X =
+  //!   2*gamma_th,ph/sin(th) then projects Int (-f_W X* + f_X W*) dOmega /
+  //!   (lam(lam-2)).
+  //!
+  //! The deriv parameter selects which output derivative to compute.
+  //! For the even side, the product rule of d^n_r (1/r^2 f) mixes lower
+  //! derivative slots of gamma; the method reads them automatically.
+  //! For the odd side, only the deriv slot is used (no r-power correction).
+  //!
+  //! Pass nullptr for buf_even or buf_odd to skip that parity.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectTensorPair(
+    Real* buf_even,
+    Real* buf_odd,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 2>& gamma,
+    int deriv,
+    Real div_r) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+
+    const Real div_r2 = div_r * div_r;
+    const Real div_r3 = div_r2 * div_r;
+    const Real div_r4 = div_r3 * div_r;
+
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real sinth      = grid.sin_theta(i);
+      const Real div_sinth  = 1.0 / sinth;
+      const Real div_sinth2 = div_sinth * div_sinth;
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+
+        // ----- Even side: r-power-corrected f_W and f_X ---------------------
+        // The base quantities (before 1/r^2 and trig):
+        //   trace_minus(d) = gamma(d,1,1) - gamma(d,2,2)/sin^2(th)
+        //   cross(d)       = gamma(d,1,2)/sin^2(th)
+        // Then f_W and f_X are built from product-rule sums of these.
+        Real even_fW = 0.0;
+        Real even_fX = 0.0;
+
+        if (buf_even)
+        {
+          // Helper: trace-minus and cross at a given derivative slot
+          auto trace_minus = [&](int d) -> Real
+          {
+            return (d == D00)
+                   ? (gamma(1, 1, i, j) - gamma(2, 2, i, j) * div_sinth2)
+                   : (gamma(d, 1, 1, i, j) -
+                      gamma(d, 2, 2, i, j) * div_sinth2);
+          };
+          auto cross = [&](int d) -> Real
+          {
+            return (d == D00) ? (gamma(1, 2, i, j) * div_sinth2)
+                              : (gamma(d, 1, 2, i, j) * div_sinth2);
+          };
+
+          // Product rule of d^n_r (1/r^2 \cdot f):
+          //   D00:  1/r^2 f
+          //   D10:  1/r^2 f' - 2/r^3 f
+          //   D01:  1/r^2 f_t
+          //   D20:  1/r^2 f'' - 4/r^3 f' + 6/r^4 f
+          //   D11:  1/r^2 f'_t - 2/r^3 f_t
+          switch (deriv)
+          {
+            case D00:
+              even_fW = div_r2 * trace_minus(D00);
+              even_fX = 2.0 * div_r2 * cross(D00);
+              break;
+            case D10:
+              even_fW =
+                div_r2 * trace_minus(D10) - 2.0 * div_r3 * trace_minus(D00);
+              even_fX =
+                2.0 * (div_r2 * cross(D10) - 2.0 * div_r3 * cross(D00));
+              break;
+            case D01:
+              even_fW = div_r2 * trace_minus(D01);
+              even_fX = 2.0 * div_r2 * cross(D01);
+              break;
+            case D20:
+              even_fW = div_r2 * trace_minus(D20) -
+                        4.0 * div_r3 * trace_minus(D10) +
+                        6.0 * div_r4 * trace_minus(D00);
+              even_fX =
+                2.0 * (div_r2 * cross(D20) - 4.0 * div_r3 * cross(D10) +
+                       6.0 * div_r4 * cross(D00));
+              break;
+            case D11:
+              even_fW =
+                div_r2 * trace_minus(D11) - 2.0 * div_r3 * trace_minus(D01);
+              even_fX =
+                2.0 * (div_r2 * cross(D11) - 2.0 * div_r3 * cross(D01));
+              break;
+          }
+        }
+
+        // ----- Odd side: 1/sin(th) weighting, no r-power
+        // -----------------------
+        Real odd_fW = 0.0;
+        Real odd_fX = 0.0;
+
+        if (buf_odd)
+        {
+          const Real gtt =
+            (deriv == D00) ? gamma(1, 1, i, j) : gamma(deriv, 1, 1, i, j);
+          const Real gtp =
+            (deriv == D00) ? gamma(1, 2, i, j) : gamma(deriv, 1, 2, i, j);
+          const Real gpp =
+            (deriv == D00) ? gamma(2, 2, i, j) : gamma(deriv, 2, 2, i, j);
+
+          odd_fW = div_sinth * (gtt - gpp * div_sinth2);
+          odd_fX = 2.0 * gtp * div_sinth;
+        }
+
+        // ----- Accumulate into buffers per (l,m) with prefactor -------------
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          const Real lambda  = static_cast<Real>(l * (l + 1));
+          const Real div_ll2 = 1.0 / (lambda * (lambda - 2.0));
+
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+
+            if (buf_even)
+            {
+              const Real cRe = even_fW * W(i, j, lm, ix_C::Re) +
+                               even_fX * X(i, j, lm, ix_C::Re);
+              const Real cIm = even_fW * W(i, j, lm, ix_C::Im) +
+                               even_fX * X(i, j, lm, ix_C::Im);
+              buf_even[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
+              buf_even[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+            }
+
+            if (buf_odd)
+            {
+              const Real cRe = -odd_fW * X(i, j, lm, ix_C::Re) +
+                               odd_fX * W(i, j, lm, ix_C::Re);
+              const Real cIm = -odd_fW * X(i, j, lm, ix_C::Im) +
+                               odd_fX * W(i, j, lm, ix_C::Im);
+              buf_odd[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
+              buf_odd[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  //! Trace scalar projection from a rank-2 DTensorField, with K correction.
+  //!
+  //! Projects 0.5 * [r-power-corrected] (gamma_th,th + gamma_ph,ph/sin^2(th))
+  //! against Y*, then adds the K correction: 0.5 * lam * buf_G[lm] per-mode.
+  //!
+  //! buf_G must already be filled by ProjectTensorPair for the same deriv.
+  //! The K correction is valid before MPI reduce because the operation is
+  //! linear (commutes with summation).
+  //!
+  //! The r-power product rule for d^n_r (1/r^2 f) is applied based on deriv.
+  // --------------------------------------------------------------------------
+  template <typename GridType, typename T, TensorSymm sym, int ndim>
+  void ProjectTrace(
+    Real* buf_K,
+    const Real* buf_G,
+    const GridType& grid,
+    const gra::grids::theta_phi::DTensorField<T, sym, ndim, 2>& gamma,
+    int deriv,
+    Real div_r) const
+  {
+    using namespace gra::grids::theta_phi::ix_DRT;
+
+    const Real div_r2 = div_r * div_r;
+    const Real div_r3 = div_r2 * div_r;
+    const Real div_r4 = div_r3 * div_r;
+
+    // ----- Grid integral: 0.5 * [r-power-corrected] trace against Y* -------
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real div_sinth2 = 1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        if (!grid.IsOwned(i, j))
+          continue;
+
+        const Real vol = grid.weights(i, j);
+
+        // Helper: angular trace at a given derivative slot
+        auto trace = [&](int d) -> Real
+        {
+          return (d == D00)
+                 ? (gamma(1, 1, i, j) + gamma(2, 2, i, j) * div_sinth2)
+                 : (gamma(d, 1, 1, i, j) + gamma(d, 2, 2, i, j) * div_sinth2);
+        };
+
+        // Product rule of d^n_r (1/r^2 \cdot f), with overall factor 0.5
+        Real fval = 0.0;
+        switch (deriv)
+        {
+          case D00:
+            fval = 0.5 * div_r2 * trace(D00);
+            break;
+          case D10:
+            fval = 0.5 * (div_r2 * trace(D10) - 2.0 * div_r3 * trace(D00));
+            break;
+          case D01:
+            fval = 0.5 * div_r2 * trace(D01);
+            break;
+          case D20:
+            fval = 0.5 * (div_r2 * trace(D20) - 4.0 * div_r3 * trace(D10) +
+                          6.0 * div_r4 * trace(D00));
+            break;
+          case D11:
+            fval = 0.5 * (div_r2 * trace(D11) - 2.0 * div_r3 * trace(D01));
+            break;
+        }
+
+        // Project against Y*
+        for (int l = lmin; l <= lmax; ++l)
+        {
+          for (int m = -l; m <= l; ++m)
+          {
+            const int lm = lmindex(l, m);
+            buf_K[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
+            buf_K[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+          }
+        }
+      }
+    }
+
+    // ----- K correction: K += 0.5 * lam * G per-mode
+    // -------------------------
+    for (int l = lmin; l <= lmax; ++l)
+    {
+      const Real half_lambda = 0.5 * static_cast<Real>(l * (l + 1));
+      for (int m = -l; m <= l; ++m)
+      {
+        const int lm = lmindex(l, m);
+        buf_K[2 * lm + ix_C::Re] += half_lambda * buf_G[2 * lm + ix_C::Re];
+        buf_K[2 * lm + ix_C::Im] += half_lambda * buf_G[2 * lm + ix_C::Im];
+      }
+    }
+  }
+};
 
 // ============================================================================
 // RealHarmonicTable

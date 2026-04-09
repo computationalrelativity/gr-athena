@@ -11,7 +11,7 @@
 //  AHF, WaveExtractRWZ, and Ejecta.
 //
 //  Usage:
-//    GridThetaPhi<InterpCC, InterpVC> grid;
+//    gra::grids::theta_phi::Grid<InterpCC, InterpVC> grid;
 //    grid.Initialize(ntheta, nphi, "midpoint");   // or "gausslegendre"
 //    // fill grid.x_cart(d, i, j) with Cartesian coords of sphere points
 //    grid.Prepare(pmesh, use_cc, use_vc);
@@ -36,6 +36,9 @@
 #include "../mesh/mesh.hpp"
 
 using namespace gra::aliases;
+
+namespace gra::grids::theta_phi
+{
 
 // ============================================================================
 // Free function: compute the determinant of the induced 2-metric on a
@@ -103,7 +106,7 @@ inline Real SurfaceElement2D(const Real rr,
 // ============================================================================
 
 template <typename InterpCC, typename InterpVC = InterpCC>
-class GridThetaPhi
+class Grid
 {
   public:
   // ---- Grid dimensions -----------------------------------------------------
@@ -127,11 +130,24 @@ class GridThetaPhi
   //  Filled by the consumer before calling Prepare().
   AthenaArray<Real> x_cart;
 
-  // ---- Contravariant Jacobian d(r,th,ph)/d(x,y,z) on the sphere
-  // ---------------
-  //  con_J(A, a, i, j)     - first derivatives,  A in {r,th,ph}, a in {x,y,z}
-  //  con_J2(A, a, b, i, j) - second derivatives,  symmetric in (a,b)
-  //  Filled by ComputeConJacobian().
+  // ---- Jacobians on the sphere
+  // -----------------------------------------------
+  //
+  //  Covariant Jacobian     cov_J(a, A, i, j) = dx^a/dX^A
+  //    a in {x,y,z},  A in {r,th,ph}
+  //    Columns are the spherical basis vectors expressed in Cartesian coords.
+  //    Filled by ComputeFixedRadiusJacobians() (constant-radius sphere) or
+  //    by the consumer directly for variable-radius surfaces.
+  //
+  //  Contravariant Jacobian con_J(A, a, i, j) = dX^A/dx^a
+  //    A in {r,th,ph},  a in {x,y,z}
+  //    Rows are the spherical coordinate gradients in Cartesian coords.
+  //    Filled by ComputeFixedRadiusJacobians() or ComputeConJacobian().
+  //
+  //  con_J2(A, a, b, i, j) - second derivatives d^2 X^A/dx^a dx^b (sym in a,b)
+  //    Filled by ComputeConJacobian() only (variable-radius AHF surfaces).
+  //
+  AT_N_T2 cov_J;
   AT_N_T2 con_J;
   AT_N_VS2 con_J2;
 
@@ -162,7 +178,7 @@ class GridThetaPhi
     if (nphi % 2 != 0)
     {
       std::stringstream msg;
-      msg << "### FATAL ERROR in GridThetaPhi::Initialize" << std::endl
+      msg << "### FATAL ERROR in Grid::Initialize" << std::endl
           << "nphi must be even, got " << nphi << std::endl;
       ATHENA_ERROR(msg);
     }
@@ -197,7 +213,7 @@ class GridThetaPhi
       if (ntheta != nphi / 2)
       {
         std::stringstream msg;
-        msg << "### FATAL ERROR in GridThetaPhi::Initialize" << std::endl
+        msg << "### FATAL ERROR in Grid::Initialize" << std::endl
             << "gausslegendre requires ntheta == nphi/2, got ntheta=" << ntheta
             << " nphi=" << nphi << std::endl;
         ATHENA_ERROR(msg);
@@ -223,7 +239,7 @@ class GridThetaPhi
     else
     {
       std::stringstream msg;
-      msg << "### FATAL ERROR in GridThetaPhi::Initialize" << std::endl
+      msg << "### FATAL ERROR in Grid::Initialize" << std::endl
           << "unknown quadrature method: " << quadrature << std::endl;
       ATHENA_ERROR(msg);
     }
@@ -248,6 +264,7 @@ class GridThetaPhi
     x_cart.NewAthenaArray(3, ntheta, nphi);
 
     // Allocate Jacobian arrays
+    cov_J.NewAthenaTensor(ntheta, nphi);
     con_J.NewAthenaTensor(ntheta, nphi);
     con_J2.NewAthenaTensor(ntheta, nphi);
 
@@ -451,6 +468,81 @@ class GridThetaPhi
   }
 
   // ==========================================================================
+  // Convenience: lazily fill Cartesian coordinates for a fixed-radius sphere
+  // and prepare interpolator pools.  No-op if already prepared.
+  // ==========================================================================
+  void PrepareFixedSphere(const Mesh* pmesh,
+                          const Real center[3],
+                          const Real radius,
+                          const bool bitant,
+                          const bool use_cc,
+                          const bool use_vc)
+  {
+    if (prepared)
+      return;
+    FillCartesianCoords(center, radius, bitant);
+    Prepare(pmesh, use_cc, use_vc);
+  }
+
+  // ==========================================================================
+  // Compute both Jacobians for a constant-radius coordinate sphere.
+  //
+  //  cov_J(a, A, i, j) = dx^a/dX^A   (Cartesian w.r.t. spherical)
+  //  con_J(A, a, i, j) = dX^A/dx^a   (spherical w.r.t. Cartesian)
+  //
+  //  A = 0 -> r,  1 -> th,  2 -> ph       a = 0 -> x,  1 -> y,  2 -> z
+  //
+  //  Uses the precomputed sin_theta, cos_theta, sin_phi, cos_phi arrays.
+  //  Much simpler than the variable-radius ComputeConJacobian() because
+  //  the r-dependence is analytic (columns of cov_J scale as r^0, r^1, r^1).
+  // ==========================================================================
+  void ComputeFixedRadiusJacobians(const Real radius)
+  {
+    const Real div_r = 1.0 / radius;
+
+    for (int i = 0; i < ntheta; ++i)
+    {
+      const Real sth     = sin_theta(i);
+      const Real cth     = cos_theta(i);
+      const Real div_sth = 1.0 / sth;
+
+      for (int j = 0; j < nphi; ++j)
+      {
+        const Real sph = sin_phi(j);
+        const Real cph = cos_phi(j);
+
+        // cov_J: dx^a / dX^A  (columns = spherical basis vectors)
+        // Column A=0 (d/dr = n_hat):  scales as r^0
+        cov_J(0, 0, i, j) = sth * cph;
+        cov_J(1, 0, i, j) = sth * sph;
+        cov_J(2, 0, i, j) = cth;
+        // Column A=1 (d/dth = r e_hat_th):  scales as r^1
+        cov_J(0, 1, i, j) = radius * cth * cph;
+        cov_J(1, 1, i, j) = radius * cth * sph;
+        cov_J(2, 1, i, j) = -radius * sth;
+        // Column A=2 (d/dph = r sin(th) e_hat_ph):  scales as r^1
+        cov_J(0, 2, i, j) = -radius * sth * sph;
+        cov_J(1, 2, i, j) = radius * sth * cph;
+        cov_J(2, 2, i, j) = 0.0;
+
+        // con_J: dX^A / dx^a  (rows = spherical coordinate gradients)
+        // Row A=0 (grad r = n_hat):  scales as r^0
+        con_J(0, 0, i, j) = sth * cph;
+        con_J(0, 1, i, j) = sth * sph;
+        con_J(0, 2, i, j) = cth;
+        // Row A=1 (grad th = (1/r) e_hat_th):  scales as r^(-1)
+        con_J(1, 0, i, j) = div_r * cth * cph;
+        con_J(1, 1, i, j) = div_r * cth * sph;
+        con_J(1, 2, i, j) = -div_r * sth;
+        // Row A=2 (grad ph = 1/(r sin(th)) e_hat_ph):  scales as r^(-1)
+        con_J(2, 0, i, j) = -div_r * div_sth * sph;
+        con_J(2, 1, i, j) = div_r * div_sth * cph;
+        con_J(2, 2, i, j) = 0.0;
+      }
+    }
+  }
+
+  // ==========================================================================
   // Compute the contravariant Jacobian d(r,th,ph)/d(x,y,z) and its second
   // derivatives at every grid point.  Uses the surface radii rr(i,j) and
   // precomputed trig values.
@@ -586,5 +678,7 @@ class GridThetaPhi
     }
   }
 };
+
+}  // namespace gra::grids::theta_phi
 
 #endif  // UTILS_GRID_THETA_PHI_HPP

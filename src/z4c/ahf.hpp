@@ -100,7 +100,7 @@ class AHF
     1e-10;  // floor on irreducible mass to abort failed flow
 
   // -- Grid infrastructure ---------------------------------------------------
-  GridThetaPhi<LagrangeInterpND<metric_interp_order, 3>> grid_;
+  gra::grids::theta_phi::Grid<LagrangeInterpND<metric_interp_order, 3>> grid_;
 
   // -- Spectral decomposition ------------------------------------------------
   gra::sph_harm::RealHarmonicTable ylm_;

@@ -17,6 +17,18 @@ using namespace gra::aliases;
 namespace LinearAlgebra
 {
 
+// Levi-Civita (fully antisymmetric permutation) symbol
+inline Real LeviCivitaSymbol(const int a, const int b, const int c)
+{
+  if ((a == b) || (a == c) || (b == c))
+    return 0.0;
+  if (((a == 0) && (b == 1) && (c == 2)) ||
+      ((a == 1) && (b == 2) && (c == 0)) || ((a == 2) && (b == 0) && (c == 1)))
+    return 1.0;
+  else
+    return -1.0;
+}
+
 template <typename T, int D>
 inline T Dot(const AthenaTensor<T, TensorSymm::NONE, D, 1>& v_d_,
              const AthenaTensor<T, TensorSymm::NONE, D, 1>& v_u_,

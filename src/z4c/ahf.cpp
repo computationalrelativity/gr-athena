@@ -177,7 +177,7 @@ void AHF::ReadOptions(ParameterInput* pin)
     if (dt_ahf > 0.0 &&
         !pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false))
     {
-      if (Globals::my_rank == 0)
+      if ((Globals::my_rank == 0) && (idx_ahf == 0))
       {
         std::printf(
           "### WARNING [AHF]: z4c/communicate_aux_adm is false.\n"
@@ -600,19 +600,19 @@ void AHF::ExpansionAndNormal(int i,
 //  surface at point (i,j).  Returns det(h) (clamped >= 0).
 Real AHF::SurfaceElement(int i, int j)
 {
-  return SurfaceElement2D(rr(i, j),
-                          rr_dth(i, j),
-                          rr_dph(i, j),
-                          grid_.sin_theta(i),
-                          grid_.cos_theta(i),
-                          grid_.sin_phi(j),
-                          grid_.cos_phi(j),
-                          g(0, 0, i, j),
-                          g(0, 1, i, j),
-                          g(0, 2, i, j),
-                          g(1, 1, i, j),
-                          g(1, 2, i, j),
-                          g(2, 2, i, j));
+  return gra::grids::theta_phi::SurfaceElement2D(rr(i, j),
+                                                 rr_dth(i, j),
+                                                 rr_dph(i, j),
+                                                 grid_.sin_theta(i),
+                                                 grid_.cos_theta(i),
+                                                 grid_.sin_phi(j),
+                                                 grid_.cos_phi(j),
+                                                 g(0, 0, i, j),
+                                                 g(0, 1, i, j),
+                                                 g(0, 2, i, j),
+                                                 g(1, 1, i, j),
+                                                 g(1, 2, i, j),
+                                                 g(2, 2, i, j));
 }
 
 //----------------------------------------------------------------------------------------
