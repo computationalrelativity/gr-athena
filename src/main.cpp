@@ -210,14 +210,21 @@ int main(int argc, char* argv[])
       {
         gra::evolve::Z4c_Vacuum(ptlc, pmesh);
       }
-
-      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh, pouts);
     }
     else if (M1_ENABLED)
     {
       gra::evolve::M1N0(ptlc, pmesh);
     }
 
+    // Evolve tracker positions before derived quantities (fresh for AHF)
+    gra::evolve::TrackerExtremaStep(pmesh);
+
+    if (Z4C_ENABLED)
+    {
+      gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh, pouts);
+    }
+
+    // Evaluate fields at tracker positions and write output (post-derived)
     gra::evolve::TrackerExtrema(ptlc, trgs, pmesh);
     const bool is_final = false;
     gra::evolve::SurfaceReductions(ptlc, trgs, pmesh, is_final);

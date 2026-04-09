@@ -1081,6 +1081,19 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection& ptlc,
     }
   }
 
+  // Puncture trackers: fresh for AHF
+  for (auto ptracker : pmesh->pz4c_tracker)
+  {
+    ptracker->EvolveTracker();
+  }
+  if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
+  {
+    for (auto ptracker : pmesh->pz4c_tracker)
+    {
+      ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
+    }
+  }
+
   // AHF
   if (trgs.IsSatisfied(tvar::Z4c_AHF))
   {
@@ -1103,18 +1116,6 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection& ptlc,
     }
   }
 #endif
-
-  // Puncture trackers
-  for (auto ptracker : pmesh->pz4c_tracker)
-  {
-    ptracker->EvolveTracker();
-  }
-
-  if (trgs.IsSatisfied(tvar::Z4c_tracker_punctures, ovar::user))
-    for (auto ptracker : pmesh->pz4c_tracker)
-    {
-      ptracker->WriteTracker(ncycle_end_stage, time_end_stage);
-    }
 }
 
 inline void M1N0(gra::tasklist::Collection& ptlc, Mesh* pmesh)
@@ -1197,17 +1198,23 @@ inline void Wave_2O(gra::tasklist::Collection& ptlc, Mesh* pmesh)
   }
 }
 
+// Reduce and evolve extrema tracker positions (unconditional, every step).
+// Must run before Z4c_DerivedQuantities so that AHF sees fresh positions.
+inline void TrackerExtremaStep(Mesh* pmesh)
+{
+  pmesh->ptracker_extrema->ReduceTracker();
+  pmesh->ptracker_extrema->EvolveTracker();
+}
+
+// Evaluate fields at (already-evolved) extrema tracker positions and write
+// output.  Runs after Z4c_DerivedQuantities so that hydro/field derived
+// quantities are fresh.
 inline void TrackerExtrema(gra::tasklist::Collection& ptlc,
                            gra::triggers::Triggers& trgs,
                            Mesh* pmesh)
 {
-  // Extrema tracker is based on propagated state vector
   const Real time_end_stage   = pmesh->time + pmesh->dt;
   const Real ncycle_end_stage = pmesh->ncycle + 1;
-
-  // Trace AMR state
-  pmesh->ptracker_extrema->ReduceTracker();
-  pmesh->ptracker_extrema->EvolveTracker();
 
   if (trgs.IsSatisfied(tvar::tracker_extrema, ovar::user))
   {
