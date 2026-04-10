@@ -13,12 +13,17 @@
 
 #include <cmath>  // NAN
 #include <cstdio>
+#include <cstring>  // std::memcpy
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
+#endif
+
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
 #endif
 
 #include "../globals.hpp"
@@ -108,8 +113,8 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
 
   // (theta,phi) coordinate points
   {
-    const int ntheta = pin->GetOrAddInteger("rwz_extraction", "ntheta", 60);
-    const int nphi   = pin->GetOrAddInteger("rwz_extraction", "nphi", 30);
+    const int ntheta = pin->GetOrAddInteger("rwz_extraction", "ntheta", 32);
+    const int nphi   = pin->GetOrAddInteger("rwz_extraction", "nphi", 64);
 
     std::string integral_method =
       pin->GetOrAddString("rwz_extraction", "method_integrals", "riemann");
@@ -447,6 +452,81 @@ void WaveExtractRWZ::Write(int iter, Real time)
 }
 
 //----------------------------------------------------------------------------------------
+// \!fn void WaveExtractRWZ::ExtractAll(...)
+// \brief Run the full RWZ extraction pipeline for every radius, batching MPI
+//        reductions so the total number of Allreduce calls is 2 (background +
+//        multipoles) regardless of how many extraction radii are active.
+void WaveExtractRWZ::ExtractAll(std::vector<WaveExtractRWZ*>& rwz_vec,
+                                int iter,
+                                Real time)
+{
+  const int nrad = static_cast<int>(rwz_vec.size());
+  if (nrad == 0)
+    return;
+
+  // Phase 1: local accumulation of background integrals for all radii
+  for (auto prwz : rwz_vec)
+  {
+    prwz->MetricToSphere();
+    prwz->BackgroundAccumulate();
+  }
+
+  // Phase 2: single batched MPI_Allreduce for all background integrals
+#ifdef MPI_PARALLEL
+  {
+    const int nbg = rwz_vec[0]->n_background_integrals();
+    std::vector<Real> buf(nrad * nbg);
+    for (int r = 0; r < nrad; ++r)
+      std::memcpy(
+        &buf[r * nbg], rwz_vec[r]->background_integrals(), nbg * sizeof(Real));
+    MPI_Allreduce(MPI_IN_PLACE,
+                  buf.data(),
+                  nrad * nbg,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+    for (int r = 0; r < nrad; ++r)
+      std::memcpy(
+        rwz_vec[r]->background_integrals(), &buf[r * nbg], nbg * sizeof(Real));
+  }
+#endif
+
+  // Phase 3: finalize background, then local accumulation of multipoles
+  for (auto prwz : rwz_vec)
+  {
+    prwz->BackgroundFinalize();
+    prwz->MultipoleAccumulate();
+  }
+
+  // Phase 4: single batched MPI_Allreduce for all multipole integrals
+#ifdef MPI_PARALLEL
+  {
+    const int nmp = rwz_vec[0]->n_multipole_integrals();
+    std::vector<Real> buf(nrad * nmp);
+    for (int r = 0; r < nrad; ++r)
+      std::memcpy(
+        &buf[r * nmp], rwz_vec[r]->multipole_integrals(), nmp * sizeof(Real));
+    MPI_Allreduce(MPI_IN_PLACE,
+                  buf.data(),
+                  nrad * nmp,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+    for (int r = 0; r < nrad; ++r)
+      std::memcpy(
+        rwz_vec[r]->multipole_integrals(), &buf[r * nmp], nmp * sizeof(Real));
+  }
+#endif
+
+  // Phase 5+6: finalize multipoles and write output
+  for (auto prwz : rwz_vec)
+  {
+    prwz->MultipoleFinalize();
+    prwz->Write(iter, time);
+  }
+}
+
+//----------------------------------------------------------------------------------------
 // \!fn void WaveExtractRWZ::MetricToSphere()
 // \brief Lazily prepare the extraction sphere, then interpolate the ADM metric
 //        and its derivatives onto the sphere in spherical coordinates.
@@ -491,27 +571,6 @@ void WaveExtractRWZ::InterpMetricToSphere()
   const Real r2    = SQR(opt.Radius);
   const Real div_r = 1.0 / (opt.Radius);
 
-  // Pointwise tensors: Cartesian components, bundled with radial/time drvts
-  // D00=value, D10=d_r, D20=d^2_r, D01=d_t, D11=d_r d_t
-  using gra::grids::theta_phi::DTensorFieldPoint;
-  DTensorFieldPoint<Real, TensorSymm::SYM2, 3, 2> Cgamma;   // gamma_{ab}
-  DTensorFieldPoint<Real, TensorSymm::NONE, 3, 1> Cbeta_u;  // beta^a
-  DTensorFieldPoint<Real, TensorSymm::NONE, 3, 0> Calpha;   // alpha
-
-  // Standalone Cartesian intermediates (no radial/time derivative variants)
-  ATP_N_sym Cgamma_uu;
-  ATP_N_sym CK_dd;
-  ATP_N_VS2 CK_der_ddd;
-
-  ATP_N_S2S2 Cgamma_der2_dddd;
-  ATP_N_VS2 Cgamma_der_ddd;
-  ATP_N_T2 Cbeta_der_du;
-  ATP_N_S2V Cbeta_der2_ddu;
-  ATP_N_vec Calpha_der_d;
-  ATP_N_sym Calpha_der2_dd;
-
-  ATP_N_VS2 Cgamma_derdot_dddd;
-
   // Precompute both Jacobians on the grid for this extraction radius
   grid_.ComputeFixedRadiusJacobians(r);
 
@@ -519,18 +578,51 @@ void WaveExtractRWZ::InterpMetricToSphere()
   std::vector<InterpType>& pool =
     SW_CCX_VC(grid_.interp_pool_cc, grid_.interp_pool_vc);
 
+  Real sum_adm_M = 0.0, sum_adm_Px = 0.0, sum_adm_Py = 0.0;
+  Real sum_adm_Pz = 0.0, sum_adm_Jx = 0.0, sum_adm_Jy = 0.0;
+  Real sum_adm_Jz = 0.0;
+
+#pragma omp parallel for collapse(2) schedule(dynamic) \
+  reduction(+ : sum_adm_M,                             \
+              sum_adm_Px,                              \
+              sum_adm_Py,                              \
+              sum_adm_Pz,                              \
+              sum_adm_Jx,                              \
+              sum_adm_Jy,                              \
+              sum_adm_Jz)
   for (int i = 0; i < grid_.ntheta; i++)
   {
-    const Real theta  = grid_.th_grid(i);
-    const Real sinth  = std::sin(theta);
-    const Real costh  = std::cos(theta);
-    const Real sinth2 = SQR(sinth);
-    const Real costh2 = SQR(costh);
-
     for (int j = 0; j < grid_.nphi; j++)
     {
+      const Real theta  = grid_.th_grid(i);
+      const Real sinth  = std::sin(theta);
+      const Real costh  = std::cos(theta);
+      const Real sinth2 = SQR(sinth);
+      const Real costh2 = SQR(costh);
       if (!grid_.IsOwned(i, j))
         continue;
+
+      // Pointwise tensors: Cartesian components, bundled with radial/time
+      // drvts D00=value, D10=d_r, D20=d^2_r, D01=d_t, D11=d_r d_t
+      using gra::grids::theta_phi::DTensorFieldPoint;
+      DTensorFieldPoint<Real, TensorSymm::SYM2, 3, 2> Cgamma;   // gamma_{ab}
+      DTensorFieldPoint<Real, TensorSymm::NONE, 3, 1> Cbeta_u;  // beta^a
+      DTensorFieldPoint<Real, TensorSymm::NONE, 3, 0> Calpha;   // alpha
+
+      // Standalone Cartesian intermediates (no radial/time derivative
+      // variants)
+      ATP_N_sym Cgamma_uu;
+      ATP_N_sym CK_dd;
+      ATP_N_VS2 CK_der_ddd;
+
+      ATP_N_S2S2 Cgamma_der2_dddd;
+      ATP_N_VS2 Cgamma_der_ddd;
+      ATP_N_T2 Cbeta_der_du;
+      ATP_N_S2V Cbeta_der2_ddu;
+      ATP_N_vec Calpha_der_d;
+      ATP_N_sym Calpha_der2_dd;
+
+      ATP_N_VS2 Cgamma_derdot_dddd;
 
       MeshBlock* pmb = grid_.mask_mb(i, j);
       Z4c* pz4c      = pmb->pz4c;
@@ -623,9 +715,9 @@ void WaveExtractRWZ::InterpMetricToSphere()
             pinterp3.eval(&(adm_dbeta_du(a, b, 0, 0, 0))) * bsign;
         }
 
-      // shift (up) spatial drvts
+      // shift (up) second spatial drvts
       for (int a = 0; a < NDIM; ++a)
-        for (int b = a; b < NDIM; ++b)
+        for (int b = 0; b < NDIM; ++b)
           for (int c = 0; c < NDIM; ++c)
           {
             const int bsign = BitantSign(bitant_sym, a, b, c);
@@ -806,7 +898,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
         }
       }
 
-      integrals_adm[I_ADM_M] += 0.25 * iMadm * sqrt_det * vol;
+      sum_adm_M += 0.25 * iMadm * sqrt_det * vol;
 
       Real iPadm[NDIM];
       for (int a = 0; a < NDIM; ++a)
@@ -823,9 +915,9 @@ void WaveExtractRWZ::InterpMetricToSphere()
             }
       }
 
-      integrals_adm[I_ADM_Px] += 0.5 * iPadm[0] * sqrt_det * vol;
-      integrals_adm[I_ADM_Py] += 0.5 * iPadm[1] * sqrt_det * vol;
-      integrals_adm[I_ADM_Pz] += 0.5 * iPadm[2] * sqrt_det * vol;
+      sum_adm_Px += 0.5 * iPadm[0] * sqrt_det * vol;
+      sum_adm_Py += 0.5 * iPadm[1] * sqrt_det * vol;
+      sum_adm_Pz += 0.5 * iPadm[2] * sqrt_det * vol;
 
       Real iJadm[NDIM];
       for (int a = 0; a < NDIM; ++a)
@@ -851,9 +943,9 @@ void WaveExtractRWZ::InterpMetricToSphere()
         }
       }
 
-      integrals_adm[I_ADM_Jx] += 0.5 * iJadm[0] * sqrt_det * vol;
-      integrals_adm[I_ADM_Jy] += 0.5 * iJadm[1] * sqrt_det * vol;
-      integrals_adm[I_ADM_Jz] += 0.5 * iJadm[2] * sqrt_det * vol;
+      sum_adm_Jx += 0.5 * iJadm[0] * sqrt_det * vol;
+      sum_adm_Jy += 0.5 * iJadm[1] * sqrt_det * vol;
+      sum_adm_Jz += 0.5 * iJadm[2] * sqrt_det * vol;
 
       // =================================================================
       // Transform tensors to spherical coordinates using grid Jacobians
@@ -972,14 +1064,22 @@ void WaveExtractRWZ::InterpMetricToSphere()
 
     }  // phi loop
   }  // theta loop
+
+  integrals_adm[I_ADM_M]  = sum_adm_M;
+  integrals_adm[I_ADM_Px] = sum_adm_Px;
+  integrals_adm[I_ADM_Py] = sum_adm_Py;
+  integrals_adm[I_ADM_Pz] = sum_adm_Pz;
+  integrals_adm[I_ADM_Jx] = sum_adm_Jx;
+  integrals_adm[I_ADM_Jy] = sum_adm_Jy;
+  integrals_adm[I_ADM_Jz] = sum_adm_Jz;
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void WaveExtractRWZ::BackgroundReduce()
-// \brief compute the background spherical metric, areal radius, mass, etc
-//        performs local sums and then MPI reduce.
-//        reduce also ADM integrals.
-void WaveExtractRWZ::BackgroundReduce()
+// \!fn void WaveExtractRWZ::BackgroundAccumulate()
+// \brief compute local sums for the background spherical metric, areal radius,
+//        mass, etc.  Must be followed by BackgroundFinalize() after MPI
+//        reduce.
+void WaveExtractRWZ::BackgroundAccumulate()
 {
   // Zeros the integrals
   for (int i = 0; i < NVBackground; i++)
@@ -995,18 +1095,48 @@ void WaveExtractRWZ::BackgroundReduce()
   integrals_background[I_adm_Jy] = integrals_adm[I_ADM_Jy];
   integrals_background[I_adm_Jz] = integrals_adm[I_ADM_Jz];
 
+  // Scalar reduction variables for background integrals
+  Real s_rsch2 = 0.0, s_drsch_dri = 0.0, s_d2rsch_dri2 = 0.0;
+  Real s_dot_rsch2 = 0.0, s_drsch_dri_dot = 0.0;
+  Real s_g00 = 0.0, s_g0R = 0.0, s_gRR = 0.0;
+  Real s_dR_g00 = 0.0, s_dR_g0R = 0.0, s_dR_gRR = 0.0;
+  Real s_dR2_g00 = 0.0, s_dR2_g0R = 0.0, s_dR2_gRR = 0.0;
+  Real s_dot_g00 = 0.0, s_dot_g0R = 0.0, s_dot_gRR = 0.0;
+  Real s_gRt = 0.0, s_gtt = 0.0, s_gpp = 0.0, s_dR_gtt = 0.0;
+
+#pragma omp parallel for collapse(2) schedule(dynamic) \
+  reduction(+ : s_rsch2,                               \
+              s_drsch_dri,                             \
+              s_d2rsch_dri2,                           \
+              s_dot_rsch2,                             \
+              s_drsch_dri_dot,                         \
+              s_g00,                                   \
+              s_g0R,                                   \
+              s_gRR,                                   \
+              s_dR_g00,                                \
+              s_dR_g0R,                                \
+              s_dR_gRR,                                \
+              s_dR2_g00,                               \
+              s_dR2_g0R,                               \
+              s_dR2_gRR,                               \
+              s_dot_g00,                               \
+              s_dot_g0R,                               \
+              s_dot_gRR,                               \
+              s_gRt,                                   \
+              s_gtt,                                   \
+              s_gpp,                                   \
+              s_dR_gtt)
   for (int i = 0; i < grid_.ntheta; i++)
   {
-    const Real theta      = grid_.th_grid(i);
-    const Real sinth      = std::sin(theta);
-    const Real costh      = std::cos(theta);
-    const Real sinth2     = SQR(sinth);
-    const Real costh2     = SQR(costh);
-    const Real div_sinth  = 1.0 / sinth;
-    const Real div_sinth2 = SQR(div_sinth);
-
     for (int j = 0; j < grid_.nphi; j++)
     {
+      const Real theta      = grid_.th_grid(i);
+      const Real sinth      = std::sin(theta);
+      const Real costh      = std::cos(theta);
+      const Real sinth2     = SQR(sinth);
+      const Real costh2     = SQR(costh);
+      const Real div_sinth  = 1.0 / sinth;
+      const Real div_sinth2 = SQR(div_sinth);
       if (!grid_.IsOwned(i, j))
         continue;
 
@@ -1084,7 +1214,7 @@ void WaveExtractRWZ::BackgroundReduce()
 
         int_r2          = aux_r2 * dthdph;
         int_drsch_dri   = 0.25 * aux_r2_d * div_aux_r2 * dthdph;
-        int_d2rsch_dri2 = (0.25 * aux_r2_d * div_aux_r2 -
+        int_d2rsch_dri2 = (0.25 * aux_r2_d2 * div_aux_r2 -
                            0.125 * SQR(aux_r2_d) * std::pow(div_aux_r2, 3)) *
                           dthdph;
 
@@ -1136,52 +1266,72 @@ void WaveExtractRWZ::BackgroundReduce()
 
       // Schwarzschild radius & Jacobians
       // Integral weights have been take care above
-      integrals_background[Irsch2] += int_r2;
-      integrals_background[Idrsch_dri] += int_drsch_dri;
-      integrals_background[Id2rsch_dri2] += int_d2rsch_dri2;
+      s_rsch2 += int_r2;
+      s_drsch_dri += int_drsch_dri;
+      s_d2rsch_dri2 += int_d2rsch_dri2;
 
-      integrals_background[Idot_rsch2] += int_r2dot;
-      integrals_background[Idrsch_dri_dot] += int_drsch_dri_dot;
+      s_dot_rsch2 += int_r2dot;
+      s_drsch_dri_dot += int_drsch_dri_dot;
 
       // 2-metric & drvts
-      integrals_background[Ig00] -= vol * (SQR(alpha(i, j)) - beta2(i, j));
-      integrals_background[Ig0R] += vol * beta_d(0, i, j);
-      integrals_background[IgRR] += vol * gamma(0, 0, i, j);
+      s_g00 -= vol * (SQR(alpha(i, j)) - beta2(i, j));
+      s_g0R += vol * beta_d(0, i, j);
+      s_gRR += vol * gamma(0, 0, i, j);
 
-      integrals_background[IdR_g00] -=
+      s_dR_g00 -=
         vol * (2.0 * alpha(i, j) * alpha(D10, i, j) - beta2(D10, i, j));
-      integrals_background[IdR_g0R] += vol * beta_d(D10, 0, i, j);
-      integrals_background[IdR_gRR] += vol * gamma(D10, 0, 0, i, j);
+      s_dR_g0R += vol * beta_d(D10, 0, i, j);
+      s_dR_gRR += vol * gamma(D10, 0, 0, i, j);
 
-      integrals_background[IdR2_g00] -=
-        vol * (2.0 * alpha(i, j) * alpha(D20, i, j) +
-               2.0 * SQR(alpha(D10, i, j)) - beta2(D20, i, j));
-      integrals_background[IdR2_g0R] += vol * beta_d(D20, 0, i, j);
-      integrals_background[IdR2_gRR] += vol * gamma(D20, 0, 0, i, j);
+      s_dR2_g00 -= vol * (2.0 * alpha(i, j) * alpha(D20, i, j) +
+                          2.0 * SQR(alpha(D10, i, j)) - beta2(D20, i, j));
+      s_dR2_g0R += vol * beta_d(D20, 0, i, j);
+      s_dR2_gRR += vol * gamma(D20, 0, 0, i, j);
 
-      integrals_background[Idot_g00] -=
+      s_dot_g00 -=
         vol * (2.0 * alpha(i, j) * alpha(D01, i, j) - beta2(D01, i, j));
-      integrals_background[Idot_g0R] += vol * beta_d(D01, 0, i, j);
-      integrals_background[Idot_gRR] += vol * gamma(D01, 0, 0, i, j);
+      s_dot_g0R += vol * beta_d(D01, 0, i, j);
+      s_dot_gRR += vol * gamma(D01, 0, 0, i, j);
 
-      integrals_background[IgRt] += vol * gamma(0, 1, i, j);
-      integrals_background[Igtt] += vol * gamma(1, 1, i, j);
-      integrals_background[Igpp] += vol * gamma(2, 2, i, j);
+      s_gRt += vol * gamma(0, 1, i, j);
+      s_gtt += vol * gamma(1, 1, i, j);
+      s_gpp += vol * gamma(2, 2, i, j);
 
-      integrals_background[IdR_gtt] += vol * gamma(D10, 1, 1, i, j);
+      s_dR_gtt += vol * gamma(D10, 1, 1, i, j);
 
     }  // for j
   }  // for i
 
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE,
-                integrals_background,
-                NVBackground,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
-#endif
+  integrals_background[Irsch2] += s_rsch2;
+  integrals_background[Idrsch_dri] += s_drsch_dri;
+  integrals_background[Id2rsch_dri2] += s_d2rsch_dri2;
+  integrals_background[Idot_rsch2] += s_dot_rsch2;
+  integrals_background[Idrsch_dri_dot] += s_drsch_dri_dot;
+  integrals_background[Ig00] += s_g00;
+  integrals_background[Ig0R] += s_g0R;
+  integrals_background[IgRR] += s_gRR;
+  integrals_background[IdR_g00] += s_dR_g00;
+  integrals_background[IdR_g0R] += s_dR_g0R;
+  integrals_background[IdR_gRR] += s_dR_gRR;
+  integrals_background[IdR2_g00] += s_dR2_g00;
+  integrals_background[IdR2_g0R] += s_dR2_g0R;
+  integrals_background[IdR2_gRR] += s_dR2_gRR;
+  integrals_background[Idot_g00] += s_dot_g00;
+  integrals_background[Idot_g0R] += s_dot_g0R;
+  integrals_background[Idot_gRR] += s_dot_gRR;
+  integrals_background[IgRt] += s_gRt;
+  integrals_background[Igtt] += s_gtt;
+  integrals_background[Igpp] += s_gpp;
+  integrals_background[IdR_gtt] += s_dR_gtt;
+}
 
+//----------------------------------------------------------------------------------------
+// \!fn void WaveExtractRWZ::BackgroundFinalize()
+// \brief finalize the background computation after MPI reduce:
+//        normalization, Schwarzschild transformation, Christoffel symbols,
+//        etc.
+void WaveExtractRWZ::BackgroundFinalize()
+{
   // Normalization
   const Real div_4PI = 1.0 / (4.0 * PI);
   for (int i = 0; i < NVBackground; i++)
@@ -1201,7 +1351,7 @@ void WaveExtractRWZ::BackgroundReduce()
   if (!(std::isfinite(rsch2)) || (rsch2 <= 1e-20))
   {
     std::stringstream msg;
-    msg << "### FATAL ERROR in WaveExtractRWZ::BackgroundReduce" << std::endl
+    msg << "### FATAL ERROR in WaveExtractRWZ::BackgroundFinalize" << std::endl
         << "Squared Schwarzschild radius is not finite or negative " << rsch2
         << std::endl;
     ATHENA_ERROR(msg);
@@ -1247,14 +1397,15 @@ void WaveExtractRWZ::BackgroundReduce()
 
   if (opt.subtract_background)
   {
+#pragma omp parallel for collapse(2) schedule(dynamic)
     for (int i = 0; i < grid_.ntheta; i++)
     {
-      const Real theta  = grid_.th_grid(i);
-      const Real sinth  = std::sin(theta);
-      const Real sinth2 = SQR(sinth);
-
       for (int j = 0; j < grid_.nphi; j++)
       {
+        const Real theta  = grid_.th_grid(i);
+        const Real sinth  = std::sin(theta);
+        const Real sinth2 = SQR(sinth);
+
         if (!grid_.IsOwned(i, j))
           continue;
 
@@ -1296,8 +1447,7 @@ void WaveExtractRWZ::BackgroundReduce()
   const Real dot_grr =
     2.0 * dri_drsch * dri_drsch_dot * gRR + SQR(dri_drsch) * dot_gRR;
 
-  // Metric components, first 2nd drvt, then drvt, then metric
-  const Real dr2_g00 = SQR(dri_drsch) * dR2_g00;
+  const Real dr2_g00 = d2ri_drsch2 * dR_g00 + SQR(dri_drsch) * dR2_g00;
   const Real dr2_g0r = d3ri_drsch3 * g0R +
                        3.0 * d2ri_drsch2 * dri_drsch * dR_g0R +
                        std::pow(dri_drsch, 3) * dR2_g0R;
@@ -1318,7 +1468,7 @@ void WaveExtractRWZ::BackgroundReduce()
 
   // Determinant
   const Real detg      = LinearAlgebra::Det2Metric(g00, g0r, grr);
-  const Real div_detg  = (std::fabs(detg) < 1e-12) ? 1.0 : 1.0 / detg;
+  const Real div_detg  = (std::fabs(detg) < eps_det) ? 1.0 : 1.0 / detg;
   const Real div_detg2 = SQR(div_detg);
 
   // Inverse matrix
@@ -1332,21 +1482,16 @@ void WaveExtractRWZ::BackgroundReduce()
   const Real dr_g0r_uu = -dr_g0r * div_detg - g0r * dr_div_detg;
   const Real dr_grr_uu = dr_g00 * div_detg + g00 * dr_div_detg;
 
-  const Real dot_g00_uu =
-    dot_grr * div_detg +
-    grr * div_detg2 * (dot_g00 * grr + g00 * dot_grr - 2.0 * g0r * dot_g0r);
-  const Real dot_g0r_uu =
-    -dot_g0r * div_detg +
-    g0r * div_detg2 * (dot_g00 * grr + g00 * dot_grr - 2.0 * g0r * dot_g0r);
-  const Real dot_grr_uu =
-    dot_g00 * div_detg +
-    g00 * div_detg2 * (dot_g00 * grr + g00 * dot_grr - 2.0 * g0r * dot_g0r);
+  const Real dot_div_detg =
+    -div_detg2 * (dot_g00 * grr + g00 * dot_grr - 2.0 * g0r * dot_g0r);
+  const Real dot_g00_uu = dot_grr * div_detg + grr * dot_div_detg;
+  const Real dot_g0r_uu = -dot_g0r * div_detg - g0r * dot_div_detg;
+  const Real dot_grr_uu = dot_g00 * div_detg + g00 * dot_div_detg;
 
-  // Second derivatives of the inverse metric
   const Real dr2_div_detg =
     -div_detg2 * (dr2_g00 * grr + 2.0 * dr_g00 * dr_grr + g00 * dr2_grr -
                   2.0 * SQR(dr_g0r) - 2.0 * g0r * dr2_g0r) +
-    2.0 * div_detg * SQR(dr_div_detg);
+    2.0 * SQR(dr_div_detg) / div_detg;
   const Real dr2_g00_uu =
     dr2_grr * div_detg + 2.0 * dr_grr * dr_div_detg + grr * dr2_div_detg;
   const Real dr2_g0r_uu =
@@ -1435,16 +1580,16 @@ void WaveExtractRWZ::BackgroundReduce()
   Gamma_udd(1, 1, 1) = Grrr;
 
   Gamma_dyn_udd(0, 0, 0) = G000_dyn;
-  Gamma_dyn_udd(0, 0, 1) = Gamma_dyn_udd(0, 1, 0) =
-    G00r_dyn;  // CHECK is this fine/necessary with SYM2?
+  Gamma_dyn_udd(0, 0, 1) = G00r_dyn;  // N.B. SYM2
   Gamma_dyn_udd(0, 1, 1) = G0rr_dyn;
   Gamma_dyn_udd(1, 0, 0) = Gr00_dyn;
-  Gamma_dyn_udd(1, 0, 1) = Gamma_dyn_udd(1, 1, 0) = Gr0r_dyn;
-  Gamma_dyn_udd(1, 1, 1)                          = Grrr_dyn;
+  Gamma_dyn_udd(1, 0, 1) = Gr0r_dyn;  // N.B. SYM2
+  Gamma_dyn_udd(1, 1, 1) = Grrr_dyn;
 
   // Transform to Schw coordinates other quantities used for multipoles
   // projections:
 
+#pragma omp parallel for collapse(2) schedule(dynamic)
   for (int i = 0; i < grid_.ntheta; i++)
   {
     for (int j = 0; j < grid_.nphi; j++)
@@ -1453,12 +1598,14 @@ void WaveExtractRWZ::BackgroundReduce()
         continue;
 
       // alpha radial derivatives
+      alpha(D20, i, j) =
+        d2ri_drsch2 * alpha(D10, i, j) + SQR(dri_drsch) * alpha(D20, i, j);
       alpha(D10, i, j) *= dri_drsch;
-      alpha(D20, i, j) *= SQR(dri_drsch);
 
       // dr2_beta_th and dr2_beta_ph
       for (int a = 1; a < 3; a++)
-        beta_d(D20, a, i, j) *= SQR(dri_drsch);
+        beta_d(D20, a, i, j) = d2ri_drsch2 * beta_d(D10, a, i, j) +
+                               SQR(dri_drsch) * beta_d(D20, a, i, j);
 
       // dr_beta_i
       beta_d(D10, 0, i, j) =
@@ -1477,7 +1624,8 @@ void WaveExtractRWZ::BackgroundReduce()
       for (int a = 1; a < 3; a++)
         for (int b = 1; b < 3; b++)
         {
-          gamma(D20, a, b, i, j) *= SQR(dri_drsch);
+          gamma(D20, a, b, i, j) = d2ri_drsch2 * gamma(D10, a, b, i, j) +
+                                   SQR(dri_drsch) * gamma(D20, a, b, i, j);
         }
 
       // dr_dot_gamma_thth, dr_dot_gamma_thph, dr_dot_gamma_phph
@@ -1521,15 +1669,20 @@ void WaveExtractRWZ::BackgroundReduce()
       for (int a = 1; a < 3; a++)
         gamma(0, a, i, j) *= dri_drsch;
 
+      // beta2 is a scalar, so only derivatives transform
+      beta2(D20, i, j) =
+        d2ri_drsch2 * beta2(D10, i, j) + SQR(dri_drsch) * beta2(D20, i, j);
+      beta2(D10, i, j) *= dri_drsch;
+
     }  // for j
   }  // for i
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void WaveExtractRWZ::MultipoleReduce()
-// \brief compute the multipoles
-//        performs local sums and then MPI reduce
-void WaveExtractRWZ::MultipoleReduce()
+// \!fn void WaveExtractRWZ::MultipoleAccumulate()
+// \brief compute multipole local sums (projections).
+//        Must be followed by MultipoleFinalize() after MPI reduce.
+void WaveExtractRWZ::MultipoleAccumulate()
 {
   const int lmpoints_x2 = lmpoints * 2;
   const Real div_r      = 1.0 / Schwarzschild_radius;
@@ -1537,46 +1690,6 @@ void WaveExtractRWZ::MultipoleReduce()
   // Zeros the integrals
   for (int i = 0; i < NVMultipoles * 2 * lmpoints; i++)
     integrals_multipoles[i] = 0.0;
-
-  // ===== Beta^2 pre-pass
-  // ===================================================== Compute beta^2 =
-  // beta^a beta_a and its radial / time derivatives on the grid before the
-  // harmonic projections, because several integrals depend on beta^2.
-  //
-  // BD: TODO - beta_u is never rescaled from isotropic to Schwarzschild
-  // coordinates? Needs a check
-  for (int i = 0; i < grid_.ntheta; i++)
-  {
-    for (int j = 0; j < grid_.nphi; j++)
-    {
-      if (!grid_.IsOwned(i, j))
-        continue;
-
-      beta2(i, j) = 0.0;
-      for (int a = 0; a < 3; ++a)
-        beta2(i, j) += beta_u(a, i, j) * beta_d(a, i, j);
-
-      beta2(D10, i, j) = 0.0;
-      for (int a = 0; a < 3; ++a)
-        for (int b = 0; b < 3; ++b)
-        {
-          beta2(D10, i, j) +=
-            gamma(D10, a, b, i, j) * beta_u(a, i, j) * beta_u(b, i, j) +
-            gamma(a, b, i, j) * beta_u(D10, a, i, j) * beta_u(b, i, j) +
-            gamma(a, b, i, j) * beta_u(a, i, j) * beta_u(D10, b, i, j);
-        }
-
-      beta2(D01, i, j) = 0.0;
-      for (int a = 0; a < 3; ++a)
-        for (int b = 0; b < 3; ++b)
-        {
-          beta2(D01, i, j) +=
-            gamma(D01, a, b, i, j) * beta_u(a, i, j) * beta_u(b, i, j) +
-            gamma(a, b, i, j) * beta_u(D01, a, i, j) * beta_u(b, i, j) +
-            gamma(a, b, i, j) * beta_u(a, i, j) * beta_u(D01, b, i, j);
-        }
-    }
-  }
 
   // Shorthand for buffer pointer to a given multipole slot
   auto buf = [&](int slot) -> Real*
@@ -1648,17 +1761,21 @@ void WaveExtractRWZ::MultipoleReduce()
   ylm_.ProjectTrace(buf(IK_dot), buf(IG_dot), grid_, gamma, D01, div_r);
   ylm_.ProjectTrace(buf(IK_dr2), buf(IG_dr2), grid_, gamma, D20, div_r);
   ylm_.ProjectTrace(buf(IK_dr_dot), buf(IG_dr_dot), grid_, gamma, D11, div_r);
+}
 
-  // ===== MPI reduce =========================================================
+//----------------------------------------------------------------------------------------
+// \!fn void WaveExtractRWZ::MultipoleFinalize()
+// \brief unpack reduced multipole integrals, compute gauge-invariant
+// quantities
+//        and master functions.  Must be called after MPI reduce of
+//        integrals_multipoles.
+void WaveExtractRWZ::MultipoleFinalize()
+{
+  const int lmpoints_x2 = lmpoints * 2;
 
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE,
-                integrals_multipoles,
-                NVMultipoles * lmpoints_x2,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
-#endif
+  // Shorthand for buffer pointer to a given multipole slot
+  auto buf = [&](int slot) -> Real*
+  { return &integrals_multipoles[lmpoints_x2 * slot]; };
 
   // ===== Unpack - plain copy, all prefactors already applied ================
 
@@ -1904,10 +2021,17 @@ void WaveExtractRWZ::MasterFuns()
           std::pow(g_uu(1, 1), 3) * g_dr2_dd(1, 1) +
           g_dr_uu(1, 1) * SQR(g_uu(0, 1)) * g_dr_dd(0, 0) +
           g_uu(1, 1) * (2.0 * g_uu(0, 1) * g_dr_uu(0, 1) * g_dr_dd(0, 0) +
-                        // BD: TODO- bracket check SQR(g_uu(0, 1)) ?
-                        SQR(g_uu(0, 1) * g_dr2_dd(0, 0))) +
-          2.0 * g_dr_uu(1, 1) * g_dr_dd(1, 1) +
-          2.0 * g_uu(1, 1) * g_dr2_dd(1, 1);
+                        // BD: verify Psi^(e)_dr, h_1 coefficient
+                        //     SQR bracket placement
+                        // ??: SQR(g_uu(0, 1) * g_dr2_dd(0, 0))
+                        // ->: SQR(g_uu(0, 1)) * g_dr2_dd(0, 0)
+                        SQR(g_uu(0, 1)) * g_dr2_dd(0, 0)) +
+          // BD: verify Psi^(e)_dr, h_1 coefficient
+          //     d/dr(2r g^{11} \partial_r g^{11})
+          // ??: 2.0 * g_dr_uu(1, 1) * g_dr_dd(1, 1) + 2.0 * g_uu(1, 1) *
+          // g_dr2_dd(1, 1)
+          // ->: 2.0 * SQR(g_dr_uu(1, 1)) + 2.0 * g_uu(1, 1) * g_dr2_uu(1, 1)
+          2.0 * SQR(g_dr_uu(1, 1)) + 2.0 * g_uu(1, 1) * g_dr2_uu(1, 1);
 
         const Real dr_coef_G_dr =
           coef_G_dr * (div_r + g_dr_uu(1, 1) / g_uu(1, 1)) -
@@ -1935,7 +2059,13 @@ void WaveExtractRWZ::MasterFuns()
              2.0 * r * g_uu(1, 1) *
                (g_dr_uu(0, 0) * g_uu(1, 1) * g_dr_dd(0, 1) +
                 g_uu(0, 0) * g_dr_uu(1, 1) * g_dr_dd(0, 1) +
-                g_uu(0, 0) * g_uu(1, 1) * g_dr2_dd(0, 1)) -
+                g_uu(0, 0) * g_uu(1, 1) * g_dr2_dd(0, 1) +
+                // BD: verify: Psi^(e)_dr, Gdot coefficient
+                //   missing \partial^2_r g^{01} from
+                //   d/dr(-2r g^{11} \partial_r g^{01})
+                // ??: (term missing)
+                // ->: g_dr2_uu(0, 1)
+                g_dr2_uu(0, 1)) -
              (g_dr_uu(0, 1) * g_uu(1, 1) + g_uu(0, 1) * g_dr_uu(1, 1)) *
                (-2.0 + 2.0 * r * g_uu(0, 0) * g_dr_dd(0, 0) +
                 r * g_uu(1, 1) * g_dr_dd(1, 1)) -
@@ -1972,8 +2102,12 @@ void WaveExtractRWZ::MasterFuns()
         Psio(lm, c) = Psio_sch(lm, c) * div_sqrtdetg;
 
         const Real dr_absdetg =
-          std::fabs(g_dr_dd(0, 0) * g_dd(1, 1) + g_dd(0, 0) * g_dr_dd(1, 1) -
-                    2.0 * g_dd(0, 1) * g_dr_dd(0, 1));
+          // BD: verify Psi^(o)_dr, \partial_r|det g|:
+          //     det g < 0 so \partial_r|det g| = -\partial_r(det g)
+          // ??: std::fabs(\partial_r det g)
+          // ->: -(\partial_r det g)
+          -(g_dr_dd(0, 0) * g_dd(1, 1) + g_dd(0, 0) * g_dr_dd(1, 1) -
+            2.0 * g_dd(0, 1) * g_dr_dd(0, 1));
         Psio_dr(lm, c) =
           (div_sqrtdetg - 0.5 * r * std::pow(div_sqrtdetg, 3) * dr_absdetg) *
             div_lambda_2 *
@@ -2029,8 +2163,12 @@ void WaveExtractRWZ::MasterFuns()
           rdot * g_uu(0, 0) *
             (2.0 * r * g_dot_uu(0, 0) - 6.0 * g_uu(0, 1) +
              r * SQR(g_uu(0, 1)) * (2.0 * g_dr_dd(0, 1) + g_dot_dd(1, 1))) +
+          // BD: verify Psi^(e)_dyn, h_0 rdot-coefficient
+          //     covariant metric derivative index
+          // ??: g_uu(1, 1) * g_dr_dd(0, 1)
+          // ->: g_uu(1, 1) * g_dr_dd(1, 1)
           4.0 * r * g_uu(0, 0) * g_uu(0, 1) *
-            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(0, 1));
+            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(1, 1));
 
         coef_h0_rdot *= rdot * div_r;
 
@@ -2048,7 +2186,11 @@ void WaveExtractRWZ::MasterFuns()
           2.0 * r * g_uu(1, 1) *
             (g_dr_uu(0, 1) + g_uu(0, 0) * g_uu(1, 1) * g_dot_dd(1, 1)) +
           2.0 * g_uu(0, 1) *
-            (r * (g_dr_uu(1, 1) + g_dot_uu(0, 1)) +
+            // BD: verify Psi^(e)_dyn, h_1 rdot-coefficient
+            //     inverse metric time derivative index
+            // ??: g_dot_uu(0, 1)
+            // ->: g_dot_uu(0, 0)
+            (r * (g_dr_uu(1, 1) + g_dot_uu(0, 0)) +
              g_uu(1, 1) * (-3.0 + 2.0 * r * g_uu(0, 0) * g_dot_dd(0, 1)) +
              r * SQR(g_uu(1, 1)) * g_dr_dd(1, 1)) +
           r * rdot * SQR(g_uu(0, 0)) *
@@ -2077,7 +2219,11 @@ void WaveExtractRWZ::MasterFuns()
             (g_uu(0, 0) * g_dot_dd(0, 0) + 2.0 * g_uu(1, 1) * g_dr_dd(0, 1)) +
           2.0 * r * g_uu(1, 1) *
             (g_dr_uu(0, 1) + g_uu(0, 0) * g_uu(1, 1) * g_dot_dd(1, 1)) +
-          2.0 * r * g_uu(0, 1) * (g_dr_uu(1, 1) + g_dot_uu(0, 1)) +
+          // BD: verify Psi^(e)_dyn, \partial_r G rdot-coefficient
+          //     inverse metric time derivative index
+          // ??: g_dot_uu(0, 1)
+          // ->: g_dot_uu(0, 0)
+          2.0 * r * g_uu(0, 1) * (g_dr_uu(1, 1) + g_dot_uu(0, 0)) +
           2.0 * g_uu(0, 1) * g_uu(1, 1) *
             (-3.0 + 2.0 * r * g_uu(0, 0) * g_dot_dd(0, 1)) +
           2.0 * r * g_uu(0, 1) * SQR(g_uu(1, 1)) * g_dr_dd(1, 1) +
@@ -2095,7 +2241,11 @@ void WaveExtractRWZ::MasterFuns()
         coef_G_dr_rdot *= -0.5 * r * rdot;
 
         Real coef_G_dot_t =
-          -2.0 * r * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1) -
+          // BD: verify Psi^(e)_dyn, Gdot t-coefficient
+          //     spurious r factor
+          // ??: -2.0 * r * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1)
+          // ->: -2.0 * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1)
+          -2.0 * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1) -
           2.0 * g_uu(0, 1) * g_dot_uu(0, 1)  // CHECK in the notes
           - SQR(g_uu(0, 1)) * g_uu(0, 0) * g_dot_dd(0, 0) +
           g_uu(1, 1) * (g_uu(1, 1) * g_uu(0, 0) - 2.0 * SQR(g_uu(0, 1))) *
@@ -2121,8 +2271,12 @@ void WaveExtractRWZ::MasterFuns()
           rdot * g_uu(0, 0) *
             (2.0 * r * g_dot_uu(0, 0) - 6.0 * g_uu(0, 1) +
              r * SQR(g_uu(0, 1)) * (2.0 * g_dr_dd(0, 1) + g_dot_dd(1, 1))) +
+          // BD: verify Psi^(e)_dyn, Gdot rdot-coefficient
+          //     covariant metric derivative index
+          // ??: g_uu(1, 1) * g_dr_dd(0, 1)
+          // ->: g_uu(1, 1) * g_dr_dd(1, 1)
           4.0 * r * g_uu(0, 0) * g_uu(0, 1) *
-            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(0, 1));
+            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(1, 1));
 
         coef_G_dot_rdot *= -0.5 * r * rdot;
 
@@ -2229,10 +2383,15 @@ void WaveExtractRWZ::MultipolesGaugeInvariant()
         // odd-parity
         // -----------------------------------------
 
-        // gauge-invariant vector kappa_A
+        // BD: verify
+        //     kappa_A = H_A - 1/2 \nabla_A H + H (\nabla_A r)/r
+        // ??: kappa_d(0, lm, c) = H0 - H(D01) + H * 2.0 * rdot * div_r
+        // ->: kappa_d(0, lm, c) = H0 - 0.5 * H(D01) + H * rdot * div_r
+        // ??: kappa_d(1, lm, c) = H1 - H(D10) + H * 2.0 * div_r
+        // ->: kappa_d(1, lm, c) = H1 - 0.5 * H(D10) + H * div_r
         kappa_d(0, lm, c) =
-          H0(lm, c) - H(D01, lm, c) + H(lm, c) * 2.0 * rdot * div_r;
-        kappa_d(1, lm, c) = H1(lm, c) - H(D10, lm, c) + H(lm, c) * 2.0 * div_r;
+          H0(lm, c) - 0.5 * H(D01, lm, c) + H(lm, c) * rdot * div_r;
+        kappa_d(1, lm, c) = H1(lm, c) - 0.5 * H(D10, lm, c) + H(lm, c) * div_r;
 
         // Trace constraint: Tr(kappa_AB) = g^{AB} kappa_{AB}
         Tr_kappa_dd(lm, c) = LinearAlgebra::TraceRank2(g_uu, kappa_dd, lm, c);

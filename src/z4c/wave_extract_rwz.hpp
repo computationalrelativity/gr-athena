@@ -10,6 +10,7 @@
 //  \brief Definitions for the WaveExtractRWZ class
 
 #include <string>
+#include <vector>
 
 #include "../athena_aliases.hpp"
 #include "../utils/grid_theta_phi.hpp"
@@ -35,12 +36,52 @@ class WaveExtractRWZ
 
   // -- Main API --------------------------------------------------------------
   void MetricToSphere();
-  void BackgroundReduce();
-  void MultipoleReduce();
+
+  // Split-phase background: local accumulation then finalization after MPI
+  void BackgroundAccumulate();
+  void BackgroundFinalize();
+
+  // Split-phase multipoles: local accumulation then finalization after MPI
+  void MultipoleAccumulate();
+  void MultipoleFinalize();
+
   void Write(int iter, Real time);
+
+  // -- Pipelined extraction across all radii ---------------------------------
+  //! Run the full extraction pipeline for every radius in \p rwz_vec,
+  //! batching the two MPI_Allreduce calls (background + multipoles) so that
+  //! the total number of reductions is 2 regardless of how many radii exist.
+  static void ExtractAll(std::vector<WaveExtractRWZ*>& rwz_vec,
+                         int iter,
+                         Real time);
+
+  // -- Accessors for pipelined MPI reduce ------------------------------------
+  Real* background_integrals()
+  {
+    return integrals_background;
+  }
+  int n_background_integrals() const
+  {
+    return NVBackground;
+  }
+
+  Real* multipole_integrals()
+  {
+    return integrals_multipoles;
+  }
+  int n_multipole_integrals() const
+  {
+    return NVMultipoles * 2 * lmpoints;
+  }
+
+  int n_lmpoints() const
+  {
+    return lmpoints;
+  }
 
   // -- Grid infrastructure (public: needed by AMR teardown hook) -------------
   static const int metric_interp_order = 2 * NGHOST - 1;
+  static constexpr Real eps_det        = 1e-12;
   gra::grids::theta_phi::Grid<LagrangeInterpND<metric_interp_order, 3, true>>
     grid_;
 

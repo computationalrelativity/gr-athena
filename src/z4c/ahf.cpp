@@ -10,13 +10,19 @@
 
 #include <unistd.h>
 
-#include <cmath>  // NAN
+#include <algorithm>  // std::fill
+#include <cmath>      // NAN
 #include <cstdio>
+#include <cstring>  // std::memcpy
 #include <sstream>
 #include <stdexcept>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
+#endif
+
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
 #endif
 
 #include "../globals.hpp"
@@ -360,12 +366,12 @@ void AHF::MetricInterp()
 
   const Real zc = center[2];
 
+#pragma omp parallel for collapse(2) schedule(dynamic)
   for (int i = 0; i < grid_.ntheta; ++i)
   {
-    const Real costh = grid_.cos_theta(i);
-
     for (int j = 0; j < grid_.nphi; ++j)
     {
+      const Real costh = grid_.cos_theta(i);
       if (!grid_.IsOwned(i, j))
         continue;
 
@@ -661,19 +667,24 @@ void AHF::SpinIntegrand(Real xp,
 //! \fn void AHF::SurfaceIntegrals()
 //  \brief Compute expansion, surface element and spin integrand on surface.
 //  Needs metric and extrinsic curvature interpolated on the surface.
-//  Performs local sums and MPI reduce.
+//  Performs local sums only; MPI reduce is batched in FastFlowLoop().
 void AHF::SurfaceIntegrals()
 {
   for (int v = 0; v < invar; v++)
     integrals[v] = 0.0;
   rho.ZeroClear();
 
-  ATP_N_vec dFdi;
-  ATP_N_sym dFdidj;
-  ATP_N_vec R;
+  Real sum_area = 0.0, sum_coarea = 0.0, sum_hrms = 0.0, sum_hmean = 0.0;
+  Real sum_Sx = 0.0, sum_Sy = 0.0, sum_Sz = 0.0;
 
+#pragma omp parallel for schedule(dynamic) reduction( \
+    + : sum_area, sum_coarea, sum_hrms, sum_hmean, sum_Sx, sum_Sy, sum_Sz)
   for (int i = 0; i < grid_.ntheta; i++)
   {
+    ATP_N_vec dFdi;
+    ATP_N_sym dFdidj;
+    ATP_N_vec R;
+
     for (int j = 0; j < grid_.nphi; j++)
     {
       if (!grid_.IsOwned(i, j))
@@ -701,21 +712,24 @@ void AHF::SurfaceIntegrals()
       const Real sinth = grid_.sin_theta(i);
       const Real da    = wght * std::sqrt(deth) / sinth;
 
-      integrals[iarea] += da;
-      integrals[icoarea] += wght * SQR(rr(i, j));
-      integrals[ihrms] += da * SQR(H);
-      integrals[ihmean] += da * H;
-      integrals[iSx] += da * Sx;
-      integrals[iSy] += da * Sy;
-      integrals[iSz] += da * Sz;
+      sum_area += da;
+      sum_coarea += wght * SQR(rr(i, j));
+      sum_hrms += da * SQR(H);
+      sum_hmean += da * H;
+      sum_Sx += da * Sx;
+      sum_Sy += da * Sy;
+      sum_Sz += da * Sz;
 
     }  // phi loop
   }  // theta loop
 
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(
-    MPI_IN_PLACE, integrals, invar, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-#endif
+  integrals[iarea]   = sum_area;
+  integrals[icoarea] = sum_coarea;
+  integrals[ihrms]   = sum_hrms;
+  integrals[ihmean]  = sum_hmean;
+  integrals[iSx]     = sum_Sx;
+  integrals[iSy]     = sum_Sy;
+  integrals[iSz]     = sum_Sz;
 }
 
 //----------------------------------------------------------------------------------------
@@ -781,6 +795,26 @@ void AHF::FastFlowLoop()
             " Sz             S\n");
   }
 
+  // Pre-compute flow constants for UpdateFlowSpectralComponents
+  const Real ff_alpha = opt.flow_alpha_beta_const;
+  const Real ff_beta  = 0.5 * opt.flow_alpha_beta_const;
+  const Real ff_A     = ff_alpha / (opt.lmax * (opt.lmax + 1)) + ff_beta;
+  const Real ff_B     = ff_beta / ff_alpha;
+
+  const int nspec0 = opt.lmax + 1;
+  const int ntotal = nspec0 + 2 * ylm_.lmpoints;
+
+  std::vector<Real> ABfac_vec(nspec0);
+  Real* ABfac = ABfac_vec.data();
+  for (int l = 0; l <= opt.lmax; l++)
+    ABfac[l] = ff_A / (1.0 + ff_B * l * (l + 1));
+
+  // Combined buffer: integrals[invar] + spec_buf[ntotal]
+  const int combined_size = invar + ntotal;
+  std::vector<Real> combined_buf(combined_size);
+  Real* cb_integrals = combined_buf.data();
+  Real* cb_spec_buf  = combined_buf.data() + invar;
+
   for (int k = 0; k < opt.flow_iterations; k++)
   {
     fastflow_iter = k;
@@ -804,7 +838,39 @@ void AHF::FastFlowLoop()
     K.ZeroClear();
     MetricInterp();
 
+    // Compute local sums for surface integrals (no MPI reduce)
     SurfaceIntegrals();
+
+    // Compute local sums for spectral projection (optimistic, before reduce)
+    std::fill(cb_spec_buf, cb_spec_buf + ntotal, 0.0);
+    Real* spec0 = cb_spec_buf;
+    Real* specc = cb_spec_buf + nspec0;
+    Real* specs = specc + ylm_.lmpoints;
+
+    ylm_.Project(grid_.weights,
+                 rho,
+                 grid_.ntheta,
+                 grid_.nphi,
+                 spec0,
+                 specc,
+                 specs,
+                 [this](int i, int j) { return grid_.IsOwned(i, j); });
+
+    // Pack integrals into the combined buffer
+    std::memcpy(cb_integrals, integrals, invar * sizeof(Real));
+
+    // Single batched MPI_Allreduce for both integrals and spectral sums
+#ifdef MPI_PARALLEL
+    MPI_Allreduce(MPI_IN_PLACE,
+                  combined_buf.data(),
+                  combined_size,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+#endif
+
+    // Unpack reduced integrals
+    std::memcpy(integrals, cb_integrals, invar * sizeof(Real));
 
     area  = integrals[iarea];
     hrms  = integrals[ihrms] / area;
@@ -902,8 +968,19 @@ void AHF::FastFlowLoop()
       break;
     }
 
-    // Find new spectral components
-    UpdateFlowSpectralComponents();
+    // Apply reduced spectral update (optimistic projection was done above)
+    for (int l = 0; l <= opt.lmax; l++)
+      a0(l) -= ABfac[l] * spec0[l];
+
+    for (int l = 1; l <= opt.lmax; l++)
+    {
+      for (int m = 1; m <= l; m++)
+      {
+        int l1 = ylm_.lmindex(l, m);
+        ac(l1) -= ABfac[l] * specc[l1];
+        as(l1) -= ABfac[l] * specs[l1];
+      }
+    }
 
     // Release pools (AHF rebuilds every iteration)
     grid_.TearDown();

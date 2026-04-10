@@ -1068,17 +1068,11 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection& ptlc,
   }
 #endif
 
-  // RWZ wave extraction
+  // RWZ wave extraction: pipelined with batched MPI reductions
   if (trgs.IsSatisfied(tvar::Z4c_RWZ))
   {
-    for (auto prwz : pmesh->pwave_extr_rwz)
-    {
-      // prwz->FlagSpherePointsContainedMesh();
-      prwz->MetricToSphere();
-      prwz->BackgroundReduce();
-      prwz->MultipoleReduce();
-      prwz->Write(ncycle_end_stage, time_end_stage);
-    }
+    WaveExtractRWZ::ExtractAll(
+      pmesh->pwave_extr_rwz, ncycle_end_stage, time_end_stage);
   }
 
   // Puncture trackers: fresh for AHF

@@ -482,7 +482,7 @@ struct ComplexHarmonicTable
   //!
   //! Uses the NPlm recurrence to compute P(l,m) and dP(l,m)/dth for all
   //! (l,m) at each th, then builds Y, Yth, Yph, W, X from closed-form
-  //! formulas involving P, dP, cos(m*ph), sin(m*ph), and trig of th.
+  //! formulas involving P, dP, cos(mph), sin(mph), and trig of th.
   // --------------------------------------------------------------------------
   template <typename GridType>
   void Initialize(const GridType& grid, int lmax_in)
@@ -544,11 +544,11 @@ struct ComplexHarmonicTable
             const Real cosmph = std::cos(mm * phi);
             const Real sinmph = std::sin(mm * phi);
 
-            // Y_l^m = P * e^{im*ph}
+            // Y_l^m = P * e^{imph}
             Y(i, j, lm, ix_C::Re) = Plm * cosmph;
             Y(i, j, lm, ix_C::Im) = Plm * sinmph;
 
-            // dY/dth = dP/dth * e^{im*ph}
+            // dY/dth = dP/dth * e^{imph}
             Yth(i, j, lm, ix_C::Re) = dPlm * cosmph;
             Yth(i, j, lm, ix_C::Im) = dPlm * sinmph;
 
@@ -556,7 +556,7 @@ struct ComplexHarmonicTable
             Yph(i, j, lm, ix_C::Re) = -mm * Plm * sinmph;
             Yph(i, j, lm, ix_C::Im) = mm * Plm * cosmph;
 
-            // W_lm = -2 cot(th) dY/dth + (2m^2/sin^2(th) - l(l+1)) Y
+            // W_lm = -2 cot(th) dY/dth + (2m^2/sin^2th - l(l+1)) Y
             const Real Wcoeff =
               2.0 * mm * mm * div_sinth * div_sinth - ll * (ll + 1.0);
             W(i, j, lm, ix_C::Re) =
@@ -591,28 +591,42 @@ struct ComplexHarmonicTable
   template <typename GridType, typename ScalarField>
   void ProjectScalar(Real* buf, const GridType& grid, ScalarField&& f) const
   {
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      for (int j = 0; j < nphi; ++j)
+      std::vector<Real> t_buf(bufsize, 0.0);
+
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol  = grid.weights(i, j);
-        const Real fval = f(i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          for (int m = -l; m <= l; ++m)
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol  = grid.weights(i, j);
+          const Real fval = f(i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
           {
-            const int lm = lmindex(l, m);
-            // Y* = (Y_Re, -Y_Im)
-            buf[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
-            buf[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              // Y* = (Y_Re, -Y_Im)
+              t_buf[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
+              t_buf[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+            }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf[k] += t_buf[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
@@ -657,9 +671,9 @@ struct ComplexHarmonicTable
 
   // --------------------------------------------------------------------------
   //! Even vector projection:
-  //!   Int (f_th d_th Y* + f_ph (1/sin^2(th)) d_ph Y*) dOmega
+  //!   Int (f_th d_thY* + f_ph (1/sin^2th) d_phY*) dOmega
   //!
-  //! The 1/sin^2(th) factor is intrinsic to the angular metric g^{AB} and is
+  //! The 1/sin^2th factor is intrinsic to the angular metric g^{AB} and is
   //! applied internally using precomputed grid trig values.
   // --------------------------------------------------------------------------
   template <typename GridType, typename ThetaField, typename PhiField>
@@ -668,43 +682,60 @@ struct ComplexHarmonicTable
                          ThetaField&& f_th,
                          PhiField&& f_ph) const
   {
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      const Real div_sinth2 = 1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
+      std::vector<Real> t_buf(bufsize, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fth = f_th(i, j);
-        const Real fph = f_ph(i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          for (int m = -l; m <= l; ++m)
-          {
-            const int lm = lmindex(l, m);
-            // conj: Yth* = (Yth_Re, -Yth_Im), Yph* = (Yph_Re, -Yph_Im)
-            const Real contrib_Re = fth * Yth(i, j, lm, ix_C::Re) +
-                                    fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
-            const Real contrib_Im = fth * Yth(i, j, lm, ix_C::Im) +
-                                    fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+          const Real div_sinth2 =
+            1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
 
-            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
-            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol = grid.weights(i, j);
+          const Real fth = f_th(i, j);
+          const Real fph = f_ph(i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              // conj: Yth* = (Yth_Re, -Yth_Im), Yph* = (Yph_Re, -Yph_Im)
+              const Real contrib_Re =
+                fth * Yth(i, j, lm, ix_C::Re) +
+                fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+              const Real contrib_Im =
+                fth * Yth(i, j, lm, ix_C::Im) +
+                fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+
+              t_buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+              t_buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+            }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf[k] += t_buf[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
   //! Odd vector projection:
-  //!   Int (1/sin(th)) (-f_th d_ph Y* + f_ph d_th Y*) dOmega
+  //!   Int (1/sinth) (-f_th d_phY* + f_ph d_thY*) dOmega
   //!
-  //! The 1/sin(th) factor comes from the Levi-Civita tensor on the sphere.
+  //! The 1/sinth factor comes from the Levi-Civita tensor on the sphere.
   // --------------------------------------------------------------------------
   template <typename GridType, typename ThetaField, typename PhiField>
   void ProjectOddVector(Real* buf,
@@ -712,38 +743,52 @@ struct ComplexHarmonicTable
                         ThetaField&& f_th,
                         PhiField&& f_ph) const
   {
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      const Real div_sinth = 1.0 / grid.sin_theta(i);
+      std::vector<Real> t_buf(bufsize, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fth = f_th(i, j);
-        const Real fph = f_ph(i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          for (int m = -l; m <= l; ++m)
-          {
-            const int lm = lmindex(l, m);
-            // conj flips Im sign
-            const Real contrib_Re =
-              div_sinth *
-              (-fth * Yph(i, j, lm, ix_C::Re) + fph * Yth(i, j, lm, ix_C::Re));
-            const Real contrib_Im =
-              div_sinth *
-              (-fth * Yph(i, j, lm, ix_C::Im) + fph * Yth(i, j, lm, ix_C::Im));
+          const Real div_sinth = 1.0 / grid.sin_theta(i);
 
-            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
-            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol = grid.weights(i, j);
+          const Real fth = f_th(i, j);
+          const Real fph = f_ph(i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              // conj flips Im sign
+              const Real contrib_Re =
+                div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
+                             fph * Yth(i, j, lm, ix_C::Re));
+              const Real contrib_Im =
+                div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
+                             fph * Yth(i, j, lm, ix_C::Im));
+
+              t_buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+              t_buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+            }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf[k] += t_buf[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
@@ -758,33 +803,47 @@ struct ComplexHarmonicTable
                          WField&& f_W,
                          XField&& f_X) const
   {
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      for (int j = 0; j < nphi; ++j)
+      std::vector<Real> t_buf(bufsize, 0.0);
+
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fw  = f_W(i, j);
-        const Real fx  = f_X(i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          for (int m = -l; m <= l; ++m)
-          {
-            const int lm = lmindex(l, m);
-            const Real contrib_Re =
-              fw * W(i, j, lm, ix_C::Re) + fx * X(i, j, lm, ix_C::Re);
-            const Real contrib_Im =
-              fw * W(i, j, lm, ix_C::Im) + fx * X(i, j, lm, ix_C::Im);
+          if (!grid.IsOwned(i, j))
+            continue;
 
-            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
-            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          const Real vol = grid.weights(i, j);
+          const Real fw  = f_W(i, j);
+          const Real fx  = f_X(i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              const Real contrib_Re =
+                fw * W(i, j, lm, ix_C::Re) + fx * X(i, j, lm, ix_C::Re);
+              const Real contrib_Im =
+                fw * W(i, j, lm, ix_C::Im) + fx * X(i, j, lm, ix_C::Im);
+
+              t_buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+              t_buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+            }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf[k] += t_buf[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
@@ -799,33 +858,47 @@ struct ComplexHarmonicTable
                         WField&& f_W,
                         XField&& f_X) const
   {
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      for (int j = 0; j < nphi; ++j)
+      std::vector<Real> t_buf(bufsize, 0.0);
+
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fw  = f_W(i, j);
-        const Real fx  = f_X(i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          for (int m = -l; m <= l; ++m)
-          {
-            const int lm = lmindex(l, m);
-            const Real contrib_Re =
-              -fw * X(i, j, lm, ix_C::Re) + fx * W(i, j, lm, ix_C::Re);
-            const Real contrib_Im =
-              -fw * X(i, j, lm, ix_C::Im) + fx * W(i, j, lm, ix_C::Im);
+          if (!grid.IsOwned(i, j))
+            continue;
 
-            buf[2 * lm + ix_C::Re] += vol * contrib_Re;
-            buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+          const Real vol = grid.weights(i, j);
+          const Real fw  = f_W(i, j);
+          const Real fx  = f_X(i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              const Real contrib_Re =
+                -fw * X(i, j, lm, ix_C::Re) + fx * W(i, j, lm, ix_C::Re);
+              const Real contrib_Im =
+                -fw * X(i, j, lm, ix_C::Im) + fx * W(i, j, lm, ix_C::Im);
+
+              t_buf[2 * lm + ix_C::Re] += vol * contrib_Re;
+              t_buf[2 * lm + ix_C::Im] -= vol * contrib_Im;
+            }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf[k] += t_buf[k];
+      }
+    }  // omp parallel
   }
 
   // ==========================================================================
@@ -846,8 +919,8 @@ struct ComplexHarmonicTable
   //!
   //! Extracts the angular components v(deriv, 1, i, j) and v(deriv, 2, i, j)
   //! as th and ph components, then projects:
-  //!   Even: Int (v_th d_th Y* + v_ph (1/sin^2(th)) d_ph Y*) dOmega / lam
-  //!   Odd:  Int (1/sin(th))(-v_th d_ph Y* + v_ph d_th Y*) dOmega / lam
+  //!   Even: Int (v_th d_thY* + v_ph (1/sin^2th) d_phY*) dOmega / lam
+  //!   Odd:  Int (1/sinth)(-v_th d_phY* + v_ph d_thY*) dOmega / lam
   //!
   //! Pass nullptr for buf_even or buf_odd to skip that parity.
   // --------------------------------------------------------------------------
@@ -860,52 +933,70 @@ struct ComplexHarmonicTable
     int deriv) const
   {
     using namespace gra::grids::theta_phi::ix_DRT;
+    const int bufsize = 2 * lmpoints;
 
-    for (int i = 0; i < ntheta; ++i)
+#pragma omp parallel
     {
-      const Real sinth      = grid.sin_theta(i);
-      const Real div_sinth  = 1.0 / sinth;
-      const Real div_sinth2 = div_sinth * div_sinth;
+      std::vector<Real> t_even(buf_even ? bufsize : 0, 0.0);
+      std::vector<Real> t_odd(buf_odd ? bufsize : 0, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fth = (deriv == D00) ? v(1, i, j) : v(deriv, 1, i, j);
-        const Real fph = (deriv == D00) ? v(2, i, j) : v(deriv, 2, i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
-          for (int m = -l; m <= l; ++m)
+          const Real sinth      = grid.sin_theta(i);
+          const Real div_sinth  = 1.0 / sinth;
+          const Real div_sinth2 = div_sinth * div_sinth;
+
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol = grid.weights(i, j);
+          const Real fth = (deriv == D00) ? v(1, i, j) : v(deriv, 1, i, j);
+          const Real fph = (deriv == D00) ? v(2, i, j) : v(deriv, 2, i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
           {
-            const int lm = lmindex(l, m);
-
-            if (buf_even)
+            const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
+            for (int m = -l; m <= l; ++m)
             {
-              const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
-                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
-              const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
-                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
-              buf_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
-              buf_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
-            }
+              const int lm = lmindex(l, m);
 
-            if (buf_odd)
-            {
-              const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
-                                            fph * Yth(i, j, lm, ix_C::Re));
-              const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
-                                            fph * Yth(i, j, lm, ix_C::Im));
-              buf_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
-              buf_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+              if (buf_even)
+              {
+                const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
+                                 fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+                const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
+                                 fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+                t_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
+                t_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
+              }
+
+              if (buf_odd)
+              {
+                const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
+                                              fph * Yth(i, j, lm, ix_C::Re));
+                const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
+                                              fph * Yth(i, j, lm, ix_C::Im));
+                t_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
+                t_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+              }
             }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        if (buf_even)
+          for (int k = 0; k < bufsize; ++k)
+            buf_even[k] += t_even[k];
+        if (buf_odd)
+          for (int k = 0; k < bufsize; ++k)
+            buf_odd[k] += t_odd[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
@@ -925,52 +1016,72 @@ struct ComplexHarmonicTable
     int a) const
   {
     using namespace gra::grids::theta_phi::ix_DRT;
+    const int bufsize = 2 * lmpoints;
 
-    for (int i = 0; i < ntheta; ++i)
+#pragma omp parallel
     {
-      const Real sinth      = grid.sin_theta(i);
-      const Real div_sinth  = 1.0 / sinth;
-      const Real div_sinth2 = div_sinth * div_sinth;
+      std::vector<Real> t_even(buf_even ? bufsize : 0, 0.0);
+      std::vector<Real> t_odd(buf_odd ? bufsize : 0, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-        const Real fth = (deriv == D00) ? t(a, 1, i, j) : t(deriv, a, 1, i, j);
-        const Real fph = (deriv == D00) ? t(a, 2, i, j) : t(deriv, a, 2, i, j);
-
-        for (int l = lmin; l <= lmax; ++l)
+        for (int j = 0; j < nphi; ++j)
         {
-          const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
-          for (int m = -l; m <= l; ++m)
+          const Real sinth      = grid.sin_theta(i);
+          const Real div_sinth  = 1.0 / sinth;
+          const Real div_sinth2 = div_sinth * div_sinth;
+
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol = grid.weights(i, j);
+          const Real fth =
+            (deriv == D00) ? t(a, 1, i, j) : t(deriv, a, 1, i, j);
+          const Real fph =
+            (deriv == D00) ? t(a, 2, i, j) : t(deriv, a, 2, i, j);
+
+          for (int l = lmin; l <= lmax; ++l)
           {
-            const int lm = lmindex(l, m);
-
-            if (buf_even)
+            const Real div_lambda = 1.0 / static_cast<Real>(l * (l + 1));
+            for (int m = -l; m <= l; ++m)
             {
-              const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
-                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
-              const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
-                               fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
-              buf_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
-              buf_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
-            }
+              const int lm = lmindex(l, m);
 
-            if (buf_odd)
-            {
-              const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
-                                            fph * Yth(i, j, lm, ix_C::Re));
-              const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
-                                            fph * Yth(i, j, lm, ix_C::Im));
-              buf_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
-              buf_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+              if (buf_even)
+              {
+                const Real eRe = fth * Yth(i, j, lm, ix_C::Re) +
+                                 fph * div_sinth2 * Yph(i, j, lm, ix_C::Re);
+                const Real eIm = fth * Yth(i, j, lm, ix_C::Im) +
+                                 fph * div_sinth2 * Yph(i, j, lm, ix_C::Im);
+                t_even[2 * lm + ix_C::Re] += vol * div_lambda * eRe;
+                t_even[2 * lm + ix_C::Im] -= vol * div_lambda * eIm;
+              }
+
+              if (buf_odd)
+              {
+                const Real oRe = div_sinth * (-fth * Yph(i, j, lm, ix_C::Re) +
+                                              fph * Yth(i, j, lm, ix_C::Re));
+                const Real oIm = div_sinth * (-fth * Yph(i, j, lm, ix_C::Im) +
+                                              fph * Yth(i, j, lm, ix_C::Im));
+                t_odd[2 * lm + ix_C::Re] += vol * div_lambda * oRe;
+                t_odd[2 * lm + ix_C::Im] -= vol * div_lambda * oIm;
+              }
             }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        if (buf_even)
+          for (int k = 0; k < bufsize; ++k)
+            buf_even[k] += t_even[k];
+        if (buf_odd)
+          for (int k = 0; k < bufsize; ++k)
+            buf_odd[k] += t_odd[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
@@ -980,14 +1091,12 @@ struct ComplexHarmonicTable
   //! odd (H) multipole slots with 1/(lam(lam-2)) prefactor baked in per-mode.
   //!
   //! Even side: computes the r-power-corrected (product rule of 1/r^2)
-  //!   f_W = (gamma_th,th - gamma_ph,ph/sin^2(th))/r^2  and  f_X =
-  //!   2*gamma_th,ph/(r^2 sin^2(th)) then projects Int (f_W W* + f_X X*)
-  //!   dOmega / (lam(lam-2)).
+  //!   f_W = (gamma_thth - gamma_phph/sin^2th)/r^2  and  f_X = 2gamma_thph/(r^2 sin^2th)
+  //!   then projects Int (f_W W* + f_X X*) dOmega / (lam(lam-2)).
   //!
   //! Odd side: no r-power correction,
-  //!   f_W = (gamma_th,th - gamma_ph,ph/sin^2(th))/sin(th)  and  f_X =
-  //!   2*gamma_th,ph/sin(th) then projects Int (-f_W X* + f_X W*) dOmega /
-  //!   (lam(lam-2)).
+  //!   f_W = (gamma_thth - gamma_phph/sin^2th)/sinth  and  f_X = 2gamma_thph/sinth
+  //!   then projects Int (-f_W X* + f_X W*) dOmega / (lam(lam-2)).
   //!
   //! The deriv parameter selects which output derivative to compute.
   //! For the even side, the product rule of d^n_r (1/r^2 f) mixes lower
@@ -1011,140 +1120,150 @@ struct ComplexHarmonicTable
     const Real div_r3 = div_r2 * div_r;
     const Real div_r4 = div_r3 * div_r;
 
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      const Real sinth      = grid.sin_theta(i);
-      const Real div_sinth  = 1.0 / sinth;
-      const Real div_sinth2 = div_sinth * div_sinth;
+      std::vector<Real> t_even(buf_even ? bufsize : 0, 0.0);
+      std::vector<Real> t_odd(buf_odd ? bufsize : 0, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-
-        // ----- Even side: r-power-corrected f_W and f_X ---------------------
-        // The base quantities (before 1/r^2 and trig):
-        //   trace_minus(d) = gamma(d,1,1) - gamma(d,2,2)/sin^2(th)
-        //   cross(d)       = gamma(d,1,2)/sin^2(th)
-        // Then f_W and f_X are built from product-rule sums of these.
-        Real even_fW = 0.0;
-        Real even_fX = 0.0;
-
-        if (buf_even)
+        for (int j = 0; j < nphi; ++j)
         {
-          // Helper: trace-minus and cross at a given derivative slot
-          auto trace_minus = [&](int d) -> Real
+          const Real sinth      = grid.sin_theta(i);
+          const Real div_sinth  = 1.0 / sinth;
+          const Real div_sinth2 = div_sinth * div_sinth;
+
+          if (!grid.IsOwned(i, j))
+            continue;
+
+          const Real vol = grid.weights(i, j);
+
+          // ----- Even side: r-power-corrected f_W and f_X
+          // ---------------------
+          Real even_fW = 0.0;
+          Real even_fX = 0.0;
+
+          if (buf_even)
           {
-            return (d == D00)
-                   ? (gamma(1, 1, i, j) - gamma(2, 2, i, j) * div_sinth2)
-                   : (gamma(d, 1, 1, i, j) -
-                      gamma(d, 2, 2, i, j) * div_sinth2);
-          };
-          auto cross = [&](int d) -> Real
-          {
-            return (d == D00) ? (gamma(1, 2, i, j) * div_sinth2)
-                              : (gamma(d, 1, 2, i, j) * div_sinth2);
-          };
-
-          // Product rule of d^n_r (1/r^2 \cdot f):
-          //   D00:  1/r^2 f
-          //   D10:  1/r^2 f' - 2/r^3 f
-          //   D01:  1/r^2 f_t
-          //   D20:  1/r^2 f'' - 4/r^3 f' + 6/r^4 f
-          //   D11:  1/r^2 f'_t - 2/r^3 f_t
-          switch (deriv)
-          {
-            case D00:
-              even_fW = div_r2 * trace_minus(D00);
-              even_fX = 2.0 * div_r2 * cross(D00);
-              break;
-            case D10:
-              even_fW =
-                div_r2 * trace_minus(D10) - 2.0 * div_r3 * trace_minus(D00);
-              even_fX =
-                2.0 * (div_r2 * cross(D10) - 2.0 * div_r3 * cross(D00));
-              break;
-            case D01:
-              even_fW = div_r2 * trace_minus(D01);
-              even_fX = 2.0 * div_r2 * cross(D01);
-              break;
-            case D20:
-              even_fW = div_r2 * trace_minus(D20) -
-                        4.0 * div_r3 * trace_minus(D10) +
-                        6.0 * div_r4 * trace_minus(D00);
-              even_fX =
-                2.0 * (div_r2 * cross(D20) - 4.0 * div_r3 * cross(D10) +
-                       6.0 * div_r4 * cross(D00));
-              break;
-            case D11:
-              even_fW =
-                div_r2 * trace_minus(D11) - 2.0 * div_r3 * trace_minus(D01);
-              even_fX =
-                2.0 * (div_r2 * cross(D11) - 2.0 * div_r3 * cross(D01));
-              break;
-          }
-        }
-
-        // ----- Odd side: 1/sin(th) weighting, no r-power
-        // -----------------------
-        Real odd_fW = 0.0;
-        Real odd_fX = 0.0;
-
-        if (buf_odd)
-        {
-          const Real gtt =
-            (deriv == D00) ? gamma(1, 1, i, j) : gamma(deriv, 1, 1, i, j);
-          const Real gtp =
-            (deriv == D00) ? gamma(1, 2, i, j) : gamma(deriv, 1, 2, i, j);
-          const Real gpp =
-            (deriv == D00) ? gamma(2, 2, i, j) : gamma(deriv, 2, 2, i, j);
-
-          odd_fW = div_sinth * (gtt - gpp * div_sinth2);
-          odd_fX = 2.0 * gtp * div_sinth;
-        }
-
-        // ----- Accumulate into buffers per (l,m) with prefactor -------------
-        for (int l = lmin; l <= lmax; ++l)
-        {
-          const Real lambda  = static_cast<Real>(l * (l + 1));
-          const Real div_ll2 = 1.0 / (lambda * (lambda - 2.0));
-
-          for (int m = -l; m <= l; ++m)
-          {
-            const int lm = lmindex(l, m);
-
-            if (buf_even)
+            auto trace_minus = [&](int d) -> Real
             {
-              const Real cRe = even_fW * W(i, j, lm, ix_C::Re) +
-                               even_fX * X(i, j, lm, ix_C::Re);
-              const Real cIm = even_fW * W(i, j, lm, ix_C::Im) +
-                               even_fX * X(i, j, lm, ix_C::Im);
-              buf_even[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
-              buf_even[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+              return (d == D00)
+                     ? (gamma(1, 1, i, j) - gamma(2, 2, i, j) * div_sinth2)
+                     : (gamma(d, 1, 1, i, j) -
+                        gamma(d, 2, 2, i, j) * div_sinth2);
+            };
+            auto cross = [&](int d) -> Real
+            {
+              return (d == D00) ? (gamma(1, 2, i, j) * div_sinth2)
+                                : (gamma(d, 1, 2, i, j) * div_sinth2);
+            };
+
+            switch (deriv)
+            {
+              case D00:
+                even_fW = div_r2 * trace_minus(D00);
+                even_fX = 2.0 * div_r2 * cross(D00);
+                break;
+              case D10:
+                even_fW =
+                  div_r2 * trace_minus(D10) - 2.0 * div_r3 * trace_minus(D00);
+                even_fX =
+                  2.0 * (div_r2 * cross(D10) - 2.0 * div_r3 * cross(D00));
+                break;
+              case D01:
+                even_fW = div_r2 * trace_minus(D01);
+                even_fX = 2.0 * div_r2 * cross(D01);
+                break;
+              case D20:
+                even_fW = div_r2 * trace_minus(D20) -
+                          4.0 * div_r3 * trace_minus(D10) +
+                          6.0 * div_r4 * trace_minus(D00);
+                even_fX =
+                  2.0 * (div_r2 * cross(D20) - 4.0 * div_r3 * cross(D10) +
+                         6.0 * div_r4 * cross(D00));
+                break;
+              case D11:
+                even_fW =
+                  div_r2 * trace_minus(D11) - 2.0 * div_r3 * trace_minus(D01);
+                even_fX =
+                  2.0 * (div_r2 * cross(D11) - 2.0 * div_r3 * cross(D01));
+                break;
             }
+          }
 
-            if (buf_odd)
+          // ----- Odd side: 1/sinth weighting, no r-power
+          // -----------------------
+          Real odd_fW = 0.0;
+          Real odd_fX = 0.0;
+
+          if (buf_odd)
+          {
+            const Real gtt =
+              (deriv == D00) ? gamma(1, 1, i, j) : gamma(deriv, 1, 1, i, j);
+            const Real gtp =
+              (deriv == D00) ? gamma(1, 2, i, j) : gamma(deriv, 1, 2, i, j);
+            const Real gpp =
+              (deriv == D00) ? gamma(2, 2, i, j) : gamma(deriv, 2, 2, i, j);
+
+            odd_fW = div_sinth * (gtt - gpp * div_sinth2);
+            odd_fX = 2.0 * gtp * div_sinth;
+          }
+
+          // ----- Accumulate into buffers per (l,m) with prefactor
+          // -------------
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            const Real lambda  = static_cast<Real>(l * (l + 1));
+            const Real div_ll2 = 1.0 / (lambda * (lambda - 2.0));
+
+            for (int m = -l; m <= l; ++m)
             {
-              const Real cRe = -odd_fW * X(i, j, lm, ix_C::Re) +
-                               odd_fX * W(i, j, lm, ix_C::Re);
-              const Real cIm = -odd_fW * X(i, j, lm, ix_C::Im) +
-                               odd_fX * W(i, j, lm, ix_C::Im);
-              buf_odd[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
-              buf_odd[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+              const int lm = lmindex(l, m);
+
+              if (buf_even)
+              {
+                const Real cRe = even_fW * W(i, j, lm, ix_C::Re) +
+                                 even_fX * X(i, j, lm, ix_C::Re);
+                const Real cIm = even_fW * W(i, j, lm, ix_C::Im) +
+                                 even_fX * X(i, j, lm, ix_C::Im);
+                t_even[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
+                t_even[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+              }
+
+              if (buf_odd)
+              {
+                const Real cRe = -odd_fW * X(i, j, lm, ix_C::Re) +
+                                 odd_fX * W(i, j, lm, ix_C::Re);
+                const Real cIm = -odd_fW * X(i, j, lm, ix_C::Im) +
+                                 odd_fX * W(i, j, lm, ix_C::Im);
+                t_odd[2 * lm + ix_C::Re] += vol * div_ll2 * cRe;
+                t_odd[2 * lm + ix_C::Im] -= vol * div_ll2 * cIm;
+              }
             }
           }
         }
       }
-    }
+
+#pragma omp critical
+      {
+        if (buf_even)
+          for (int k = 0; k < bufsize; ++k)
+            buf_even[k] += t_even[k];
+        if (buf_odd)
+          for (int k = 0; k < bufsize; ++k)
+            buf_odd[k] += t_odd[k];
+      }
+    }  // omp parallel
   }
 
   // --------------------------------------------------------------------------
   //! Trace scalar projection from a rank-2 DTensorField, with K correction.
   //!
-  //! Projects 0.5 * [r-power-corrected] (gamma_th,th + gamma_ph,ph/sin^2(th))
-  //! against Y*, then adds the K correction: 0.5 * lam * buf_G[lm] per-mode.
+  //! Projects 0.5 * [r-power-corrected] (gamma_thth + gamma_phph/sin^2th) against Y*,
+  //! then adds the K correction: 0.5 * lam * buf_G[lm] per-mode.
   //!
   //! buf_G must already be filled by ProjectTensorPair for the same deriv.
   //! The K correction is valid before MPI reduce because the operation is
@@ -1168,62 +1287,77 @@ struct ComplexHarmonicTable
     const Real div_r4 = div_r3 * div_r;
 
     // ----- Grid integral: 0.5 * [r-power-corrected] trace against Y* -------
-    for (int i = 0; i < ntheta; ++i)
+    const int bufsize = 2 * lmpoints;
+
+#pragma omp parallel
     {
-      const Real div_sinth2 = 1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
+      std::vector<Real> t_buf(bufsize, 0.0);
 
-      for (int j = 0; j < nphi; ++j)
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; ++i)
       {
-        if (!grid.IsOwned(i, j))
-          continue;
-
-        const Real vol = grid.weights(i, j);
-
-        // Helper: angular trace at a given derivative slot
-        auto trace = [&](int d) -> Real
+        for (int j = 0; j < nphi; ++j)
         {
-          return (d == D00)
-                 ? (gamma(1, 1, i, j) + gamma(2, 2, i, j) * div_sinth2)
-                 : (gamma(d, 1, 1, i, j) + gamma(d, 2, 2, i, j) * div_sinth2);
-        };
+          if (!grid.IsOwned(i, j))
+            continue;
 
-        // Product rule of d^n_r (1/r^2 \cdot f), with overall factor 0.5
-        Real fval = 0.0;
-        switch (deriv)
-        {
-          case D00:
-            fval = 0.5 * div_r2 * trace(D00);
-            break;
-          case D10:
-            fval = 0.5 * (div_r2 * trace(D10) - 2.0 * div_r3 * trace(D00));
-            break;
-          case D01:
-            fval = 0.5 * div_r2 * trace(D01);
-            break;
-          case D20:
-            fval = 0.5 * (div_r2 * trace(D20) - 4.0 * div_r3 * trace(D10) +
-                          6.0 * div_r4 * trace(D00));
-            break;
-          case D11:
-            fval = 0.5 * (div_r2 * trace(D11) - 2.0 * div_r3 * trace(D01));
-            break;
-        }
+          const Real div_sinth2 =
+            1.0 / (grid.sin_theta(i) * grid.sin_theta(i));
+          const Real vol = grid.weights(i, j);
 
-        // Project against Y*
-        for (int l = lmin; l <= lmax; ++l)
-        {
-          for (int m = -l; m <= l; ++m)
+          // Helper: angular trace at a given derivative slot
+          auto trace = [&](int d) -> Real
           {
-            const int lm = lmindex(l, m);
-            buf_K[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
-            buf_K[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+            return (d == D00)
+                   ? (gamma(1, 1, i, j) + gamma(2, 2, i, j) * div_sinth2)
+                   : (gamma(d, 1, 1, i, j) +
+                      gamma(d, 2, 2, i, j) * div_sinth2);
+          };
+
+          // Product rule of d^n_r (1/r^2 \cdot f), with overall factor 0.5
+          Real fval = 0.0;
+          switch (deriv)
+          {
+            case D00:
+              fval = 0.5 * div_r2 * trace(D00);
+              break;
+            case D10:
+              fval = 0.5 * (div_r2 * trace(D10) - 2.0 * div_r3 * trace(D00));
+              break;
+            case D01:
+              fval = 0.5 * div_r2 * trace(D01);
+              break;
+            case D20:
+              fval = 0.5 * (div_r2 * trace(D20) - 4.0 * div_r3 * trace(D10) +
+                            6.0 * div_r4 * trace(D00));
+              break;
+            case D11:
+              fval = 0.5 * (div_r2 * trace(D11) - 2.0 * div_r3 * trace(D01));
+              break;
+          }
+
+          // Project against Y*
+          for (int l = lmin; l <= lmax; ++l)
+          {
+            for (int m = -l; m <= l; ++m)
+            {
+              const int lm = lmindex(l, m);
+              t_buf[2 * lm + ix_C::Re] += vol * fval * Y(i, j, lm, ix_C::Re);
+              t_buf[2 * lm + ix_C::Im] -= vol * fval * Y(i, j, lm, ix_C::Im);
+            }
           }
         }
       }
-    }
 
-    // ----- K correction: K += 0.5 * lam * G per-mode
-    // -------------------------
+#pragma omp critical
+      {
+        for (int k = 0; k < bufsize; ++k)
+          buf_K[k] += t_buf[k];
+      }
+    }  // omp parallel
+
+    // ----- K correction: K += 0.5 * lam * G per-mode -------------------------
+    // Executed once, after all thread-private buffers have been merged above.
     for (int l = lmin; l <= lmax; ++l)
     {
       const Real half_lambda = 0.5 * static_cast<Real>(l * (l + 1));
@@ -1418,28 +1552,52 @@ struct RealHarmonicTable
                IsOwnedFunc is_owned) const
   {
     using namespace ix_D;
-    for (int i = 0; i < ntheta; i++)
+    const int nlm0 = lmax + 1;
+    const int nlm  = lmpoints;
+
+#pragma omp parallel
     {
-      for (int j = 0; j < nphi; j++)
+      // Thread-private accumulators
+      std::vector<Real> t_spec0(nlm0, 0.0);
+      std::vector<Real> t_specc(nlm, 0.0);
+      std::vector<Real> t_specs(nlm, 0.0);
+
+#pragma omp for collapse(2) schedule(dynamic)
+      for (int i = 0; i < ntheta; i++)
       {
-        if (!is_owned(i, j))
-          continue;
-        const Real drho = weights(i, j) * field(i, j);
-
-        for (int l = 0; l <= lmax; l++)
-          spec0[l] += drho * Y0(D00, i, j, l);
-
-        for (int l = 1; l <= lmax; l++)
+        for (int j = 0; j < nphi; j++)
         {
-          for (int m = 1; m <= l; m++)
+          if (!is_owned(i, j))
+            continue;
+          const Real drho = weights(i, j) * field(i, j);
+
+          for (int l = 0; l <= lmax; l++)
+            t_spec0[l] += drho * Y0(D00, i, j, l);
+
+          for (int l = 1; l <= lmax; l++)
           {
-            const int l1 = lmindex(l, m);
-            specc[l1] += drho * Yc(D00, i, j, l1);
-            specs[l1] += drho * Ys(D00, i, j, l1);
+            for (int m = 1; m <= l; m++)
+            {
+              const int l1 = lmindex(l, m);
+              t_specc[l1] += drho * Yc(D00, i, j, l1);
+              t_specs[l1] += drho * Ys(D00, i, j, l1);
+            }
           }
+        }  // phi loop
+      }  // theta loop
+
+      // Merge thread-private buffers into caller's arrays
+#pragma omp critical
+      {
+        for (int l = 0; l < nlm0; l++)
+          spec0[l] += t_spec0[l];
+        for (int l = 0; l < nlm; l++)
+        {
+          specc[l] += t_specc[l];
+          specs[l] += t_specs[l];
         }
-      }  // phi loop
-    }  // theta loop
+      }
+    }  // omp parallel
   }
 };
 
