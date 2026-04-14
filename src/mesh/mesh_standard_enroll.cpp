@@ -500,7 +500,101 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
 
   EnrollUserHistoryOutput(Etau_kin, "Etau_kin", UserHistoryOperation::sum);
 
-// --------------------------------------------------------------------------
+  // Enroll mass quadrupole first time derivative components ------------------
+  // dot(I_ij) = Integral[ rho * (v_i x_j + v_j x_i
+  //                              - 2/3 delta_ij v_k x_k) ] dV
+  // 6 independent components of the trace-free STF tensor
+  // iq: 0=xx, 1=xy, 2=xz, 3=yy, 4=yz, 5=zz
+  //
+  // Ref: arXiv:1012.0595
+  {
+    static const int N = 6;
+    static const char* quad_names[N] = { "dot_Ixx", "dot_Ixy", "dot_Ixz",
+                                         "dot_Iyy", "dot_Iyz", "dot_Izz" };
+
+    for (int iq = 0; iq < N; ++iq)
+    {
+      EnrollUserHistoryOutput(
+        [iq](MeshBlock* pmb, int iout) -> Real
+        {
+          Hydro* phyd      = pmb->phydro;
+          Coordinates* pco = pmb->pcoord;
+          AA vol(pmb->ncells1);
+          Real result = 0.0;
+          for (int k = pmb->ks; k <= pmb->ke; ++k)
+            for (int j = pmb->js; j <= pmb->je; ++j)
+            {
+              pco->CellVolume(k, j, pmb->is, pmb->ie, vol);
+              for (int i = pmb->is; i <= pmb->ie; ++i)
+              {
+                const Real x   = pco->x1v(i);
+                const Real y   = pco->x2v(j);
+                const Real z   = pco->x3v(k);
+
+                // D_til := sqrt(gamma) * W * rho
+                const Real D_til = phyd->u(IDN, k, j, i);
+
+                // u_til^i := W * v^i
+                const Real u_til_u_x = phyd->w(IVX, k, j, i);
+                const Real u_til_u_y = phyd->w(IVY, k, j, i);
+                const Real u_til_u_z = phyd->w(IVZ, k, j, i);
+
+                const Real W = phyd->derived_ms(IX_LOR,k,j,i);
+                const Real v_u_x = u_til_u_x / W;
+                const Real v_u_y = u_til_u_y / W;
+                const Real v_u_z = u_til_u_z / W;
+
+                const Real xv  = x * v_u_x + y * v_u_y + z * v_u_z;
+
+                Real integrand = 0.0;
+                switch (iq)
+                {
+                  case 0:
+                  {
+                    integrand = 2.0 * v_u_x * x - (2.0 / 3.0) * xv;
+                    break;
+                  }
+                  case 1:
+                  {
+                    integrand = v_u_x * y + v_u_y * x;
+                    break;
+                  }
+                  case 2:
+                  {
+                    integrand = v_u_x * z + v_u_z * x;
+                    break;
+                  }
+                  case 3:
+                  {
+                    integrand = 2.0 * v_u_y * y - (2.0 / 3.0) * xv;
+                    break;
+                  }
+                  case 4:
+                  {
+                    integrand = v_u_y * z + v_u_z * y;
+                    break;
+                  }
+                  case 5:
+                  {
+                    integrand = 2.0 * v_u_z * z - (2.0 / 3.0) * xv;
+                    break;
+                  }
+                  default:
+                  {
+                    assert(false);
+                  }
+                }
+                result += vol(i) * D_til * integrand;
+              }
+            }
+          return result;
+        },
+        quad_names[iq],
+        UserHistoryOperation::sum);
+    }
+  }
+  // --------------------------------------------------------------------------
+
 #endif  // FLUID_ENABLED
 }
 
