@@ -947,7 +947,7 @@ int interp_locate(Real* x, int Nx, Real xval)
   while (ju - jl > 1)
   {
     jm = (ju + jl) >> 1;
-    if (xval >= x[jm] == ascnd)
+    if ((xval >= x[jm]) == ascnd)
       jl = jm;
     else
       ju = jm;
@@ -1024,10 +1024,10 @@ void interp_lag4(Real* f,
 Real linear_interp(Real* f, Real* x, int n, Real xv)
 {
   int i = interp_locate(x, n, xv);
-  if (i < 0)
+  if (i < 1)
     i = 1;
-  if (i == n)
-    i = n - 1;
+  if (i >= n - 1)
+    i = n - 2;
   int j;
   if (xv < x[i])
     j = i - 1;

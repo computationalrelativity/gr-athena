@@ -938,6 +938,7 @@ int DNS_call_sgrid(const char* command)
 
   free(argv);  // free since construct_argv allocates argv
   free(com);
+  free(sgrid_datadir);
 
   return status;
 }

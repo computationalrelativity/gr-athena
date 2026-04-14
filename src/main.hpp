@@ -278,7 +278,7 @@ namespace gra
 {
 
 // BD: TODO- would be an excellent move to inject git commit into ver. info
-std::string athena_version = "version 19.0 - August 2019";
+inline std::string athena_version = "version 19.0 - August 2019";
 
 struct Pathing
 {
