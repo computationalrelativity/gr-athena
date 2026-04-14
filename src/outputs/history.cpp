@@ -53,6 +53,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
   Real real_min = std::numeric_limits<Real>::min();
   AthenaArray<Real> vol(pmb->ncells1);
 
+#if FLUID_ENABLED
+  WriteQuadFile(pm, pin, flag);
+#endif
+
   const int nuser_history_output_ = pm->user_history_func_.size();
   const int nhistory_output = NHISTORY_VARS + nuser_history_output_;
 

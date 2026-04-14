@@ -138,6 +138,7 @@ class HistoryOutput : public OutputType {
  public:
   explicit HistoryOutput(OutputParameters oparams) : OutputType(oparams) {}
   void WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag) override;
+  void WriteQuadFile(Mesh *pm, ParameterInput *pin, bool flag);
 };
 
 //----------------------------------------------------------------------------------------
