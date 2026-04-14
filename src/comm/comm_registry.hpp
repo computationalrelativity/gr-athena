@@ -255,6 +255,16 @@ class CommRegistry
     return finalized_;
   }
 
+  // Set by ReconcileSharedFacesFC on blocks whose fine-level shared boundary
+  // faces were modified (non-canonical blocks).  When set,
+  // ProlongateAndApplyPhysicalBCs re-restricts the FC interior into
+  // coarse_buf before prolongation; otherwise the expensive re-restriction
+  // is skipped (the coarse_buf is already current from SendBoundaryBuffers).
+  void set_fc_needs_re_restrict()
+  {
+    fc_needs_re_restrict_ = true;
+  }
+
   // Static lookup: find the CommRegistry for a given MeshBlock.
   // Used by same-process buffer copy to reach the target block's channels.
   // Returns nullptr if no registry has been constructed for the block.
@@ -275,6 +285,11 @@ class CommRegistry
   std::unordered_map<std::string, int> label_to_id_;
 
   bool finalized_;
+
+  // ReconcileSharedFacesFC sets this on non-canonical blocks whose fine-level
+  // shared boundary faces were overwritten.  Cleared after use in
+  // ProlongateAndApplyPhysicalBCs.
+  bool fc_needs_re_restrict_ = false;
 
   // Rebuild NeighborConnectivity from the MeshBlock's topology data.
   void RebuildConnectivity();

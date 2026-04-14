@@ -195,6 +195,12 @@ class CommChannel
   // Returns the new offset after unpacking.  No flag update.
   int UnpackFrom(Real* buf, int offset, const NeighborBlock& nb, int mylevel);
 
+  // Compute the exact unpacked size (in Reals) for one neighbor at a known
+  // level.  Unlike ComputeBufferSizeFromRanges (which takes the max over all
+  // level cases for allocation), this returns the size for the specific
+  // neighbor-level relationship, matching what UnpackFrom() consumes.
+  int UnpackSizeForNeighbor(const NeighborBlock& nb, int mylevel) const;
+
   // Compute the actual pack size (in Reals) for one neighbor.
   // Delegates to idx::ComputeBufferSizeFromRanges / ComputeMPIBufferSize.
   int PackSizeForNeighbor(const NeighborBlock& nb, bool skip_coarse) const;

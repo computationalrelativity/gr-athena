@@ -314,6 +314,40 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
     zcrd[i]                    = 0.0;
   }
 
+  // Parabolic sub-grid refinement of a density maximum. ----------------------
+  const bool use_refine_peak =
+    pin->GetOrAddBoolean("problem", "refine_peak", true);
+
+  auto refine_peak = [](const Real* nbar_arr,
+                        const Real* xcrd,
+                        int npt,
+                        int imax,
+                        Real dx,
+                        Real coord_unit_,
+                        Real& centre_out,
+                        Real& nbar_out)
+  {
+    if (imax > 0 && imax < npt - 1)
+    {
+      Real a     = nbar_arr[imax - 1];
+      Real b     = nbar_arr[imax];
+      Real c     = nbar_arr[imax + 1];
+      Real denom = a - 2.0 * b + c;
+      if (denom < 0.0)  // concave-down: genuine maximum
+      {
+        Real shift = 0.5 * (a - c) / denom;
+        centre_out = (xcrd[imax] + shift * dx) / coord_unit_;
+        nbar_out   = b - 0.25 * (a - c) * shift;
+        return;
+      }
+    }
+    // Fallback: boundary index or non-concave
+    centre_out = xcrd[imax] / coord_unit_;
+    nbar_out   = nbar_arr[imax];
+  };
+
+  // --------------------------------------------------------------------------
+
   Real nbar, nbar1, nbar2;
   Real max_nbar;
   int max_nbar_i;
@@ -333,8 +367,22 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
     }
   }
 
-  centre_p = xcrd_p[max_nbar_i] / coord_unit;
-  nbar2    = max_nbar;
+  if (use_refine_peak)
+  {
+    refine_peak(bns->nbar,
+                xcrd_p,
+                npt_interp,
+                max_nbar_i,
+                dx_interp,
+                coord_unit,
+                centre_p,
+                nbar2);
+  }
+  else
+  {
+    centre_p = xcrd_p[max_nbar_i] / coord_unit;
+    nbar2    = max_nbar;
+  }
 
   delete bns;
 
@@ -353,8 +401,22 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
     }
   }
 
-  centre_m = xcrd_m[max_nbar_i] / coord_unit;
-  nbar1    = max_nbar;
+  if (use_refine_peak)
+  {
+    refine_peak(bns->nbar,
+                xcrd_m,
+                npt_interp,
+                max_nbar_i,
+                dx_interp,
+                coord_unit,
+                centre_m,
+                nbar1);
+  }
+  else
+  {
+    centre_m = xcrd_m[max_nbar_i] / coord_unit;
+    nbar1    = max_nbar;
+  }
 
   if (!verbose)
   {
@@ -401,6 +463,26 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   delete[] xcrd_m;
   delete[] ycrd;
   delete[] zcrd;
+
+  // In exceptional circumstances ns extrema differ over ranks; the following
+  // can be used to enforce exact agreement (principally for seeding B field
+  // consistently).
+#ifdef MPI_PARALLEL
+  {
+    const bool synchronize_ns_extrema =
+      pin->GetOrAddBoolean("problem", "synchronize_ns_extrema", true);
+
+    if (synchronize_ns_extrema)
+    {
+      Real buf[4] = { pgasmax_1, pgasmax_2, centre_m, centre_p };
+      MPI_Bcast(buf, 4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+      pgasmax_1 = buf[0];
+      pgasmax_2 = buf[1];
+      centre_m  = buf[2];
+      centre_p  = buf[3];
+    }
+  }
+#endif  // MPI_PARALLEL
 
   return;
 }

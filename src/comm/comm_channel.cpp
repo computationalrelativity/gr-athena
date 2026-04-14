@@ -1210,6 +1210,67 @@ void CommChannel::Unpack(const NeighborConnectivity& nc,
       recv_flag_[nb.bufid].store(BoundaryStatus::completed,
                                  std::memory_order_release);
     }
+
+    // --- Pass 2: re-unpack from-coarser FC into coarse_fc ----------------
+    // Same-level coarse payloads can overwrite coarse-buffer cells that the
+    // from-coarser neighbor also wrote (the "ghost-ghost overlap").  When the
+    // prolongation stencil reads these cells, it must see the authoritative
+    // from-coarser data, not the restricted same-level data.  Re-unpacking
+    // from-coarser last guarantees from-coarser wins in the overlap region.
+    if (pmb->pmy_mesh->multilevel && spec_.coarse_fc[0] != nullptr &&
+        !pmb->NeighborBlocksSameLevel())
+    {
+      AthenaArray<Real>* cface[3] = { spec_.coarse_fc[0],
+                                      spec_.coarse_fc[1],
+                                      spec_.coarse_fc[2] };
+      for (int n2 = 0; n2 < nc.num_neighbors(); ++n2)
+      {
+        const NeighborBlock& nb2 = nc.neighbor(n2);
+        CommTarget nbt2          = NeighborTarget(mylevel, nb2.snb.level);
+        if (!HasTarget(eff, nbt2))
+          continue;
+        if (nb2.snb.level >= mylevel)
+          continue;  // only from-coarser
+
+        int p2 = 0;
+        for (int sa = 0; sa < 3; ++sa)
+        {
+          idx::IndexRange3D r =
+            idx::SetFromCoarser(pmb, nb2.ni, ngh, samp, sa);
+          if (nb2.polar)
+          {
+            UnpackPolarFC(recv_buf_[nb2.bufid],
+                          *cface[sa],
+                          fc_polar_sign[sa],
+                          r.si,
+                          r.ei,
+                          r.sj,
+                          r.ej,
+                          r.sk,
+                          r.ek,
+                          p2);
+          }
+          else
+          {
+            BufferUtility::UnpackData(recv_buf_[nb2.bufid],
+                                      *cface[sa],
+                                      r.si,
+                                      r.ei,
+                                      r.sj,
+                                      r.ej,
+                                      r.sk,
+                                      r.ek,
+                                      p2);
+            if (sa == 1 && nx2_degen)
+              DegenerateCopyX2f(*cface[1], r.si, r.ei, r.sj, r.sk);
+            if (sa == 2 && nx3_degen)
+              DegenerateCopyX3f(*cface[2], r.si, r.ei, r.sj, r.ej, r.sk);
+          }
+        }
+        // recv_flag_ already set in pass 1 - do not touch
+      }
+    }
+
     return;
   }
 
@@ -4358,6 +4419,90 @@ int CommChannel::UnpackFrom(Real* buf,
   }
 
   return p;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn int CommChannel::UnpackSizeForNeighbor(const NeighborBlock &nb,
+//!                                             int mylevel) const
+//  \brief Compute the exact unpacked size (in Reals) for one neighbor at a
+//  known level.
+//
+//  Unlike ComputeBufferSizeFromRanges (which takes the max over all level
+//  cases for buffer allocation), this returns the size for the specific
+//  neighbor-level relationship, matching what UnpackFrom() consumes.
+//  Used by Phase 2b in SetBoundariesFused() to advance the buffer offset
+//  past non-FC channels without unpacking.
+
+int CommChannel::UnpackSizeForNeighbor(const NeighborBlock& nb,
+                                       int mylevel) const
+{
+  MeshBlock* pmb      = pmy_block_;
+  const int nvar      = spec_.nvar;
+  const int ngh       = spec_.nghost;
+  const Sampling samp = spec_.sampling;
+
+  // Count cells in an inclusive 3D range.
+  auto rangeSize = [](const idx::IndexRange3D& r) -> int
+  {
+    int ni = r.ei - r.si + 1;
+    int nj = r.ej - r.sj + 1;
+    int nk = r.ek - r.sk + 1;
+    return (ni > 0 && nj > 0 && nk > 0) ? ni * nj * nk : 0;
+  };
+
+  int size = 0;
+
+  if (samp == Sampling::FC)
+  {
+    if (nb.snb.level == mylevel)
+    {
+      // Fine payload (3 FC components).
+      for (int sa = 0; sa < 3; ++sa)
+        size += rangeSize(idx::SetSameLevel(pmb, nb.ni, ngh, 1, samp, sa));
+      // Coarse payload (multilevel only).
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_fc[0] != nullptr &&
+          !pmb->NeighborBlocksSameLevel())
+      {
+        for (int sa = 0; sa < 3; ++sa)
+          size += rangeSize(idx::SetSameLevel(pmb, nb.ni, ngh, 2, samp, sa));
+      }
+    }
+    else if (nb.snb.level < mylevel)
+    {
+      // From-coarser (3 FC components into coarse buffer).
+      for (int sa = 0; sa < 3; ++sa)
+        size += rangeSize(idx::SetFromCoarser(pmb, nb.ni, ngh, samp, sa));
+    }
+    else
+    {
+      // From-finer (3 FC components into fine face arrays).
+      for (int sa = 0; sa < 3; ++sa)
+        size += rangeSize(idx::SetFromFiner(pmb, nb.ni, ngh, samp, sa));
+    }
+  }
+  else
+  {
+    // CC/VC/CX: nvar components.
+    if (nb.snb.level == mylevel)
+    {
+      size = nvar * rangeSize(idx::SetSameLevel(pmb, nb.ni, ngh, 1, samp));
+      if (pmb->pmy_mesh->multilevel && spec_.coarse_var != nullptr &&
+          !pmb->NeighborBlocksSameLevel())
+      {
+        size += nvar * rangeSize(idx::SetSameLevel(pmb, nb.ni, ngh, 2, samp));
+      }
+    }
+    else if (nb.snb.level < mylevel)
+    {
+      size = nvar * rangeSize(idx::SetFromCoarser(pmb, nb.ni, ngh, samp));
+    }
+    else
+    {
+      size = nvar * rangeSize(idx::SetFromFiner(pmb, nb.ni, ngh, samp));
+    }
+  }
+
+  return size;
 }
 
 //----------------------------------------------------------------------------------------

@@ -24,6 +24,7 @@
 #include "../field/field.hpp"  // Field::b
 #include "../globals.hpp"      // Globals::my_rank
 #include "../mesh/mesh.hpp"  // Mesh, MeshBlock, NeighborBlock, NeighborConnect
+#include "comm_registry.hpp"  // CommRegistry::set_fc_needs_re_restrict
 
 namespace comm
 {
@@ -56,6 +57,7 @@ void ReconcileSharedFacesFC(Mesh* pm, const std::vector<MeshBlock*>& pmb_array)
     int dir;  // 0=x1, 1=x2, 2=x3
     // index ranges to unpack into
     int il, iu, jl, ju, kl, ku;
+    MeshBlock* pmb;  // receiving (non-canonical) block
   };
   std::vector<RecvInfo> recv_info;
 #endif
@@ -127,6 +129,10 @@ void ReconcileSharedFacesFC(Mesh* pm, const std::vector<MeshBlock*>& pmb_array)
               for (int i = is; i <= ie; ++i)
                 nb_b.x3f(nb_fk, j, i) = b.x3f(fk, j, i);
           }
+
+          // Mark the non-canonical neighbor for FC re-restriction so that
+          // ProlongateAndApplyPhysicalBCs refreshes its coarse_buf.
+          nb_pmb->pcomm->set_fc_needs_re_restrict();
         }
 #ifdef MPI_PARALLEL
         else
@@ -253,7 +259,7 @@ void ReconcileSharedFacesFC(Mesh* pm, const std::vector<MeshBlock*>& pmb_array)
             dest = &b.x3f;
 
           recv_info.push_back(
-            { recvbuf, count, dest, face_dir, il, iu, jl, ju, kl, ku });
+            { recvbuf, count, dest, face_dir, il, iu, jl, ju, kl, ku, pmb });
         }
 #endif
       }
@@ -293,6 +299,10 @@ void ReconcileSharedFacesFC(Mesh* pm, const std::vector<MeshBlock*>& pmb_array)
           for (int i = ri.il; i <= ri.iu; ++i)
             arr(ri.kl, j, i) = ri.buf[idx++];
       }
+
+      // Mark the non-canonical block for FC re-restriction.
+      ri.pmb->pcomm->set_fc_needs_re_restrict();
+
       delete[] ri.buf;
     }
   }

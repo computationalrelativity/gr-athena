@@ -742,6 +742,13 @@ class Mesh
   double lb_tolerance_;
   int lb_interval_;
 
+  // After regrid, enforce bitwise agreement of shared FC boundary faces via
+  // ReconcileSharedFacesFC.  Without this, derefinement can leave non-zero
+  // div(B) because area-weighted restriction and CT evolution produce values
+  // that are mathematically equal but not bitwise identical at shared faces.
+  // Runtime parameter: <mesh>/reconcile_shared_faces  (default false).
+  bool reconcile_shared_faces_;
+
   // functions
   MeshGenFunc MeshGenerator_[3];
   BValFunc BoundaryFunction_[6];

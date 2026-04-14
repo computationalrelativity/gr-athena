@@ -547,11 +547,15 @@ void CommRegistry::ProlongateAndApplyPhysicalBCs(CommGroup group,
     const CommSpec& spec = channels_[id].spec();
     if (spec.sampling == Sampling::FC)
     {
-      // Re-restrict FC interior to refresh coarse_buf.
-      // Without this, coarse_buf is stale after ReconcileSharedFacesFC
-      // modifies fine-level shared boundary faces between the initial
-      // SendBoundaryBuffers (which restricted) and the prolongation here.
-      comm::RestrictInterior(pmy_block_, spec);
+      // Re-restrict FC interior to refresh coarse_buf only when needed.
+      // ReconcileSharedFacesFC modifies fine-level shared boundary faces on
+      // non-canonical blocks, making the coarse_buf (restricted earlier in
+      // SendBoundaryBuffers) stale.  During normal evolution this does not
+      // happen, so the re-restriction is skipped for performance.
+      if (fc_needs_re_restrict_)
+      {
+        comm::RestrictInterior(pmy_block_, spec);
+      }
       comm::ApplyPhysicalBCsOnCoarseLevel_FC(
         pmy_block_, spec, time, dt, cis, cie, cjs, cje, cks, cke, cng);
     }
@@ -562,6 +566,10 @@ void CommRegistry::ProlongateAndApplyPhysicalBCs(CommGroup group,
     }
     comm::ProlongateBoundaries(pmy_block_, spec, nc_);
   }
+
+  // Clear the flag after all channels have been processed.  It will be set
+  // again by ReconcileSharedFacesFC after the next regrid if needed.
+  fc_needs_re_restrict_ = false;
 }
 
 #ifdef DBG_FUSED_COMM
@@ -1050,6 +1058,74 @@ void CommRegistry::SetBoundariesFused(CommGroup group,
 
     fs.recv_flag[nb.bufid].store(BoundaryStatus::completed,
                                  std::memory_order_release);
+  }
+
+  // Phase 2b: re-unpack from-coarser FC data so it wins over same-level
+  // coarse payloads in the ghost-ghost overlap region.
+  //
+  // During Phase 2 the unpack order across neighbors is arbitrary.  If a
+  // same-level coarse payload writes to a coarse-buffer cell that a
+  // from-coarser neighbor also wrote, the last writer wins.  The prolongation
+  // stencil must always read the authoritative from-coarser data in the
+  // overlap.  Re-unpacking from-coarser FC neighbors guarantees from-coarser
+  // data is the final value.  Non-FC channels use UnpackSizeForNeighbor() to
+  // advance the buffer offset without writing.
+  if (pmb->pmy_mesh->multilevel && !pmb->NeighborBlocksSameLevel())
+  {
+    // Quick check: does this group contain any FC channel?
+    bool has_fc = false;
+    for (int id : chids)
+    {
+      if (channels_[id].spec().sampling == Sampling::FC)
+      {
+        has_fc = true;
+        break;
+      }
+    }
+
+    if (has_fc)
+    {
+      for (int n = 0; n < nc_.num_neighbors(); ++n)
+      {
+        const NeighborBlock& nb = nc_.neighbor(n);
+        if (nb.snb.level >= mylevel)
+          continue;  // only from-coarser
+
+        CommTarget nbt = FusedNeighborTarget(mylevel, nb.snb.level);
+
+        bool any_active = false;
+        for (int id : chids)
+        {
+          CommTarget eff = channels_[id].spec().targets & target_filter;
+          if (HasTarget(eff, nbt))
+          {
+            any_active = true;
+            break;
+          }
+        }
+        if (!any_active)
+          continue;
+
+        Real* buf  = fs.recv_buf[nb.bufid];
+        int offset = 0;
+        for (int id : chids)
+        {
+          CommTarget eff = channels_[id].spec().targets & target_filter;
+          if (!HasTarget(eff, nbt))
+            continue;
+          if (channels_[id].spec().sampling == Sampling::FC)
+          {
+            // Re-unpack FC from-coarser data so it wins.
+            offset = channels_[id].UnpackFrom(buf, offset, nb, mylevel);
+          }
+          else
+          {
+            // Skip past non-FC data without writing.
+            offset += channels_[id].UnpackSizeForNeighbor(nb, mylevel);
+          }
+        }
+      }
+    }
   }
 
   // Phase 3: divide VC arrays by accumulated node multiplicity (same as

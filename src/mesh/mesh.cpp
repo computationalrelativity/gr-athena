@@ -280,6 +280,10 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
     }
   }
 
+  // After regrid, reconcile shared FC boundary faces to maintain div(B)=0.
+  reconcile_shared_faces_ =
+    pin->GetOrAddBoolean("mesh", "reconcile_shared_faces", false);
+
   // check consistency of the block and mesh
   if (mesh_size.nx1 % block_size.nx1 != 0 ||
       mesh_size.nx2 % block_size.nx2 != 0 ||
@@ -928,6 +932,10 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
       }
     }
   }
+
+  // After regrid, reconcile shared FC boundary faces to maintain div(B)=0.
+  reconcile_shared_faces_ =
+    pin->GetOrAddBoolean("mesh", "reconcile_shared_faces", false);
 
   // calculate the number of the blocks
   nrbx1 = mesh_size.nx1 / block_size.nx1;
@@ -2225,10 +2233,23 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
       {
         CommunicateConserved(pmb_array);
       }
+    }  // end first omp parallel region
 
-      // ReconcileSharedFacesFC is disabled for all init styles.
-      // pgen should now consistently use discrete Stokes theorem
+    // ---- ReconcileSharedFacesFC (must run OUTSIDE omp parallel) ----
+    // After regrid, same-level blocks sharing a face may hold values that are
+    // mathematically equal but not bitwise identical at the shared boundary
+    // face (area-weighted restriction vs. CT evolution).  Reconcile now so
+    // that constrained transport preserves div(B)=0 to machine precision.
+    // For pgen, the discrete Stokes theorem guarantees consistency.
+    // For restart, byte-faithful I/O preserves consistency.
+    if (MAGNETIC_FIELDS_ENABLED && reconcile_shared_faces_ &&
+        init_style == initialize_style::regrid)
+    {
+      comm::ReconcileSharedFacesFC(this, pmb_array);
+    }
 
+#pragma omp parallel num_threads(nthreads)
+    {
       // Finalize sub-systems that only need conserved vars -------------------
 #if Z4C_ENABLED
       // To finalize Z4c/ADM
