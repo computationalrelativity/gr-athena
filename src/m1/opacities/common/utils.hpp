@@ -799,7 +799,7 @@ class OpacityUtils
     {
       sln_r.Fill(M1::M1::t_sln_r::noop);
 
-      M1_FLOOP3(k, j, i)
+      M1_NS_FLOOP3(k, j, i)
       if (calc_state(k, j, i) == cstate::need)
       {
         bool found = false;

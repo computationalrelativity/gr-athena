@@ -579,8 +579,7 @@ void LimiterMaskX1(M1* pm1,
     // No SIMD: the write to flux_limiter(0,k,j,i-1) conflicts with the
     // neighbouring iteration's write to flux_limiter(0,k,j,i) under
     // concurrent SIMD lanes.  Run the inner loop in scalar instead.
-    M1_LLOOP2_1(k, j)
-    for (int i = M1_IX_IL - M1_FSIZEI; i <= M1_IX_IU + M1_FSIZEI + 1; ++i)
+    M1_NS_LLOOP3_1(k, j, i)
     {
       const Real hyb_fac =
         FluxLimiter(pm1->opt.flux_variety,

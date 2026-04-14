@@ -213,7 +213,7 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock* const pmy_block,
   if (deriv_order == 7)
   {
     assert(NGHOST > 3);
-    ILOOP3(k, j, i)
+    NS_ILOOP3(k, j, i)
     {
       derive_kji = 0.;
       // (d^7 chi(kji)/dx^7)^p +
@@ -229,7 +229,7 @@ Real Z4c_AMR::FDTruncErrorChiL2(MeshBlock* const pmy_block,
   // calc. L2 norm of 2nd derivative
   else if (deriv_order == 2)
   {
-    ILOOP3(k, j, i)
+    NS_ILOOP3(k, j, i)
     {
       derive_kji = 0.;
       // (d^2 chi(kji)/dx^2)^p +
@@ -278,7 +278,7 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock* const pmy_block,
   if (deriv_order == 7)
   {
     assert(NGHOST > 3 && p == 1);  // as p = 1 is optimized
-    ILOOP3(k, j, i)
+    NS_ILOOP3(k, j, i)
     {
       derive_kji = 0.;
       // (d^7 chi(kji)/dx^7)^p +
@@ -298,7 +298,7 @@ Real Z4c_AMR::FDTruncErrorChiLinf(MeshBlock* const pmy_block,
   // calc. 2nd derivative in all dirs
   else if (deriv_order == 2)
   {
-    ILOOP3(k, j, i)
+    NS_ILOOP3(k, j, i)
     {
       derive_kji = 0.;
       // (d^2 chi(kji)/dx^2)^p +
@@ -343,7 +343,7 @@ Real Z4c_AMR::FDTruncErrorChiLinfComponentWise(MeshBlock* const pmy_block,
   if (deriv_order == 7)
   {
     assert(NGHOST > 3 && p == 1);  // as p = 1 is optimized
-    ILOOP3(k, j, i)
+    NS_ILOOP3(k, j, i)
     {
       Real der_max_comp = 0.;
       // max { |d^7 chi(kji)/dx^7)^p|,

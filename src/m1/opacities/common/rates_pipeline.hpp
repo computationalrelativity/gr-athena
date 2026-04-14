@@ -99,7 +99,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
   }
 
   // deal with failures -----------------------------------------------------
-  M1_FLOOP3(k, j, i)
+  M1_NS_FLOOP3(k, j, i)
   if (calc_state(k, j, i) == cstate::failed)
   {
     opu.PrintOpacityDiagnostics(
@@ -120,7 +120,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
   {
     int num_failing = 0;
 
-    M1_FLOOP3(k, j, i)
+    M1_NS_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
       Real rho, T, Y_e;
@@ -164,7 +164,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
         ced_fallback.push_back(cmp_eql_dens_ini::zero);
       }
 
-      M1_FLOOP3(k, j, i)
+      M1_NS_FLOOP3(k, j, i)
       if (calc_state(k, j, i) == cstate::failed)
       {
         if (num_failing == 0)
@@ -202,7 +202,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     // NN average fallback for remaining failures ---------------------------
     if (num_failing > 0)
     {
-      M1_FLOOP3(k, j, i)
+      M1_NS_FLOOP3(k, j, i)
       if (calc_state(k, j, i) == cstate::failed)
       {
         if (num_failing == 0)
@@ -286,7 +286,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     data.push_back(&pm1->eql.sc_J);
 
     for (int p = 0; p < opu.opt.fix_num_passes; ++p)
-      M1_FLOOP3(k, j, i)
+      M1_NS_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
       opu.ApplyValueFixes(data, calc_state, k, j, i);
@@ -337,7 +337,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     data.push_back(&rm.sc_eta_0);
 
     for (int p = 0; p < opu.opt.fix_num_passes; ++p)
-      M1_FLOOP3(k, j, i)
+      M1_NS_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
       opu.ApplyValueFixes(data, calc_state, k, j, i);

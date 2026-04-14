@@ -187,7 +187,7 @@ Real GlobalMaxConservedDensity(Mesh* pm)
   while (pmb != nullptr)
   {
     Hydro* ph = pmb->phydro;
-    CC_ILOOP3(k, j, i)
+    CC_NS_ILOOP3(k, j, i)
     {
       local_max = std::max(local_max, ph->u(IDN, k, j, i));
     }
@@ -211,7 +211,7 @@ Real GlobalMaxPrimitiveDensity(Mesh* pm)
   while (pmb != nullptr)
   {
     Hydro* ph = pmb->phydro;
-    CC_ILOOP3(k, j, i)
+    CC_NS_ILOOP3(k, j, i)
     {
       local_max = std::max(local_max, ph->w(IDN, k, j, i));
     }
@@ -391,7 +391,7 @@ void MeshBlock::UserWorkBeforeOutput(ParameterInput* pin)
     {
       // accumulate on all physical cells
       Real M_loc = 0;
-      CC_ILOOP3(k, j, i)
+      CC_NS_ILOOP3(k, j, i)
       {
         const Real vol = pco->GetCellVolume(k, j, i);
         M_loc += ph->u(IDN, k, j, i) * vol;
@@ -851,7 +851,7 @@ void Mesh::UserWorkBeforeLoop(ParameterInput* pin)
       {
         Hydro* ph = pmb->phydro;
 
-        CC_ILOOP3(k, j, i)
+        CC_NS_ILOOP3(k, j, i)
         {
           Real rho_cell = ph->w(IDN, k, j, i) * UDENS;
           rho_max       = std::max(rho_max, rho_cell);
@@ -880,7 +880,7 @@ void Mesh::UserWorkBeforeLoop(ParameterInput* pin)
       {
         Hydro* ph = pmb->phydro;
 
-        CC_ILOOP3(k, j, i)
+        CC_NS_ILOOP3(k, j, i)
         {
           Real rho_cur = ph->w(IDN, k, j, i) * UDENS;
           Real spb_cur = ph->derived_ms(IX_SPB, k, j, i);
@@ -1412,7 +1412,7 @@ Real MassPerMeshBlock(MeshBlock* pmb, int iout)
 
   // accumulate on all physical cells
   Real M_loc = 0;
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real vol = pco->GetCellVolume(k, j, i);
     M_loc += ph->u(IDN, k, j, i) * vol;
@@ -1427,7 +1427,7 @@ Real MaxMassInCell(MeshBlock* pmb, int iout)
 
   Real max_mass = -std::numeric_limits<Real>::infinity();
 
-  CC_GLOOP3(k, j, i)
+  CC_NS_GLOOP3(k, j, i)
   {
     const Real cell_vol  = pco->GetCellVolume(k, j, i);
     const Real cell_mass = ph->u(IDN, k, j, i) * cell_vol;

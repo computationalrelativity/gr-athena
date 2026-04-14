@@ -100,7 +100,6 @@ void MeshBlock::WaveUserWorkInLoop()
   {
     for (int j = jl; j <= ju; ++j)
     {
-#pragma omp simd
       for (int i = il; i <= iu; ++i)
       {
         Real x = pwave->mbi.x1(i);

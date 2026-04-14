@@ -107,6 +107,20 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, M, 3, P> ATP_M_VS2;
   CC_GLOOP2(k, j)          \
   CC_GLOOP1(i)
 
+// No-SIMD (NS) variants - use when the loop body contains scalar reductions
+// or other patterns incompatible with #pragma omp simd.
+#define CC_NS_ILOOP1(i) for (int i = pmb->is; i <= pmb->ie; ++i)
+
+#define CC_NS_ILOOP3(k, j, i) \
+  CC_ILOOP2(k, j)             \
+  CC_NS_ILOOP1(i)
+
+#define CC_NS_GLOOP1(i) for (int i = 0; i < pmb->ncells1; ++i)
+
+#define CC_NS_GLOOP3(k, j, i) \
+  CC_GLOOP2(k, j)             \
+  CC_NS_GLOOP1(i)
+
 #endif  // ATHENA_ALIASES_HPP
 
 //

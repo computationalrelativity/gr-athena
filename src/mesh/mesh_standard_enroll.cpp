@@ -55,7 +55,7 @@ int windowed_npts(MeshBlock* pmb,
 {
   int n_pts = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     if ((win_min <= window(IWN, k, j, i)) && win_max >= window(IWN, k, j, i))
     {
@@ -76,7 +76,7 @@ Real windowed_int(MeshBlock* pmb,
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     if ((win_min <= window(IWN, k, j, i)) && win_max >= window(IWN, k, j, i))
     {
@@ -99,7 +99,7 @@ Real weighted_avg(MeshBlock* pmb,
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -123,7 +123,7 @@ Real windowed_weighted_avg(MeshBlock* pmb,
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     if ((win_min <= window(IWN, k, j, i)) && win_max >= window(IWN, k, j, i))
     {
@@ -167,7 +167,7 @@ Real max_T(MeshBlock* pmb, int iout)
   AA temperature;
   temperature.InitWithShallowSlice(pmb->phydro->derived_ms, IX_T, 1);
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_T = std::max(max_T, temperature(k, j, i));
   }
@@ -200,7 +200,7 @@ Real E_int(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -218,7 +218,7 @@ Real Etau_int(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -241,7 +241,7 @@ Real Etau_kin(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -429,7 +429,7 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
 
     AT_N_sca alpha(pmb->pz4c->storage.adm, Z4c::I_ADM_alpha);
 
-    CC_ILOOP3(k, j, i)
+    CC_NS_ILOOP3(k, j, i)
     {
       const Real sqrt_det_gamma__ =
         (pmb->pz4c->aux_extended.ms_sqrt_detgamma(k, j, i));
@@ -580,7 +580,7 @@ Real max_B2(MeshBlock* pmb, int iout)
   int js = pmb->js, je = pmb->je;
   int ks = pmb->ks, ke = pmb->ke;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_B2_ = std::max(std::abs(pf->derived_ms(IX_B2, k, j, i)), max_B2_);
   }
@@ -592,7 +592,7 @@ Real E_B(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -613,7 +613,7 @@ Real Etau_B(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -648,7 +648,7 @@ Real bphisq(MeshBlock* pmb, int iout)
 
   Field* pf  = pmb->pfield;
   Real sum_Q = 0;
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
@@ -701,7 +701,7 @@ Real max_b2(MeshBlock* pmb, int iout)
   int js = pmb->js, je = pmb->je;
   int ks = pmb->ks, ke = pmb->ke;
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_b2_ = std::max(std::abs(pf->derived_ms(IX_b2, k, j, i)), max_b2_);
   }
@@ -903,7 +903,7 @@ namespace
 Real min_sc_nG(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real min_sc_nG_ = std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     min_sc_nG_ =
       std::min(min_sc_nG_, pmb->pm1->lab.sc_nG(ix_g, ix_s)(k, j, i));
@@ -914,7 +914,7 @@ Real min_sc_nG(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real max_sc_nG(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real max_sc_nG_ = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_sc_nG_ =
       std::max(max_sc_nG_, pmb->pm1->lab.sc_nG(ix_g, ix_s)(k, j, i));
@@ -925,7 +925,7 @@ Real max_sc_nG(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real min_sc_E(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real min_sc_E_ = std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     min_sc_E_ = std::min(min_sc_E_, pmb->pm1->lab.sc_E(ix_g, ix_s)(k, j, i));
   }
@@ -935,7 +935,7 @@ Real min_sc_E(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real max_sc_E(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real max_sc_E_ = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_sc_E_ = std::max(max_sc_E_, pmb->pm1->lab.sc_E(ix_g, ix_s)(k, j, i));
   }
@@ -945,7 +945,7 @@ Real max_sc_E(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real min_sc_J(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real min_sc_J_ = std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     min_sc_J_ = std::min(min_sc_J_, pmb->pm1->rad.sc_J(ix_g, ix_s)(k, j, i));
   }
@@ -955,7 +955,7 @@ Real min_sc_J(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real max_sc_J(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real max_sc_J_ = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_sc_J_ = std::max(max_sc_J_, pmb->pm1->rad.sc_J(ix_g, ix_s)(k, j, i));
   }
@@ -965,7 +965,7 @@ Real max_sc_J(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real min_sc_n(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real min_sc_n_ = std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     min_sc_n_ = std::min(min_sc_n_, pmb->pm1->rad.sc_n(ix_g, ix_s)(k, j, i));
   }
@@ -975,7 +975,7 @@ Real min_sc_n(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 Real max_sc_n(const int ix_g, const int ix_s, MeshBlock* pmb, int iout)
 {
   Real max_sc_n_ = -std::numeric_limits<Real>::infinity();
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     max_sc_n_ = std::max(max_sc_n_, pmb->pm1->rad.sc_n(ix_g, ix_s)(k, j, i));
   }
@@ -1026,7 +1026,7 @@ Real src_Y_e(const int ix_g, MeshBlock* pmb, int iout)
   Real sum_Q        = 0;
   const Real mb_raw = pmb->peos->GetEOS().GetRawBaryonMass();
 
-  CC_ILOOP3(k, j, i)
+  CC_NS_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
     const Real dx2 = pmb->pcoord->dx2v(j);
