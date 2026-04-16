@@ -58,13 +58,15 @@ inline void HydroEigenvalues(Real cs_sq,
                              Real* plambda_plus,
                              Real* plambda_minus)
 {
-  const Real cs_sqrt_term =
-    std::sqrt(cs_sq * (1 - v2) *
-              (gammaii * (1.0 - v2 * cs_sq) - vi * vi * (1.0 - cs_sq)));
-  const Real oo_denom = 1.0 / (1.0 - v2 * cs_sq);
-  const Real vi_term  = vi * (1.0 - cs_sq);
-  Real root_1         = alpha * (vi_term + cs_sqrt_term) * oo_denom - betai;
-  Real root_2         = alpha * (vi_term - cs_sqrt_term) * oo_denom - betai;
+  // Clamp to zero to avoid NaN from std::sqrt
+  const Real discriminant =
+    cs_sq * (1 - v2) *
+    (gammaii * (1.0 - v2 * cs_sq) - vi * vi * (1.0 - cs_sq));
+  const Real cs_sqrt_term = std::sqrt(std::max(discriminant, 0.0));
+  const Real oo_denom     = 1.0 / (1.0 - v2 * cs_sq);
+  const Real vi_term      = vi * (1.0 - cs_sq);
+  Real root_1 = alpha * (vi_term + cs_sqrt_term) * oo_denom - betai;
+  Real root_2 = alpha * (vi_term - cs_sqrt_term) * oo_denom - betai;
 
   if (!std::isfinite(root_1 + root_2))
   {
