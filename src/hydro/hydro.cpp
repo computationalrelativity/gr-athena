@@ -89,6 +89,10 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
     }
   }
 
+  // HLLE safety tolerances (fallback to LLF when lam_r - lam_l is too small)
+  hlle_eps_abs = pin->GetOrAddReal("hydro", "hlle_eps_abs", 1.0e-12);
+  hlle_eps_rel = pin->GetOrAddReal("hydro", "hlle_eps_rel", 1.0e-6);
+
   opt_excision.alpha_threshold =
     pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
   opt_excision.horizon_based =
@@ -260,7 +264,6 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
 
   lam_l_.NewAthenaTensor(nn1);
   lam_r_.NewAthenaTensor(nn1);
-  oo_dlam_.NewAthenaTensor(nn1);
 
   w_util_d_l_.NewAthenaTensor(nn1);
   w_util_d_r_.NewAthenaTensor(nn1);

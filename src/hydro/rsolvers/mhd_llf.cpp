@@ -551,12 +551,14 @@ void Hydro::RiemannSolver(const int ivx,
   // hydro --------------------------------------------------------------------
   if (use_hlle)
   {
+    const Real eps_abs = hlle_eps_abs;
+    const Real eps_rel = hlle_eps_rel;
+
 #pragma omp simd
     for (int i = il; i <= iu; ++i)
     {
-      lam_l_(i)   = std::min(lambda_m_l(i), lambda_m_r(i));
-      lam_r_(i)   = std::max(lambda_p_l(i), lambda_p_r(i));
-      oo_dlam_(i) = 1.0 / (lam_r_(i) - lam_l_(i));
+      lam_l_(i) = std::min(lambda_m_l(i), lambda_m_r(i));
+      lam_r_(i) = std::max(lambda_p_l(i), lambda_p_r(i));
     }
 
     for (int n = 0; n < NHYDRO; ++n)
@@ -567,7 +569,19 @@ void Hydro::RiemannSolver(const int ivx,
         const Real flx_l__ = flux_l_(n, i);
         const Real flx_r__ = flux_r_(n, i);
 
-        if (lam_l_(i) >= 0.0)
+        const Real dlam = lam_r_(i) - lam_l_(i);
+        const Real speed_scale =
+          std::max({ std::abs(lam_l_(i)), std::abs(lam_r_(i)), 1.0 });
+        const Real dlam_tol = eps_abs + eps_rel * speed_scale;
+
+        if (dlam <= dlam_tol)
+        {
+          // LLF fallback: denominator too small for safe HLLE
+          flux(n, k, j, i) =
+            0.5 * ((flx_l__ + flx_r__) -
+                   lambda(i) * (cons_r_(n, i) - cons_l_(n, i)));
+        }
+        else if (lam_l_(i) >= 0.0)
         {
           flux(n, k, j, i) = flx_l__;
         }
@@ -577,18 +591,11 @@ void Hydro::RiemannSolver(const int ivx,
         }
         else
         {
+          const Real oo_dlam = 1.0 / dlam;
           flux(n, k, j, i) =
             ((lam_r_(i) * flx_l__ - lam_l_(i) * flx_r__) +
              lam_l_(i) * lam_r_(i) * (cons_r_(n, i) - cons_l_(n, i))) *
-            oo_dlam_(i);
-        }
-
-        // probably better with a floor
-        if (!std::isfinite(flux(n, k, j, i)))
-        {
-          flux(n, k, j, i) =
-            0.5 * ((flux_l_(n, i) + flux_r_(n, i)) -
-                   lambda(i) * (cons_r_(n, i) - cons_l_(n, i)));
+            oo_dlam;
         }
       }
     }
@@ -615,9 +622,21 @@ void Hydro::RiemannSolver(const int ivx,
       const int N_BCPT = 2;
       Real flx__[N_BCPT];
 
+      const Real dlam = lam_r_(i) - lam_l_(i);
+      const Real speed_scale =
+        std::max({ std::abs(lam_l_(i)), std::abs(lam_r_(i)), 1.0 });
+      const Real dlam_tol = hlle_eps_abs + hlle_eps_rel * speed_scale;
+
       for (int I = 0; I < N_BCPT; ++I)
       {
-        if (lam_l_(i) >= 0.0)
+        if (dlam <= dlam_tol)
+        {
+          // LLF fallback: denominator too small for safe HLLE
+          flx__[I] =
+            0.5 * ((flux_l_(IBY + I, i) + flux_r_(IBY + I, i)) -
+                   lambda(i) * (cons_r_(IBY + I, i) - cons_l_(IBY + I, i)));
+        }
+        else if (lam_l_(i) >= 0.0)
         {
           flx__[I] = flux_l_(IBY + I, i);
         }
@@ -627,19 +646,12 @@ void Hydro::RiemannSolver(const int ivx,
         }
         else
         {
-          flx__[I] = ((lam_r_(i) * flux_l_(IBY + I, i) -
+          const Real oo_dlam = 1.0 / dlam;
+          flx__[I]           = ((lam_r_(i) * flux_l_(IBY + I, i) -
                        lam_l_(i) * flux_r_(IBY + I, i)) +
                       lam_l_(i) * lam_r_(i) *
                         (cons_r_(IBY + I, i) - cons_l_(IBY + I, i))) *
-                     oo_dlam_(i);
-        }
-
-        // LLF fallback - probably better with a floor
-        if (!std::isfinite(flx__[I]))
-        {
-          flx__[I] =
-            0.5 * ((flux_l_(IBY + I, i) + flux_r_(IBY + I, i)) -
-                   lambda(i) * (cons_r_(IBY + I, i) - cons_l_(IBY + I, i)));
+                     oo_dlam;
         }
       }
 
@@ -679,7 +691,20 @@ void Hydro::RiemannSolver(const int ivx,
           const Real flx_l__ = flux_l_(IDN, i) * pscalars_l_(n, i);
           const Real flx_r__ = flux_r_(IDN, i) * pscalars_r_(n, i);
 
-          if (lam_l_(i) >= 0.0)
+          const Real dlam = lam_r_(i) - lam_l_(i);
+          const Real speed_scale =
+            std::max({ std::abs(lam_l_(i)), std::abs(lam_r_(i)), 1.0 });
+          const Real dlam_tol = hlle_eps_abs + hlle_eps_rel * speed_scale;
+
+          if (dlam <= dlam_tol)
+          {
+            // LLF fallback: denominator too small for safe HLLE
+            s_flux(n, k, j, i) =
+              0.5 * ((flx_l__ + flx_r__) -
+                     lambda(i) * (cons_r_(IDN, i) * pscalars_r_(n, i) -
+                                  cons_l_(IDN, i) * pscalars_l_(n, i)));
+          }
+          else if (lam_l_(i) >= 0.0)
           {
             s_flux(n, k, j, i) = flx_l__;
           }
@@ -689,20 +714,12 @@ void Hydro::RiemannSolver(const int ivx,
           }
           else
           {
+            const Real oo_dlam = 1.0 / dlam;
             s_flux(n, k, j, i) = ((lam_r_(i) * flx_l__ - lam_l_(i) * flx_r__) +
                                   lam_l_(i) * lam_r_(i) *
                                     (cons_r_(IDN, i) * pscalars_r_(n, i) -
                                      cons_l_(IDN, i) * pscalars_l_(n, i))) *
-                                 oo_dlam_(i);
-          }
-
-          if (!std::isfinite(s_flux(n, k, j, i)))
-          {
-            s_flux(n, k, j, i) =
-              0.5 * ((flux_l_(IDN, i) * pscalars_l_(n, i) +
-                      flux_r_(IDN, i) * pscalars_r_(n, i)) -
-                     lambda(i) * (cons_r_(IDN, i) * pscalars_r_(n, i) -
-                                  cons_l_(IDN, i) * pscalars_l_(n, i)));
+                                 oo_dlam;
           }
         }
       }

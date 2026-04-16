@@ -70,6 +70,13 @@ class Hydro
   // Riemann solver method (runtime selection)
   RSolverMethod rsolver_method_;
 
+  Real hlle_eps_abs{
+    1.0e-12
+  };  // absolute tolerance for HLLE denominator guard
+  Real hlle_eps_rel{
+    1.0e-6
+  };  // relative tolerance for HLLE denominator guard
+
   bool flux_reconstruction = false;
 
   struct
@@ -177,7 +184,6 @@ class Hydro
 
   AT_C_sca lam_l_;
   AT_C_sca lam_r_;
-  AT_C_sca oo_dlam_;
 
   // primitive vel. (covar.)
   AT_N_vec w_util_d_l_;
