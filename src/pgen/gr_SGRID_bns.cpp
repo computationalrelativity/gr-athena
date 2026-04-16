@@ -614,10 +614,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
       const Real vsq = (
         2.0*(v_u_x * v_u_y * IDvars[idvar_gxy]  +
              v_u_x * v_u_z * IDvars[idvar_gxz]  +
-             v_u_y * v_u_z * IDvars[idvar_gyz]  +
+             v_u_y * v_u_z * IDvars[idvar_gyz])  +
         v_u_x * v_u_x * IDvars[idvar_gxx]  +
         v_u_y * v_u_y * IDvars[idvar_gyy]  +
-        v_u_z * v_u_z * IDvars[idvar_gzz])
+        v_u_z * v_u_z * IDvars[idvar_gzz]
       );
 
       const Real W = 1.0 / std::sqrt(1.0 - vsq);
