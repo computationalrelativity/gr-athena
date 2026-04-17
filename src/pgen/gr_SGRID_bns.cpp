@@ -562,7 +562,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           // Primitives
           Real rho   = 0.0;
           Real pre   = 0.0;
-          Real eps   = 0.0;
+          Real ene   = 0.0;
           Real v_u_x = 0.0, v_u_y = 0.0, v_u_z = 0.0;
 
           // if we are in matter region, convert q, VR to rho, press, eps, v^i
@@ -570,8 +570,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           if (IDvars[idvar_q] > 0.0)
           {
             SGRID_EoS_T0_rho0_P_rhoE_from_hm1(
-              IDvars[idvar_q], &rho, &pre, &eps);
-            eps = SGRID_epsl_of_rho0_rhoE(rho, eps);
+              IDvars[idvar_q], &rho, &pre, &ene);
 
             // 3-velocity  v^i
             Real xmax = (xb > 0) ? xmax1 : xmax2;
@@ -592,6 +591,10 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
             v_u_x = (vIx + IDvars[idvar_Bx]) / IDvars[idvar_alpha];
             v_u_y = (vIy + IDvars[idvar_By]) / IDvars[idvar_alpha];
             v_u_z = (vIz + IDvars[idvar_Bz]) / IDvars[idvar_alpha];
+
+            // recover rest mass density from energy density to avoid
+            // inconsistencies in the baryon mass
+            rho = ceos->GetDensityFromEnergy(ene);
           }
 
           // Lorentz factor
@@ -603,10 +606,6 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
                             v_u_z * v_u_z * IDvars[idvar_gzz]);
 
           const Real W = 1.0 / std::sqrt(1.0 - vsq);
-
-          // Recover rest mass density from energy density to avoid
-          // inconsistencies in the baryon mass
-          rho = ceos->GetDensityFromEnergy(rho * (1.0 + eps));
 
           // Fill primitive storage
           w(IDN, k, j, i) = rho;
