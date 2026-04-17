@@ -1750,7 +1750,16 @@ else:
 if args["sgrid"]:
   definitions["SGRID_OPTION"] = "SGRID"
 
-  makefile_options["LIBRARY_FLAGS"] += " -lsgrid -llapack -lblas"
+  makefile_options["LIBRARY_FLAGS"] += " -lsgrid"
+
+  if args["mkl"]:
+    makefile_options["LIBRARY_FLAGS"] += (
+      " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
+    )
+  elif args["openblas"]:
+    makefile_options["LIBRARY_FLAGS"] += " -lopenblas"
+  else:
+    makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
 
   # this can be specified as sgrid_path _or_ directly
   if args["sgrid_path"] != "":
