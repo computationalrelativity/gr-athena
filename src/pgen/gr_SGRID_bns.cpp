@@ -283,17 +283,17 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
 
   Real rho_1 = 0.0;
   Real pre_1 = 0.0;
-  Real eps_1 = 0.0;
+  Real ene_1 = 0.0;
   SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz1, IDvars, 0);
-  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_1, &pre_1, &eps_1);
-  eps_1 = SGRID_epsl_of_rho0_rhoE(rho_1, eps_1);
+  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_1, &pre_1, &ene_1);
+  Real eps_1 = SGRID_epsl_of_rho0_rhoE(rho_1, ene_1);
 
   Real rho_2 = 0.0;
   Real pre_2 = 0.0;
-  Real eps_2 = 0.0;
+  Real ene_2 = 0.0;
   SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz2, IDvars, 0);
-  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_2, &pre_2, &eps_2);
-  eps_2 = SGRID_epsl_of_rho0_rhoE(rho_1, eps_1);
+  SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_2, &pre_2, &ene_2);
+  Real eps_2 = SGRID_epsl_of_rho0_rhoE(rho_2, ene_2);
 
   // for tabulated EOS need to convert baryon mass
   // #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
@@ -592,9 +592,9 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
             v_u_y = (vIy + IDvars[idvar_By]) / IDvars[idvar_alpha];
             v_u_z = (vIz + IDvars[idvar_Bz]) / IDvars[idvar_alpha];
 
-            // recover rest mass density from energy density to avoid
+            // recover rest mass density from pressure to avoid
             // inconsistencies in the baryon mass
-            rho = ceos->GetDensityFromEnergy(ene);
+            rho = ceos->GetDensityFromPressure(pre);
           }
 
           // Lorentz factor
@@ -612,7 +612,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           w(IVX, k, j, i) = W * v_u_x;
           w(IVY, k, j, i) = W * v_u_y;
           w(IVZ, k, j, i) = W * v_u_z;
-          w(IPR, k, j, i) = 0.0;
+          w(IPR, k, j, i) = pre;
         }
 
   }  // OMP Critical
@@ -653,7 +653,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           // This controls velocity reset & Y interpolation (if applicable)
           if (w(IDN, k, j, i) > rho_cut)
           {
-            w(IPR, k, j, i) = ceos->GetPressure(w(IDN, k, j, i));
+        // w(IPR, k, j, i) = ceos->GetPressure(w(IDN, k, j, i));
 
 #if NSCALARS > 0
             for (int iy = 0; iy < NSCALARS; ++iy)
