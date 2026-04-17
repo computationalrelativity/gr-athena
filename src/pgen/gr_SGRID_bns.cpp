@@ -389,7 +389,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 #endif
 
   // Initialize the data reader
-  bool initialized_sgrid = false;
+  // static: must persist across per-MeshBlock calls to guard one-time init
+  static bool initialized_sgrid = false;
 #pragma omp critical
   {
     if (!initialized_sgrid)
