@@ -286,12 +286,14 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   Real eps_1 = 0.0;
   SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz1, IDvars, 0);
   SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_1, &pre_1, &eps_1);
+  eps_1 = SGRID_epsl_of_rho0_rhoE(rho_1, eps_1);
 
   Real rho_2 = 0.0;
   Real pre_2 = 0.0;
   Real eps_2 = 0.0;
   SGRID_DNSdata_Interpolate_ADMvars_to_xyz(xyz2, IDvars, 0);
   SGRID_EoS_T0_rho0_P_rhoE_from_hm1(IDvars[idvar_q], &rho_2, &pre_2, &eps_2);
+  eps_2 = SGRID_epsl_of_rho0_rhoE(rho_1, eps_1);
 
   // for tabulated EOS need to convert baryon mass
   // #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
@@ -569,6 +571,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           {
             SGRID_EoS_T0_rho0_P_rhoE_from_hm1(
               IDvars[idvar_q], &rho, &pre, &eps);
+            eps = SGRID_epsl_of_rho0_rhoE(rho, eps);
 
             // 3-velocity  v^i
             Real xmax = (xb > 0) ? xmax1 : xmax2;
