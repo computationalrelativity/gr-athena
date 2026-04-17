@@ -921,6 +921,8 @@ void DNS_init_sgrid(ParameterInput* pin)
     if (verbose)
       std::printf("DNS_call_sgrid returned: %d\n", ret);
   }
+
+  free(sgrid_datadir);
 }
 
 //----------------------------------------------------------------------------------------
@@ -954,7 +956,6 @@ int DNS_call_sgrid(const char* command)
 
   free(argv);  // free since construct_argv allocates argv
   free(com);
-  free(sgrid_datadir);
 
   return status;
 }
