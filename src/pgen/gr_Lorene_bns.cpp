@@ -575,6 +575,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   Real w_rho_atm = pin->GetReal("hydro", "dfloor");
   Real rho_cut =
     std::max(pin->GetOrAddReal("problem", "rho_cut", w_rho_atm), w_rho_atm);
+  bool density_from_energy =
+    pin->GetOrAddBoolean("problem", "density_from_energy", false);
 
 // --------------------------------------------------------------------------
 #pragma omp critical
@@ -772,18 +774,31 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
       for (int j = jl; j <= ju; ++j)
         for (int i = il; i <= iu; ++i)
         {
-          // Recover rest mass density from energy density to avoid
-          // inconsistencies in the baryon mass between Lorene and the EOS
-          // table
-          if (bns->nbar[I] / rho_unit > rho_cut)
+          // Recover rest mass density; use energy-based inversion if
+          // density_from_energy is set, otherwise use nbar-based conversion.
+          if (density_from_energy)
           {
-            Real egas =
-              bns->nbar[I] * (1.0 + bns->ener_spec[I] / ener_unit) / rho_unit;
-            w_rho = ceos->GetDensityFromEnergy(egas);
+            if (bns->nbar[I] / rho_unit > rho_cut)
+            {
+              Real egas = bns->nbar[I] *
+                          (1.0 + bns->ener_spec[I] / ener_unit) / rho_unit;
+              w_rho = ceos->GetDensityFromEnergy(egas);
+            }
+            else
+            {
+              w_rho = 0.0;
+            }
           }
           else
           {
-            w_rho = 0.0;
+#if defined(USE_COMPOSE_EOS) || defined(USE_TABULATED_EOS)
+            // Lorene is using the atomic mass unit as reference mass so the
+            // density has to be converted
+            Real nb = bns->nbar[I] / m_u_si * 1e-45;  // kg/m^3 -> fm^-3
+            w_rho   = nb * ceos->GetBaryonMass();     // fm^-3 -> code units
+#else
+            w_rho = bns->nbar[I] / rho_unit;
+#endif
           }
 
           // Unused, retain for reference:
