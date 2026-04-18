@@ -195,9 +195,9 @@ Real HybridTable::FrYp(Real n, Real s, Real* Y)
   throw std::logic_error("HybridTable::FrYp not currently implemented.");
 }
 
-Real HybridTable::FrYh(Real n, Real s, Real* Y)
+Real HybridTable::FrXh(Real n, Real s, Real* Y)
 {
-  throw std::logic_error("HybridTable::FrYh not currently implemented.");
+  throw std::logic_error("HybridTable::FrXh not currently implemented.");
 }
 
 Real HybridTable::AN(Real n, Real s, Real* Y)

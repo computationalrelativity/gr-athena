@@ -172,18 +172,15 @@ class EoSWrapper
   // Nucleon interaction potential difference
   // -----------------------------------------------------------------------
 
-  // Nucleon interaction potential difference from the EOS (EOS-units interface).
-  // in:    nb_eos  [eos_units number density]
+  // Nucleon interaction potential difference from the EOS (EOS-units
+  // interface). in:    nb_eos  [eos_units number density]
   //        T       [MeV]
   //        Ye      [-]
   // out:   dU      [MeV]
-  void InteractionPotentialDifference(Real nb_eos,
-                              Real T,
-                              Real Ye,
-                              Real& dU)
+  void InteractionPotentialDifference(Real nb_eos, Real T, Real Ye, Real& dU)
   {
     Real Y[1] = { Ye };
-    dU = PS_EoS->GetInteractionPotentialDifference(nb_eos, T, Y);
+    dU        = PS_EoS->GetInteractionPotentialDifference(nb_eos, T, Y);
   }
 
   // Nucleon interaction potential difference in MeV from cgs+MeV inputs.
@@ -197,9 +194,9 @@ class EoSWrapper
   // InteractionPotentialDifference; applies TemperatureConversion
   // on output for unit-system clarity.
   void InteractionPotentialDifference_cgs(Real rho,
-                                  Real temp,
-                                  Real Ye,
-                                  Real& dU)
+                                          Real temp,
+                                          Real Ye,
+                                          Real& dU)
   {
     InteractionPotentialDifference(
       rho / atomic_mass * wr_units->NumberDensityConversion(*eos_units),
@@ -285,7 +282,7 @@ class EoSWrapper
 
       xp = PS_EoS->GetYp(nb, temp, Y);
       xn = PS_EoS->GetYn(nb, temp, Y);
-      xh = PS_EoS->GetYh(nb, temp, Y);
+      xh = PS_EoS->GetXh(nb, temp, Y);
 
       // The following suppresses coherent neutrinos nucleus scattering
       // i.e. dodging a zero-division.

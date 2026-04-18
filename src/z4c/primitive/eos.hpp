@@ -88,7 +88,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
 
-  using EOSPolicy::FrYh;
+  using EOSPolicy::FrXh;
   using EOSPolicy::FrYn;
   using EOSPolicy::FrYp;
 
@@ -390,20 +390,26 @@ class EOS : public EOSPolicy, public ErrorPolicy
            eos_units->VelocityConversion(*code_units);
   }
 
-  // Extract fractions: N.B. check units etc if used outside of weak-rates
+  // Extract fractions: N.B. check units etc if used outside of weak-rates.
+  // Temperature T is converted from code units to EOS units before dispatch.
+
+  // Returns neutron number fraction Y_n = n_n / n_b.
   inline Real GetYn(Real n, Real T, Real* Y)
   {
     return FrYn(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
+  // Returns proton number fraction Y_p = n_p / n_b.
   inline Real GetYp(Real n, Real T, Real* Y)
   {
     return FrYp(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
-  inline Real GetYh(Real n, Real T, Real* Y)
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
+  inline Real GetXh(Real n, Real T, Real* Y)
   {
-    return FrYh(n, T * code_units->TemperatureConversion(*eos_units), Y);
+    return FrXh(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
   inline Real GetAN(Real n, Real T, Real* Y)

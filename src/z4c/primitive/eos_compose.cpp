@@ -529,10 +529,10 @@ Real EOSCompOSE::FrYp(Real n, Real T, Real* Y)
   return eval_at_nty(ECYP, n, T, Y[0]);
 }
 
-Real EOSCompOSE::FrYh(Real n, Real T, Real* Y)
+Real EOSCompOSE::FrXh(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  return eval_at_nty(ECYH, n, T, Y[0]);
+  return eval_at_nty(ECXH, n, T, Y[0]);
 }
 
 Real EOSCompOSE::AN(Real n, Real T, Real* Y)
@@ -573,6 +573,13 @@ Real EOSCompOSE::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
 Real EOSCompOSE::InteractionPotentialDifference(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
+  if (!m_has_dU)
+  {
+    std::cerr << "EOSCompOSE: dU dataset not present in loaded table; "
+                 "regenerate CompOSE HDF5 with dU populated."
+              << std::endl;
+    assert(false);
+  }
   return eval_at_nty(ECDU, n, T, Y[0]);
 }
 
@@ -834,13 +841,16 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         copy(&scratch[0],
              &scratch[m_nn * m_ny * m_nt],
              &m_table[index(ECDU, 0, 0, 0)]);
+        m_has_dU = true;
       }
       else
       {
-        // Dataset "dU" not found: fill table with zeros
+        // dU dataset absent. Zero-fill as defensive padding; any call into
+        // InteractionPotentialDifference will assert via the m_has_dU guard.
         fill(&m_table[index(ECDU, 0, 0, 0)],
              &m_table[index(ECDU, 0, 0, 0)] + m_nn * m_ny * m_nt,
              0.0);
+        m_has_dU = false;
       }
 
       // The following requires Abar?:
@@ -855,7 +865,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
             const Real YN = scratch[index(0, in, iy, it)];
             const Real AN = m_table[index(ECAN, in, iy, it)];
 
-            m_table[index(ECYH, in, iy, it)] = AN * YN;
+            // X_h = A_N * Y_N (heavy-nucleus mass fraction)
+            m_table[index(ECXH, in, iy, it)] = AN * YN;
           }
         }
       }

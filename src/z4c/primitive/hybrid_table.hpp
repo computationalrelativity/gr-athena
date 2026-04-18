@@ -93,13 +93,16 @@ class HybridTable : public EOSPolicyInterface
   [[noreturn]]
   Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
-  /// Species fractions
+  // Returns neutron number fraction Y_n = n_n / n_b.
   [[noreturn]]
   Real FrYn(Real n, Real T, Real* Y);
+  // Returns proton number fraction Y_p = n_p / n_b.
   [[noreturn]]
   Real FrYp(Real n, Real T, Real* Y);
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
   [[noreturn]]
-  Real FrYh(Real n, Real T, Real* Y);
+  Real FrXh(Real n, Real T, Real* Y);
 
   /// Calculate the baryon chemical potential
   [[noreturn]]
@@ -112,14 +115,6 @@ class HybridTable : public EOSPolicyInterface
   /// Calculate the electron-lepton chemical potential
   [[noreturn]]
   Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
-
-  /// Species fractions
-  [[noreturn]]
-  Real FrYn(Real n, Real T, Real* Y);
-  [[noreturn]]
-  Real FrYp(Real n, Real T, Real* Y);
-  [[noreturn]]
-  Real FrYh(Real n, Real T, Real* Y);
 
   [[noreturn]]
   Real AN(Real n, Real T, Real* Y);

@@ -25,19 +25,19 @@ class EOSCompOSE : public EOSPolicyInterface
   public:
   enum TableVariables
   {
-    ECLOGP = 0,  //! log (pressure / 1 MeV fm^-3)
-    ECENT  = 1,  //! entropy per baryon [kb]
-    ECMUB  = 2,  //! baryon chemical potential [MeV]
-    ECMUQ  = 3,  //! charge chemical potential [MeV]
-    ECMUL  = 4,  //! lepton chemical potential [MeV]
-    ECLOGE = 5,  //! log (total energy density / 1 MeV fm^-3)
-    ECCS   = 6,  //! sound speed [c]
-    ECYN   = 7,  //! Y[n]
-    ECYP   = 8,  //! Y[p]
-    ECYH = 9,  //! (Y[N] read) what would be Y[h] (name schematic, we assemble)
-    ECAN = 10,  //! A[N]
-    ECZN = 11,  //! Z[N]
-    ECDU = 12,  //! effective nucleon potential difference dU [MeV]
+    ECLOGP  = 0,   //! log (pressure / 1 MeV fm^-3)
+    ECENT   = 1,   //! entropy per baryon [kb]
+    ECMUB   = 2,   //! baryon chemical potential [MeV]
+    ECMUQ   = 3,   //! charge chemical potential [MeV]
+    ECMUL   = 4,   //! lepton chemical potential [MeV]
+    ECLOGE  = 5,   //! log (total energy density / 1 MeV fm^-3)
+    ECCS    = 6,   //! sound speed [c]
+    ECYN    = 7,   //! Y[n]
+    ECYP    = 8,   //! Y[p]
+    ECXH    = 9,   //! X_h = A_N * Y[N], heavy-nucleus mass fraction
+    ECAN    = 10,  //! A[N]
+    ECZN    = 11,  //! Z[N]
+    ECDU    = 12,  //! effective nucleon potential difference dU [MeV]
     ECNVARS = 13
   };
 
@@ -92,10 +92,13 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Calculate the sound speed.
   Real SoundSpeed(Real n, Real T, Real* Y);
 
-  /// Species fractions
+  // Returns neutron number fraction Y_n = n_n / n_b.
   Real FrYn(Real n, Real T, Real* Y);
+  // Returns proton number fraction Y_p = n_p / n_b.
   Real FrYp(Real n, Real T, Real* Y);
-  Real FrYh(Real n, Real T, Real* Y);
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
+  Real FrXh(Real n, Real T, Real* Y);
 
   Real AN(Real n, Real T, Real* Y);
   Real ZN(Real n, Real T, Real* Y);
@@ -290,6 +293,10 @@ class EOSCompOSE : public EOSPolicyInterface
   // bool to protect against access of uninitialised table, and prevent
   // repeated reading of table
   static bool m_initialized;
+
+  // Whether the optional dU dataset was present in the loaded HDF5 table.
+  // When false, InteractionPotentialDifference asserts on call.
+  bool m_has_dU = false;
 
   // Auxiliary static variables to share data only available when table is open
   // to those threads that do not open it variables from EOSCompOSE
