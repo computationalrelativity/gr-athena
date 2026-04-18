@@ -147,13 +147,31 @@ Real ColdPiecewisePolytrope::DensityFromEnergy(Real e)
                                           GetColdPressure(n, p) /
                                           (n * (gamma_pieces[p] - 1.0));
   };
-  Real flb       = f(lb);
-  Real fub       = f(ub);
-  Real x         = (fub * lb - flb * ub) / (fub - flb);
-  Real fx        = f(x);
-  const Real tol = 1e-15;
-  while (abs(fx) > e * tol)
+  Real flb = f(lb);
+  Real fub = f(ub);
+  Real x   = (fub * lb - flb * ub) / (fub - flb);
+  Real fx  = f(x);
+
+  // Absolute |f| convergence bound
+  const Real ftol =
+    density_from_energy_tol * (std::abs(e) + density_from_energy_tol);
+
+  int iter = 0;
+  while (std::abs(fx) > ftol)
   {
+    if (++iter > density_from_energy_max_iter)
+    {
+      std::printf(
+        "ColdPiecewisePolytrope::DensityFromEnergy: did not converge "
+        "within max_iter=%d iterations (e=%.17g, x=%.17g, |fx|=%.17g, "
+        "ftol=%.17g); propagating current best.\n",
+        density_from_energy_max_iter,
+        e,
+        x,
+        std::abs(fx),
+        ftol);
+      break;
+    }
     Real xnew = x - fx / df(x);
     // If the guess is no good, throw it away and use bisection instead.
     if (xnew > ub || xnew < lb)

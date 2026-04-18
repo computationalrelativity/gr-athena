@@ -15,6 +15,11 @@ namespace Primitive
 
 class ColdPiecewisePolytrope : public PiecewisePolytrope
 {
+  public:
+  /// DensityFromEnergy Newton+bisection solver parameters.
+  static constexpr Real density_from_energy_tol     = 1e-15;
+  static constexpr int density_from_energy_max_iter = 100;
+
   protected:
   /// Constructor
   ColdPiecewisePolytrope();
