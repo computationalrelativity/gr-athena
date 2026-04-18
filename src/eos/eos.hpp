@@ -279,6 +279,24 @@ class EquationOfState
                              const int iu,
                              bool exclude_first_extrema);
 
+  // Smooth derived_ms(IX_T,:) by nearest-neighbour averaging and refresh
+  // derived enthalpy / cs2 / entropy-per-baryon as appropriate.
+  // No-op when smooth_temperature is false.
+  // w1(0,:) is used as scratch and left in an unspecified state on return
+  // (callers should invoke RetainState(w1, w, ...) afterwards).
+  void SmoothTemperatureAndRecompute(AA& w,
+                                     AA& w1,
+                                     AA& derived_ms,
+                                     const AA& r,
+                                     int il,
+                                     int iu,
+                                     int jl,
+                                     int ju,
+                                     int kl,
+                                     int ku,
+                                     bool recompute_cs2,
+                                     bool recompute_entropy);
+
   Real NearestNeighborSmooth(const AA& src,
                              const int n,
                              const int k,

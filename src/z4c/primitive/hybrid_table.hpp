@@ -48,6 +48,10 @@ class HybridTable : public EOSPolicyInterface
   /// Calculate the temperature using.
   Real TemperatureFromP(Real n, Real p, Real* Y);
 
+  /// Calculate the temperature from entropy per baryon.
+  [[noreturn]]
+  Real TemperatureFromEntropy(Real n, Real s, Real* Y);
+
   /// Calculate the energy density using.
   Real Energy(Real n, Real T, Real* Y);
 
@@ -136,6 +140,14 @@ class HybridTable : public EOSPolicyInterface
 
   /// Get the maximum energy at a given density and composition
   Real MaximumEnergy(Real n, Real* Y);
+
+  /// Get the minimum entropy per baryon at a given density and composition
+  [[noreturn]]
+  Real MinimumEntropy(Real n, Real* Y);
+
+  /// Get the maximum entropy per baryon at a given density and composition
+  [[noreturn]]
+  Real MaximumEntropy(Real n, Real* Y);
 
   public:
   /// Reads the table file.

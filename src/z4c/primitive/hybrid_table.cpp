@@ -109,6 +109,24 @@ Real HybridTable::Entropy(Real n, Real T, Real* Y)
   throw std::logic_error("HybridTable::Entropy not currently implemented.");
 }
 
+Real HybridTable::TemperatureFromEntropy(Real n, Real s, Real* Y)
+{
+  throw std::logic_error(
+    "HybridTable::TemperatureFromEntropy not currently implemented.");
+}
+
+Real HybridTable::MinimumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "HybridTable::MinimumEntropy not currently implemented.");
+}
+
+Real HybridTable::MaximumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "HybridTable::MaximumEntropy not currently implemented.");
+}
+
 Real HybridTable::Enthalpy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);

@@ -980,41 +980,20 @@ TaskStatus M1N0::PrimitivesGhostsHyd(MeshBlock* pmb, int stage)
                              coarseflag,
                              skip_physical);
 
-  // Temperature smoothing (nn avg) if enabled.
-  if (peos->smooth_temperature)
+  if (pmb->peos->smooth_temperature)
   {
-    const bool exclude_first_extrema = true;
-
-    AA src;
-    AA tar;
-
-    src.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
-    tar.InitWithShallowSlice(ph->w1, 0, 1);
-
-    peos->NearestNeighborSmooth(
-      tar, src, il, iu, jl, ju, kl, ku, exclude_first_extrema);
-
-    CC_GLOOP3(k, j, i)
-    {
-      ph->derived_ms(IX_T, k, j, i) = tar(k, j, i);
-    }
-
-    // Recompute enthalpy if requested.
-    if (peos->recompute_enthalpy)
-      CC_GLOOP3(k, j, i)
-      {
-        Real Y[MAX_SPECIES] = { 0.0 };
-        for (int l = 0; l < NSCALARS; l++)
-        {
-          Y[l] = ps->r(l, k, j, i);
-        }
-
-        Real mb      = peos->GetEOS().GetBaryonMass();
-        const Real n = ph->w(IDN, k, j, i) / mb;
-
-        ph->derived_ms(IX_ETH, k, j, i) =
-          peos->GetEOS().GetEnthalpy(n, ph->derived_ms(IX_T, k, j, i), Y);
-      }
+    peos->SmoothTemperatureAndRecompute(ph->w,
+                                        ph->w1,
+                                        ph->derived_ms,
+                                        ps->r,
+                                        il,
+                                        iu,
+                                        jl,
+                                        ju,
+                                        kl,
+                                        ku,
+                                        pmb->precon->xorder_use_aux_cs2,
+                                        pmb->precon->xorder_use_aux_s);
   }
 
   // Update w1 to have the state of w

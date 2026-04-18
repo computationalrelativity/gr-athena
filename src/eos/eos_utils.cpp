@@ -631,6 +631,7 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
                       (pmb->ks <= k) && (k <= pmb->ke));
 
   const bool skip_cs2 = pmb->precon->xorder_use_aux_cs2;
+  const bool skip_spb = pmb->precon->xorder_use_aux_s;
 
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
@@ -678,7 +679,8 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
       (by * vWz + bz * vWy) * gyz;
 
     hyd_der_ms(IX_SPB, k, j, i) =
-      (T > 0) ? GetEOS().GetEntropyPerBaryon(n, T, Y) : 0;
+      skip_spb ? hyd_der_ms(IX_SPB, k, j, i)
+               : ((T > 0) ? GetEOS().GetEntropyPerBaryon(n, T, Y) : 0);
     hyd_der_ms(IX_SEN, k, j, i) =
       (T > 0) ? GetEOS().GetSpecificInternalEnergy(n, T, Y) : 0;
     hyd_der_ms(IX_HU_d_0, k, j, i) = h / h_inf * hyd_der_ms(IX_U_d_0, k, j, i);
@@ -882,6 +884,102 @@ void EquationOfState::NearestNeighborSmooth(AA& tar,
         tar(k, j, i) = avg_val;
       }
     }
+}
+
+// ----------------------------------------------------------------------------
+// Smooth derived_ms(IX_T,:) by nearest-neighbour averaging and refresh
+// derived enthalpy / cs2 / entropy-per-baryon as appropriate.
+// No-op when smooth_temperature is false.
+// w1(0,:) is used as scratch and left in an unspecified state on return
+// (callers should invoke RetainState(w1, w, ...) afterwards).
+void EquationOfState::SmoothTemperatureAndRecompute(AA& w,
+                                                    AA& w1,
+                                                    AA& derived_ms,
+                                                    const AA& r,
+                                                    int il,
+                                                    int iu,
+                                                    int jl,
+                                                    int ju,
+                                                    int kl,
+                                                    int ku,
+                                                    bool recompute_cs2,
+                                                    bool recompute_entropy)
+{
+  if (!smooth_temperature)
+    return;
+
+#if FLUID_ENABLED
+  MeshBlock* pmb                   = pmy_block_;
+  const bool exclude_first_extrema = true;
+
+  AA src;
+  AA tar;
+  src.InitWithShallowSlice(derived_ms, IX_T, 1);
+  tar.InitWithShallowSlice(w1, 0, 1);
+
+  NearestNeighborSmooth(
+    tar, src, il, iu, jl, ju, kl, ku, exclude_first_extrema);
+
+  CC_GLOOP3(k, j, i)
+  {
+    derived_ms(IX_T, k, j, i) = tar(k, j, i);
+  }
+
+  // Recompute enthalpy if requested
+  if (recompute_enthalpy)
+  {
+    const Real mb = GetEOS().GetBaryonMass();
+    CC_GLOOP3(k, j, i)
+    {
+      Real Y[MAX_SPECIES] = { 0.0 };
+      for (int l = 0; l < NSCALARS; l++)
+      {
+        Y[l] = r(l, k, j, i);
+      }
+      const Real n = w(IDN, k, j, i) / mb;
+      derived_ms(IX_ETH, k, j, i) =
+        GetEOS().GetEnthalpy(n, derived_ms(IX_T, k, j, i), Y);
+    }
+  }
+
+  // Recompute cs2 from smoothed T if auxiliary cs2 reconstruction is active
+  if (recompute_cs2)
+  {
+    const Real mb_cs2 = GetEOS().GetBaryonMass();
+    CC_GLOOP3(k, j, i)
+    {
+      Real Y[MAX_SPECIES] = { 0.0 };
+      for (int l = 0; l < NSCALARS; l++)
+      {
+        Y[l] = r(l, k, j, i);
+      }
+      const Real n = w(IDN, k, j, i) / mb_cs2;
+      const Real T = derived_ms(IX_T, k, j, i);
+      derived_ms(IX_CS2, k, j, i) =
+        (T > 0) ? std::min(SQR(GetEOS().GetSoundSpeed(n, T, Y)), max_cs2)
+                : 0.0;
+    }
+  }
+
+  // Recompute entropy/baryon from smoothed T if auxiliary entropy
+  // reconstruction is active
+  if (recompute_entropy)
+  {
+    const Real mb_s = GetEOS().GetBaryonMass();
+    CC_GLOOP3(k, j, i)
+    {
+      Real Y[MAX_SPECIES] = { 0.0 };
+      for (int l = 0; l < NSCALARS; l++)
+      {
+        Y[l] = r(l, k, j, i);
+      }
+      const Real n = w(IDN, k, j, i) / mb_s;
+      const Real T = derived_ms(IX_T, k, j, i);
+      derived_ms(IX_SPB, k, j, i) =
+        (T > 0) ? GetEOS().GetEntropyPerBaryon(n, T, Y) : 0.0;
+    }
+  }
+#endif  // FLUID_ENABLED
 }
 
 Real EquationOfState::NearestNeighborSmooth(const AA& src,

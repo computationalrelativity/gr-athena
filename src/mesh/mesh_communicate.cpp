@@ -189,14 +189,8 @@ void Mesh::FinalizeZ4cADM_Matter(const std::vector<MeshBlock*>& pmb_array)
     ps = pmb->pscalars;
     pz = pmb->pz4c;
 
-    // Try to smooth temperature with nn avg:
     if (pmb->peos->smooth_temperature)
     {
-      const bool exclude_first_extrema = true;
-
-      AA src;
-      AA tar;
-
       int il = 0;
       int iu = pmb->ncells1 - 1;
       int jl = 0;
@@ -204,57 +198,18 @@ void Mesh::FinalizeZ4cADM_Matter(const std::vector<MeshBlock*>& pmb_array)
       int kl = 0;
       int ku = pmb->ncells3 - 1;
 
-      src.InitWithShallowSlice(ph->derived_ms, IX_T, 1);
-      tar.InitWithShallowSlice(ph->w1, 0, 1);
-
-      pmb->peos->NearestNeighborSmooth(
-        tar, src, il, iu, jl, ju, kl, ku, exclude_first_extrema);
-
-      CC_GLOOP3(k, j, i)
-      {
-        ph->derived_ms(IX_T, k, j, i) = tar(k, j, i);
-      }
-
-      if (pmb->peos->recompute_enthalpy)
-      {
-        // Hoist loop-invariant EOS query out of the omp simd inner loop
-        const Real mb = pmb->peos->GetEOS().GetBaryonMass();
-
-        CC_GLOOP3(k, j, i)
-        {
-          Real Y[MAX_SPECIES] = { 0.0 };
-          for (int l = 0; l < NSCALARS; l++)
-          {
-            Y[l] = ps->r(l, k, j, i);
-          }
-
-          const Real n = ph->w(IDN, k, j, i) / mb;
-
-          ph->derived_ms(IX_ETH, k, j, i) = pmb->peos->GetEOS().GetEnthalpy(
-            n, ph->derived_ms(IX_T, k, j, i), Y);
-        }
-      }
-
-      // Recompute cs2 from smoothed T if auxiliary cs2 reconstruction is
-      // active
-      if (pmb->precon->xorder_use_aux_cs2)
-      {
-        const Real mb_cs2 = pmb->peos->GetEOS().GetBaryonMass();
-        CC_GLOOP3(k, j, i)
-        {
-          Real Y[MAX_SPECIES] = { 0.0 };
-          for (int l = 0; l < NSCALARS; l++)
-          {
-            Y[l] = ps->r(l, k, j, i);
-          }
-          const Real n = ph->w(IDN, k, j, i) / mb_cs2;
-          const Real T = ph->derived_ms(IX_T, k, j, i);
-          ph->derived_ms(IX_CS2, k, j, i) =
-            (T > 0) ? std::min(SQR(pmb->peos->GetEOS().GetSoundSpeed(n, T, Y)),
-                               pmb->peos->max_cs2)
-                    : 0.0;
-        }
-      }
+      pmb->peos->SmoothTemperatureAndRecompute(ph->w,
+                                               ph->w1,
+                                               ph->derived_ms,
+                                               ps->r,
+                                               il,
+                                               iu,
+                                               jl,
+                                               ju,
+                                               kl,
+                                               ku,
+                                               pmb->precon->xorder_use_aux_cs2,
+                                               pmb->precon->xorder_use_aux_s);
     }
 
     pz->GetMatter(pz->storage.mat, pz->storage.adm, ph->w, ps->r, pf->bcc);

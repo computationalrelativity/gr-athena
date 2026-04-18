@@ -190,7 +190,8 @@ void ReconstructFields(MeshBlock* pmb,
       if (((n == IX_T) && pr->xorder_use_aux_T) ||
           (n == IX_ETH && pr->xorder_use_aux_h) ||
           (n == IX_LOR && pr->xorder_use_aux_W) ||
-          (n == IX_CS2 && pr->xorder_use_aux_cs2))
+          (n == IX_CS2 && pr->xorder_use_aux_cs2) ||
+          (n == IX_SPB && pr->xorder_use_aux_s))
       {
         pr->ReconstructFieldXd(
           rv_a, aux, al_, ar_, ivx, n, n, k, j, il - os_il, iu);
@@ -210,8 +211,9 @@ void ReconstructFields(MeshBlock* pmb,
   // - Limit W, h, cs2 if they are also reconstructed
   //
   // Note: When xorder_use_aux_T is set, T is reconstructed to faces and
-  // GetTemperatureFromP is skipped (when recompute_temperature is also false).
-  // The reconstructed T is still needed by ApplyPrimitiveFloor below.
+  // pressure recomputed for consistency.
+  //
+  // The reconstructed T is needed by ApplyPrimitiveFloor below.
 
 #if !FLUID_ENABLED
   // only support operation with PrimitiveSolver
@@ -256,7 +258,30 @@ void ReconstructFields(MeshBlock* pmb,
       const bool lr__ = peos->GetEOS().ApplySpeciesLimits(Yr__);
     }
 
-    if (!pr->xorder_use_aux_T || peos->recompute_temperature)
+    if (pr->xorder_use_aux_s)
+    {
+      // Clamp reconstructed entropy per baryon to the EOS-supported range
+      peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
+      peos->GetEOS().ApplyEntropyLimits(ar_(IX_SPB, i), nr__, Yr__);
+      // Invert entropy -> temperature
+      al_(IX_T, i) =
+        peos->GetEOS().GetTemperatureFromEntropy(nl__, al_(IX_SPB, i), Yl__);
+      ar_(IX_T, i) =
+        peos->GetEOS().GetTemperatureFromEntropy(nr__, ar_(IX_SPB, i), Yr__);
+      // Recompute pressure from (n,T,Y) for thermodynamic consistency
+      // (must happen before ApplyPrimitiveFloor, which enforces joint
+      // consistency of (n,Wvu,p,T,Y)).
+      wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
+      wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
+    }
+    else if (pr->xorder_use_aux_T)
+    {
+      // Recompute pressure from (n,T,Y) so p and T are mutually consistent
+      // before ApplyPrimitiveFloor.
+      wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
+      wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
+    }
+    else
     {
       al_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromP(nl__, wl_(IPR, i), Yl__);

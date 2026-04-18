@@ -48,6 +48,18 @@ Real IdealGas::TemperatureFromEntropy(Real n, Real s, Real* Y)
     "IdealGas::TemperatureFromEntropy not currently implemented.");
 }
 
+Real IdealGas::MinimumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "IdealGas::MinimumEntropy not currently implemented.");
+}
+
+Real IdealGas::MaximumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "IdealGas::MaximumEntropy not currently implemented.");
+}
+
 Real IdealGas::Energy(Real n, Real T, Real* Y)
 {
   return n * (mb + T / gammam1);

@@ -18,6 +18,7 @@
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../eos/eos.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "reconstruction.hpp"
@@ -164,6 +165,17 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
 
   xorder_use_aux_cs2 =
     pin->GetOrAddBoolean("time", "xorder_use_aux_cs2", false);
+
+  xorder_use_aux_s = pin->GetOrAddBoolean("time", "xorder_use_aux_s", false);
+
+  if (xorder_use_aux_s && xorder_use_aux_T)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_aux_s and xorder_use_aux_T are mutually exclusive."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
 
   xorder_limit_fluxes =
     pin->GetOrAddBoolean("time", "xorder_limit_fluxes", false);

@@ -78,6 +78,7 @@ class Reconstruction
   bool xorder_use_aux_h;                     // reconstruct enthalpy?
   bool xorder_use_aux_W;                     // reconstruct lorentz?
   bool xorder_use_aux_cs2;                   // reconstruct cs^2?
+  bool xorder_use_aux_s;                     // reconstruct entropy/baryon?
 
   bool xorder_limit_fluxes        = false;
   bool enforce_limits_integration = false;

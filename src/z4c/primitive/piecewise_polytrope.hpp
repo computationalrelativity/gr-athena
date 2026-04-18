@@ -119,8 +119,8 @@ class PiecewisePolytrope : public EOSPolicyInterface
   Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
 
   /// Calculate the effective nucleon interaction potential difference
-  [[ noreturn ]]
-  Real InteractionPotentialDifference(Real n, Real T, Real *Y);
+  [[noreturn]]
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
   /// Calculate the minimum pressure at a given density and composition
   Real MinimumPressure(Real n, Real* Y);
@@ -133,6 +133,12 @@ class PiecewisePolytrope : public EOSPolicyInterface
 
   /// Calculate the maximum energy at a given density and composition
   Real MaximumEnergy(Real n, Real* Y);
+
+  /// Minimum/maximum entropy (not implemented; stub for linkage).
+  [[noreturn]]
+  Real MinimumEntropy(Real n, Real* Y);
+  [[noreturn]]
+  Real MaximumEntropy(Real n, Real* Y);
 
   public:
   /// Load the EOS parameters from a file.

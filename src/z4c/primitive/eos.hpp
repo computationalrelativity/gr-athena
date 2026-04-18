@@ -72,9 +72,11 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::Entropy;
   using EOSPolicy::InteractionPotentialDifference;
   using EOSPolicy::MaximumEnergy;
+  using EOSPolicy::MaximumEntropy;
   using EOSPolicy::MaximumPressure;
   using EOSPolicy::MinimumEnergy;
   using EOSPolicy::MinimumEnthalpy;
+  using EOSPolicy::MinimumEntropy;
   using EOSPolicy::MinimumPressure;
   using EOSPolicy::Pressure;
   using EOSPolicy::PressureAndEnthalpy;
@@ -836,6 +838,27 @@ class EOS : public EOSPolicy, public ErrorPolicy
     bool result =
       EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
     e = e_eos * eos_units->PressureConversion(*code_units);
+    return result;
+  }
+
+  //! \brief Clamp the entropy per baryon to the range supported by the EOS
+  //! at a given density and composition. Entropy per baryon is dimensionless
+  //! (units of k_B), so no unit conversion is required.
+  inline bool ApplyEntropyLimits(Real& s, Real n, Real* Y)
+  {
+    const Real s_min = MinimumEntropy(n, Y);
+    const Real s_max = MaximumEntropy(n, Y);
+    bool result      = false;
+    if (s < s_min)
+    {
+      s      = s_min;
+      result = true;
+    }
+    else if (s > s_max)
+    {
+      s      = s_max;
+      result = true;
+    }
     return result;
   }
 

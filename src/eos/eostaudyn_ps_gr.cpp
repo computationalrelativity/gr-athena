@@ -280,6 +280,7 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
   const Real max_W = OO(std::sqrt(1 - SQR(max_v)));
 
   const bool use_aux_cs2 = pmb->precon->xorder_use_aux_cs2;
+  const bool use_aux_s   = pmb->precon->xorder_use_aux_s;
 
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il;
@@ -492,6 +493,14 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
                         : 0.0;
         }
 
+        // entropy/baryon update required when auxiliary reconstruction of
+        // entropy is active
+        if (use_aux_s)
+        {
+          ph->derived_ms(IX_SPB, k, j, i) = GetEOS().GetEntropyPerBaryon(
+            prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
+        }
+
         // required [CT specifically] on all substeps
         const Real oo_W  = OO(ph->derived_ms(IX_LOR, k, j, i));
         const Real alpha = gsc.alpha_(i);
@@ -502,10 +511,6 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
             (alpha * oo_W * prim(IVX + a, k, j, i) - gsc.beta_u_(a, i));
         }
       }
-
-      // derived quantities
-      // ----------------------------------------------------- BD: TODO - some
-      // optional reconstructed quantities should perhaps go here
     }
 }
 

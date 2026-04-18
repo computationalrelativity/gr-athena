@@ -98,12 +98,12 @@ class IdealGas : public EOSPolicyInterface
   Real ChargeChemicalPotential(Real n, Real T, Real* Y);
 
   /// Calculate the electron-lepton chemical potential
-  [[ noreturn ]]
-  Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+  [[noreturn]]
+  Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
 
   /// Calculate the effective nucleon interaction potential difference
-  [[ noreturn ]]
-  Real InteractionPotentialDifference(Real n, Real T, Real *Y);
+  [[noreturn]]
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
   /// Calculate the minimum pressure at a given density and composition
   inline Real MinimumPressure(Real n, Real* Y)
@@ -125,6 +125,16 @@ class IdealGas : public EOSPolicyInterface
   {
     return std::numeric_limits<Real>::max();
   }
+
+  /// Calculate the minimum entropy at a given density and composition.
+  /// Not implemented for IdealGas (stub for eos.hpp linkage; gated at
+  /// reconstruction ctor so this should never be reached at runtime).
+  [[noreturn]]
+  Real MinimumEntropy(Real n, Real* Y);
+
+  /// Calculate the maximum entropy at a given density and composition.
+  [[noreturn]]
+  Real MaximumEntropy(Real n, Real* Y);
 
   public:
   /// Set the adiabatic index for the ideal gas.

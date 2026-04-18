@@ -273,6 +273,18 @@ Real PiecewisePolytrope::MaximumEnergy(Real n, Real* Y)
   return std::numeric_limits<Real>::max();
 }
 
+Real PiecewisePolytrope::MinimumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "PiecewisePolytrope::MinimumEntropy not currently implemented.");
+}
+
+Real PiecewisePolytrope::MaximumEntropy(Real n, Real* Y)
+{
+  throw std::logic_error(
+    "PiecewisePolytrope::MaximumEntropy not currently implemented.");
+}
+
 bool PiecewisePolytrope::ReadParametersFromFile(std::string fname)
 {
   return false;
