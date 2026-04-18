@@ -205,7 +205,8 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Low level function, not intended for outside use
   Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;
   /// Low level function with pre-computed density/composition weights
-  Real temperature_from_var_precomp(Real var_min, Real var_max,
+  Real temperature_from_var_precomp(Real var_min,
+                                    Real var_max,
                                     int iv,
                                     Real var,
                                     Real wn0,
@@ -225,6 +226,31 @@ class EOSCompOSE : public EOSPolicyInterface
   void weight_idx_yq(Real* w0, Real* w1, int* iy, Real yq) const;
   /// Evaluate interpolation weight for temperature
   void weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const;
+
+  /// Shared root-search used by Pressure/Temperature variants of
+  /// *AndEnthalpyFromE.  Given (n, e, Y) finds the log-T bracket and
+  /// returns all interpolation weights and indices plus the final
+  /// log-T estimate.  If the energy lies outside the table's [e_min,
+  /// e_max] at this (n, Y) slab the routine sets one of the
+  /// boundary_{lo,hi} flags and the caller must delegate to
+  /// PressureAndEnthalpy(n, min_T/max_T, ...).  guess_it is the usual
+  /// in/out temperature hunt hint (may be nullptr).
+  void FindTBracketAndWeights(Real n,
+                              Real e,
+                              Real* Y,
+                              int* guess_it,
+                              int& in,
+                              int& iy,
+                              int& it,
+                              Real& wn0,
+                              Real& wn1,
+                              Real& wy0,
+                              Real& wy1,
+                              Real& wt0,
+                              Real& wt1,
+                              Real& lt,
+                              bool& boundary_lo,
+                              bool& boundary_hi) const;
 
   /// Evaluate table variable at a specific temperature index with
   /// pre-computed density/composition weights (bilinear, 4 lookups).

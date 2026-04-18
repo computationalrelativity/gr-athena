@@ -223,17 +223,26 @@ void EOSCompOSE::PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h)
   *h        = (Pval + eval) / n;
 }
 
-void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
-                                                     Real e,
-                                                     Real* Y,
-                                                     Real* T,
-                                                     Real* P,
-                                                     Real* h,
-                                                     int* guess_it)
+void EOSCompOSE::FindTBracketAndWeights(Real n,
+                                        Real e,
+                                        Real* Y,
+                                        int* guess_it,
+                                        int& in,
+                                        int& iy,
+                                        int& it,
+                                        Real& wn0,
+                                        Real& wn1,
+                                        Real& wy0,
+                                        Real& wy1,
+                                        Real& wt0,
+                                        Real& wt1,
+                                        Real& lt,
+                                        bool& boundary_lo,
+                                        bool& boundary_hi) const
 {
-  assert(m_initialized);
-  int in, iy;
-  Real wn0, wn1, wy0, wy1;
+  boundary_lo = false;
+  boundary_hi = false;
+
   Real log_n = log(n);
   weight_idx_ln(&wn0, &wn1, &in, log_n);
   weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
@@ -245,10 +254,11 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
 
   Real var = log(e);
 
-  auto f = [=](int it) -> Real
+  auto f = [=](int iti) -> Real
   {
-    Real var_pt = wn0 * (wy0 * m_table[be00 + it] + wy1 * m_table[be01 + it]) +
-                  wn1 * (wy0 * m_table[be10 + it] + wy1 * m_table[be11 + it]);
+    Real var_pt =
+      wn0 * (wy0 * m_table[be00 + iti] + wy1 * m_table[be01 + iti]) +
+      wn1 * (wy0 * m_table[be10 + iti] + wy1 * m_table[be11 + iti]);
     return var - var_pt;
   };
 
@@ -261,36 +271,36 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
   // Hunt locally first
   if (guess_it && *guess_it >= 0 && *guess_it < m_nt - 1)
   {
-    int it  = *guess_it;
-    Real fl = f(it);
-    Real fh = f(it + 1);
+    int itg = *guess_it;
+    Real fl = f(itg);
+    Real fh = f(itg + 1);
     if (fl * fh <= 0)
     {
-      ilo       = it;
-      ihi       = it + 1;
+      ilo       = itg;
+      ihi       = itg + 1;
       flo       = fl;
       fhi       = fh;
       bracketed = true;
     }
-    else if (fl < 0 && it > 0)  // Try shifting left
+    else if (fl < 0 && itg > 0)  // Try shifting left
     {
-      Real fl_minus = f(it - 1);
+      Real fl_minus = f(itg - 1);
       if (fl_minus * fl <= 0)
       {
-        ilo       = it - 1;
-        ihi       = it;
+        ilo       = itg - 1;
+        ihi       = itg;
         flo       = fl_minus;
         fhi       = fl;
         bracketed = true;
       }
     }
-    else if (fh > 0 && it + 2 < m_nt)  // Try shifting right
+    else if (fh > 0 && itg + 2 < m_nt)  // Try shifting right
     {
-      Real fh_plus = f(it + 2);
+      Real fh_plus = f(itg + 2);
       if (fh * fh_plus <= 0)
       {
-        ilo       = it + 1;
-        ihi       = it + 2;
+        ilo       = itg + 1;
+        ihi       = itg + 2;
         flo       = fh;
         fhi       = fh_plus;
         bracketed = true;
@@ -303,75 +313,68 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
     // Evaluate log(e) at the table boundaries using 4 lookups each
     Real loge_min = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, 0);
     Real loge_max = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
-    Real e_min    = exp(loge_min);
-    Real e_max    = exp(loge_max);
 
-    if (e <= e_min)
+    // Here log-space using the same representation as f(iti) below,
+    // so the bracket invariant flo > 0, fhi < 0 holds strictly and no
+    // FP gap can appear between an exp(loge_min) round-trip.
+    if (var <= loge_min)
     {
-      *T = min_T;
-      PressureAndEnthalpy(n, *T, Y, P, h);
+      boundary_lo = true;
       return;
     }
-    if (e >= e_max)
+    if (var >= loge_max)
     {
-      *T = max_T;
-      PressureAndEnthalpy(n, *T, Y, P, h);
+      boundary_hi = true;
       return;
     }
 
-    flo = log(e) - loge_min;
-    fhi = log(e) - loge_max;
+    flo = var - loge_min;  // > 0 strictly
+    fhi = var - loge_max;  // < 0 strictly
 
-    if (flo * fhi > 0)
+    // Log-space guarantees flo > 0 and fhi < 0; equality cases are collapesd
+    // onto the boundary_lo/hi returns above.
+    assert(flo * fhi <= 0);
+
+    int it_guess =
+      static_cast<int>(static_cast<Real>(m_nt - 1) * flo / (flo - fhi));
+    it_guess = std::max(0, std::min(m_nt - 2, it_guess));
+
+    Real fg = f(it_guess);
+    if (fg * flo <= 0)
     {
-      // Bracket already at adjacent points is the best we can do
+      ihi = it_guess;
+      fhi = fg;
     }
     else
     {
-      int it_guess =
-        static_cast<int>(static_cast<Real>(m_nt - 1) * flo / (flo - fhi));
-      it_guess = std::max(0, std::min(m_nt - 2, it_guess));
+      ilo = it_guess;
+      flo = fg;
+    }
 
-      Real fg = f(it_guess);
-      if (fg * flo <= 0)
+    while (ihi - ilo > 1)
+    {
+      int ip  = ilo + (ihi - ilo) / 2;
+      Real fp = f(ip);
+      if (fp * flo <= 0)
       {
-        ihi = it_guess;
-        fhi = fg;
+        ihi = ip;
+        fhi = fp;
       }
       else
       {
-        ilo = it_guess;
-        flo = fg;
-      }
-
-      while (ihi - ilo > 1)
-      {
-        int ip  = ilo + (ihi - ilo) / 2;
-        Real fp = f(ip);
-        if (fp * flo <= 0)
-        {
-          ihi = ip;
-          fhi = fp;
-        }
-        else
-        {
-          ilo = ip;
-          flo = fp;
-        }
+        ilo = ip;
+        flo = fp;
       }
     }
   }
 
-  assert(ihi - ilo == 1 || flo * fhi <= 0);
+  assert(ihi - ilo == 1 && flo * fhi <= 0);
   if (guess_it)
   {
     *guess_it = ilo;
   }
   Real ltlo = m_log_t[ilo];
   Real lthi = m_log_t[ihi];
-
-  Real lt;
-  Real wt0, wt1;
 
   if (flo == 0)
   {
@@ -392,9 +395,53 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
     wt0 = 1.0 - wt1;
   }
 
-  *T = exp(lt);
+  it = ilo;
+}
 
-  int it = ilo;
+void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
+                                                     Real e,
+                                                     Real* Y,
+                                                     Real* T,
+                                                     Real* P,
+                                                     Real* h,
+                                                     int* guess_it)
+{
+  assert(m_initialized);
+  int in, iy, it;
+  Real wn0, wn1, wy0, wy1, wt0, wt1, lt;
+  bool boundary_lo, boundary_hi;
+
+  FindTBracketAndWeights(n,
+                         e,
+                         Y,
+                         guess_it,
+                         in,
+                         iy,
+                         it,
+                         wn0,
+                         wn1,
+                         wy0,
+                         wy1,
+                         wt0,
+                         wt1,
+                         lt,
+                         boundary_lo,
+                         boundary_hi);
+
+  if (boundary_lo)
+  {
+    *T = min_T;
+    PressureAndEnthalpy(n, *T, Y, P, h);
+    return;
+  }
+  if (boundary_hi)
+  {
+    *T = max_T;
+    PressureAndEnthalpy(n, *T, Y, P, h);
+    return;
+  }
+
+  *T = exp(lt);
 
   ptrdiff_t bp00 = index(ECLOGP, in, iy, it);
   ptrdiff_t bp01 = index(ECLOGP, in, iy + 1, it);
@@ -418,165 +465,37 @@ void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
                                           int* guess_it)
 {
   assert(m_initialized);
-  int in, iy;
-  Real wn0, wn1, wy0, wy1;
-  Real log_n = log(n);
-  weight_idx_ln(&wn0, &wn1, &in, log_n);
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  int in, iy, it;
+  Real wn0, wn1, wy0, wy1, wt0, wt1, lt;
+  bool boundary_lo, boundary_hi;
 
-  ptrdiff_t const be00 = index(ECLOGE, in, iy, 0);
-  ptrdiff_t const be01 = index(ECLOGE, in, iy + 1, 0);
-  ptrdiff_t const be10 = index(ECLOGE, in + 1, iy, 0);
-  ptrdiff_t const be11 = index(ECLOGE, in + 1, iy + 1, 0);
+  FindTBracketAndWeights(n,
+                         e,
+                         Y,
+                         guess_it,
+                         in,
+                         iy,
+                         it,
+                         wn0,
+                         wn1,
+                         wy0,
+                         wy1,
+                         wt0,
+                         wt1,
+                         lt,
+                         boundary_lo,
+                         boundary_hi);
 
-  Real var = log(e);
-
-  auto f = [=](int it) -> Real
+  if (boundary_lo)
   {
-    Real var_pt = wn0 * (wy0 * m_table[be00 + it] + wy1 * m_table[be01 + it]) +
-                  wn1 * (wy0 * m_table[be10 + it] + wy1 * m_table[be11 + it]);
-    return var - var_pt;
-  };
-
-  int ilo        = 0;
-  int ihi        = m_nt - 1;
-  Real flo       = 0.0;
-  Real fhi       = 0.0;
-  bool bracketed = false;
-
-  // Hunt locally first
-  if (guess_it && *guess_it >= 0 && *guess_it < m_nt - 1)
-  {
-    int it  = *guess_it;
-    Real fl = f(it);
-    Real fh = f(it + 1);
-    if (fl * fh <= 0)
-    {
-      ilo       = it;
-      ihi       = it + 1;
-      flo       = fl;
-      fhi       = fh;
-      bracketed = true;
-    }
-    else if (fl < 0 && it > 0)  // Try shifting left
-    {
-      Real fl_minus = f(it - 1);
-      if (fl_minus * fl <= 0)
-      {
-        ilo       = it - 1;
-        ihi       = it;
-        flo       = fl_minus;
-        fhi       = fl;
-        bracketed = true;
-      }
-    }
-    else if (fh > 0 && it + 2 < m_nt)  // Try shifting right
-    {
-      Real fh_plus = f(it + 2);
-      if (fh * fh_plus <= 0)
-      {
-        ilo       = it + 1;
-        ihi       = it + 2;
-        flo       = fh;
-        fhi       = fh_plus;
-        bracketed = true;
-      }
-    }
+    PressureAndEnthalpy(n, min_T, Y, P, h);
+    return;
   }
-
-  if (!bracketed)
+  if (boundary_hi)
   {
-    // Evaluate log(e) at the table boundaries using 4 lookups each
-    Real loge_min = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, 0);
-    Real loge_max = eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
-    Real e_min    = exp(loge_min);
-    Real e_max    = exp(loge_max);
-
-    if (e <= e_min)
-    {
-      PressureAndEnthalpy(n, min_T, Y, P, h);
-      return;
-    }
-    if (e >= e_max)
-    {
-      PressureAndEnthalpy(n, max_T, Y, P, h);
-      return;
-    }
-
-    flo = log(e) - loge_min;
-    fhi = log(e) - loge_max;
-
-    if (flo * fhi > 0)
-    {
-      // Bracket already at adjacent points is the best we can do
-    }
-    else
-    {
-      int it_guess =
-        static_cast<int>(static_cast<Real>(m_nt - 1) * flo / (flo - fhi));
-      it_guess = std::max(0, std::min(m_nt - 2, it_guess));
-
-      Real fg = f(it_guess);
-      if (fg * flo <= 0)
-      {
-        ihi = it_guess;
-        fhi = fg;
-      }
-      else
-      {
-        ilo = it_guess;
-        flo = fg;
-      }
-
-      while (ihi - ilo > 1)
-      {
-        int ip  = ilo + (ihi - ilo) / 2;
-        Real fp = f(ip);
-        if (fp * flo <= 0)
-        {
-          ihi = ip;
-          fhi = fp;
-        }
-        else
-        {
-          ilo = ip;
-          flo = fp;
-        }
-      }
-    }
+    PressureAndEnthalpy(n, max_T, Y, P, h);
+    return;
   }
-
-  assert(ihi - ilo == 1 || flo * fhi <= 0);
-  if (guess_it)
-  {
-    *guess_it = ilo;
-  }
-  Real ltlo = m_log_t[ilo];
-  Real lthi = m_log_t[ihi];
-
-  Real lt;
-  Real wt0, wt1;
-
-  if (flo == 0)
-  {
-    lt  = ltlo;
-    wt0 = 1.0;
-    wt1 = 0.0;
-  }
-  else if (fhi == 0)
-  {
-    lt  = lthi;
-    wt0 = 0.0;
-    wt1 = 1.0;
-  }
-  else
-  {
-    lt  = ltlo - flo * (lthi - ltlo) / (fhi - flo);
-    wt1 = (lt - ltlo) * m_id_log_t;
-    wt0 = 1.0 - wt1;
-  }
-
-  int it = ilo;
 
   ptrdiff_t bp00 = index(ECLOGP, in, iy, it);
   ptrdiff_t bp01 = index(ECLOGP, in, iy + 1, it);
