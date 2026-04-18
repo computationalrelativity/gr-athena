@@ -184,15 +184,22 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname,
     }
   }
 
-  //  fill enthalpy
+  //  fill enthalpy (per baryon): (e + p) / n
+  //  Note: ECLOGN stores log(n), so the denominator needs exp(.) to recover n.
   for (int in = 0; in < m_np; ++in)
   {
+    const Real n_i = exp(m_table[index(ECLOGN, in)]);
     m_table[index(ECH, in)] =
       (exp(m_table[index(ECLOGE, in)]) + exp(m_table[index(ECLOGP, in)])) /
-      m_table[index(ECLOGN, in)];
+      n_i;
   }
 
   //  fill dPdn
+  //  D0_x_2 yields d(logP)/d(logN); convert via
+  //    dP/dn = exp(logP - logN) * d(logP)/d(logN).
+  //  Loop starts at in = 1 because the getter uses eval_at_n<2>(ECDPDN, .)
+  //  which clamps the interp index to in >= 2, so ECDPDN[0..1] are never
+  //  read. If that clamp is ever loosened, widen this loop to in = 0.
   D0_x_2(&m_table[index(ECLOGP, 0)],
          &m_table[index(ECLOGN, 0)],
          m_np,
