@@ -2163,12 +2163,8 @@ void WaveExtractRWZ::MasterFuns()
           rdot * g_uu(0, 0) *
             (2.0 * r * g_dot_uu(0, 0) - 6.0 * g_uu(0, 1) +
              r * SQR(g_uu(0, 1)) * (2.0 * g_dr_dd(0, 1) + g_dot_dd(1, 1))) +
-          // BD: verify Psi^(e)_dyn, h_0 rdot-coefficient
-          //     covariant metric derivative index
-          // ??: g_uu(1, 1) * g_dr_dd(0, 1)
-          // ->: g_uu(1, 1) * g_dr_dd(1, 1)
           4.0 * r * g_uu(0, 0) * g_uu(0, 1) *
-            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(1, 1));
+            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(0, 1));
 
         coef_h0_rdot *= rdot * div_r;
 
@@ -2186,11 +2182,7 @@ void WaveExtractRWZ::MasterFuns()
           2.0 * r * g_uu(1, 1) *
             (g_dr_uu(0, 1) + g_uu(0, 0) * g_uu(1, 1) * g_dot_dd(1, 1)) +
           2.0 * g_uu(0, 1) *
-            // BD: verify Psi^(e)_dyn, h_1 rdot-coefficient
-            //     inverse metric time derivative index
-            // ??: g_dot_uu(0, 1)
-            // ->: g_dot_uu(0, 0)
-            (r * (g_dr_uu(1, 1) + g_dot_uu(0, 0)) +
+            (r * (g_dr_uu(1, 1) + g_dot_uu(0, 1)) +
              g_uu(1, 1) * (-3.0 + 2.0 * r * g_uu(0, 0) * g_dot_dd(0, 1)) +
              r * SQR(g_uu(1, 1)) * g_dr_dd(1, 1)) +
           r * rdot * SQR(g_uu(0, 0)) *
@@ -2219,11 +2211,7 @@ void WaveExtractRWZ::MasterFuns()
             (g_uu(0, 0) * g_dot_dd(0, 0) + 2.0 * g_uu(1, 1) * g_dr_dd(0, 1)) +
           2.0 * r * g_uu(1, 1) *
             (g_dr_uu(0, 1) + g_uu(0, 0) * g_uu(1, 1) * g_dot_dd(1, 1)) +
-          // BD: verify Psi^(e)_dyn, \partial_r G rdot-coefficient
-          //     inverse metric time derivative index
-          // ??: g_dot_uu(0, 1)
-          // ->: g_dot_uu(0, 0)
-          2.0 * r * g_uu(0, 1) * (g_dr_uu(1, 1) + g_dot_uu(0, 0)) +
+          2.0 * r * g_uu(0, 1) * (g_dr_uu(1, 1) + g_dot_uu(0, 1)) +
           2.0 * g_uu(0, 1) * g_uu(1, 1) *
             (-3.0 + 2.0 * r * g_uu(0, 0) * g_dot_dd(0, 1)) +
           2.0 * r * g_uu(0, 1) * SQR(g_uu(1, 1)) * g_dr_dd(1, 1) +
@@ -2241,10 +2229,6 @@ void WaveExtractRWZ::MasterFuns()
         coef_G_dr_rdot *= -0.5 * r * rdot;
 
         Real coef_G_dot_t =
-          // BD: verify Psi^(e)_dyn, Gdot t-coefficient
-          //     spurious r factor
-          // ??: -2.0 * r * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1)
-          // ->: -2.0 * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1)
           -2.0 * std::pow(g_uu(0, 1), 3) * g_dot_dd(0, 1) -
           2.0 * g_uu(0, 1) * g_dot_uu(0, 1)  // CHECK in the notes
           - SQR(g_uu(0, 1)) * g_uu(0, 0) * g_dot_dd(0, 0) +
@@ -2271,12 +2255,8 @@ void WaveExtractRWZ::MasterFuns()
           rdot * g_uu(0, 0) *
             (2.0 * r * g_dot_uu(0, 0) - 6.0 * g_uu(0, 1) +
              r * SQR(g_uu(0, 1)) * (2.0 * g_dr_dd(0, 1) + g_dot_dd(1, 1))) +
-          // BD: verify Psi^(e)_dyn, Gdot rdot-coefficient
-          //     covariant metric derivative index
-          // ??: g_uu(1, 1) * g_dr_dd(0, 1)
-          // ->: g_uu(1, 1) * g_dr_dd(1, 1)
           4.0 * r * g_uu(0, 0) * g_uu(0, 1) *
-            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(1, 1));
+            (g_uu(0, 1) * g_dot_dd(0, 1) + g_uu(1, 1) * g_dr_dd(0, 1));
 
         coef_G_dot_rdot *= -0.5 * r * rdot;
 
