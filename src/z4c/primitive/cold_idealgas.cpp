@@ -58,6 +58,10 @@ Real Polytrope::DensityFromPressure(Real P) {
   return pow(P/K, 1.0/gamma);
 }
 
+Real Polytrope::DensityFromEnergy(Real E) {
+  throw std::logic_error("Polytrope::DensityFromEnergy not implemented");
+}
+
 void Polytrope::SetNSpecies(int n) {
   if (n > MAX_SPECIES || n < 0) {
     throw std::out_of_range("IdealGas::SetNSpecies - n cannot exceed MAX_SPECIES.");
