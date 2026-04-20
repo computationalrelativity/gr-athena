@@ -75,6 +75,7 @@ void HistoryOutput::WriteQuadFile(Mesh *pm, ParameterInput *pin, bool flag)
             Real& u_vx = phyd->w(IVX,k,j,i);
             Real& u_vy = phyd->w(IVY,k,j,i);
             Real& u_vz = phyd->w(IVZ,k,j,i);
+            Real& W    = phyd->derived_ms(IX_LOR,k,j,i);
 
 #if FLUID_ENABLED
             if (pm->presc->opt.rescale_conserved_density)
@@ -83,14 +84,14 @@ void HistoryOutput::WriteQuadFile(Mesh *pm, ParameterInput *pin, bool flag)
             }
 #endif      
 
-	  Real x_v_diag = x*u_vx + y*u_vy + z*u_vz;
+	  Real x_v_diag = (x*u_vx + y*u_vy + z*u_vz);
 
-          quad_data[isum++] += vol(i)*u_d*(2.0*u_vx*x - (2.0/3.0)*x_v_diag);
-          quad_data[isum++] += vol(i)*u_d*(u_vx*y + u_vy*x);
-          quad_data[isum++] += vol(i)*u_d*(u_vx*z + u_vz*x);
-          quad_data[isum++] += vol(i)*u_d*(2.0*u_vy*y - (2.0/3.0)*x_v_diag);
-          quad_data[isum++] += vol(i)*u_d*(u_vy*z + u_vz*y);
-          quad_data[isum++] += vol(i)*u_d*(2.0*u_vz*z - (2.0/3.0)*x_v_diag);
+          quad_data[isum++] += vol(i)*u_d*(2.0*u_vx*x - (2.0/3.0)*x_v_diag)/W;
+          quad_data[isum++] += vol(i)*u_d*(u_vx*y + u_vy*x)/W;
+          quad_data[isum++] += vol(i)*u_d*(u_vx*z + u_vz*x)/W;
+          quad_data[isum++] += vol(i)*u_d*(2.0*u_vy*y - (2.0/3.0)*x_v_diag)/W;
+          quad_data[isum++] += vol(i)*u_d*(u_vy*z + u_vz*y)/W;
+          quad_data[isum++] += vol(i)*u_d*(2.0*u_vz*z - (2.0/3.0)*x_v_diag)/W;
 
           }
 
