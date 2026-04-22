@@ -90,14 +90,31 @@ Real PiecewisePolytrope::TemperatureFromE(Real n, Real e, Real* Y)
 {
   int p       = FindPiece(n);
   Real e_cold = GetColdEnergy(n, p);
-  return (e - e_cold) * (gamma_thermal - 1.0) / n;
+  Real T      = (e - e_cold) * (gamma_thermal - 1.0) / n;
+
+  // Clamp to ensure T physical, together with all consumers.
+  // N.B. this form sends NAN -> min_T
+  if (!(T >= min_T))
+    T = min_T;
+  if (!(T <= max_T))
+    T = max_T;
+
+  return T;
 }
 
 Real PiecewisePolytrope::TemperatureFromP(Real n, Real p, Real* Y)
 {
   int i       = FindPiece(n);
   Real p_cold = GetColdPressure(n, i);
-  return (p - p_cold) / n;
+
+  Real T = (p - p_cold) / n;
+
+  if (!(T >= min_T))
+    T = min_T;
+  if (!(T <= max_T))
+    T = max_T;
+
+  return T;
 }
 
 Real PiecewisePolytrope::TemperatureFromEntropy(Real n, Real s, Real* Y)
@@ -182,7 +199,7 @@ Real PiecewisePolytrope::SoundSpeed(Real n, Real T, Real* Y)
   Real csq_cold_w = gamma_pieces[p] * P_cold / rho;
   Real csq_th_w   = (gamma_thermal - 1.0) * h_th;
 
-  return std::sqrt((csq_cold_w + csq_th_w) / (h_th + h_cold));
+  return std::sqrt(std::max((csq_cold_w + csq_th_w) / (h_th + h_cold), 0.0));
 }
 
 Real PiecewisePolytrope::FrYn(Real n, Real s, Real* Y)
@@ -332,6 +349,9 @@ bool PiecewisePolytrope::InitializeFromData(Real* densities,
   density_pieces[0]  = densities[1] / mb;
   gamma_pieces[0]    = gammas[0];
   pressure_pieces[0] = P0;
+  // The thermal offset is zero in the reference (first) piece; subsequent
+  // pieces accumulate the offset relative to this anchor in the loop below.
+  eps_pieces[0] = 0.0;
 
   for (int i = 1; i < n; i++)
   {
@@ -340,11 +360,17 @@ bool PiecewisePolytrope::InitializeFromData(Real* densities,
     pressure_pieces[i] =
       pressure_pieces[i - 1] *
       pow(density_pieces[i] / density_pieces[i - 1], gamma_pieces[i - 1]);
+
     // Because we've rewritten the EOS in terms of temperature, we don't need
     // kappa in its current form. However, we can use it to define the a
     // constants that show up in our equations.
+
+    // Continuity of e_cold at n = density_pieces[i] (the upper boundary
+    // of piece i-1 / lower boundary of piece i) requires the jump in
+    // eps to be evaluated at that boundary, using the shared continuous
+    // value of P_cold there: pressure_pieces[i] / (density_pieces[i] * mb).
     eps_pieces[i] = eps_pieces[i - 1] +
-                    pressure_pieces[i - 1] / (density_pieces[i - 1] * mb) *
+                    pressure_pieces[i] / (density_pieces[i] * mb) *
                       (1.0 / (gammas[i - 1] - 1.0) - 1.0 / (gammas[i] - 1.0));
   }
 

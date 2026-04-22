@@ -62,7 +62,7 @@ class Polytrope {
 
   public:
     /// Set the adiabatic index for the polytrope
-    /// The range \f$1 < \gamma < 1\f$ is imposed. The lower
+    /// The range \f$1 < \gamma < 2\f$ is imposed. The lower
     /// constraint ensures that enthalpy is finite, and the upper
     /// bound keeps the sound speed causal.
     inline void SetGamma(Real g) {

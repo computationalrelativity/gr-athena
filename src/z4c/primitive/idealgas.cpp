@@ -34,12 +34,24 @@ IdealGas::IdealGas()
 
 Real IdealGas::TemperatureFromE(Real n, Real e, Real* Y)
 {
-  return gammam1 * (e - mb * n) / n;
+  Real T = gammam1 * (e - mb * n) / n;
+
+  // Clamp to ensure T physical, together with all consumers.
+  // N.B. this form sends NAN -> min_T
+  if (!(T >= min_T)) T = min_T;
+  if (!(T <= max_T)) T = max_T;
+
+  return T;
 }
 
 Real IdealGas::TemperatureFromP(Real n, Real p, Real* Y)
 {
-  return p / n;
+  Real T = p / n;
+
+  if (!(T >= min_T)) T = min_T;
+  if (!(T <= max_T)) T = max_T;
+
+  return T;
 }
 
 Real IdealGas::TemperatureFromEntropy(Real n, Real s, Real* Y)
