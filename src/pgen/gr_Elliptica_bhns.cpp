@@ -1,7 +1,8 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //! \file gr_Lorene_BinNSs.cpp
 //  \brief Initial conditions for binary neutron stars.
 //         Interpolation of Lorene initial data.
@@ -13,17 +14,17 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
-#include "../parameter_input.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../z4c/z4c.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/mesh_refinement.hpp"
+#include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../utils/utils.hpp"
+#include "../z4c/z4c.hpp"
 #include "elliptica_id_reader_lib.h"
 
 //----------------------------------------------------------------------------------------
@@ -34,25 +35,30 @@ using namespace gra::aliases;
 #error "This problem generator requires fluid (-f)"
 #endif
 
-namespace {
-  int RefinementCondition(MeshBlock *pmb);
-
-  std::string checkpoint_file;
-  Elliptica_ID_Reader_T *idr;
-}
-
+namespace
+{
+std::string checkpoint_file;
+Elliptica_ID_Reader_T* idr;
+}  // namespace
 
 //========================================================================================
 //! \fn void Mesh::InitUserMeshData(ParameterInput *pin)
-//  \brief Function to initialize problem-specific data in mesh class.  Can also be used
-//  to initialize variables which are global to (and therefore can be passed to) other
-//  functions in this file.  Called in Mesh constructor.
+//  \brief Function to initialize problem-specific data in mesh class.  Can
+//  also be used to initialize variables which are global to (and therefore can
+//  be passed to) other functions in this file.  Called in Mesh constructor.
 //========================================================================================
 
-void Mesh::InitUserMeshData(ParameterInput *pin)
+void Mesh::InitUserMeshData(ParameterInput* pin)
 {
-  if(adaptive==true)
-    EnrollUserRefinementCondition(RefinementCondition);
+  if (adaptive == true)
+  {
+    // Default AMR driven by ExtremaTracker (and AHFs where available).
+    // To use a custom criterion instead, define a local
+    //   int MyRefinementCondition(MeshBlock*);
+    // and call EnrollUserRefinementCondition(MyRefinementCondition);
+    // which will override this default.
+    EnrollUserRefinementCondition(Mesh::StandardRefinementCondition);
+  }
 
   EnrollUserStandardHydro(pin);
   EnrollUserStandardField(pin);
@@ -68,13 +74,14 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   );
   */
 
-  checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
-  idr = elliptica_id_reader_init(checkpoint_file.c_str(),"generic_MT_safe");
+  checkpoint_file =
+    pin->GetOrAddString("problem", "filename", "checkpoint.dat");
+  idr = elliptica_id_reader_init(checkpoint_file.c_str(), "generic_MT_safe");
   // this is needed only for BHNS system
-  idr->set_param("BH_filler_method","ChebTn_Ylm_perfect_s2",idr);
+  idr->set_param("BH_filler_method", "ChebTn_Ylm_perfect_s2", idr);
 
   // this is needed for both BHNS and BNS systems
-  idr->set_param("ADM_B1I_form","zero",idr);
+  idr->set_param("ADM_B1I_form", "zero", idr);
 
   // preparation and setting some interpolation settings (not thread safe)
   elliptica_id_reader_interpolate(idr);
@@ -82,7 +89,8 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   return;
 }
 
-void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
+void MeshBlock::UserWorkAfterOutput(ParameterInput* pin)
+{
   // Reset the status
   AA c2p_status;
   c2p_status.InitWithShallowSlice(phydro->derived_ms, IX_C2P, 1);
@@ -94,25 +102,27 @@ void MeshBlock::UserWorkAfterOutput(ParameterInput *pin) {
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
 //  \brief Sets the initial conditions.
 //========================================================================================
-void MeshBlock::ProblemGenerator(ParameterInput *pin)
+void MeshBlock::ProblemGenerator(ParameterInput* pin)
 {
   using namespace LinearAlgebra;
 
   // Interpolate data onto the grid.
-  
+
   // settings -----------------------------------------------------------------
-  //std::string checkpoint_file = pin->GetOrAddString("problem", "filename", "checkpoint.dat");
-  Real const tol_det_zero =  pin->GetOrAddReal("problem","tolerance_det_zero",1e-10);
+  // std::string checkpoint_file = pin->GetOrAddString("problem", "filename",
+  // "checkpoint.dat");
+  Real const tol_det_zero =
+    pin->GetOrAddReal("problem", "tolerance_det_zero", 1e-10);
   bool verbose = pin->GetOrAddBoolean("problem", "verbose", 0);
 
   // Scalar arrays - safe even when NSCALARS == 0 (pscalars is nullptr)
   AthenaArray<Real> empty;
 #if NSCALARS > 0
-  AthenaArray<Real> &r_scalar = pscalars->r;
-  AthenaArray<Real> &s_scalar = pscalars->s;
+  AthenaArray<Real>& r_scalar = pscalars->r;
+  AthenaArray<Real>& s_scalar = pscalars->s;
 #else
-  AthenaArray<Real> &r_scalar = empty;
-  AthenaArray<Real> &s_scalar = empty;
+  AthenaArray<Real>& r_scalar = empty;
+  AthenaArray<Real>& s_scalar = empty;
 #endif
 
   // check ID is accessible
@@ -129,193 +139,190 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
   // --------------------------------------------------------------------------
   // Set some aliases for the variables.
-  AT_N_sca alpha( pz4c->storage.u,   Z4c::I_Z4c_alpha);
-  AT_N_vec beta_u(pz4c->storage.u,   Z4c::I_Z4c_betax);
-  AT_N_sym g_dd(  pz4c->storage.adm, Z4c::I_ADM_gxx);
-  AT_N_sym K_dd(  pz4c->storage.adm, Z4c::I_ADM_Kxx);
+  AT_N_sca alpha(pz4c->storage.u, Z4c::I_Z4c_alpha);
+  AT_N_vec beta_u(pz4c->storage.u, Z4c::I_Z4c_betax);
+  AT_N_sym g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+  AT_N_sym K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-  
   // --------------------------------------------------------------------------
-//  #pragma omp critical
-//  {
+  //  #pragma omp critical
+  //  {
 
-    // prepare geometry grid --------------------------------------------------
-    int npoints_gs = 0;
+  // prepare geometry grid --------------------------------------------------
+  int npoints_gs = 0;
 
-    for (int k=0; k<mbi->nn3; ++k)
-    for (int j=0; j<mbi->nn2; ++j)
-    for (int i=0; i<mbi->nn1; ++i)
-    {
-    	++npoints_gs;
-    }
+  for (int k = 0; k < mbi->nn3; ++k)
+    for (int j = 0; j < mbi->nn2; ++j)
+      for (int i = 0; i < mbi->nn1; ++i)
+      {
+        ++npoints_gs;
+      }
 
-    Real * xx_gs = new Real[npoints_gs];
-    Real * yy_gs = new Real[npoints_gs];
-    Real * zz_gs = new Real[npoints_gs];
+  Real* xx_gs = new Real[npoints_gs];
+  Real* yy_gs = new Real[npoints_gs];
+  Real* zz_gs = new Real[npoints_gs];
 
-    int I = 0;  // collapsed ijk index
+  int I = 0;  // collapsed ijk index
 
-    for (int k=0; k<mbi->nn3; ++k)
-    for (int j=0; j<mbi->nn2; ++j)
-    for (int i=0; i<mbi->nn1; ++i)
-    {
-      zz_gs[I] = mbi->x3(k);
-      yy_gs[I] = mbi->x2(j);
-      xx_gs[I] = mbi->x1(i);
+  for (int k = 0; k < mbi->nn3; ++k)
+    for (int j = 0; j < mbi->nn2; ++j)
+      for (int i = 0; i < mbi->nn1; ++i)
+      {
+        zz_gs[I] = mbi->x3(k);
+        yy_gs[I] = mbi->x2(j);
+        xx_gs[I] = mbi->x1(i);
 
-      ++I;
-    }
-    // ------------------------------------------------------------------------
+        ++I;
+      }
+  // ------------------------------------------------------------------------
 
-    // prepare Elliptica interpolator for geometry -------------------------------
-        
-    // assert(idr->np == npoints_gs);
+  // prepare Elliptica interpolator for geometry
+  // -------------------------------
 
-    I = 0;      // reset
+  // assert(idr->np == npoints_gs);
 
-    for (int k=0; k<mbi->nn3; ++k)
-    for (int j=0; j<mbi->nn2; ++j)
-    for (int i=0; i<mbi->nn1; ++i)
-    {
+  I = 0;  // reset
 
-      double x = xx_gs[I];
-      double y = yy_gs[I];
-      double z = zz_gs[I];
-      
-      alpha(k, j, i)     =  idr->fieldx(idr,"alpha",x,y,z);
-      beta_u(0, k, j, i) =  -idr->fieldx(idr,"betax",x,y,z);
-      beta_u(1, k, j, i) =  -idr->fieldx(idr,"betay",x,y,z);
-      beta_u(2, k, j, i) =  -idr->fieldx(idr,"betaz",x,y,z);
+  for (int k = 0; k < mbi->nn3; ++k)
+    for (int j = 0; j < mbi->nn2; ++j)
+      for (int i = 0; i < mbi->nn1; ++i)
+      {
+        double x = xx_gs[I];
+        double y = yy_gs[I];
+        double z = zz_gs[I];
 
-      g_dd(0, 0, k, j, i) = idr->fieldx(idr,"adm_gxx",x,y,z);
-      K_dd(0, 0, k, j, i) = idr->fieldx(idr,"adm_Kxx",x,y,z);
+        alpha(k, j, i)     = idr->fieldx(idr, "alpha", x, y, z);
+        beta_u(0, k, j, i) = -idr->fieldx(idr, "betax", x, y, z);
+        beta_u(1, k, j, i) = -idr->fieldx(idr, "betay", x, y, z);
+        beta_u(2, k, j, i) = -idr->fieldx(idr, "betaz", x, y, z);
 
-      g_dd(0, 1, k, j, i) = idr->fieldx(idr,"adm_gxy",x,y,z);
-      K_dd(0, 1, k, j, i) = idr->fieldx(idr,"adm_Kxy",x,y,z);
+        g_dd(0, 0, k, j, i) = idr->fieldx(idr, "adm_gxx", x, y, z);
+        K_dd(0, 0, k, j, i) = idr->fieldx(idr, "adm_Kxx", x, y, z);
 
-      g_dd(0, 2, k, j, i) = idr->fieldx(idr,"adm_gxz",x,y,z);
-      K_dd(0, 2, k, j, i) = idr->fieldx(idr,"adm_Kxz",x,y,z);
+        g_dd(0, 1, k, j, i) = idr->fieldx(idr, "adm_gxy", x, y, z);
+        K_dd(0, 1, k, j, i) = idr->fieldx(idr, "adm_Kxy", x, y, z);
 
-      g_dd(1, 1, k, j, i) = idr->fieldx(idr,"adm_gyy",x,y,z);
-      K_dd(1, 1, k, j, i) = idr->fieldx(idr,"adm_Kyy",x,y,z);
+        g_dd(0, 2, k, j, i) = idr->fieldx(idr, "adm_gxz", x, y, z);
+        K_dd(0, 2, k, j, i) = idr->fieldx(idr, "adm_Kxz", x, y, z);
 
-      g_dd(1, 2, k, j, i) = idr->fieldx(idr,"adm_gyz",x,y,z);
-      K_dd(1, 2, k, j, i) = idr->fieldx(idr,"adm_Kyz",x,y,z);
+        g_dd(1, 1, k, j, i) = idr->fieldx(idr, "adm_gyy", x, y, z);
+        K_dd(1, 1, k, j, i) = idr->fieldx(idr, "adm_Kyy", x, y, z);
 
-      g_dd(2, 2, k, j, i) = idr->fieldx(idr,"adm_gzz",x,y,z);
-      K_dd(2, 2, k, j, i) = idr->fieldx(idr,"adm_Kzz",x,y,z);
+        g_dd(1, 2, k, j, i) = idr->fieldx(idr, "adm_gyz", x, y, z);
+        K_dd(1, 2, k, j, i) = idr->fieldx(idr, "adm_Kyz", x, y, z);
 
-      const Real det = Det3Metric(g_dd, k, j, i);
-      assert(std::fabs(det) > tol_det_zero);
+        g_dd(2, 2, k, j, i) = idr->fieldx(idr, "adm_gzz", x, y, z);
+        K_dd(2, 2, k, j, i) = idr->fieldx(idr, "adm_Kzz", x, y, z);
 
-      ++I;
-    }
-    // ------------------------------------------------------------------------
+        const Real det = Det3Metric(g_dd, k, j, i);
+        assert(std::fabs(det) > tol_det_zero);
 
-    // clean up
-    delete[] xx_gs;
-    delete[] yy_gs;
-    delete[] zz_gs;
+        ++I;
+      }
+  // ------------------------------------------------------------------------
 
-    // ------------------------------------------------------------------------
+  // clean up
+  delete[] xx_gs;
+  delete[] yy_gs;
+  delete[] zz_gs;
 
-    // prepare matter grid ----------------------------------------------------
-    int npoints_cc = 0;
+  // ------------------------------------------------------------------------
 
-    const int il = 0;
-    const int iu = ncells1-1;
+  // prepare matter grid ----------------------------------------------------
+  int npoints_cc = 0;
 
-    const int jl = 0;
-    const int ju = ncells2-1;
+  const int il = 0;
+  const int iu = ncells1 - 1;
 
-    const int kl = 0;
-    const int ku = ncells3-1;
+  const int jl = 0;
+  const int ju = ncells2 - 1;
 
-    for (int k = kl; k <= ku; ++k)
+  const int kl = 0;
+  const int ku = ncells3 - 1;
+
+  for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
-    {
-      ++npoints_cc;
-    }
+      for (int i = il; i <= iu; ++i)
+      {
+        ++npoints_cc;
+      }
 
-    Real * xx_cc = new Real[npoints_cc];
-    Real * yy_cc = new Real[npoints_cc];
-    Real * zz_cc = new Real[npoints_cc];
+  Real* xx_cc = new Real[npoints_cc];
+  Real* yy_cc = new Real[npoints_cc];
+  Real* zz_cc = new Real[npoints_cc];
 
-    I = 0;      // reset
+  I = 0;  // reset
 
-    for (int k = kl; k <= ku; ++k)
+  for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
-    {
-      zz_cc[I] = pcoord->x3v(k);
-      yy_cc[I] = pcoord->x2v(j);
-      xx_cc[I] = pcoord->x1v(i);
+      for (int i = il; i <= iu; ++i)
+      {
+        zz_cc[I] = pcoord->x3v(k);
+        yy_cc[I] = pcoord->x2v(j);
+        xx_cc[I] = pcoord->x1v(i);
 
-      ++I;
-    }
+        ++I;
+      }
 
-    // ------------------------------------------------------------------------
-    // prepare interpolator for matter ---------------------------------
-    
-    I = 0;      // reset
+  // ------------------------------------------------------------------------
+  // prepare interpolator for matter ---------------------------------
 
-    Real k_adi = pin->GetReal("hydro", "k_adi");
-    Real gamma_adi = pin->GetReal("hydro","gamma");
+  I = 0;  // reset
 
+  Real k_adi     = pin->GetReal("hydro", "k_adi");
+  Real gamma_adi = pin->GetReal("hydro", "gamma");
 
-    for (int k = kl; k <= ku; ++k)
+  for (int k = kl; k <= ku; ++k)
     for (int j = jl; j <= ju; ++j)
-    for (int i = il; i <= iu; ++i)
-    {
+      for (int i = il; i <= iu; ++i)
+      {
+        double xc = xx_cc[I];
+        double yc = yy_cc[I];
+        double zc = zz_cc[I];
 
-      double xc = xx_cc[I];
-      double yc = yy_cc[I];
-      double zc = zz_cc[I];
-      
-      const Real w_rho = idr->fieldx(idr,"grhd_rho",xc,yc,zc);
-      const Real w_p = k_adi*pow(w_rho,gamma_adi);
+        const Real w_rho = idr->fieldx(idr, "grhd_rho", xc, yc, zc);
+        const Real w_p   = k_adi * pow(w_rho, gamma_adi);
 
-      const Real v_u_x = idr->fieldx(idr,"grhd_vx",xc,yc,zc);
-      const Real v_u_y = idr->fieldx(idr,"grhd_vy",xc,yc,zc);
-      const Real v_u_z = idr->fieldx(idr,"grhd_vz",xc,yc,zc);
+        const Real v_u_x = idr->fieldx(idr, "grhd_vx", xc, yc, zc);
+        const Real v_u_y = idr->fieldx(idr, "grhd_vy", xc, yc, zc);
+        const Real v_u_z = idr->fieldx(idr, "grhd_vz", xc, yc, zc);
 
-      const Real vsq = (
-        2.0*(v_u_x * v_u_y * idr->fieldx(idr,"adm_gxy",xc,yc,zc) +
-             v_u_x * v_u_z * idr->fieldx(idr,"adm_gxz",xc,yc,zc) +
-             v_u_y * v_u_z * idr->fieldx(idr,"adm_gyz",xc,yc,zc))+
-        v_u_x * v_u_x * idr->fieldx(idr,"adm_gxx",xc,yc,zc) +
-        v_u_y * v_u_y * idr->fieldx(idr,"adm_gyy",xc,yc,zc) +
-        v_u_z * v_u_z * idr->fieldx(idr,"adm_gzz",xc,yc,zc) 
-      );
+        const Real vsq =
+          (2.0 * (v_u_x * v_u_y * idr->fieldx(idr, "adm_gxy", xc, yc, zc) +
+                  v_u_x * v_u_z * idr->fieldx(idr, "adm_gxz", xc, yc, zc) +
+                  v_u_y * v_u_z * idr->fieldx(idr, "adm_gyz", xc, yc, zc)) +
+           v_u_x * v_u_x * idr->fieldx(idr, "adm_gxx", xc, yc, zc) +
+           v_u_y * v_u_y * idr->fieldx(idr, "adm_gyy", xc, yc, zc) +
+           v_u_z * v_u_z * idr->fieldx(idr, "adm_gzz", xc, yc, zc));
 
-      const Real W = 1.0 / std::sqrt(1.0 - vsq);
+        const Real W = 1.0 / std::sqrt(1.0 - vsq);
 
-      phydro->w(IDN, k, j, i) = w_rho;
-      phydro->w(IVX, k, j, i) = W * v_u_x;
-      phydro->w(IVY, k, j, i) = W * v_u_y;
-      phydro->w(IVZ, k, j, i) = W * v_u_z;
-      phydro->w(IPR, k, j, i) = w_p;
+        phydro->w(IDN, k, j, i) = w_rho;
+        phydro->w(IVX, k, j, i) = W * v_u_x;
+        phydro->w(IVY, k, j, i) = W * v_u_y;
+        phydro->w(IVZ, k, j, i) = W * v_u_z;
+        phydro->w(IPR, k, j, i) = w_p;
 
-      ++I;
-    }
+        ++I;
+      }
 
-    // clean up
-    delete[] xx_cc;
-    delete[] yy_cc;
-    delete[] zz_cc;
+  // clean up
+  delete[] xx_cc;
+  delete[] yy_cc;
+  delete[] zz_cc;
 
-    //delete pmy_mesh->bns;
+  // delete pmy_mesh->bns;
 
   //} // OMP Critical
 
-  //elliptica_id_reader_free(idr);
-  // --------------------------------------------------------------------------
+  // elliptica_id_reader_free(idr);
+  //  --------------------------------------------------------------------------
 
   /*
   if (MAGNETIC_FIELDS_ENABLED)
   {
-    // B field ------------------------------------------------------------------
+    // B field
+  ------------------------------------------------------------------
     // Assume stars are located on x axis
 
     Real pcut = pin->GetReal("problem","pcut") * pgasmax;
@@ -344,13 +351,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for (int i = il; i <= iu; ++i)
       {
         if(pcoord->x1v(i) > 0){
-    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(2,k,j,i) = 0.0;
-        } else {
-    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp * std::max(phydro->w(IPR,k,j,i) - pcut, 0.0);
-    Atot(2,k,j,i) = 0.0;
+    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) -
+  pcut, 0.0); Atot(1,k,j,i) = (pcoord->x1v(i) - 0.5*sep) * b_amp *
+  std::max(phydro->w(IPR,k,j,i) - pcut, 0.0); Atot(2,k,j,i) = 0.0; } else {
+    Atot(0,k,j,i) = -pcoord->x2v(j) * b_amp * std::max(phydro->w(IPR,k,j,i) -
+  pcut, 0.0); Atot(1,k,j,i) = (pcoord->x1v(i) + 0.5*sep) * b_amp *
+  std::max(phydro->w(IPR,k,j,i) - pcut, 0.0); Atot(2,k,j,i) = 0.0;
         }
       }
 
@@ -359,10 +365,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     for(int i = is-1; i<=ie+1; i++)
       {
 
-      bxcc(k,j,i) = - ((Atot(1,k+1,j,i) - Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bycc(k,j,i) =  ((Atot(0,k+1,j,i) - Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k)));
-      bzcc(k,j,i) = ( (Atot(1,k,j,i+1) - Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
-                    - (Atot(0,k,j+1,i) - Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
+      bxcc(k,j,i) = - ((Atot(1,k+1,j,i) -
+  Atot(1,k-1,j,i))/(2.0*pcoord->dx3v(k))); bycc(k,j,i) =  ((Atot(0,k+1,j,i) -
+  Atot(0,k-1,j,i))/(2.0*pcoord->dx3v(k))); bzcc(k,j,i) = ( (Atot(1,k,j,i+1) -
+  Atot(1,k,j,i-1))/(2.0*pcoord->dx1v(i))
+                    - (Atot(0,k,j+1,i) -
+  Atot(0,k,j-1,i))/(2.0*pcoord->dx2v(j)));
       }
 
     for(int k = ks; k<=ke; k++)
@@ -391,13 +399,14 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   */
   //  -------------------------------------------------------------------------
 
-  // Construct Z4c vars from ADM vars ------------------------------------------
+  // Construct Z4c vars from ADM vars
+  // ------------------------------------------
   pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u);
   // pz4c->ADMToZ4c(pz4c->storage.adm, pz4c->storage.u1);
 
   // Allow override of Lorene gauge -------------------------------------------
-  bool fix_gauge_precollapsed = pin->GetOrAddBoolean(
-    "problem", "fix_gauge_precollapsed", false);
+  bool fix_gauge_precollapsed =
+    pin->GetOrAddBoolean("problem", "fix_gauge_precollapsed", false);
 
   if (fix_gauge_precollapsed)
   {
@@ -408,22 +417,20 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   // --------------------------------------------------------------------------
 
   // consistent pressure atmosphere -------------------------------------------
-  bool id_floor_primitives = pin->GetOrAddBoolean(
-    "problem", "id_floor_primitives", false);
+  bool id_floor_primitives =
+    pin->GetOrAddBoolean("problem", "id_floor_primitives", false);
 
   if (id_floor_primitives)
   {
-
-    for (int k = 0; k <= ncells3-1; ++k)
-    for (int j = 0; j <= ncells2-1; ++j)
-    for (int i = 0; i <= ncells1-1; ++i)
-    {
-      PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, r_scalar, k, j, i);
-    }
-
+    for (int k = 0; k <= ncells3 - 1; ++k)
+      for (int j = 0; j <= ncells2 - 1; ++j)
+        for (int i = 0; i <= ncells1 - 1; ++i)
+        {
+          PrimHelper::ApplyPrimitiveFloors(
+            peos->GetEOS(), phydro->w, r_scalar, k, j, i);
+        }
   }
   // --------------------------------------------------------------------------
-
 
   // Initialise conserved variables
   peos->PrimitiveToConserved(phydro->w,
@@ -432,9 +439,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
                              phydro->u,
                              s_scalar,
                              pcoord,
-                             0, ncells1-1,
-                             0, ncells2-1,
-                             0, ncells3-1);
+                             0,
+                             ncells1 - 1,
+                             0,
+                             ncells2 - 1,
+                             0,
+                             ncells3 - 1);
 
   // --------------------------------------------------------------------------
   // The following is now done else-where and is redundant here
@@ -457,92 +467,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
 
 //========================================================================================
 //! \fn void Mesh::UserWorkAfterLoop(ParameterInput *pin, int res_flag)
-//  \brief Free Elliptica memory 
+//  \brief Free Elliptica memory
 //========================================================================================
-void Mesh::UserWorkAfterLoop(ParameterInput *pin)
+void Mesh::UserWorkAfterLoop(ParameterInput* pin)
 {
   elliptica_id_reader_free(idr);
   idr = nullptr;
   return;
 }
 
-namespace {
-
-//----------------------------------------------------------------------------------------
-//! \fn
-//  \brief refinement condition: extrema based
-// 1: refines, -1: de-refines, 0: does nothing
-int RefinementCondition(MeshBlock *pmb)
-{
-  /*
-  // BD: TODO in principle this should be possible
-  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
-
-  // ensure we actually have a tracker
-  if (pmb->pmy_mesh->ptracker_extrema->N_tracker > 0)
-  {
-    return 0;
-  }
-
-  return pz4c_amr->ShouldIRefine(pmb);
-  */
-
-  Mesh * pmesh = pmb->pmy_mesh;
-  ExtremaTracker * ptracker_extrema = pmesh->ptracker_extrema;
-
-  int root_level = ptracker_extrema->root_level;
-  int mb_physical_level = pmb->loc.level - root_level;
-
-
-  // Iterate over refinement levels offered by trackers.
-  //
-  // By default if a point is not in any sphere, completely de-refine.
-  int req_level = 0;
-
-  for (int n=1; n<=ptracker_extrema->N_tracker; ++n)
-  {
-    bool is_contained = false;
-    int cur_req_level = ptracker_extrema->ref_level(n-1);
-
-    {
-      if (ptracker_extrema->ref_type(n-1) == 0)
-      {
-        is_contained = pmb->PointContained(
-          ptracker_extrema->c_x1(n-1),
-          ptracker_extrema->c_x2(n-1),
-          ptracker_extrema->c_x3(n-1)
-        );
-      }
-      else if (ptracker_extrema->ref_type(n-1) == 1)
-      {
-        is_contained = pmb->SphereIntersects(
-          ptracker_extrema->c_x1(n-1),
-          ptracker_extrema->c_x2(n-1),
-          ptracker_extrema->c_x3(n-1),
-          ptracker_extrema->ref_zone_radius(n-1)
-        );
-      }
-    }
-
-    if (is_contained)
-    {
-      req_level = std::max(cur_req_level, req_level);
-    }
-
-  }
-
-  if (req_level > mb_physical_level)
-  {
-    return 1;  // currently too coarse, refine
-  }
-  else if (req_level == mb_physical_level)
-  {
-    return 0;  // level satisfied, do nothing
-  }
-
-  // otherwise de-refine
-  return -1;
-
-}
-
-}

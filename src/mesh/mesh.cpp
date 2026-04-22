@@ -150,6 +150,10 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
   BoundaryFlag block_bcs[6];
   std::int64_t nbmax;
   resume_flag = false;
+  // Default AMR flag: tracker-based refinement. Overridden by
+  // EnrollUserRefinementCondition() when a pgen wants a custom criterion.
+  if (adaptive)
+    AMRFlag_ = &Mesh::StandardRefinementCondition;
   // mesh test
   if (mesh_test > 0)
     Globals::nranks = mesh_test;
@@ -841,6 +845,11 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
   BoundaryFlag block_bcs[6];
   MeshBlock* pfirst{};
   IOWrapperSizeT datasize, listsize, headeroffset;
+
+  // Default AMR flag: tracker-based refinement. Overridden by
+  // EnrollUserRefinementCondition() when a pgen wants a custom criterion.
+  if (adaptive)
+    AMRFlag_ = &Mesh::StandardRefinementCondition;
 
   // mesh test
   if (mesh_test > 0)

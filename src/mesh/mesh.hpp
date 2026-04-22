@@ -798,6 +798,15 @@ class Mesh
   void EnrollUserStandardField(ParameterInput* pin);
   void EnrollUserStandardZ4c(ParameterInput* pin);
   void EnrollUserStandardM1(ParameterInput* pin);
+
+  // Default AMR flag function, driven by ExtremaTracker (and AHFs where
+  // available). Installed as the default `AMRFlag_` when adaptive == true,
+  // so problem generators get sane tracker-based AMR out of the box. A
+  // custom criterion can be installed instead via
+  //   EnrollUserRefinementCondition(MyRefinementCondition);
+  // which overrides this default. See
+  // src/mesh/mesh_standard_refinement.cpp for details.
+  static int StandardRefinementCondition(MeshBlock* pmb);
 };
 
 // collect sampling information into struct

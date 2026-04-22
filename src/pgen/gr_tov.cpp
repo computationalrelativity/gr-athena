@@ -81,8 +81,6 @@ void TOV_background(Real x1, Real x2, Real x3, ParameterInput *pin,
 void TOV_populate(MeshBlock* pmb, ParameterInput* pin);
 void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin);
 
-int RefinementCondition(MeshBlock* pmb);
-
 // Global variables
 Real v_amp;   // velocity amplitude for linear perturbations
 Real lambda;  // amplitude for pressure perturbations
@@ -288,7 +286,14 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   TOV_solve(rhoc, rmin, dr, &npts);
 
   if (adaptive == true)
-    EnrollUserRefinementCondition(RefinementCondition);
+  {
+    // Default AMR driven by ExtremaTracker (and AHFs where available).
+    // To use a custom criterion instead, define a local
+    //   int MyRefinementCondition(MeshBlock*);
+    // and call EnrollUserRefinementCondition(MyRefinementCondition);
+    // which will override this default.
+    EnrollUserRefinementCondition(Mesh::StandardRefinementCondition);
+  }
 
   EnrollUserStandardHydro(pin);
   EnrollUserStandardField(pin);
@@ -1829,89 +1834,6 @@ void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin)
                                Ay = x * amp;
                                Az = 0.0;
                              });
-}
-
-//----------------------------------------------------------------------------------------
-//! \fn
-//  \brief refinement condition: extrema based
-// 1: refines, -1: de-refines, 0: does nothing
-int RefinementCondition(MeshBlock* pmb)
-{
-  /*
-  // BD: TODO in principle this should be possible
-  Z4c_AMR *const pz4c_amr = pmb->pz4c->pz4c_amr;
-
-  // ensure we actually have a tracker
-  if (pmb->pmy_mesh->ptracker_extrema->N_tracker > 0)
-  {
-    return 0;
-  }
-
-  return pz4c_amr->ShouldIRefine(pmb);
-  */
-
-  Mesh* pmesh                      = pmb->pmy_mesh;
-  ExtremaTracker* ptracker_extrema = pmesh->ptracker_extrema;
-
-  int root_level        = ptracker_extrema->root_level;
-  int mb_physical_level = pmb->loc.level - root_level;
-
-  // to get behaviour correct for when multiple centres occur in a single
-  // MeshBlock we need to carry information
-  bool centres_contained = false;
-
-  for (int n = 1; n <= ptracker_extrema->N_tracker; ++n)
-  {
-    bool is_contained = false;
-
-    if (ptracker_extrema->ref_type(n - 1) == 0)
-    {
-      is_contained = pmb->PointContained(ptracker_extrema->c_x1(n - 1),
-                                         ptracker_extrema->c_x2(n - 1),
-                                         ptracker_extrema->c_x3(n - 1));
-    }
-    else if (ptracker_extrema->ref_type(n - 1) == 1)
-    {
-      is_contained =
-        pmb->SphereIntersects(ptracker_extrema->c_x1(n - 1),
-                              ptracker_extrema->c_x2(n - 1),
-                              ptracker_extrema->c_x3(n - 1),
-                              ptracker_extrema->ref_zone_radius(n - 1));
-
-      // is_contained = pmb->PointContained(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) or pmb->PointCentralDistanceSquared(
-      //   ptracker_extrema->c_x1(n-1),
-      //   ptracker_extrema->c_x2(n-1),
-      //   ptracker_extrema->c_x3(n-1)
-      // ) < SQR(ptracker_extrema->ref_zone_radius(n-1));
-    }
-
-    if (is_contained)
-    {
-      centres_contained = true;
-
-      // a point in current MeshBlock, now check whether level sufficient
-      if (mb_physical_level < ptracker_extrema->ref_level(n - 1))
-      {
-        return 1;
-      }
-    }
-  }
-
-  // Here one could put composite criteria (such as spherical patch cond.)
-  // ...
-
-  if (centres_contained)
-  {
-    // all contained centres are at a sufficient level of refinement
-    return 0;
-  }
-
-  // Nothing satisfied - flag for de-refinement
-  return -1;
 }
 
 }  // namespace
