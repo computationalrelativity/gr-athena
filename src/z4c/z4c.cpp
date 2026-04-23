@@ -471,15 +471,6 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   opt.tf_force_regularization =
     pin->GetOrAddBoolean("z4c", "tf_force_regularization", true);
 
-  opt.excise_z4c_freeze_evo =
-    pin->GetOrAddBoolean("excision", "excise_z4c_freeze_evo", false);
-
-  opt.excise_z4c_freeze_evo_rat =
-    pin->GetOrAddReal("excision", "excise_z4c_freeze_evo_rat", -1);
-
-  opt.excise_z4c_matter_sources =
-    pin->GetOrAddBoolean("excision", "excise_z4c_matter_sources", false);
-
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);

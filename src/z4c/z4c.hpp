@@ -428,11 +428,6 @@ class Z4c
 
     // Impose global regularization on conf / alpha
     bool force_regularization;
-
-    // Excision of matter sources / evolution?
-    bool excise_z4c_matter_sources;
-    bool excise_z4c_freeze_evo;
-    Real excise_z4c_freeze_evo_rat;
   } opt;
 
   AA empty_flux[3];
@@ -454,8 +449,6 @@ class Z4c
   // compute the RHS given the Z4c and matter variables
   void Z4cRHS(AA& u, AA& mat, AA& rhs);
   void Z4cRHS_(AA& u, AA& mat, AA& rhs);
-
-  void Z4cRHSExciseFreeze(AA& u, AA& mat, AA& rhs);
 
   // compute the boundary RHS given the Z4c and matter variables
   void Z4cBoundaryRHS(AA& u, AA& mat, AA& rhs);

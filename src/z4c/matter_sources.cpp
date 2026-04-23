@@ -350,24 +350,5 @@ void Z4c::GetMatter(::AA& u_mat, ::AA& u_adm, ::AA& w, ::AA& r, ::AA& bb_cc)
 
 #endif  // M1_ENABLED
 
-  // If excision is activated; optionally remove matter from the coupling
-  if (opt.excise_z4c_matter_sources && ph->opt_excision.use_taper)
-  {
-    ILOOP3(k, j, i)
-    {
-      mat.rho(k, j, i) = ph->excision_mask(k, j, i) * mat.rho(k, j, i);
-      for (int a = 0; a < NDIM; ++a)
-      {
-        mat.S_d(a, k, j, i) = ph->excision_mask(k, j, i) * mat.S_d(a, k, j, i);
-
-        for (int b = a; b < NDIM; ++b)
-        {
-          mat.S_dd(a, b, k, j, i) =
-            ph->excision_mask(k, j, i) * mat.S_dd(a, b, k, j, i);
-        }
-      }
-    }
-  }
-
 #endif  // Z4C_WITH_HYDRO_ENABLED
 }
