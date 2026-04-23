@@ -87,8 +87,6 @@ class Hydro
     bool hybrid_hydro;             // control whether to use ahf+hydro excision
     Real hybrid_fac_min_alpha;     // cut values below this * min_alpha
     bool use_taper;                // taper instead of hard-cut?
-    bool excise_hydro_freeze_evo;  // use with taper
-    bool excise_hydro_taper;       // taper (cons) state-vector
     Real taper_pow;                // taper(x) ^ taper_pow
     Real taper_min;                // lim x->0 taper(x) = taper_min
     Real taper_dt_response;        // ramp taper up over this duration

@@ -173,7 +173,7 @@ void Hydro::RiemannSolver(const int ivx,
       const bool can_excise = peos->CanExcisePoint(
         excision_factor, true, alpha_, *x1, *x2, *x3, i, j, k);
 
-      if (can_excise && !ph->opt_excision.excise_hydro_freeze_evo)
+      if (can_excise)
       {
         if (ph->opt_excision.use_taper)
         {

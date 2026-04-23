@@ -741,20 +741,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
       }  // MAGNETIC_FIELDS_ENABLED
 
       // Add sources
-      if (ph->opt_excision.use_taper &&
-          ph->opt_excision.excise_hydro_freeze_evo)
-      {
-        CC_PCO_ILOOP1(i)
-        {
-          const Real w_vol =
-            dt * alpha_(i) * sqrt_detgamma_(i) * ph->excision_mask(k, j, i);
-          cons(IEN, k, j, i) += w_vol * Stau_(i);
-          cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
-          cons(IM2, k, j, i) += w_vol * SS_d_(1, i);
-          cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
-        }
-      }
-      else if (ph->opt_excision.excise_hydro_damping)
+      if (ph->opt_excision.excise_hydro_damping)
       {
         CC_PCO_ILOOP1(i)
         {
@@ -773,10 +760,8 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
             const Real gam = (1 - ef) * ph->opt_excision.hydro_damping_factor;
             // const Real gam_w_vol = dt * alpha_(i) * sqrt_detgamma_(i) * gam;
 
-            Real gam_w_vol = gam * (dt  // * alpha_(i) * sqrt_detgamma_(i)
-                                   );
+            Real gam_w_vol = dt * gam;
 
-#if FLUID_ENABLED
             // scale update to land at or above floor:
             const Real den_new =
               cons(IDN, k, j, i) - gam_w_vol * ph->u(IDN, k, j, i);
@@ -802,8 +787,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
                          (cons(IEN, k, j, i) - tau_flr) / ph->u(IEN, k, j, i));
             }
 
-#endif  // FLUID_ENABLED
-
             cons(IDN, k, j, i) -= gam_w_vol * ph->u(IDN, k, j, i);
             cons(IM1, k, j, i) -= gam_w_vol * ph->u(IM1, k, j, i);
             cons(IM2, k, j, i) -= gam_w_vol * ph->u(IM2, k, j, i);
@@ -816,8 +799,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
       {
         CC_PCO_ILOOP1(i)
         {
-          // BD: TODO - consider embedded pre-factor to avoid zero-div. if
-          // alpha->0
           const Real w_vol = dt * alpha_(i) * sqrt_detgamma_(i);
           cons(IEN, k, j, i) += w_vol * Stau_(i);
           cons(IM1, k, j, i) += w_vol * SS_d_(0, i);
@@ -825,17 +806,6 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
           cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
         }
       }
-
-      // DEBUG FULL EXCISION
-      if (ph->opt_excision.use_taper && ph->opt_excision.excise_hydro_taper)
-        CC_PCO_ILOOP1(i)
-        {
-          cons(IDN, k, j, i) = ph->excision_mask(k, j, i) * cons(IDN, k, j, i);
-          cons(IM1, k, j, i) = ph->excision_mask(k, j, i) * cons(IM1, k, j, i);
-          cons(IM2, k, j, i) = ph->excision_mask(k, j, i) * cons(IM2, k, j, i);
-          cons(IM3, k, j, i) = ph->excision_mask(k, j, i) * cons(IM3, k, j, i);
-          cons(IEN, k, j, i) = ph->excision_mask(k, j, i) * cons(IEN, k, j, i);
-        }
 
     }  // j, k
 }

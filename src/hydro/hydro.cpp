@@ -134,12 +134,6 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   opt_excision.taper_dt_response =
     pin->GetOrAddReal("excision", "taper_dt_response", 0.0);
 
-  opt_excision.excise_hydro_freeze_evo =
-    pin->GetOrAddBoolean("excision", "excise_hydro_freeze_evo", false);
-
-  opt_excision.excise_hydro_taper =
-    pin->GetOrAddBoolean("excision", "excise_hydro_taper", false);
-
   if (pmb->precon->xorder_use_fb)
   {
     fallback_mask.NewAthenaArray(nc3, nc2, nc1);

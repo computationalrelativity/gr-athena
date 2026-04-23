@@ -97,27 +97,12 @@ void Hydro::AddFluxDivergence(const Real wght, AthenaArray<Real>& u_out)
         }
       }
 
-      // BD: TODO- probably remove
-      if (opt_excision.use_taper && opt_excision.excise_hydro_freeze_evo)
+      for (int n = 0; n < NHYDRO; ++n)
       {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
 #pragma omp simd
-          for (int i = is; i <= ie; ++i)
-          {
-            u_out(n, k, j, i) -= excision_mask(k, j, i) * wght * dflx(n, i);
-          }
-        }
-      }
-      else
-      {
-        for (int n = 0; n < NHYDRO; ++n)
+        for (int i = is; i <= ie; ++i)
         {
-#pragma omp simd
-          for (int i = is; i <= ie; ++i)
-          {
-            u_out(n, k, j, i) -= wght * dflx(n, i);
-          }
+          u_out(n, k, j, i) -= wght * dflx(n, i);
         }
       }
     }
