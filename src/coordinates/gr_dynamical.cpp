@@ -741,7 +741,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
       }  // MAGNETIC_FIELDS_ENABLED
 
       // Add sources
-      if (ph->opt_excision.excise_hydro_damping)
+      if (ph->opt_excision.excise_hydro_damping && ph->any_excision_active)
       {
         CC_PCO_ILOOP1(i)
         {

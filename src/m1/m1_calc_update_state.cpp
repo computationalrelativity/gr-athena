@@ -5,12 +5,12 @@
 // Athena++ headers
 #include "m1.hpp"
 #include "m1_calc_closure.hpp"
-#include "m1_macro.hpp"
-#include "m1_utils.hpp"
 #include "m1_calc_update.hpp"
-#include "m1_sources.hpp"
 #include "m1_integrators.hpp"
+#include "m1_macro.hpp"
 #include "m1_set_equilibrium.hpp"
+#include "m1_sources.hpp"
+#include "m1_utils.hpp"
 
 #if FLUID_ENABLED
 #include "../eos/eos.hpp"
@@ -20,25 +20,27 @@
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
-#include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
+#include <gsl/gsl_roots.h>
 #include <gsl/gsl_vector.h>
 
-
 // ============================================================================
-namespace M1::State {
+namespace M1::State
+{
 // ============================================================================
 
-void SlopeFallback(
-  M1 * pm1,
-  const Real dt,
-  M1::vars_Lab & U_C,
-  const M1::vars_Lab & U_P,
-  const M1::vars_Lab & U_I,
-  M1::vars_Source & U_S,
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu)
+void SlopeFallback(M1* pm1,
+                   const Real dt,
+                   M1::vars_Lab& U_C,
+                   const M1::vars_Lab& U_P,
+                   const M1::vars_Lab& U_I,
+                   M1::vars_Source& U_S,
+                   const int kl,
+                   const int ku,
+                   const int jl,
+                   const int ju,
+                   const int il,
+                   const int iu)
 {
   using namespace Update;
   using namespace Closures;
@@ -61,230 +63,223 @@ void SlopeFallback(
   const int KU = ku;
 
   // hybridize (into ho) pp corrected fluxes
-  AA & mask_pp = pm1->ev_strat.masks.pp;
+  AA& mask_pp = pm1->ev_strat.masks.pp;
 
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  {
-    // mask species index if using per-species
-    const int ix_ms = (pm1->opt.flux_lo_fallback_species)
-      ? ix_s
-      : 0;
-
-    M1::vars_Lab & C = const_cast<M1::vars_Lab &>(U_C);
-    M1::vars_Lab & P = const_cast<M1::vars_Lab &>(U_P);
-    M1::vars_Lab & I = const_cast<M1::vars_Lab &>(U_I);
-
-    // Solution at next time
-    AT_C_sca & C_sc_E = C.sc_E(ix_g,ix_s);
-    AT_N_vec & C_sp_F_d = C.sp_F_d(ix_g,ix_s);
-    AT_C_sca & C_sc_nG = C.sc_nG(ix_g,ix_s);
-
-    Real rat_L, rat_R;
-    Real d_p1, d_0, d_m1;
-
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    if (pm1->MaskGet(k, j, i))
+  for (int ix_g = 0; ix_g < pm1->N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
     {
-      // hybridization factor starts with HO
-      Real & hf = mask_pp(ix_ms,k,j,i);
+      // mask species index if using per-species
+      const int ix_ms = (pm1->opt.flux_lo_fallback_species) ? ix_s : 0;
 
-      // D_i[f] := f_{i+1} - f_{i}
+      M1::vars_Lab& C = const_cast<M1::vars_Lab&>(U_C);
+      M1::vars_Lab& P = const_cast<M1::vars_Lab&>(U_P);
+      M1::vars_Lab& I = const_cast<M1::vars_Lab&>(U_I);
 
-      if (hf == 1.0) continue;  // already LO, short-circuit
+      // Solution at next time
+      AT_C_sca& C_sc_E   = C.sc_E(ix_g, ix_s);
+      AT_N_vec& C_sp_F_d = C.sp_F_d(ix_g, ix_s);
+      AT_C_sca& C_sc_nG  = C.sc_nG(ix_g, ix_s);
 
-      if (rat_sl_sc_E > 0)
-      {
-        // x-dir --------------------------------------------------------------
-        d_p1 = C_sc_E(k,j,i+2) - C_sc_E(k,j,i+1);
-        d_0  = C_sc_E(k,j,i+1) - C_sc_E(k,j,i);
-        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k,j,i-1);
+      Real rat_L, rat_R;
+      Real d_p1, d_0, d_m1;
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+      for (int k = kl; k <= ku; ++k)
+        for (int j = jl; j <= ju; ++j)
+          for (int i = il; i <= iu; ++i)
+            if (pm1->MaskGet(k, j, i))
+            {
+              // hybridization factor starts with HO
+              Real& hf = mask_pp(ix_ms, k, j, i);
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((i>IL) && (i<IU)) ? (
-          (rat_L < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
+              // D_i[f] := f_{i+1} - f_{i}
 
-        hf = (i<IU-1) ? (
-          (rat_R < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
+              if (hf == 1.0)
+                continue;  // already LO, short-circuit
 
-        // y-dir --------------------------------------------------------------
-        d_p1 = C_sc_E(k,j+2,i) - C_sc_E(k,j+1,i);
-        d_0  = C_sc_E(k,j+1,i) - C_sc_E(k,j,i);
-        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k,j-1,i);
+              if (rat_sl_sc_E > 0)
+              {
+                // x-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_E(k, j, i + 2) - C_sc_E(k, j, i + 1);
+                d_0  = C_sc_E(k, j, i + 1) - C_sc_E(k, j, i);
+                d_m1 = C_sc_E(k, j, i) - C_sc_E(k, j, i - 1);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        hf = ((j>JL) && (j<JU)) ? (
-          (rat_L < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = ((i > IL) && (i < IU))
+                     ? ((rat_L < rat_sl_sc_E) ? 1.0 : hf)
+                     : hf;
 
-        hf = (j<JU-1) ? (
-          (rat_R < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
+                hf = (i < IU - 1) ? ((rat_R < rat_sl_sc_E) ? 1.0 : hf) : hf;
 
-        // z-dir --------------------------------------------------------------
-        d_p1 = C_sc_E(k+2,j,i) - C_sc_E(k+1,j,i);
-        d_0  = C_sc_E(k+1,j,i) - C_sc_E(k,j,i);
-        d_m1 = C_sc_E(k,j,i)   - C_sc_E(k-1,j,i);
+                // y-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_E(k, j + 2, i) - C_sc_E(k, j + 1, i);
+                d_0  = C_sc_E(k, j + 1, i) - C_sc_E(k, j, i);
+                d_m1 = C_sc_E(k, j, i) - C_sc_E(k, j - 1, i);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((k>KL) && (k<KU)) ? (
-          (rat_L < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
+                hf = ((j > JL) && (j < JU))
+                     ? ((rat_L < rat_sl_sc_E) ? 1.0 : hf)
+                     : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k<KU-1) ? (
-          (rat_R < rat_sl_sc_E) ? 1.0 : hf
-        ) : hf;
-      }
+                hf = (j < JU - 1) ? ((rat_R < rat_sl_sc_E) ? 1.0 : hf) : hf;
 
-      if (hf == 1.0) continue;
+                // z-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_E(k + 2, j, i) - C_sc_E(k + 1, j, i);
+                d_0  = C_sc_E(k + 1, j, i) - C_sc_E(k, j, i);
+                d_m1 = C_sc_E(k, j, i) - C_sc_E(k - 1, j, i);
 
-      if (rat_sl_sc_nG > 0)
-      {
-        // x-dir --------------------------------------------------------------
-        d_p1 = C_sc_nG(k,j,i+2) - C_sc_nG(k,j,i+1);
-        d_0  = C_sc_nG(k,j,i+1) - C_sc_nG(k,j,i);
-        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k,j,i-1);
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = ((k > KL) && (k < KU))
+                     ? ((rat_L < rat_sl_sc_E) ? 1.0 : hf)
+                     : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((i>IL) && (i<IU)) ? (
-          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = (k < KU - 1) ? ((rat_R < rat_sl_sc_E) ? 1.0 : hf) : hf;
+              }
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (i<IU-1) ? (
-          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
+              if (hf == 1.0)
+                continue;
 
-        // y-dir --------------------------------------------------------------
-        d_p1 = C_sc_nG(k,j+2,i) - C_sc_nG(k,j+1,i);
-        d_0  = C_sc_nG(k,j+1,i) - C_sc_nG(k,j,i);
-        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k,j-1,i);
+              if (rat_sl_sc_nG > 0)
+              {
+                // x-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_nG(k, j, i + 2) - C_sc_nG(k, j, i + 1);
+                d_0  = C_sc_nG(k, j, i + 1) - C_sc_nG(k, j, i);
+                d_m1 = C_sc_nG(k, j, i) - C_sc_nG(k, j, i - 1);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((j>JL) && (j<JU)) ? (
-          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = ((i > IL) && (i < IU))
+                     ? ((rat_L < rat_sl_sc_nG) ? 1.0 : hf)
+                     : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (j<JU-1) ? (
-          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = (i < IU - 1) ? ((rat_R < rat_sl_sc_nG) ? 1.0 : hf) : hf;
 
-        // z-dir --------------------------------------------------------------
-        d_p1 = C_sc_nG(k+2,j,i) - C_sc_nG(k+1,j,i);
-        d_0  = C_sc_nG(k+1,j,i) - C_sc_nG(k,j,i);
-        d_m1 = C_sc_nG(k,j,i)   - C_sc_nG(k-1,j,i);
+                // y-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_nG(k, j + 2, i) - C_sc_nG(k, j + 1, i);
+                d_0  = C_sc_nG(k, j + 1, i) - C_sc_nG(k, j, i);
+                d_m1 = C_sc_nG(k, j, i) - C_sc_nG(k, j - 1, i);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((k>KL) && (k<KU)) ? (
-          (rat_L < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = ((j > JL) && (j < JU))
+                     ? ((rat_L < rat_sl_sc_nG) ? 1.0 : hf)
+                     : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k<KU-1) ? (
-          (rat_R < rat_sl_sc_nG) ? 1.0 : hf
-        ) : hf;
-      }
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = (j < JU - 1) ? ((rat_R < rat_sl_sc_nG) ? 1.0 : hf) : hf;
 
-      if (hf == 1.0) continue;
+                // z-dir
+                // --------------------------------------------------------------
+                d_p1 = C_sc_nG(k + 2, j, i) - C_sc_nG(k + 1, j, i);
+                d_0  = C_sc_nG(k + 1, j, i) - C_sc_nG(k, j, i);
+                d_m1 = C_sc_nG(k, j, i) - C_sc_nG(k - 1, j, i);
 
-      if (rat_sl_sp_F_d > 0)
-      for (int a=0; a<N; ++a)
-      {
-        // x-dir --------------------------------------------------------------
-        d_p1 = C_sp_F_d(a,k,j,i+2) - C_sp_F_d(a,k,j,i+1);
-        d_0  = C_sp_F_d(a,k,j,i+1) - C_sp_F_d(a,k,j,i);
-        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k,j,i-1);
+                rat_L = d_m1 / d_0;
+                rat_R = d_0 / d_p1;
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = ((k > KL) && (k < KU))
+                     ? ((rat_L < rat_sl_sc_nG) ? 1.0 : hf)
+                     : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((i>IL) && (i<IU)) ? (
-          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
+                // if idx in range, and rat too sharp, fall-back to LO
+                hf = (k < KU - 1) ? ((rat_R < rat_sl_sc_nG) ? 1.0 : hf) : hf;
+              }
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (i<IU-1) ? (
-          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
+              if (hf == 1.0)
+                continue;
 
-        // y-dir --------------------------------------------------------------
-        d_p1 = C_sp_F_d(a,k,j+2,i) - C_sp_F_d(a,k,j+1,i);
-        d_0  = C_sp_F_d(a,k,j+1,i) - C_sp_F_d(a,k,j,i);
-        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k,j-1,i);
+              if (rat_sl_sp_F_d > 0)
+                for (int a = 0; a < N; ++a)
+                {
+                  // x-dir
+                  // --------------------------------------------------------------
+                  d_p1 = C_sp_F_d(a, k, j, i + 2) - C_sp_F_d(a, k, j, i + 1);
+                  d_0  = C_sp_F_d(a, k, j, i + 1) - C_sp_F_d(a, k, j, i);
+                  d_m1 = C_sp_F_d(a, k, j, i) - C_sp_F_d(a, k, j, i - 1);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                  rat_L = d_m1 / d_0;
+                  rat_R = d_0 / d_p1;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((j>JL) && (j<JU)) ? (
-          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf = ((i > IL) && (i < IU))
+                       ? ((rat_L < rat_sl_sp_F_d) ? 1.0 : hf)
+                       : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (j<JU-1) ? (
-          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf =
+                    (i < IU - 1) ? ((rat_R < rat_sl_sp_F_d) ? 1.0 : hf) : hf;
 
-        // z-dir --------------------------------------------------------------
-        d_p1 = C_sp_F_d(a,k+2,j,i) - C_sp_F_d(a,k+1,j,i);
-        d_0  = C_sp_F_d(a,k+1,j,i) - C_sp_F_d(a,k,j,i);
-        d_m1 = C_sp_F_d(a,k,j,i)   - C_sp_F_d(a,k-1,j,i);
+                  // y-dir
+                  // --------------------------------------------------------------
+                  d_p1 = C_sp_F_d(a, k, j + 2, i) - C_sp_F_d(a, k, j + 1, i);
+                  d_0  = C_sp_F_d(a, k, j + 1, i) - C_sp_F_d(a, k, j, i);
+                  d_m1 = C_sp_F_d(a, k, j, i) - C_sp_F_d(a, k, j - 1, i);
 
-        rat_L = d_m1 / d_0;
-        rat_R = d_0 / d_p1;
+                  rat_L = d_m1 / d_0;
+                  rat_R = d_0 / d_p1;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = ((k>KL) && (k<KU)) ? (
-          (rat_L < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf = ((j > JL) && (j < JU))
+                       ? ((rat_L < rat_sl_sp_F_d) ? 1.0 : hf)
+                       : hf;
 
-        // if idx in range, and rat too sharp, fall-back to LO
-        hf = (k<KU-1) ? (
-          (rat_R < rat_sl_sp_F_d) ? 1.0 : hf
-        ) : hf;
-      }
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf =
+                    (j < JU - 1) ? ((rat_R < rat_sl_sp_F_d) ? 1.0 : hf) : hf;
 
+                  // z-dir
+                  // --------------------------------------------------------------
+                  d_p1 = C_sp_F_d(a, k + 2, j, i) - C_sp_F_d(a, k + 1, j, i);
+                  d_0  = C_sp_F_d(a, k + 1, j, i) - C_sp_F_d(a, k, j, i);
+                  d_m1 = C_sp_F_d(a, k, j, i) - C_sp_F_d(a, k - 1, j, i);
+
+                  rat_L = d_m1 / d_0;
+                  rat_R = d_0 / d_p1;
+
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf = ((k > KL) && (k < KU))
+                       ? ((rat_L < rat_sl_sp_F_d) ? 1.0 : hf)
+                       : hf;
+
+                  // if idx in range, and rat too sharp, fall-back to LO
+                  hf =
+                    (k < KU - 1) ? ((rat_R < rat_sl_sp_F_d) ? 1.0 : hf) : hf;
+                }
+            }
     }
-  }
-
 }
 
 // ============================================================================
-} // namespace M1::State
+}  // namespace M1::State
 // ============================================================================
 
-
 // ============================================================================
-namespace M1 {
+namespace M1
+{
 // ============================================================================
 
 void M1::ResetEvolutionStrategy()
 {
-  AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
+  AthenaArray<t_sln_r>& mask_sln_r = pm1->ev_strat.masks.solution_regime;
   mask_sln_r.Fill(t_sln_r::noop);
 }
 
@@ -293,7 +288,7 @@ void M1::PrepareEvolutionStrategy(const Real dt,
                                   const Real kap_s,
                                   const Real rho,
                                   const Real T,
-                                  t_sln_r & mask_sln_r)
+                                  t_sln_r& mask_sln_r)
 {
   // Equilibrium detected in Weak-rates; short-circuit
   if ((mask_sln_r == t_sln_r::equilibrium) ||
@@ -303,23 +298,20 @@ void M1::PrepareEvolutionStrategy(const Real dt,
   }
 
   // equilibrium regime (additional thick limiter)
-  if((opt_solver.src_lim_thick > 0) &&
-     (SQR(dt) * (kap_a * (kap_a + kap_s)) >
-      SQR(opt_solver.src_lim_thick)) &&
-     (rho >= pm1->opt_solver.eql_rho_min) &&
-     (T >= pm1->opt_solver.eql_t_min))
+  if ((opt_solver.src_lim_thick > 0) &&
+      (SQR(dt) * (kap_a * (kap_a + kap_s)) > SQR(opt_solver.src_lim_thick)) &&
+      (rho >= pm1->opt_solver.eql_rho_min) && (T >= pm1->opt_solver.eql_t_min))
   {
     mask_sln_r = t_sln_r::equilibrium;
   }
   // scattering regime
-  else if((opt_solver.src_lim_scattering > 0) &&
-          (dt * kap_s > opt_solver.src_lim_scattering))
+  else if ((opt_solver.src_lim_scattering > 0) &&
+           (dt * kap_s > opt_solver.src_lim_scattering))
   {
     mask_sln_r = t_sln_r::scattering;
   }
   // Non-stiff regime
-  else if ((dt * kap_a < 1) &&
-           (dt * kap_s < 1))
+  else if ((dt * kap_a < 1) && (dt * kap_s < 1))
   {
     mask_sln_r = t_sln_r::non_stiff;
   }
@@ -332,9 +324,9 @@ void M1::PrepareEvolutionStrategy(const Real dt,
 
 void M1::PrepareEvolutionStrategyCommon(const Real dt)
 {
-  AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
+  AthenaArray<t_sln_r>& mask_sln_r = pm1->ev_strat.masks.solution_regime;
 
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
+  for (int ix_g = 0; ix_g < pm1->N_GRPS; ++ix_g)
   {
     M1_MLOOP3(k, j, i)
     if (pm1->MaskGet(k, j, i))
@@ -348,23 +340,20 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
 
       // Check opacity-based regimes using maximum opacity across all species
       Real max_kap_prod = 0.0;
-      Real max_kap_s = 0.0;
+      Real max_kap_s    = 0.0;
 
       bool non_stiff = true;
 
-      const Real rho = hydro.sc_w_rho(k,j,i);
-      const Real w_T = hydro.sc_T(k,j,i);
+      const Real rho = hydro.sc_w_rho(k, j, i);
+      const Real w_T = hydro.sc_T(k, j, i);
 
       // Find maximum opacities across all species
-      for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
       {
-        const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
-        const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
+        const Real kap_a = pm1->radmat.sc_kap_a(ix_g, ix_s)(k, j, i);
+        const Real kap_s = pm1->radmat.sc_kap_s(ix_g, ix_s)(k, j, i);
 
-        max_kap_prod = std::max(
-          max_kap_prod,
-          kap_a * (kap_a + kap_s)
-        );
+        max_kap_prod = std::max(max_kap_prod, kap_a * (kap_a + kap_s));
 
         non_stiff = non_stiff && (dt * kap_a < 1) && (dt * kap_s < 1);
         max_kap_s = std::max(max_kap_s, kap_s);
@@ -375,8 +364,7 @@ void M1::PrepareEvolutionStrategyCommon(const Real dt)
 
       // Check thick regime
       if ((opt_solver.src_lim_thick > 0) &&
-          (SQR(dt) * max_kap_prod >
-           SQR(opt_solver.src_lim_thick)) &&
+          (SQR(dt) * max_kap_prod > SQR(opt_solver.src_lim_thick)) &&
           (rho >= pm1->opt_solver.eql_rho_min) &&
           (w_T >= pm1->opt_solver.eql_t_min))
       {
@@ -411,29 +399,31 @@ void M1::PrepareEvolutionStrategy(const Real dt)
     return;
   }
 
-  AthenaArray<t_sln_r> & mask_sln_r = pm1->ev_strat.masks.solution_regime;
+  AthenaArray<t_sln_r>& mask_sln_r = pm1->ev_strat.masks.solution_regime;
 
   // Revert to stiff / kill sources, as required ------------------------------
-  for (int ix_g=0; ix_g<pm1->N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
-  M1_MLOOP3(k, j, i)
+  for (int ix_g = 0; ix_g < pm1->N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
+      M1_MLOOP3(k, j, i)
   if (pm1->MaskGet(k, j, i))
   {
 #if defined(Z4C_WITH_HYDRO_ENABLED)
     // overwrite internal eql. params.
     if (opt_excision.m1_disable_ahf_eql &&
-        (pmy_block->phydro->excision_mask(k,j,i) < 1))
+        (pmy_block->phydro->excision_mask(k, j, i) < 1))
     {
       mask_sln_r(ix_g, ix_s, k, j, i) = t_sln_r::noop;
     }
-#endif // Z4C_WITH_HYDRO_ENABLED
+#endif  // Z4C_WITH_HYDRO_ENABLED
 
-    const Real kap_a = pm1->radmat.sc_kap_a(ix_g,ix_s)(k,j,i);
-    const Real kap_s = pm1->radmat.sc_kap_s(ix_g,ix_s)(k,j,i);
+    const Real kap_a = pm1->radmat.sc_kap_a(ix_g, ix_s)(k, j, i);
+    const Real kap_s = pm1->radmat.sc_kap_s(ix_g, ix_s)(k, j, i);
 
-    PrepareEvolutionStrategy(dt, kap_a, kap_s,
-                             hydro.sc_w_rho(k,j,i),
-                             hydro.sc_T(k,j,i),
+    PrepareEvolutionStrategy(dt,
+                             kap_a,
+                             kap_s,
+                             hydro.sc_w_rho(k, j, i),
+                             hydro.sc_T(k, j, i),
                              mask_sln_r(ix_g, ix_s, k, j, i));
   }
 
@@ -442,7 +432,8 @@ void M1::PrepareEvolutionStrategy(const Real dt)
   /*
   if (opt_solver.solver_reduce_to_common)
   {
-    auto reduce_all = [&](const int ix_g, const int k, const int j, const int i)
+    auto reduce_all = [&](const int ix_g, const int k, const int j, const int
+  i)
     {
       // First pass: determine the most restrictive regime across all species
       bool any_equilibrium = false;
@@ -528,18 +519,20 @@ void M1::PrepareEvolutionStrategy(const Real dt)
 
   }
   */
-
 }
 
 void M1::CalcUpdate(const int stage,
                     Real const dt,
-                    AA & u_pre,
-                    AA & u_cur,
-		                AA & u_inh,
-                    AA & u_src,
-                    const int kl, const int ku,
-                    const int jl, const int ju,
-                    const int il, const int iu,
+                    AA& u_pre,
+                    AA& u_cur,
+                    AA& u_inh,
+                    AA& u_src,
+                    const int kl,
+                    const int ku,
+                    const int jl,
+                    const int ju,
+                    const int il,
+                    const int iu,
                     const bool fallback_mode,
                     const bool dispatch_shortcircuit)
 {
@@ -549,62 +542,63 @@ void M1::CalcUpdate(const int stage,
   using namespace Closures;
 
   // setup aliases ------------------------------------------------------------
-  vars_Lab U_P { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  vars_Lab U_P{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } };
   SetVarAliasesLab(u_pre, U_P);
 
-  vars_Lab U_C { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  vars_Lab U_C{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } };
   SetVarAliasesLab(u_cur, U_C);
 
-  vars_Lab U_I { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  vars_Lab U_I{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } };
   SetVarAliasesLab(u_inh, U_I);
 
-  vars_Source U_S { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  vars_Source U_S{ { N_GRPS, N_SPCS },
+                   { N_GRPS, N_SPCS },
+                   { N_GRPS, N_SPCS } };
   SetVarAliasesSource(u_src, U_S);
 
   // construct unlimited solution ---------------------------------------------
   // uses ev_strat.masks.{solution_regime, source_treatment} internally
   if (!dispatch_shortcircuit)
   {
-    DispatchIntegrationMethod(*this, dt, U_C, U_P, U_I, U_S,
-                              kl, ku, jl, ju, il, iu);
+    DispatchIntegrationMethod(
+      *this, dt, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
   }
 
   // optional excision / field taper logic ------------------------------------
-  if (!fallback_mode)
-  if (pm1->opt_excision.excise_m1_damping)
-  {
-    ApplyExcision(*this, dt, U_C, kl, ku, jl, ju, il, iu);
-  }
+  // NOTE: this used to live before the limiter / equilibrium passes, but
+  // those stages can overwrite U_C (in particular Equilibrium::SetEquilibrium
+  // would unconditionally restore values inside the excision region unless
+  // m1_disable_ahf_eql was set). Apply excision *after* limiter / equilibrium
+  // so that the damped state wins, and immediately before the source rescale
+  // so that U_S is zeroed for excised cells before being multiplied by dt
+  // and handed to the matter coupling.
 
   // for candidate solution construction --------------------------------------
   // We only check whether fallback is potentially required;
   // - Sources are not rescaled on this initial pass
   if (fallback_mode)
   {
-    const bool use_fb_lo_matter = opt.flux_lo_fallback && (
-      opt_solver.flux_lo_fallback_tau_min > -1 ||
-      ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
-      (opt_solver.flux_lo_fallback_Ye_max > -1))
-    );
+    const bool use_fb_lo_matter =
+      opt.flux_lo_fallback && (opt_solver.flux_lo_fallback_tau_min > -1 ||
+                               ((opt_solver.flux_lo_fallback_Ye_min > -1) &&
+                                (opt_solver.flux_lo_fallback_Ye_max > -1)));
 
-    const bool use_fb_slope = (
-      (opt_solver.fb_rat_sl_E > 0) ||
-      (opt_solver.fb_rat_sl_F_d > 0) ||
-      (opt_solver.fb_rat_sl_nG > 0)
-    );
+    const bool use_fb_slope =
+      ((opt_solver.fb_rat_sl_E > 0) || (opt_solver.fb_rat_sl_F_d > 0) ||
+       (opt_solver.fb_rat_sl_nG > 0));
 
     // check whether current sources give physical matter coupling ------------
     if (use_fb_lo_matter)
     {
-      Sources::Limiter::CheckPhysicalFallback(this, dt, U_S,
-                                              kl, ku, jl, ju, il, iu);
+      Sources::Limiter::CheckPhysicalFallback(
+        this, dt, U_S, kl, ku, jl, ju, il, iu);
     }
 
     // check whether solution is developing too rapidly -----------------------
     if (use_fb_slope)
     {
-      State::SlopeFallback(this, dt, U_C, U_P, U_I, U_S,
-                          kl, ku, jl, ju, il, iu);
+      State::SlopeFallback(
+        this, dt, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
     }
 
     return;
@@ -612,28 +606,28 @@ void M1::CalcUpdate(const int stage,
 
   // local settings -----------------------------------------------------------
   const bool use_full_limiter = opt_solver.full_lim >= 0;
-  const bool use_src_limiter = opt_solver.src_lim >= 0;
+  const bool use_src_limiter  = opt_solver.src_lim >= 0;
 
   // prepare source & apply limiting mask -------------------------------------
   if (use_full_limiter)
   {
-    AT_C_sca & theta = sources.theta;
-    Sources::Limiter::PrepareFull(this, dt, theta, U_C, U_P, U_I, U_S,
-                                  kl, ku, jl, ju, il, iu);
-    Sources::Limiter::ApplyFull(this, dt, theta, U_C, U_P, U_I, U_S,
-                                kl, ku, jl, ju, il, iu);
+    AT_C_sca& theta = sources.theta;
+    Sources::Limiter::PrepareFull(
+      this, dt, theta, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
+    Sources::Limiter::ApplyFull(
+      this, dt, theta, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
   }
 
   if (use_src_limiter)
   {
-    AT_C_sca & theta = sources.theta;
+    AT_C_sca& theta = sources.theta;
 
-    Sources::Limiter::Prepare(this, dt, theta, U_C, U_P, U_I, U_S,
-                              kl, ku, jl, ju, il, iu);
+    Sources::Limiter::Prepare(
+      this, dt, theta, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
 
     // adjust matter sources with theta mask and construct limited solution
-    Sources::Limiter::Apply(this, dt, theta, U_C, U_P, U_I, U_S,
-                            kl, ku, jl, ju, il, iu);
+    Sources::Limiter::Apply(
+      this, dt, theta, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
   }
 
   // should we enforce the equilibrium ? --------------------------------------
@@ -641,121 +635,131 @@ void M1::CalcUpdate(const int stage,
       ((opt_solver.equilibrium_initial && (pmy_mesh->time == 0)) &&
        (stage == 1)))
   {
-
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    if (MaskGet(k, j, i))
-    {
-      bool equilibriate = false;
-      for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-      for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-      {
-        if (pm1->GetMaskSolutionRegime(ix_g,ix_s,k,j,i) ==
-            t_sln_r::equilibrium)
-        {
-          equilibriate = true;
-          continue;
-        }
-      }
-
-      if (equilibriate)
-      {
-        if (pm1->opt.retain_equilibrium)
-        {
-          for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-          for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+    for (int k = kl; k <= ku; ++k)
+      for (int j = jl; j <= ju; ++j)
+        for (int i = il; i <= iu; ++i)
+          if (MaskGet(k, j, i))
           {
-            StateMetaVector C = ConstructStateMetaVector(*pm1, U_C, ix_g, ix_s);
-            StateMetaVector P = ConstructStateMetaVector(*pm1, U_P, ix_g, ix_s);
-            StateMetaVector I = ConstructStateMetaVector(*pm1, U_I, ix_g, ix_s);
+            bool equilibriate = false;
+            for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+              for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+              {
+                if (pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i) ==
+                    t_sln_r::equilibrium)
+                {
+                  equilibriate = true;
+                  continue;
+                }
+              }
 
-            SourceMetaVector S = ConstructSourceMetaVector(*pm1, U_S, ix_g, ix_s);
-
-            Equilibrium::MapReferenceEquilibrium(*pm1, pm1->eql, C, k, j, i);
-
-            S.sc_E(k,j,i) = C.sc_E(k,j,i) - (
-              P.sc_E(k,j,i) + dt * I.sc_E(k,j,i)
-            );
-            S.sc_E(k,j,i) /= dt;
-
-            S.sc_nG(k,j,i) = C.sc_nG(k,j,i) - (
-              P.sc_nG(k,j,i) + dt * I.sc_nG(k,j,i)
-            );
-            S.sc_nG(k,j,i) /= dt;
-
-            for (int a=0; a<N; ++a)
+            if (equilibriate)
             {
-              S.sp_F_d(a,k,j,i) = C.sp_F_d(a,k,j,i) - (
-                P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i)
-              );
+              if (pm1->opt.retain_equilibrium)
+              {
+                for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+                  for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
+                  {
+                    StateMetaVector C =
+                      ConstructStateMetaVector(*pm1, U_C, ix_g, ix_s);
+                    StateMetaVector P =
+                      ConstructStateMetaVector(*pm1, U_P, ix_g, ix_s);
+                    StateMetaVector I =
+                      ConstructStateMetaVector(*pm1, U_I, ix_g, ix_s);
 
-              S.sp_F_d(a,k,j,i) /= dt;
+                    SourceMetaVector S =
+                      ConstructSourceMetaVector(*pm1, U_S, ix_g, ix_s);
+
+                    Equilibrium::MapReferenceEquilibrium(
+                      *pm1, pm1->eql, C, k, j, i);
+
+                    S.sc_E(k, j, i) = C.sc_E(k, j, i) -
+                                      (P.sc_E(k, j, i) + dt * I.sc_E(k, j, i));
+                    S.sc_E(k, j, i) /= dt;
+
+                    S.sc_nG(k, j, i) =
+                      C.sc_nG(k, j, i) -
+                      (P.sc_nG(k, j, i) + dt * I.sc_nG(k, j, i));
+                    S.sc_nG(k, j, i) /= dt;
+
+                    for (int a = 0; a < N; ++a)
+                    {
+                      S.sp_F_d(a, k, j, i) =
+                        C.sp_F_d(a, k, j, i) -
+                        (P.sp_F_d(a, k, j, i) + dt * I.sp_F_d(a, k, j, i));
+
+                      S.sp_F_d(a, k, j, i) /= dt;
+                    }
+                  }
+              }
+              else
+              {
+                Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
+
+                // Freeze state of point (handles subsequent CalcUpdate calls)
+                // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+                // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
+                // {
+                //   pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k,
+                //   j, i);
+                // }
+              }
             }
           }
-        }
-        else
-        {
-          Equilibrium::SetEquilibrium(*this, U_C, U_S, k, j, i);
-
-          // Freeze state of point (handles subsequent CalcUpdate calls)
-          // for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-          // for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-          // {
-          //   pm1->SetMaskSolutionRegime(t_sln_r::noop, ix_g, ix_s, k, j, i);
-          // }
-        }
-      }
-    }
   }
+
+  // apply excision damping after limiter / equilibrium (see note above) -----
+  if (!fallback_mode)
+    if (pm1->opt_excision.excise_m1_damping)
+    {
+      ApplyExcision(*this, dt, U_C, U_P, U_I, U_S, kl, ku, jl, ju, il, iu);
+    }
 
   // rescale sources by dt for convenience in M1+N0 -> GR-evo coupling --------
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
-
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    if (MaskGet(k, j, i))
-    // if (MaskGetHybridize(k,j,i))
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      // S -> dt * S for (nG, E, F_d) components
-      InPlaceScalarMul_nG_E_F_d(dt, S, k, j, i);
+      SourceMetaVector S = ConstructSourceMetaVector(*this, U_S, ix_g, ix_s);
+
+      for (int k = kl; k <= ku; ++k)
+        for (int j = jl; j <= ju; ++j)
+          for (int i = il; i <= iu; ++i)
+            if (MaskGet(k, j, i))
+            // if (MaskGetHybridize(k,j,i))
+            {
+              // S -> dt * S for (nG, E, F_d) components
+              InPlaceScalarMul_nG_E_F_d(dt, S, k, j, i);
+            }
     }
-  }
 
   // assemble remaining auxiliary quantities ----------------------------------
   // BD: TODO: double check / refactor to new task & check nstages there
   const int nstages = 2;
 
-  if ((stage==nstages) &&
-      (N_GRPS == 1) && (N_SPCS == 3))
+  if ((stage == nstages) && (N_GRPS == 1) && (N_SPCS == 3))
   {
-    const AT_C_sca & C_sc_E_00 = U_C.sc_E(0,0);
-    const AT_C_sca & C_sc_E_01 = U_C.sc_E(0,1);
-    const AT_C_sca & C_sc_E_02 = U_C.sc_E(0,2);
+    const AT_C_sca& C_sc_E_00 = U_C.sc_E(0, 0);
+    const AT_C_sca& C_sc_E_01 = U_C.sc_E(0, 1);
+    const AT_C_sca& C_sc_E_02 = U_C.sc_E(0, 2);
 
-    const AT_C_sca & P_sc_E_00 = U_P.sc_E(0,0);
-    const AT_C_sca & P_sc_E_01 = U_P.sc_E(0,1);
-    const AT_C_sca & P_sc_E_02 = U_P.sc_E(0,2);
+    const AT_C_sca& P_sc_E_00 = U_P.sc_E(0, 0);
+    const AT_C_sca& P_sc_E_01 = U_P.sc_E(0, 1);
+    const AT_C_sca& P_sc_E_02 = U_P.sc_E(0, 2);
 
-    const AT_C_sca & I_sc_E_00 = U_I.sc_E(0,0);
-    const AT_C_sca & I_sc_E_01 = U_I.sc_E(0,1);
-    const AT_C_sca & I_sc_E_02 = U_I.sc_E(0,2);
+    const AT_C_sca& I_sc_E_00 = U_I.sc_E(0, 0);
+    const AT_C_sca& I_sc_E_01 = U_I.sc_E(0, 1);
+    const AT_C_sca& I_sc_E_02 = U_I.sc_E(0, 2);
 
 #if FLUID_ENABLED
-    const AT_C_sca & C_sc_nG_00 = U_C.sc_nG(0,0);
-    const AT_C_sca & C_sc_nG_01 = U_C.sc_nG(0,1);
+    const AT_C_sca& C_sc_nG_00 = U_C.sc_nG(0, 0);
+    const AT_C_sca& C_sc_nG_01 = U_C.sc_nG(0, 1);
     // const AT_C_sca & C_sc_nG_02 = U_C.sc_nG(0,2);
 
-    const AT_C_sca & P_sc_nG_00 = U_P.sc_nG(0,0);
-    const AT_C_sca & P_sc_nG_01 = U_P.sc_nG(0,1);
+    const AT_C_sca& P_sc_nG_00 = U_P.sc_nG(0, 0);
+    const AT_C_sca& P_sc_nG_01 = U_P.sc_nG(0, 1);
     // const AT_C_sca & P_sc_nG_02 = U_P.sc_nG(0,2);
 
-    const AT_C_sca & I_sc_nG_00 = U_I.sc_nG(0,0);
-    const AT_C_sca & I_sc_nG_01 = U_I.sc_nG(0,1);
+    const AT_C_sca& I_sc_nG_00 = U_I.sc_nG(0, 0);
+    const AT_C_sca& I_sc_nG_01 = U_I.sc_nG(0, 1);
     // const AT_C_sca & I_sc_nG_02 = U_I.sc_nG(0,2);
 
     const Real mb = pmy_block->peos->GetEOS().GetRawBaryonMass();
@@ -764,32 +768,30 @@ void M1::CalcUpdate(const int stage,
     M1_ILOOP3(k, j, i)
     if (MaskGet(k, j, i))
     {
-      const Real E_star_00__ = P_sc_E_00(k,j,i) + dt * I_sc_E_00(k,j,i);
-      const Real DE_00 = C_sc_E_00(k,j,i) - E_star_00__;
-      const Real E_star_01__ = P_sc_E_01(k,j,i) + dt * I_sc_E_01(k,j,i);
-      const Real DE_01 = C_sc_E_01(k,j,i) - E_star_01__;
-      const Real E_star_02__ = P_sc_E_02(k,j,i) + dt * I_sc_E_02(k,j,i);
-      const Real DE_02 = C_sc_E_02(k,j,i) - E_star_02__;
+      const Real E_star_00__ = P_sc_E_00(k, j, i) + dt * I_sc_E_00(k, j, i);
+      const Real DE_00       = C_sc_E_00(k, j, i) - E_star_00__;
+      const Real E_star_01__ = P_sc_E_01(k, j, i) + dt * I_sc_E_01(k, j, i);
+      const Real DE_01       = C_sc_E_01(k, j, i) - E_star_01__;
+      const Real E_star_02__ = P_sc_E_02(k, j, i) + dt * I_sc_E_02(k, j, i);
+      const Real DE_02       = C_sc_E_02(k, j, i) - E_star_02__;
 
-      net.heat(k,j,i) = DE_00 + DE_01 + DE_02;
+      net.heat(k, j, i) = DE_00 + DE_01 + DE_02;
 #if FLUID_ENABLED
-      const Real nG_star_00__ = P_sc_nG_00(k,j,i) + dt * I_sc_nG_00(k,j,i);
-      const Real DN_00 = C_sc_nG_00(k,j,i) - nG_star_00__;
-      const Real nG_star_01__ = P_sc_nG_01(k,j,i) + dt * I_sc_nG_01(k,j,i);
-      const Real DN_01 = C_sc_nG_01(k,j,i) - nG_star_01__;
+      const Real nG_star_00__ = P_sc_nG_00(k, j, i) + dt * I_sc_nG_00(k, j, i);
+      const Real DN_00        = C_sc_nG_00(k, j, i) - nG_star_00__;
+      const Real nG_star_01__ = P_sc_nG_01(k, j, i) + dt * I_sc_nG_01(k, j, i);
+      const Real DN_01        = C_sc_nG_01(k, j, i) - nG_star_01__;
       // const Real nG_star_02__ = P_sc_nG_02(k,j,i) + dt * I_sc_nG_02(k,j,i);
       // const Real DN_02 = C_sc_nG_02(k,j,i) - nG_star_02__;
 
-      net.abs(k,j,i) = mb * (-DN_00 + DN_01);
+      net.abs(k, j, i) = mb * (-DN_00 + DN_01);
 #endif
     }
-
   }
-
 }
 
 // ============================================================================
-} // namespace M1
+}  // namespace M1
 // ============================================================================
 
 //

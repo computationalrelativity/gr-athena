@@ -1,36 +1,36 @@
 // C++ standard headers
 // Athena++ headers
 #include "m1_integrators.hpp"
+
 #include "m1_set_equilibrium.hpp"
 #include "m1_sources.hpp"
 
 #if FLUID_ENABLED
 #include "../hydro/hydro.hpp"
-#endif // FLUID_ENABLED
+#endif  // FLUID_ENABLED
 
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
-#include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
+#include <gsl/gsl_roots.h>
 #include <gsl/gsl_vector.h>
 
-
 // ============================================================================
-namespace M1::Integrators {
+namespace M1::Integrators
+{
 // ============================================================================
 
-inline void ExplicitIntegration(
-  M1 & pm1_,
-  const Real dt,
-  Update::StateMetaVector & C,
-  const Update::StateMetaVector & P,
-  const Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
-  const int k,
-  const int j,
-  const int i)
+inline void ExplicitIntegration(M1& pm1_,
+                                const Real dt,
+                                Update::StateMetaVector& C,
+                                const Update::StateMetaVector& P,
+                                const Update::StateMetaVector& I,
+                                Update::SourceMetaVector& S,
+                                Closures::ClosureMetaVector& CL,
+                                const int k,
+                                const int j,
+                                const int i)
 {
   using namespace Update;
   using namespace Sources;
@@ -63,13 +63,13 @@ inline void ExplicitIntegration(
 }
 
 inline void ExplicitApproximateSemiImplicitIntegration(
-  M1 & pm1_,
+  M1& pm1_,
   const Real dt,
-  Update::StateMetaVector & C,
-  const Update::StateMetaVector & P,
-  const Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
+  Update::StateMetaVector& C,
+  const Update::StateMetaVector& P,
+  const Update::StateMetaVector& I,
+  Update::SourceMetaVector& S,
+  Closures::ClosureMetaVector& CL,
   const int k,
   const int j,
   const int i)
@@ -103,17 +103,16 @@ inline void ExplicitApproximateSemiImplicitIntegration(
   }
 }
 
-inline void SemiImplicitHybridsIntegration(
-  M1 & pm1_,
-  const Real dt,
-  Update::StateMetaVector & C,
-  const Update::StateMetaVector & P,
-  const Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
-  const int k,
-  const int j,
-  const int i)
+inline void SemiImplicitHybridsIntegration(M1& pm1_,
+                                           const Real dt,
+                                           Update::StateMetaVector& C,
+                                           const Update::StateMetaVector& P,
+                                           const Update::StateMetaVector& I,
+                                           Update::SourceMetaVector& S,
+                                           Closures::ClosureMetaVector& CL,
+                                           const int k,
+                                           const int j,
+                                           const int i)
 {
   using namespace Update;
   using namespace Sources;
@@ -124,10 +123,7 @@ inline void SemiImplicitHybridsIntegration(
   using namespace Implicit::gsl;
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) with semi-implicit
-  StepImplicitHybrids(pm1_,
-                      dt, C, P, I, S,
-                      CL,
-                      k, j, i);
+  StepImplicitHybrids(pm1_, dt, C, P, I, S, CL, k, j, i);
 
   if (!pm1_.opt_solver.solver_explicit_nG)
   {
@@ -145,17 +141,16 @@ inline void SemiImplicitHybridsIntegration(
   }
 }
 
-inline void SemiImplicitHybridsJIntegration(
-  M1 & pm1_,
-  const Real dt,
-  Update::StateMetaVector & C,
-  const Update::StateMetaVector & P,
-  const Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
-  const int k,
-  const int j,
-  const int i)
+inline void SemiImplicitHybridsJIntegration(M1& pm1_,
+                                            const Real dt,
+                                            Update::StateMetaVector& C,
+                                            const Update::StateMetaVector& P,
+                                            const Update::StateMetaVector& I,
+                                            Update::SourceMetaVector& S,
+                                            Closures::ClosureMetaVector& CL,
+                                            const int k,
+                                            const int j,
+                                            const int i)
 {
   using namespace Update;
   using namespace Sources;
@@ -166,10 +161,7 @@ inline void SemiImplicitHybridsJIntegration(
   using namespace Implicit::gsl;
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) with semi-implicit
-  StepImplicitHybridsJ(pm1_,
-                       dt, C, P, I, S,
-                       CL,
-                       k, j, i);
+  StepImplicitHybridsJ(pm1_, dt, C, P, I, S, CL, k, j, i);
 
   if (!pm1_.opt_solver.solver_explicit_nG)
   {
@@ -190,17 +182,16 @@ inline void SemiImplicitHybridsJIntegration(
 // Custom Newton solver wrapper: identical nG handling to HybridsJ, but uses
 // the hand-written 4x4 Newton solver with analytic Jacobian and
 // DotProductCache for the (E, F_d) system.
-inline void SemiImplicitCustomNIntegration(
-  M1 & pm1_,
-  const Real dt,
-  Update::StateMetaVector & C,
-  const Update::StateMetaVector & P,
-  const Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL,
-  const int k,
-  const int j,
-  const int i)
+inline void SemiImplicitCustomNIntegration(M1& pm1_,
+                                           const Real dt,
+                                           Update::StateMetaVector& C,
+                                           const Update::StateMetaVector& P,
+                                           const Update::StateMetaVector& I,
+                                           Update::SourceMetaVector& S,
+                                           Closures::ClosureMetaVector& CL,
+                                           const int k,
+                                           const int j,
+                                           const int i)
 {
   using namespace Update;
   using namespace Sources;
@@ -211,10 +202,7 @@ inline void SemiImplicitCustomNIntegration(
   using namespace Implicit::custom;
 
   // Evolve (sc_E, sp_F_d) -> (sc_E*, sp_F_d*) with custom Newton solver
-  StepImplicitCustomN(pm1_,
-                      dt, C, P, I, S,
-                      CL,
-                      k, j, i);
+  StepImplicitCustomN(pm1_, dt, C, P, I, S, CL, k, j, i);
 
   if (!pm1_.opt_solver.solver_explicit_nG)
   {
@@ -234,17 +222,17 @@ inline void SemiImplicitCustomNIntegration(
 
 // ----------------------------------------------------------------------------
 inline void DispatchIntegrationMethodImplementation(
-  M1 & pm1_,
+  M1& pm1_,
   const Real dt,
-  M1::opt_integration_strategy & ois,
+  M1::opt_integration_strategy& ois,
   const int k,
   const int j,
   const int i,
-  Update::StateMetaVector & C,
-  Update::StateMetaVector & P,
-  Update::StateMetaVector & I,
-  Update::SourceMetaVector & S,
-  Closures::ClosureMetaVector & CL)
+  Update::StateMetaVector& C,
+  Update::StateMetaVector& P,
+  Update::StateMetaVector& I,
+  Update::SourceMetaVector& S,
+  Closures::ClosureMetaVector& CL)
 {
   switch (ois)
   {
@@ -260,29 +248,22 @@ inline void DispatchIntegrationMethodImplementation(
     case (M1::opt_integration_strategy::explicit_approximate_semi_implicit):
     {
       ExplicitApproximateSemiImplicitIntegration(
-        pm1_, dt, C, P, I, S, CL, k, j, i
-      );
+        pm1_, dt, C, P, I, S, CL, k, j, i);
       break;
     }
     case (M1::opt_integration_strategy::semi_implicit_Hybrids):
     {
-      SemiImplicitHybridsIntegration(
-        pm1_, dt, C, P, I, S, CL, k, j, i
-      );
+      SemiImplicitHybridsIntegration(pm1_, dt, C, P, I, S, CL, k, j, i);
       break;
     }
     case (M1::opt_integration_strategy::semi_implicit_HybridsJ):
     {
-      SemiImplicitHybridsJIntegration(
-        pm1_, dt, C, P, I, S, CL, k, j, i
-      );
+      SemiImplicitHybridsJIntegration(pm1_, dt, C, P, I, S, CL, k, j, i);
       break;
     }
     case (M1::opt_integration_strategy::semi_implicit_custom_N):
     {
-      SemiImplicitCustomNIntegration(
-        pm1_, dt, C, P, I, S, CL, k, j, i
-      );
+      SemiImplicitCustomNIntegration(pm1_, dt, C, P, I, S, CL, k, j, i);
       break;
     }
     default:
@@ -293,16 +274,18 @@ inline void DispatchIntegrationMethodImplementation(
 }
 
 void DispatchIntegrationMethod(
-  M1 & pm1_,
+  M1& pm1_,
   const Real dt,
-  M1::vars_Lab & U_C,        // current (target) step
-  const M1::vars_Lab & U_P,  // previous step data
-  const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S,     // carries matter source contribution
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu
-)
+  M1::vars_Lab& U_C,        // current (target) step
+  const M1::vars_Lab& U_P,  // previous step data
+  const M1::vars_Lab& U_I,  // inhomogeneity
+  M1::vars_Source& U_S,     // carries matter source contribution
+  const int kl,
+  const int ku,
+  const int jl,
+  const int ju,
+  const int il,
+  const int iu)
 {
   using namespace Update;
   using namespace Sources;
@@ -313,152 +296,165 @@ void DispatchIntegrationMethod(
   using namespace Implicit;
 
   // Work-around for ptr to utilize e.g. M1_ILOOP macro
-  M1 * pm1 = &pm1_;
+  M1* pm1 = &pm1_;
 
-  for (int ix_g=0; ix_g<pm1_.N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1_.N_SPCS; ++ix_s)
-  {
-    // For quick reference XMetaVector should correspond to:
-    //
-    // C: new state   ~ U_A*
-    // P: prior state ~ U_A
-    // I: inh         ~ -div F_A + G_A
-    //
-    // S: sources     ~ S_A[U_A*]  (or S_A[U_A] for explicit)
-    //
-    // CL_P, CL_C: closure ~ CL[U_A], CL[U_A*].
-    // During construction of closure from indicated state-vector:
-    // Data is written to internal {sp_P_dd, sc_chi, sc_xi} & Lag. frame
-
-    // const_cast here: internal pm1_ state is modified, but state-vector is not
-    // in subsequent function calls
-    M1::vars_Lab& U_P_ = const_cast<M1::vars_Lab&>(U_P);
-    M1::vars_Lab& U_I_ = const_cast<M1::vars_Lab&>(U_I);
-
-    StateMetaVector C = ConstructStateMetaVector(pm1_, U_C,  ix_g, ix_s);
-    StateMetaVector P = ConstructStateMetaVector(pm1_, U_P_, ix_g, ix_s);
-    StateMetaVector I = ConstructStateMetaVector(pm1_, U_I_, ix_g, ix_s);
-
-    SourceMetaVector S = ConstructSourceMetaVector(pm1_, U_S, ix_g, ix_s);
-
-    // For use in computation of closure based on P or C state
-    ClosureMetaVector CL_P = ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
-    ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
-
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    if (pm1->MaskGet(k, j, i) && pm1->MaskGetHybridize(ix_s, k, j, i))
+  for (int ix_g = 0; ix_g < pm1_.N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < pm1_.N_SPCS; ++ix_s)
     {
-      // switch to different solver based on solution regime ------------------
-      M1::opt_integration_strategy opt_is;
-      M1::M1::t_sln_r opt_reg = pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i);
+      // For quick reference XMetaVector should correspond to:
+      //
+      // C: new state   ~ U_A*
+      // P: prior state ~ U_A
+      // I: inh         ~ -div F_A + G_A
+      //
+      // S: sources     ~ S_A[U_A*]  (or S_A[U_A] for explicit)
+      //
+      // CL_P, CL_C: closure ~ CL[U_A], CL[U_A*].
+      // During construction of closure from indicated state-vector:
+      // Data is written to internal {sp_P_dd, sc_chi, sc_xi} & Lag. frame
 
-      bool use_eql_n_nG = false;
-      bool use_eql_E_F_d = false;
-      M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
+      // const_cast here: internal pm1_ state is modified, but state-vector is
+      // not in subsequent function calls
+      M1::vars_Lab& U_P_ = const_cast<M1::vars_Lab&>(U_P);
+      M1::vars_Lab& U_I_ = const_cast<M1::vars_Lab&>(U_I);
 
-      switch (opt_reg)
-      {
-        case M1::t_sln_r::noop:
-        {
-          opt_is = M1::opt_integration_strategy::do_nothing;
-          break;
-        }
-        case M1::t_sln_r::non_stiff:
-        {
-          opt_is = pm1->opt_solver.solvers.non_stiff;
-          break;
-        }
-        case M1::t_sln_r::stiff:
-        {
-          opt_is = pm1->opt_solver.solvers.stiff;
-          break;
-        }
-        case M1::t_sln_r::scattering:
-        {
-          opt_is = pm1->opt_solver.solvers.scattering;
-          break;
-        }
-        case M1::t_sln_r::equilibrium:
-        case M1::t_sln_r::equilibrium_wr:
-        {
-          // only enable special handling for "do_nothing"
-          if (pm1->opt_solver.solvers.equilibrium ==
-              M1::opt_integration_strategy::do_nothing)
-          {
-            if (pm1->opt_solver.equilibrium_E_F_d)
+      StateMetaVector C = ConstructStateMetaVector(pm1_, U_C, ix_g, ix_s);
+      StateMetaVector P = ConstructStateMetaVector(pm1_, U_P_, ix_g, ix_s);
+      StateMetaVector I = ConstructStateMetaVector(pm1_, U_I_, ix_g, ix_s);
+
+      SourceMetaVector S = ConstructSourceMetaVector(pm1_, U_S, ix_g, ix_s);
+
+      // For use in computation of closure based on P or C state
+      ClosureMetaVector CL_P =
+        ConstructClosureMetaVector(pm1_, U_P_, ix_g, ix_s);
+      ClosureMetaVector CL_C =
+        ConstructClosureMetaVector(pm1_, U_C, ix_g, ix_s);
+
+      for (int k = kl; k <= ku; ++k)
+        for (int j = jl; j <= ju; ++j)
+          for (int i = il; i <= iu; ++i)
+            if (pm1->MaskGet(k, j, i) && pm1->MaskGetHybridize(ix_s, k, j, i))
             {
-              use_eql_E_F_d = true;
+              // switch to different solver based on solution regime
+              // ------------------
+              M1::opt_integration_strategy opt_is;
+              M1::M1::t_sln_r opt_reg =
+                pm1->GetMaskSolutionRegime(ix_g, ix_s, k, j, i);
+
+              bool use_eql_n_nG  = false;
+              bool use_eql_E_F_d = false;
+              M1::opt_closure_variety opt_cl_variety =
+                pm1->opt_closure.variety;
+
+              switch (opt_reg)
+              {
+                case M1::t_sln_r::noop:
+                {
+                  opt_is = M1::opt_integration_strategy::do_nothing;
+                  break;
+                }
+                case M1::t_sln_r::non_stiff:
+                {
+                  opt_is = pm1->opt_solver.solvers.non_stiff;
+                  break;
+                }
+                case M1::t_sln_r::stiff:
+                {
+                  opt_is = pm1->opt_solver.solvers.stiff;
+                  break;
+                }
+                case M1::t_sln_r::scattering:
+                {
+                  opt_is = pm1->opt_solver.solvers.scattering;
+                  break;
+                }
+                case M1::t_sln_r::equilibrium:
+                case M1::t_sln_r::equilibrium_wr:
+                {
+                  // only enable special handling for "do_nothing"
+                  if (pm1->opt_solver.solvers.equilibrium ==
+                      M1::opt_integration_strategy::do_nothing)
+                  {
+                    if (pm1->opt_solver.equilibrium_E_F_d)
+                    {
+                      use_eql_E_F_d = true;
+                    }
+
+                    // Optionally flag solution for n directly from
+                    // equilibrium; remainder of (E,F_d) state-vector takes
+                    // prescribed method
+                    if (pm1->opt_solver.equilibrium_n_nG)
+                    {
+                      use_eql_n_nG = true;
+                    }
+
+                    if (pm1->opt_solver.equilibrium_use_thick)
+                    {
+                      pm1->opt_closure.variety =
+                        M1::opt_closure_variety::thick;
+                    }
+                  }
+                  opt_is = pm1->opt_solver.solvers.equilibrium;
+                  break;
+                }
+                default:
+                {
+                  assert(false);
+                }
+              }
+
+              // call suitable solver
+              // -------------------------------------------------
+              DispatchIntegrationMethodImplementation(
+                pm1_, dt, opt_is, k, j, i, C, P, I, S, CL_C);
+
+              // Additional equilibrium logic
+              // -----------------------------------------
+
+              // Overall algorithm:
+              // - Zero all sources
+              // - Need: S ~ U^new-U^* so retain previous contribution S <-
+              // -U^*
+              // - Explicit evolution of (E,F_d) in absence of sources
+              // - Set U: nG at equilibrium based on updated (E,F_d) fid. & avg
+              // eps
+              // - Finalize sources: S = U_New - U^*
+              // - Evolve (N,E,F_d) explicitly
+
+              if (use_eql_E_F_d && use_eql_n_nG)
+              {
+                // N.B: will over-write what was computed for (n,nG,E,F_d) in C
+                SetEquilibrium_E_F_d_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
+              }
+              else if (use_eql_n_nG)
+              {
+                // N.B: will over-write what was computed for (n,nG,E,F_d) in C
+                SetEquilibrium_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
+              }
+
+              // revert to originally selected closure for next point
+              // -----------------
+              if (pm1->opt_solver.equilibrium_use_thick)
+              {
+                pm1->opt_closure.variety = opt_cl_variety;
+              }
             }
-
-            // Optionally flag solution for n directly from equilibrium;
-            // remainder of (E,F_d) state-vector takes prescribed method
-            if (pm1->opt_solver.equilibrium_n_nG)
-            {
-              use_eql_n_nG = true;
-            }
-
-            if (pm1->opt_solver.equilibrium_use_thick)
-            {
-              pm1->opt_closure.variety = M1::opt_closure_variety::thick;
-            }
-          }
-          opt_is = pm1->opt_solver.solvers.equilibrium;
-          break;
-        }
-        default:
-        {
-          assert(false);
-        }
-      }
-
-      // call suitable solver -------------------------------------------------
-      DispatchIntegrationMethodImplementation(
-        pm1_, dt, opt_is,
-        k, j, i,
-        C, P, I, S, CL_C);
-
-      // Additional equilibrium logic -----------------------------------------
-
-      // Overall algorithm:
-      // - Zero all sources
-      // - Need: S ~ U^new-U^* so retain previous contribution S <- -U^*
-      // - Explicit evolution of (E,F_d) in absence of sources
-      // - Set U: nG at equilibrium based on updated (E,F_d) fid. & avg eps
-      // - Finalize sources: S = U_New - U^*
-      // - Evolve (N,E,F_d) explicitly
-
-      if (use_eql_E_F_d &&
-          use_eql_n_nG)
-      {
-        // N.B: will over-write what was computed for (n,nG,E,F_d) in C
-        SetEquilibrium_E_F_d_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
-      }
-      else if (use_eql_n_nG)
-      {
-        // N.B: will over-write what was computed for (n,nG,E,F_d) in C
-        SetEquilibrium_n_nG(*pm1, dt, C, P, I, S, CL_C, k, j, i);
-      }
-
-      // revert to originally selected closure for next point -----------------
-      if (pm1->opt_solver.equilibrium_use_thick)
-      {
-        pm1->opt_closure.variety = opt_cl_variety;
-      }
     }
-  }
-
 }
 
 void ApplyExcision(
-  M1 & pm1_,
+  M1& pm1_,
   const Real dt,
-  M1::vars_Lab & U_C,        // current (target) step
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu
-)
+  M1::vars_Lab& U_C,        // current (target) step
+  const M1::vars_Lab& U_P,  // previous step data
+  const M1::vars_Lab& U_I,  // inhomogeneity
+  M1::vars_Source& U_S,  // matter source contribution (zeroed inside excision)
+  const int kl,
+  const int ku,
+  const int jl,
+  const int ju,
+  const int il,
+  const int iu)
 {
   using namespace Update;
   using namespace Sources;
@@ -469,92 +465,127 @@ void ApplyExcision(
   using namespace Implicit;
 
   // Work-around for ptr to utilize e.g. M1_ILOOP macro
-  M1 * pm1 = &pm1_;
+  M1* pm1 = &pm1_;
 
-  for (int ix_g=0; ix_g<pm1_.N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<pm1_.N_SPCS; ++ix_s)
-  {
-    StateMetaVector C = ConstructStateMetaVector(pm1_, U_C,  ix_g, ix_s);
-
-    // For use in computation of closure based on P or C state
-    ClosureMetaVector CL_C = ConstructClosureMetaVector(pm1_, U_C,  ix_g, ix_s);
-
-    for (int k=kl; k<=ku; ++k)
-    for (int j=jl; j<=ju; ++j)
-    for (int i=il; i<=iu; ++i)
-    {
 #if defined(Z4C_WITH_HYDRO_ENABLED)
-      // 1 if not excising, 0 if excising
-      const Real ef = pm1->pmy_block->phydro->excision_mask(k,j,i);
-
-      if (ef < 1)
-      {
-        // const Real sc_alpha = pm1->geom.sc_alpha(k,j,i);
-        // const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
-        // const Real w_vol = dt * sc_alpha;
-
-        const Real gam = (1 - ef) * pm1->opt_excision.m1_damping_factor;
-        // // const Real gam_w_vol = dt * sc_alpha * sc_sqrt_det_g * gam;
-        // const Real gam_w_vol = dt * gam; //  * sc_sqrt_det_g;
-
-        Real gam_w_vol = gam * (
-          dt // * sc_alpha * sc_sqrt_det_g
-        );
-
-        // scale update to land at or above floor:
-        const Real nG_new = C.sc_nG(k,j,i) - gam_w_vol * C.sc_nG(k,j,i);
-        const Real E_new  = C.sc_E(k,j,i) - gam_w_vol * C.sc_E(k,j,i);
-
-        const Real nG_flr = pm1_.opt.fl_nG;
-        const Real E_flr = pm1_.opt.fl_E;
-
-        if (nG_new < nG_flr)
-        {
-          if (C.sc_nG(k,j,i) > 0.0) {
-            gam_w_vol = std::min(
-              gam_w_vol,
-              (C.sc_nG(k,j,i) - nG_flr) / C.sc_nG(k,j,i)
-            );
-          } else {
-            gam_w_vol = 0.0;
-          }
-        }
-
-        if (E_new < E_flr)
-        {
-          if (C.sc_E(k,j,i) > 0.0) {
-            gam_w_vol = std::min(
-              gam_w_vol,
-              (C.sc_E(k,j,i) - E_flr) / C.sc_E(k,j,i)
-            );
-          } else {
-            gam_w_vol = 0.0;
-          }
-        }
-
-        C.sc_nG(k,j,i) -= gam_w_vol * C.sc_nG(k,j,i);
-        C.sc_E(k,j,i)  -= gam_w_vol * C.sc_E(k,j,i);
-        for (int a=0; a<N; ++a)
-        {
-          C.sp_F_d(a,k,j,i) -= gam_w_vol * C.sp_F_d(a,k,j,i);
-        }
-
-        // Ensure update preserves energy non-negativity
-        EnforcePhysical_E_F_d(pm1_, C, k, j, i);
-
-        // Compute closure & construct fiducial frame:
-        CL_C.Closure(k, j, i);
-      }
-#endif // FLUID_ENABLED
-    }
+  // Early-out: if no cell on this block is being excised (no horizon found
+  // and no alpha-threshold cell), skip the entire per-cell loop. The flag
+  // is computed by Mesh::CalculateExcisionMask alongside the per-cell mask.
+  if (!pm1_.pmy_block->phydro->any_excision_active)
+  {
+    return;
   }
+#else
+  // No hydro -> no excision_mask available; nothing to do.
+  return;
+#endif
 
+  for (int ix_g = 0; ix_g < pm1_.N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < pm1_.N_SPCS; ++ix_s)
+    {
+      StateMetaVector C = ConstructStateMetaVector(pm1_, U_C, ix_g, ix_s);
+
+      // Source vector for this (group, species). Damping mirrors the hydro
+      // excise_hydro_damping branch (pure dissipator); we therefore zero the
+      // matter source here so the un-damped neutrino source is not handed to
+      // the fluid coupling stage on cells that have been damped.
+      SourceMetaVector S = ConstructSourceMetaVector(pm1_, U_S, ix_g, ix_s);
+
+      // For use in computation of closure based on P or C state
+      ClosureMetaVector CL_C =
+        ConstructClosureMetaVector(pm1_, U_C, ix_g, ix_s);
+
+      for (int k = kl; k <= ku; ++k)
+        for (int j = jl; j <= ju; ++j)
+          for (int i = il; i <= iu; ++i)
+          {
+#if defined(Z4C_WITH_HYDRO_ENABLED)
+            // 1 if not excising, 0 if excising
+            const Real ef = pm1->pmy_block->phydro->excision_mask(k, j, i);
+
+            if (ef < 1)
+            {
+              // const Real sc_alpha = pm1->geom.sc_alpha(k,j,i);
+              // const Real sc_sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+              // const Real w_vol = dt * sc_alpha;
+
+              const Real gam = (1 - ef) * pm1->opt_excision.m1_damping_factor;
+              // // const Real gam_w_vol = dt * sc_alpha * sc_sqrt_det_g * gam;
+              // const Real gam_w_vol = dt * gam; //  * sc_sqrt_det_g;
+
+              Real gam_w_vol = gam * (dt  // * sc_alpha * sc_sqrt_det_g
+                                     );
+
+              // scale update to land at or above floor:
+              const Real nG_new =
+                C.sc_nG(k, j, i) - gam_w_vol * C.sc_nG(k, j, i);
+              const Real E_new = C.sc_E(k, j, i) - gam_w_vol * C.sc_E(k, j, i);
+
+              const Real nG_flr = pm1_.opt.fl_nG;
+              const Real E_flr  = pm1_.opt.fl_E;
+
+              if (nG_new < nG_flr)
+              {
+                if (C.sc_nG(k, j, i) > 0.0)
+                {
+                  gam_w_vol = std::min(
+                    gam_w_vol, (C.sc_nG(k, j, i) - nG_flr) / C.sc_nG(k, j, i));
+                }
+                else
+                {
+                  gam_w_vol = 0.0;
+                }
+              }
+
+              if (E_new < E_flr)
+              {
+                if (C.sc_E(k, j, i) > 0.0)
+                {
+                  gam_w_vol = std::min(
+                    gam_w_vol, (C.sc_E(k, j, i) - E_flr) / C.sc_E(k, j, i));
+                }
+                else
+                {
+                  gam_w_vol = 0.0;
+                }
+              }
+
+              C.sc_nG(k, j, i) -= gam_w_vol * C.sc_nG(k, j, i);
+              C.sc_E(k, j, i) -= gam_w_vol * C.sc_E(k, j, i);
+              for (int a = 0; a < N; ++a)
+              {
+                C.sp_F_d(a, k, j, i) -= gam_w_vol * C.sp_F_d(a, k, j, i);
+              }
+
+              // Ensure update preserves energy non-negativity
+              EnforcePhysical_E_F_d(pm1_, C, k, j, i);
+
+              // Compute closure & construct fiducial frame:
+              CL_C.Closure(k, j, i);
+
+              // Suppress matter coupling for excised cells: M1 acts as a pure
+              // dissipator inside the taper region, mirroring the hydro
+              // damping branch in gr_dynamical.cpp.
+              S.sc_nG(k, j, i) = 0.0;
+              S.sc_E(k, j, i)  = 0.0;
+              for (int a = 0; a < N; ++a)
+              {
+                S.sp_F_d(a, k, j, i) = 0.0;
+              }
+            }
+#endif  // Z4C_WITH_HYDRO_ENABLED
+          }
+    }
+
+  // Silence unused-parameter warnings when Z4C_WITH_HYDRO_ENABLED is not set
+  // (the function early-returns above in that case).
+  (void)U_P;
+  (void)U_I;
 }
 
 // ============================================================================
-} // namespace M1::Integrators
+}  // namespace M1::Integrators
 // ============================================================================
-
 
 //
 // :D

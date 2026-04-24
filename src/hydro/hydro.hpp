@@ -81,16 +81,16 @@ class Hydro
 
   struct
   {
-    Real alpha_threshold;          // excise hydro if alpha < alpha_excision
-    bool horizon_based;            // use horizon for excise
-    Real horizon_factor;           // factor to multiply horizon radius
-    bool hybrid_hydro;             // control whether to use ahf+hydro excision
-    Real hybrid_fac_min_alpha;     // cut values below this * min_alpha
-    bool use_taper;                // taper instead of hard-cut?
-    Real taper_pow;                // taper(x) ^ taper_pow
-    Real taper_min;                // lim x->0 taper(x) = taper_min
-    Real taper_dt_response;        // ramp taper up over this duration
-    bool excise_hydro_damping;     // replace hydro evo with exponential decay
+    Real alpha_threshold;       // excise hydro if alpha < alpha_excision
+    bool horizon_based;         // use horizon for excise
+    Real horizon_factor;        // factor to multiply horizon radius
+    bool hybrid_hydro;          // control whether to use ahf+hydro excision
+    Real hybrid_fac_min_alpha;  // cut values below this * min_alpha
+    bool use_taper;             // taper instead of hard-cut?
+    Real taper_pow;             // taper(x) ^ taper_pow
+    Real taper_min;             // lim x->0 taper(x) = taper_min
+    Real taper_dt_response;     // ramp taper up over this duration
+    bool excise_hydro_damping;  // replace hydro evo with exponential decay
     bool excise_c2p;
     bool excise_flux;
     Real hydro_damping_factor;
@@ -98,6 +98,12 @@ class Hydro
 
   AA excision_mask;
   AA fallback_mask;
+
+  // True iff this block has at least one cell with excision_factor < 1.
+  // Computed by Mesh::CalculateExcisionMask. Used as an early-out for
+  // the hydro damping branch and for M1 ApplyExcision so that excision
+  // work is skipped when no horizon (or alpha-threshold cell) is active.
+  bool any_excision_active = false;
 
   // --------------------------------------------------------------------------
   struct ixn_cons

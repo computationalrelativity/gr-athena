@@ -6,48 +6,57 @@
 
 // Athena++ classes headers
 #include "m1.hpp"
+#include "m1_calc_closure.hpp"
+#include "m1_calc_update.hpp"
 #include "m1_containers.hpp"
 #include "m1_macro.hpp"
-#include "m1_utils.hpp"
-#include "m1_calc_update.hpp"
-#include "m1_calc_closure.hpp"
 #include "m1_sources.hpp"
+#include "m1_utils.hpp"
 
 // External libraries
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
-#include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
+#include <gsl/gsl_roots.h>
 #include <gsl/gsl_vector.h>
 
 // ============================================================================
-namespace M1::Integrators {
+namespace M1::Integrators
+{
 // ============================================================================
 
 // Dispatch integrator method (sources are _not_ limited)
 void DispatchIntegrationMethod(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  M1::vars_Lab & U_C,        // current (target) step
-  const M1::vars_Lab & U_P,  // previous step data
-  const M1::vars_Lab & U_I,  // inhomogeneity
-  M1::vars_Source & U_S,     // for construction of matter source contribution
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu
-);
+  M1::vars_Lab& U_C,        // current (target) step
+  const M1::vars_Lab& U_P,  // previous step data
+  const M1::vars_Lab& U_I,  // inhomogeneity
+  M1::vars_Source& U_S,     // for construction of matter source contribution
+  const int kl,
+  const int ku,
+  const int jl,
+  const int ju,
+  const int il,
+  const int iu);
 
 void ApplyExcision(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  M1::vars_Lab & U_C,        // current (target) step
-  const int kl, const int ku,
-  const int jl, const int ju,
-  const int il, const int iu
-);
+  M1::vars_Lab& U_C,        // current (target) step
+  const M1::vars_Lab& U_P,  // previous step data
+  const M1::vars_Lab& U_I,  // inhomogeneity
+  M1::vars_Source& U_S,  // matter source contribution (zeroed inside excision)
+  const int kl,
+  const int ku,
+  const int jl,
+  const int ju,
+  const int il,
+  const int iu);
 
 // ============================================================================
-namespace Explicit {
+namespace Explicit
+{
 // ============================================================================
 
 // Evolution of U ~ (E, F_d):
@@ -57,13 +66,15 @@ namespace Explicit {
 // - Internally U* is enforced to be non-zero & physical (causal)
 // - Closures are _not_ internally computed
 void StepExplicit_E_F_d(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,         // current (target) step
-  const Update::StateMetaVector & P,   // previous step data
-  const Update::StateMetaVector & I,   // inhomogeneity
-  const Update::SourceMetaVector & S,  // carries matter source contribution
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,         // current (target) step
+  const Update::StateMetaVector& P,   // previous step data
+  const Update::StateMetaVector& I,   // inhomogeneity
+  const Update::SourceMetaVector& S,  // carries matter source contribution
+  const int k,
+  const int j,
+  const int i);
 
 // Evolution of U ~ (nG, ):
 // U* <- U + dt * [ -div[F_A[U]] + G_A[U] + S_A[U] ]
@@ -71,32 +82,37 @@ void StepExplicit_E_F_d(
 // Note:
 // - Closures are _not_ internally computed
 void StepExplicit_nG(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,         // current (target) step
-  const Update::StateMetaVector & P,   // previous step data
-  const Update::StateMetaVector & I,   // inhomogeneity
-  const Update::SourceMetaVector & S,  // carries matter source contribution
-  const int k, const int j, const int i);
-
+  Update::StateMetaVector& C,         // current (target) step
+  const Update::StateMetaVector& P,   // previous step data
+  const Update::StateMetaVector& I,   // inhomogeneity
+  const Update::SourceMetaVector& S,  // carries matter source contribution
+  const int k,
+  const int j,
+  const int i);
 
 void Advect_E_F_d(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,         // current (target) step
-  const Update::StateMetaVector & P,   // previous step data
-  const Update::StateMetaVector & I,   // inhomogeneity
-  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current (target) step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // treated 0, set as S <- P + dt * I
+  const int k,
+  const int j,
+  const int i);
 
 void Advect_nG(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,         // current (target) step
-  const Update::StateMetaVector & P,   // previous step data
-  const Update::StateMetaVector & I,   // inhomogeneity
-  Update::SourceMetaVector & S,        // treated 0, set as S <- P + dt * I
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current (target) step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // treated 0, set as S <- P + dt * I
+  const int k,
+  const int j,
+  const int i);
 
 // Given (an explicitly evolved) state U* ~ (E*, F_d*) prepare O(v)
 // approximation of solution to the implicit system.
@@ -106,21 +122,24 @@ void Advect_nG(
 // - Internally U* is enforced to be non-zero & physical (causal)
 // - Closures are _not_ internally computed
 void PrepareApproximateFirstOrder_E_F_d(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  Closures::ClosureMetaVector& CL_C,
+  const int k,
+  const int j,
+  const int i);
 
 // ============================================================================
-} // namespace M1::Integrators::Explicit
+}  // namespace Explicit
 // ============================================================================
 
 // ============================================================================
-namespace Implicit {
+namespace Implicit
+{
 // ============================================================================
 
 // Evolution of U ~ (nG, ) via explicit solution of:
@@ -131,13 +150,15 @@ namespace Implicit {
 // - (sc_n*, ) is internally computed
 // - Sources are internally updated
 void SolveImplicitNeutrinoCurrent(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  const int k,
+  const int j,
+  const int i);
 
 // Prepare initial guess (sc_E, sp_F_d) -> (sc_E^, sp_F_d^);
 // O(v) approx for implicit solver.
@@ -145,17 +166,20 @@ void SolveImplicitNeutrinoCurrent(
 // If "accurate-enough" returns true to short-circuit
 // implicit solver where this is used
 bool StepImplicitPrepareInitialGuess(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  Closures::ClosureMetaVector& CL_C,
+  const int k,
+  const int j,
+  const int i);
 
 // ============================================================================
-namespace gsl {
+namespace gsl
+{
 // ============================================================================
 
 // Evolution of U ~ (E, F_d) utilizing FD approximant to Jacobian via gsl:
@@ -166,14 +190,16 @@ namespace gsl {
 // - Closures are internally updated
 // - Sources are internally updated
 void StepImplicitHybrids(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  Closures::ClosureMetaVector& CL_C,
+  const int k,
+  const int j,
+  const int i);
 
 // Evolution of U ~ (E, F_d) utilizing Jacobian via gsl:
 // U* <- U + dt * [ -div[F_A[U]] + G_A[U] + S_A[U*] ]
@@ -183,21 +209,24 @@ void StepImplicitHybrids(
 // - Closures are internally updated
 // - Sources are internally updated
 void StepImplicitHybridsJ(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  Closures::ClosureMetaVector& CL_C,
+  const int k,
+  const int j,
+  const int i);
 
 // ============================================================================
-} // namespace M1::Integrators::Implicit::gsl
+}  // namespace gsl
 // ============================================================================
 
 // ============================================================================
-namespace custom {
+namespace custom
+{
 // ============================================================================
 
 // Evolution of U ~ (E, F_d) utilizing hand-written 4x4 Newton solver with
@@ -216,27 +245,27 @@ namespace custom {
 // - Sources are internally updated
 // - Same convergence criteria and fallback logic as StepImplicitHybridsJ
 void StepImplicitCustomN(
-  M1 & pm1,
+  M1& pm1,
   const Real dt,
-  Update::StateMetaVector & C,        // current step
-  const Update::StateMetaVector & P,  // previous step data
-  const Update::StateMetaVector & I,  // inhomogeneity
-  Update::SourceMetaVector & S,       // carry source contribution
-  Closures::ClosureMetaVector & CL_C,
-  const int k, const int j, const int i);
+  Update::StateMetaVector& C,        // current step
+  const Update::StateMetaVector& P,  // previous step data
+  const Update::StateMetaVector& I,  // inhomogeneity
+  Update::SourceMetaVector& S,       // carry source contribution
+  Closures::ClosureMetaVector& CL_C,
+  const int k,
+  const int j,
+  const int i);
 
 // ============================================================================
-} // namespace M1::Integrators::Implicit::custom
-// ============================================================================
-
-// ============================================================================
-} // namespace M1::Integrators::Implicit
+}  // namespace custom
 // ============================================================================
 
 // ============================================================================
-} // namespace M1::Integrators
+}  // namespace Implicit
 // ============================================================================
 
+// ============================================================================
+}  // namespace M1::Integrators
+// ============================================================================
 
-#endif // M1_INTEGRATORS_HPP
-
+#endif  // M1_INTEGRATORS_HPP

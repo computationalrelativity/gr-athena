@@ -2913,6 +2913,7 @@ void Mesh::CalculateExcisionMask()
 
         AT_N_sca adm_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
 
+        bool any_active = false;
         CC_GLOOP3(k, j, i)
         {
           Real excision_factor;
@@ -2926,7 +2927,9 @@ void Mesh::CalculateExcisionMask()
                                                        j,
                                                        k);
           ph->excision_mask(k, j, i) = excision_factor;
+          any_active                 = any_active || (excision_factor < 1.0);
         }
+        ph->any_excision_active = any_active;
       }
     }
   }
