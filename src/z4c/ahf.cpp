@@ -89,6 +89,9 @@ void AHF::ReadOptions(ParameterInput* pin)
 
   opt.expand_guess = pin->GetOrAddReal("ahf", "expand_guess", 1.0);
 
+  opt.propagate_iter_coefficients =
+    pin->GetOrAddBoolean("ahf", "propagate_iter_coefficients", true);
+
   // Center
   center[0] = pin->GetOrAddReal("ahf", parkey("center_x_"), 0.0);
   center[1] = pin->GetOrAddReal("ahf", parkey("center_y_"), 0.0);
@@ -209,6 +212,14 @@ void AHF::PrepareArrays()
   a0.NewAthenaArray(opt.lmax + 1);
   ac.NewAthenaArray(ylm_.lmpoints);
   as.NewAthenaArray(ylm_.lmpoints);
+
+  // Full last-found coefficients (for initial guess)
+  last_a0_full.NewAthenaArray(opt.lmax + 1);
+  last_ac.NewAthenaArray(ylm_.lmpoints);
+  last_as.NewAthenaArray(ylm_.lmpoints);
+  last_a0_full.ZeroClear();
+  last_ac.ZeroClear();
+  last_as.ZeroClear();
 
   // Fields on the sphere
   rr.NewAthenaArray(grid_.ntheta, grid_.nphi);
@@ -507,11 +518,11 @@ void AHF::ExpansionAndNormal(int i,
 
   // Determinant of 3-metric
   Real detg    = Det3Metric(g(0, 0, i, j),
-                         g(0, 1, i, j),
-                         g(0, 2, i, j),
-                         g(1, 1, i, j),
-                         g(1, 2, i, j),
-                         g(2, 2, i, j));
+                            g(0, 1, i, j),
+                            g(0, 2, i, j),
+                            g(1, 1, i, j),
+                            g(1, 2, i, j),
+                            g(2, 2, i, j));
   Real oo_detg = 1.0 / detg;
 
   // Inverse metric
@@ -993,6 +1004,17 @@ void AHF::FastFlowLoop()
   {
     last_a0 = a0(0);
 
+    // Retain for potential use as next initial guess
+    for (int l = 0; l <= opt.lmax; ++l)
+    {
+      last_a0_full(l) = a0(l);
+    }
+    for (int k = 0; k < ylm_.lmpoints; ++k)
+    {
+      last_ac(k) = ac(k);
+      last_as(k) = as(k);
+    }
+
     ah_prop[harea]       = area;
     ah_prop[hcoarea]     = integrals[icoarea];
     ah_prop[hhrms]       = hrms;
@@ -1097,39 +1119,18 @@ void AHF::UpdateFlowSpectralComponents()
 // \brief initial guess for spectral coefs of horizon n
 void AHF::InitialGuess()
 {
-  // Reset Coefficients to Zero
-  a0.ZeroClear();
-  ac.ZeroClear();
-  as.ZeroClear();
-
+  // ---- Phase A: center update --------------------------------------------
+  // Center updates are applied in order so that later options (extrema /
+  // mass-weighted) can override an earlier one (puncture) when combined.
   if (opt.use_puncture >= 0)
   {
-    // Update the center to the puncture position
     center[0] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(0);
     center[1] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(1);
     center[2] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(2);
-    // Update a0
-    // For single BH in isotropic coordinates: horizon radius=m/2
-    // but make sure it can surround all punctures comfortably, i.e.
-    // make radius a bit larger than half the distance between any of the
-    // punctures
-    Real mass      = pmesh->pz4c_tracker[opt.use_puncture]->GetMass();
-    Real largedist = PuncMaxDistance(opt.use_puncture);
-    if (ah_found && last_a0 > 0)
-    {
-      a0(0) = last_a0 * opt.expand_guess;
-    }
-    else
-    {
-      a0(0) = std::max(0.5 * mass, std::min(mass, 0.5 * largedist));
-      a0(0) *= SQRT_4PI;
-    }
-    return;
   }
 
   if (opt.use_extrema >= 0)
   {
-    // Update the center to the extrema
     center[0] = pmesh->ptracker_extrema->c_x1(opt.use_extrema);
     center[1] = pmesh->ptracker_extrema->c_x2(opt.use_extrema);
     center[2] = pmesh->ptracker_extrema->c_x3(opt.use_extrema);
@@ -1137,7 +1138,6 @@ void AHF::InitialGuess()
 
   if (opt.use_puncture_massweighted_center)
   {
-    // Update the center based on the mass-weighted distance
     Real pos[3];
     PuncWeightedMassCentralPoint(&pos[0], &pos[1], &pos[2]);
     center[0] = pos[0];
@@ -1145,10 +1145,46 @@ void AHF::InitialGuess()
     center[2] = pos[2];
   }
 
-  // Take a0 either from previous or from input value
+  // ---- Phase B: coefficient guess ----------------------------------------
+  a0.ZeroClear();
+  ac.ZeroClear();
+  as.ZeroClear();
+
   if (ah_found && last_a0 > 0)
   {
-    a0(0) = last_a0 * opt.expand_guess;
+    if (opt.propagate_iter_coefficients)
+    {
+      // Seed with the full last-found spectral shape.
+      for (int l = 0; l <= opt.lmax; ++l)
+      {
+        a0(l) = last_a0_full(l);
+      }
+      for (int k = 0; k < ylm_.lmpoints; ++k)
+      {
+        ac(k) = last_ac(k);
+        as(k) = last_as(k);
+      }
+    }
+    else
+    {
+      a0(0) = last_a0;
+    }
+
+    // expand_guess scales only the mean-radius mode (the enclosing sphere);
+    // higher-l deviations are left untouched.
+    a0(0) *= opt.expand_guess;
+    return;
+  }
+
+  // No prior find: fall back to a config-driven guess.
+  if (opt.use_puncture >= 0)
+  {
+    // For single BH in isotropic coordinates: horizon radius = m/2, but
+    // ensure a0(0) comfortably surrounds all punctures, i.e. a bit larger
+    // than half the distance between any of the punctures.
+    const Real mass      = pmesh->pz4c_tracker[opt.use_puncture]->GetMass();
+    const Real largedist = PuncMaxDistance(opt.use_puncture);
+    a0(0) = SQRT_4PI * std::max(0.5 * mass, std::min(mass, 0.5 * largedist));
   }
   else
   {

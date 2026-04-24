@@ -71,6 +71,7 @@ class AHF
   {
     Real initial_radius;
     Real expand_guess;
+    bool propagate_iter_coefficients;
     Real hmean_tol;
     Real mass_tol;
     int flow_iterations;
@@ -106,6 +107,9 @@ class AHF
   gra::sph_harm::RealHarmonicTable ylm_;
   AA a0, ac, as;
   Real last_a0;
+  AA last_a0_full;  // last-found l=0 modes    (size lmax+1)
+  AA last_ac;       // last-found cosine modes (size lmpoints)
+  AA last_as;       // last-found sine modes   (size lmpoints)
 
   // -- Fields on the sphere --------------------------------------------------
   AT_N_sym g;
