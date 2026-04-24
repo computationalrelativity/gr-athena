@@ -972,8 +972,13 @@ void AHF::FastFlowLoop()
       break;
     }
 
-    // End flow when mass difference is small
-    if (std::fabs(mass_prev - mass) < opt.mass_tol)
+    // End flow criteria:
+    // - Require k >= 1 so that mass_prev was set from a previous iteration
+    // - Mass must satisfy tol
+    // - hmean tol must be satisfied
+    if ((k >= 1) &&
+        (std::fabs(mass_prev - mass) < opt.mass_tol) &&
+        (std::fabs(hmean) < opt.hmean_tol))
     {
       ah_found = true;
       break;
