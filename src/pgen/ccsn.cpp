@@ -1387,11 +1387,11 @@ Real Deleptonization::Ye_of_rho(Real rho) const
   Real const log10_rhoH = 15;
 
   Real const log10_rho = log10(rho * UDENS);
-  Real const x         = std::max(-1.0,
+  Real const x = std::max(-1.0,
                           std::min(1.0,
                                    (2 * log10_rho - log10_rho2 - log10_rho1) /
                                      (log10_rho2 - log10_rho1)));
-  Real const m         = (Ye_H - Ye_2) / (log10_rhoH - log10_rho2);
+  Real const m = (Ye_H - Ye_2) / (log10_rhoH - log10_rho2);
 
   if (log10_rho > log10_rho2)
   {
@@ -1442,98 +1442,6 @@ Real MaxLevel(MeshBlock* pmb, int iout)
   return pmb->pmy_mesh->M_info.max_level;
 }
 
-int RefinementConditionTracker(MeshBlock* pmb)
-{
-  Mesh* pmesh                      = pmb->pmy_mesh;
-  ExtremaTracker* ptracker_extrema = pmesh->ptracker_extrema;
-
-  int root_level        = ptracker_extrema->root_level;
-  int mb_physical_level = pmb->loc.level - root_level;
-
-  // Iterate over refinement levels offered by trackers.
-  //
-  // By default if a point is not in any sphere, completely de-refine.
-  int req_level = 0;
-
-  for (int n = 1; n <= ptracker_extrema->N_tracker; ++n)
-  {
-    bool is_contained = false;
-    int cur_req_level = ptracker_extrema->ref_level(n - 1);
-
-    {
-      if (ptracker_extrema->ref_type(n - 1) == 0)
-      {
-        is_contained = pmb->PointContained(ptracker_extrema->c_x1(n - 1),
-                                           ptracker_extrema->c_x2(n - 1),
-                                           ptracker_extrema->c_x3(n - 1));
-      }
-      else if (ptracker_extrema->ref_type(n - 1) == 1)
-      {
-        is_contained =
-          pmb->SphereIntersects(ptracker_extrema->c_x1(n - 1),
-                                ptracker_extrema->c_x2(n - 1),
-                                ptracker_extrema->c_x3(n - 1),
-                                ptracker_extrema->ref_zone_radius(n - 1));
-      }
-      else if (ptracker_extrema->ref_type(n - 1) == 2)
-      {
-        // If any excision; activate this refinement
-        bool use = false;
-
-        // Get the minimal radius over all apparent horizons
-        Real horizon_radius = std::numeric_limits<Real>::infinity();
-
-        for (auto pah_f : pmesh->pah_finder)
-        {
-          if (not pah_f->IsFound())
-            continue;
-
-          if (pah_f->GetHorizonMinRadius() < horizon_radius)
-          {
-            horizon_radius = pah_f->GetHorizonMinRadius();
-          }
-          else
-          {
-            continue;
-          }
-
-          // populate the tracker with AHF based information
-          ptracker_extrema->ref_zone_radius(n - 1) =
-            (pah_f->GetHorizonMinRadius());
-
-          use = true;
-        }
-
-        if (use)
-        {
-          is_contained =
-            pmb->SphereIntersects(ptracker_extrema->c_x1(n - 1),
-                                  ptracker_extrema->c_x2(n - 1),
-                                  ptracker_extrema->c_x3(n - 1),
-                                  ptracker_extrema->ref_zone_radius(n - 1));
-        }
-      }
-    }
-
-    if (is_contained)
-    {
-      req_level = std::max(cur_req_level, req_level);
-    }
-  }
-
-  if (req_level > mb_physical_level)
-  {
-    return 1;  // currently too coarse, refine
-  }
-  else if (req_level == mb_physical_level)
-  {
-    return 0;  // level satisfied, do nothing
-  }
-
-  // otherwise de-refine
-  return -1;
-}
-
 int RefinementCondition(MeshBlock* pmb)
 {
   switch (opt_refm_)
@@ -1578,7 +1486,7 @@ int RefinementCondition(MeshBlock* pmb)
       int ref = 0;
 
       // Allow tracker to increase refinement level
-      int ref_tr = RefinementConditionTracker(pmb);
+      int ref_tr = Mesh::StandardRefinementCondition(pmb);
       ref        = (ref_tr == 1) ? 1 : 0;
 
       if (ref == 1)
