@@ -166,8 +166,8 @@ void ExtremaTracker::InitializeFromParFile(ParameterInput* pin)
       pin->GetOrAddIntegerArray("trackers_extrema", "ref_type", 0);
     AthenaArray<Real> ref_zone_radius_ =
       pin->GetOrAddRealArray("trackers_extrema", "ref_zone_radius", 1);
-    AthenaArray<Real> minima_ =
-      pin->GetOrAddRealArray("trackers_extrema", "ref_zone_radius", 1);
+    AA_B minima_ =
+      pin->GetOrAddBooleanArray("trackers_extrema", "minima", true);
 
     AthenaArray<Real> c_x3_;
     AthenaArray<Real> c_x2_;
