@@ -150,17 +150,21 @@ void Mesh::CalculateLoadBalance(double* clist,
               << "This will result in poor load balancing." << std::endl;
   }
 #endif
-  if ((Globals::nranks) * (num_mesh_threads_) > nb)
+  if ((Globals::nranks) * (num_mesh_threads_) > nb && Globals::my_rank == 0)
   {
-    msg << "### FATAL ERROR in CalculateLoadBalance" << std::endl
-        << "There are fewer MeshBlocks than OpenMP threads on each MPI rank"
-        << std::endl
-        << "Decrease the number of threads or use more MeshBlocks."
-        << std::endl
-        << "nb=" << nb
-        << ", n_threads*n_procs=" << ((Globals::nranks) * (num_mesh_threads_))
-        << std::endl;
-    ATHENA_ERROR(msg);
+    // Warn once per process: extra OpenMP threads are correct but idle
+    // (each parallel region uses num_threads(nthreads) over nmb iterations,
+    // and per-thread storage is sized to num_mesh_threads_, not nmb).
+    static bool warned_nthreads_gt_nb = false;
+    if (!warned_nthreads_gt_nb)
+    {
+      std::cout << "### Warning in CalculateLoadBalance" << std::endl
+                << "There are fewer MeshBlocks than total OpenMP threads; "
+                << "some threads will be idle." << std::endl
+                << "nb=" << nb << ", n_threads*n_procs="
+                << ((Globals::nranks) * (num_mesh_threads_)) << std::endl;
+      warned_nthreads_gt_nb = true;
+    }
   }
   return;
 }
