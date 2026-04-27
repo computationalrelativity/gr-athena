@@ -74,6 +74,7 @@ class AHF
     bool propagate_iter_coefficients;
     Real hmean_tol;
     Real mass_tol;
+    Real spec_tol;
     int flow_iterations;
     Real flow_alpha_beta_const;
     bool verbose;
@@ -154,7 +155,8 @@ class AHF
   Real rr_min;
   Real center[3];
   int idx_ahf;
-  int fastflow_iter = 0;
+  int fastflow_iter    = 0;
+  Real spec_resid_last = -1.0;
 
   // -- I/O -------------------------------------------------------------------
   FILE* pofile_summary;

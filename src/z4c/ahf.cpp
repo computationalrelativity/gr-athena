@@ -77,6 +77,8 @@ void AHF::ReadOptions(ParameterInput* pin)
 
   opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-2);
 
+  opt.spec_tol = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-6);
+
   opt.verbose         = pin->GetOrAddBoolean("ahf", "verbose", false);
   opt.mpi_root        = pin->GetOrAddInteger("ahf", "mpi_root", 0);
   opt.merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
@@ -265,7 +267,8 @@ void AHF::SetupIO()
     {
       fprintf(pofile_summary,
               "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms "
-              "10:hmean 11:meanradius 12:minradius\n");
+              "10:hmean 11:meanradius 12:minradius 13:converged "
+              "14:num_iters 15:spec_resid\n");
       fflush(pofile_summary);
     }
 
@@ -324,6 +327,11 @@ void AHF::Write(int iter, Real time)
             ah_prop[hhmean],
             ah_prop[hmeanradius],
             ah_prop[hminradius]);
+    fprintf(pofile_summary,
+            " %d %d %.15e",
+            (ah_found ? 1 : 0),
+            fastflow_iter + 1,
+            spec_resid_last);
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
 
@@ -777,7 +785,8 @@ void AHF::Find(int iter, Real time)
 // \brief Fast Flow loop for horizon n
 void AHF::FastFlowLoop()
 {
-  ah_found = false;
+  ah_found        = false;
+  spec_resid_last = -1.0;
 
   Real meanradius = a0(0) / SQRT_4PI;
   Real mass       = 0;
@@ -803,7 +812,7 @@ void AHF::FastFlowLoop()
     fprintf(pofile_verbose,
             " iter      area            mass         meanradius       "
             "minradius        hmean            Sx              Sy             "
-            " Sz             S\n");
+            " Sz             S              spec_resid\n");
   }
 
   // Pre-compute flow constants for UpdateFlowSpectralComponents
@@ -893,6 +902,29 @@ void AHF::FastFlowLoop()
 
     meanradius = a0(0) / SQRT_4PI;
 
+    // Spectral residual: relative norm of would-be update ABfac[l] * spec_lm.
+    Real dnorm2 = 0.0, anorm2 = 0.0;
+    for (int l = 0; l <= opt.lmax; l++)
+    {
+      const Real d = ABfac[l] * spec0[l];
+      dnorm2 += d * d;
+      anorm2 += a0(l) * a0(l);
+    }
+    for (int l = 1; l <= opt.lmax; l++)
+    {
+      for (int m = 1; m <= l; m++)
+      {
+        const int l1  = ylm_.lmindex(l, m);
+        const Real dc = ABfac[l] * specc[l1];
+        const Real ds = ABfac[l] * specs[l1];
+        dnorm2 += dc * dc + ds * ds;
+        anorm2 += ac(l1) * ac(l1) + as(l1) * as(l1);
+      }
+    }
+    const Real spec_resid =
+      std::sqrt(dnorm2) / std::max(std::sqrt(anorm2), min_surface_radius);
+    spec_resid_last = spec_resid;
+
     // Check we get a finite result
     if (!(std::isfinite(area)))
     {
@@ -922,19 +954,20 @@ void AHF::FastFlowLoop()
 
     if (opt.verbose && (Globals::my_rank == opt.mpi_root))
     {
-      fprintf(
-        pofile_verbose,
-        "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e\n",
-        k,
-        area,
-        mass,
-        meanradius,
-        rr_min,
-        hmean,
-        Sx,
-        Sy,
-        Sz,
-        S);
+      fprintf(pofile_verbose,
+              "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e "
+              "%15.7e %15.7e\n",
+              k,
+              area,
+              mass,
+              meanradius,
+              rr_min,
+              hmean,
+              Sx,
+              Sy,
+              Sz,
+              S,
+              spec_resid);
       fflush(pofile_verbose);
     }
 
@@ -976,14 +1009,12 @@ void AHF::FastFlowLoop()
     // - Require k >= 1 so that mass_prev was set from a previous iteration
     // - Mass must satisfy tol
     // - hmean tol must be satisfied
-    if ((k >= 1) &&
-        (std::fabs(mass_prev - mass) < opt.mass_tol) &&
-        (std::fabs(hmean) < opt.hmean_tol))
+    if ((k >= 1) && (std::fabs(mass_prev - mass) < opt.mass_tol) &&
+        (std::fabs(hmean) < opt.hmean_tol) && (spec_resid < opt.spec_tol))
     {
       ah_found = true;
       break;
     }
-
     // Apply reduced spectral update (optimistic projection was done above)
     for (int l = 0; l <= opt.lmax; l++)
       a0(l) -= ABfac[l] * spec0[l];
