@@ -740,6 +740,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
         }
       }  // MAGNETIC_FIELDS_ENABLED
 
+#if FLUID_ENABLED
       // Add sources
       if (ph->opt_excision.excise_hydro_damping && ph->any_excision_active)
       {
@@ -806,6 +807,7 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
           cons(IM3, k, j, i) += w_vol * SS_d_(2, i);
         }
       }
+#endif // FLUID_ENABLED
 
     }  // j, k
 }
