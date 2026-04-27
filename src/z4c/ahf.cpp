@@ -77,7 +77,33 @@ void AHF::ReadOptions(ParameterInput* pin)
 
   opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-2);
 
-  opt.spec_tol = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-6);
+  opt.spec_tol = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
+
+  // Adaptive step-size (line-search) options
+  {
+    std::string sr =
+      pin->GetOrAddString("ahf", parkey("step_rule_"), "monotone");
+    if (sr == "fixed")
+      opt.step_rule = StepRule::fixed;
+    else if (sr == "monotone")
+      opt.step_rule = StepRule::monotone;
+    else if (sr == "bb1")
+      opt.step_rule = StepRule::bb1;
+    else if (sr == "bb2")
+      opt.step_rule = StepRule::bb2;
+    else
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF::ReadOptions" << std::endl;
+      msg << "Unknown step_rule '" << sr
+          << "' (expected: fixed | monotone | bb1 | bb2)";
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
+  opt.alpha_min    = pin->GetOrAddReal("ahf", parkey("alpha_min_"), 0.1);
+  opt.alpha_max    = pin->GetOrAddReal("ahf", parkey("alpha_max_"), 4.0);
+  opt.alpha_grow   = pin->GetOrAddReal("ahf", parkey("alpha_grow_"), 1.1);
+  opt.alpha_shrink = pin->GetOrAddReal("ahf", parkey("alpha_shrink_"), 0.5);
 
   opt.verbose         = pin->GetOrAddBoolean("ahf", "verbose", false);
   opt.mpi_root        = pin->GetOrAddInteger("ahf", "mpi_root", 0);
@@ -783,6 +809,14 @@ void AHF::Find(int iter, Real time)
 //----------------------------------------------------------------------------------------
 // \!fn void AHF::FastFlowLoop()
 // \brief Fast Flow loop for horizon n
+void AHF::RecomputeABfac(Real alpha, Real beta, int lmax, Real* ABfac) const
+{
+  const Real A = alpha / (lmax * (lmax + 1)) + beta;
+  const Real B = beta / alpha;
+  for (int l = 0; l <= lmax; l++)
+    ABfac[l] = A / (1.0 + B * l * (l + 1));
+}
+
 void AHF::FastFlowLoop()
 {
   ah_found        = false;
@@ -812,22 +846,40 @@ void AHF::FastFlowLoop()
     fprintf(pofile_verbose,
             " iter      area            mass         meanradius       "
             "minradius        hmean            Sx              Sy             "
-            " Sz             S              spec_resid\n");
+            " Sz             S              spec_resid       alpha\n");
   }
 
-  // Pre-compute flow constants for UpdateFlowSpectralComponents
-  const Real ff_alpha = opt.flow_alpha_beta_const;
-  const Real ff_beta  = 0.5 * opt.flow_alpha_beta_const;
-  const Real ff_A     = ff_alpha / (opt.lmax * (opt.lmax + 1)) + ff_beta;
-  const Real ff_B     = ff_beta / ff_alpha;
+  // Adaptive step size: alpha can change between iterations (line search).
+  // Here beta = alpha/2 as in the original Gundlach formulation.
+  // ABfac[l] = A / (1 + B l(l+1)) with A,B derived from (alpha,beta) is
+  // recomputed via RecomputeABfac whenever alpha changes.
+  Real alpha = opt.flow_alpha_beta_const;
 
   const int nspec0 = opt.lmax + 1;
   const int ntotal = nspec0 + 2 * ylm_.lmpoints;
 
   std::vector<Real> ABfac_vec(nspec0);
   Real* ABfac = ABfac_vec.data();
-  for (int l = 0; l <= opt.lmax; l++)
-    ABfac[l] = ff_A / (1.0 + ff_B * l * (l + 1));
+  RecomputeABfac(alpha, 0.5 * alpha, opt.lmax, ABfac);
+
+  // Caches for line search (BB requires previous iterate + previous bare
+  // gradient; monotone needs only the previous residual norm).
+  Real r_prev = -1.0;  // previous bare residual norm sqrt(||g||^2)
+
+  const bool need_bb_cache =
+    (opt.step_rule == StepRule::bb1 || opt.step_rule == StepRule::bb2);
+
+  AA a0_prev, ac_prev, as_prev;
+  std::vector<Real> g0_prev, gc_prev, gs_prev;
+  if (need_bb_cache)
+  {
+    a0_prev.NewAthenaArray(opt.lmax + 1);
+    ac_prev.NewAthenaArray(ylm_.lmpoints);
+    as_prev.NewAthenaArray(ylm_.lmpoints);
+    g0_prev.assign(nspec0, 0.0);
+    gc_prev.assign(ylm_.lmpoints, 0.0);
+    gs_prev.assign(ylm_.lmpoints, 0.0);
+  }
 
   // Combined buffer: integrals[invar] + spec_buf[ntotal]
   const int combined_size = invar + ntotal;
@@ -902,28 +954,104 @@ void AHF::FastFlowLoop()
 
     meanradius = a0(0) / SQRT_4PI;
 
-    // Spectral residual: relative norm of would-be update ABfac[l] * spec_lm.
-    Real dnorm2 = 0.0, anorm2 = 0.0;
+    // Bare spectral residual: alpha-independent (uses raw projections, not
+    // ABfac-weighted) so it remains a meaningful descent indicator when alpha
+    // varies across iterations.
+    Real gnorm2 = 0.0, anorm2 = 0.0;
     for (int l = 0; l <= opt.lmax; l++)
     {
-      const Real d = ABfac[l] * spec0[l];
-      dnorm2 += d * d;
+      gnorm2 += spec0[l] * spec0[l];
       anorm2 += a0(l) * a0(l);
     }
     for (int l = 1; l <= opt.lmax; l++)
     {
       for (int m = 1; m <= l; m++)
       {
-        const int l1  = ylm_.lmindex(l, m);
-        const Real dc = ABfac[l] * specc[l1];
-        const Real ds = ABfac[l] * specs[l1];
-        dnorm2 += dc * dc + ds * ds;
+        const int l1 = ylm_.lmindex(l, m);
+        gnorm2 += specc[l1] * specc[l1] + specs[l1] * specs[l1];
         anorm2 += ac(l1) * ac(l1) + as(l1) * as(l1);
       }
     }
+    const Real gnorm = std::sqrt(gnorm2);
     const Real spec_resid =
-      std::sqrt(dnorm2) / std::max(std::sqrt(anorm2), min_surface_radius);
+      gnorm / std::max(std::sqrt(anorm2), min_surface_radius);
     spec_resid_last = spec_resid;
+
+    // Adaptive alpha update (line-search rules). Performed BEFORE the spectral
+    // update so the new alpha shapes the step about to be taken.
+    if (k >= 1 && opt.step_rule != StepRule::fixed)
+    {
+      if (opt.step_rule == StepRule::monotone)
+      {
+        // Grow alpha on descent, shrink on overshoot.
+        if (gnorm < r_prev)
+          alpha = std::min(alpha * opt.alpha_grow, opt.alpha_max);
+        else
+          alpha = std::max(alpha * opt.alpha_shrink, opt.alpha_min);
+        RecomputeABfac(alpha, 0.5 * alpha, opt.lmax, ABfac);
+      }
+      else if (need_bb_cache)
+      {
+        // Barzilai-Borwein step from (a_k - a_{k-1}) and (g_k - g_{k-1}).
+        Real ss = 0.0, sy = 0.0, yy = 0.0;
+        for (int l = 0; l <= opt.lmax; l++)
+        {
+          const Real ds = a0(l) - a0_prev(l);
+          const Real dy = spec0[l] - g0_prev[l];
+          ss += ds * ds;
+          sy += ds * dy;
+          yy += dy * dy;
+        }
+        for (int l = 1; l <= opt.lmax; l++)
+        {
+          for (int m = 1; m <= l; m++)
+          {
+            const int l1   = ylm_.lmindex(l, m);
+            const Real dsc = ac(l1) - ac_prev(l1);
+            const Real dyc = specc[l1] - gc_prev[l1];
+            const Real dss = as(l1) - as_prev(l1);
+            const Real dys = specs[l1] - gs_prev[l1];
+            ss += dsc * dsc + dss * dss;
+            sy += dsc * dyc + dss * dys;
+            yy += dyc * dyc + dys * dys;
+          }
+        }
+        Real alpha_bb = alpha;
+        if (opt.step_rule == StepRule::bb1)
+        {
+          if (std::isfinite(sy) && std::fabs(sy) > 0.0)
+            alpha_bb = ss / sy;
+        }
+        else  // bb2 (more aggressive)
+        {
+          if (std::isfinite(yy) && yy > 0.0)
+            alpha_bb = sy / yy;
+        }
+        if (std::isfinite(alpha_bb) && alpha_bb > 0.0)
+        {
+          alpha = std::min(std::max(alpha_bb, opt.alpha_min), opt.alpha_max);
+          RecomputeABfac(alpha, 0.5 * alpha, opt.lmax, ABfac);
+        }
+      }
+    }
+    r_prev = gnorm;
+
+    // Cache current iterate + bare gradient for next BB step
+    if (need_bb_cache)
+    {
+      for (int l = 0; l <= opt.lmax; l++)
+      {
+        a0_prev(l) = a0(l);
+        g0_prev[l] = spec0[l];
+      }
+      for (int l1 = 0; l1 < ylm_.lmpoints; l1++)
+      {
+        ac_prev(l1) = ac(l1);
+        as_prev(l1) = as(l1);
+        gc_prev[l1] = specc[l1];
+        gs_prev[l1] = specs[l1];
+      }
+    }
 
     // Check we get a finite result
     if (!(std::isfinite(area)))
@@ -956,7 +1084,7 @@ void AHF::FastFlowLoop()
     {
       fprintf(pofile_verbose,
               "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e "
-              "%15.7e %15.7e\n",
+              "%15.7e %15.7e %15.7e\n",
               k,
               area,
               mass,
@@ -967,7 +1095,8 @@ void AHF::FastFlowLoop()
               Sy,
               Sz,
               S,
-              spec_resid);
+              spec_resid,
+              alpha);
       fflush(pofile_verbose);
     }
 

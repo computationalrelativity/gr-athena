@@ -35,6 +35,14 @@ class AHF
     cure_divu
   };
 
+  enum class StepRule
+  {
+    fixed,
+    monotone,
+    bb1,
+    bb2
+  };
+
   // -- Construction / destruction --------------------------------------------
   AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf);
   ~AHF();
@@ -77,6 +85,11 @@ class AHF
     Real spec_tol;
     int flow_iterations;
     Real flow_alpha_beta_const;
+    StepRule step_rule = StepRule::monotone;
+    Real alpha_min;
+    Real alpha_max;
+    Real alpha_grow;
+    Real alpha_shrink;
     bool verbose;
     int lmax;
     int use_puncture;
@@ -176,6 +189,7 @@ class AHF
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
   void InitialGuess();
+  void RecomputeABfac(Real alpha, Real beta, int lmax, Real* ABfac) const;
 
   bool LevelSetGradient(int i,
                         int j,
