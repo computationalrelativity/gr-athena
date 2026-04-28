@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <algorithm>  // std::fill
+#include <iterator>
 #include <cmath>      // NAN
 #include <cstdio>
 #include <cstring>  // std::memcpy
@@ -68,15 +69,46 @@ void AHF::ReadOptions(ParameterInput* pin)
   opt.lmax = pin->GetOrAddInteger("ahf", "lmax", 12);
 
   opt.flow_iterations =
-    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 250);
+    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 50);
 
   opt.flow_alpha_beta_const =
     pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
 
-  opt.hmean_tol = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
-  opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-3);
-  opt.spec_tol = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
-  opt.hrms_tol = pin->GetOrAddReal("ahf", parkey("hrms_tol_"), 1e-3);
+  opt.hmean_tol    = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
+  opt.mass_tol     = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-3);
+  opt.spec_tol     = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
+  opt.hrms_tol     = pin->GetOrAddReal("ahf", parkey("hrms_tol_"), 1e-1);
+  opt.hrms_rel_tol = pin->GetOrAddReal("ahf", parkey("hrms_rel_tol_"), 1e-3);
+
+  // Auto-retry options. On failed Find(), retry with adjusted initial_radius
+  // selected by exit-code (see ExitCode enum / Find() retry loop).
+  opt.auto_retry   = pin->GetOrAddBoolean("ahf", parkey("auto_retry_"), true);
+  opt.max_retries  = pin->GetOrAddInteger("ahf", parkey("max_retries_"), 5);
+  opt.retry_shrink = pin->GetOrAddReal("ahf", parkey("retry_shrink_"), 0.5);
+  opt.retry_grow   = pin->GetOrAddReal("ahf", parkey("retry_grow_"), 2.0);
+
+  // Validate
+  if (!(opt.retry_shrink > 0.0 && opt.retry_shrink < 1.0))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in AHF::ReadOptions" << std::endl;
+    msg << "retry_shrink_" << n_str << " = " << opt.retry_shrink
+        << " is out of range (0, 1)";
+    throw std::runtime_error(msg.str().c_str());
+  }
+  if (!(opt.retry_grow > 1.0))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in AHF::ReadOptions" << std::endl;
+    msg << "retry_grow_" << n_str << " = " << opt.retry_grow
+        << " is out of range (1, +inf)";
+    throw std::runtime_error(msg.str().c_str());
+  }
+  // Soft-clamp max_retries
+  if (opt.max_retries < 0)
+    opt.max_retries = 0;
+  if (opt.max_retries > 32)
+    opt.max_retries = 32;
 
   // Adaptive step-size (line-search) options
   {
@@ -292,7 +324,7 @@ void AHF::SetupIO()
     {
       fprintf(pofile_summary,
               "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms "
-              "10:hmean 11:meanradius 12:minradius 13:converged "
+              "10:hmean 11:meanradius 12:minradius 13:exit_code "
               "14:num_iters 15:spec_resid\n");
       fflush(pofile_summary);
     }
@@ -354,7 +386,7 @@ void AHF::Write(int iter, Real time)
             ah_prop[hminradius]);
     fprintf(pofile_summary,
             " %d %d %.15e",
-            (ah_found ? 1 : 0),
+            static_cast<int>(last_exit),
             fastflow_iter + 1,
             spec_resid_last);
     fprintf(pofile_summary, "\n");
@@ -777,8 +809,36 @@ void AHF::SurfaceIntegrals()
 }
 
 //----------------------------------------------------------------------------------------
+// File-local helper: map exist code (for log)
+namespace
+{
+const char* ExitCodeName(AHF::ExitCode c)
+{
+  switch (c)
+  {
+    case AHF::ExitCode::success:
+      return "success";
+    case AHF::ExitCode::not_finite:
+      return "not_finite";
+    case AHF::ExitCode::hmean_diverged:
+      return "hmean_diverged";
+    case AHF::ExitCode::meanradius_neg:
+      return "meanradius_neg";
+    case AHF::ExitCode::mass_collapse:
+      return "mass_collapse";
+    case AHF::ExitCode::max_iters:
+      return "max_iters";
+  }
+  return "?";
+}
+}  // namespace
+
+//----------------------------------------------------------------------------------------
 // \!fn void AHF::Find(int iter, Real time)
-// \brief Search for the horizons
+// \brief Search for the horizons; on failure, optionally retry with adjusted
+//        initial radius (see opt.auto_retry / max_retries / retry_shrink /
+//        retry_grow). Direction (shrink / grow / alternate) is selected based
+//        on the previous ExitCode
 void AHF::Find(int iter, Real time)
 {
   if ((time < opt.start_time) || (time > opt.stop_time))
@@ -789,8 +849,71 @@ void AHF::Find(int iter, Real time)
   {
     fprintf(pofile_verbose, "time=%.4f, cycle=%d\n", time, iter);
   }
-  InitialGuess();
-  FastFlowLoop();
+
+  // Retry bookkeeping
+  const Real saved_initial_radius = opt.initial_radius;
+  Real factor_total               = 1.0;
+  int alternate_idx               = 0;
+
+  // Compile-time alternate pattern: shrink, grow, shrink (cycles)
+  static constexpr int alt_dir[3] = { -1, +1, -1 };  // taken modulo
+  static constexpr int alt_n     = std::size(alt_dir);
+
+  const int max_attempts          = (opt.auto_retry ? opt.max_retries : 0) + 1;
+
+  for (int attempt = 0; attempt < max_attempts; ++attempt)
+  {
+    const bool cold = (attempt > 0);
+
+    if (attempt > 0)
+    {
+      // Pick direction from prior attempt's exit code.
+      Real factor_step = 1.0;
+      switch (last_exit)
+      {
+        case ExitCode::not_finite:
+        case ExitCode::hmean_diverged:
+          factor_step = opt.retry_shrink;
+          break;
+        case ExitCode::mass_collapse:
+          factor_step = opt.retry_grow;
+          break;
+        case ExitCode::meanradius_neg:
+        case ExitCode::max_iters:
+        {
+          const int dir = alt_dir[alternate_idx % alt_n];
+          factor_step   = (dir < 0) ? opt.retry_shrink : opt.retry_grow;
+          ++alternate_idx;
+          break;
+        }
+        case ExitCode::success:
+        default:
+          break;  // unreachable: success exits the loop
+      }
+      factor_total *= factor_step;
+      opt.initial_radius = saved_initial_radius * factor_total;
+
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
+        fprintf(pofile_verbose,
+                "--- AHF[%d] retry %d/%d (last=%s, radius=%.6e) ---\n",
+                idx_ahf,
+                attempt,
+                opt.max_retries,
+                ExitCodeName(last_exit),
+                opt.initial_radius);
+      }
+    }
+
+    InitialGuess(cold);
+    FastFlowLoop();
+
+    if (last_exit == ExitCode::success)
+      break;
+  }
+
+  // Restore parameter (we mutate opt.initial_radius across attempts only).
+  opt.initial_radius = saved_initial_radius;
 
   // Retain `last_a0` in restart: this serves as primary ini. guess.
   if (ah_found)
@@ -821,11 +944,15 @@ void AHF::FastFlowLoop()
   ah_found        = false;
   spec_resid_last = -1.0;
 
+  // Set default status
+  last_exit = ExitCode::max_iters;
+
   Real meanradius = a0(0) / SQRT_4PI;
   Real mass       = 0;
   Real mass_prev  = 0;
   Real area       = 0;
   Real hrms       = 0;
+  Real hrms_prev  = -1.0;  // no prior hrms yet
   Real hmean      = 0;
   Real Sx         = 0;
   Real Sy         = 0;
@@ -844,7 +971,8 @@ void AHF::FastFlowLoop()
     fprintf(pofile_verbose, "r_mean = %f\n", meanradius);
     fprintf(pofile_verbose,
             " iter      area            mass         meanradius       "
-            "minradius        hmean            Sx              Sy             "
+            "minradius        hmean            hrms             Sx            "
+            "  Sy             "
             " Sz             S              spec_resid       alpha\n");
   }
 
@@ -1060,7 +1188,8 @@ void AHF::FastFlowLoop()
         fprintf(pofile_verbose, "Failed, Area not finite\n");
         fflush(pofile_verbose);
       }
-      failed = true;
+      last_exit = ExitCode::not_finite;
+      failed    = true;
       break;
     }
 
@@ -1071,7 +1200,8 @@ void AHF::FastFlowLoop()
         fprintf(pofile_verbose, "Failed, hmean not finite\n");
         fflush(pofile_verbose);
       }
-      failed = true;
+      last_exit = ExitCode::not_finite;
+      failed    = true;
       break;
     }
 
@@ -1083,13 +1213,14 @@ void AHF::FastFlowLoop()
     {
       fprintf(pofile_verbose,
               "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e "
-              "%15.7e %15.7e %15.7e\n",
+              "%15.7e %15.7e %15.7e %15.7e\n",
               k,
               area,
               mass,
               meanradius,
               rr_min,
               hmean,
+              hrms,
               Sx,
               Sy,
               Sz,
@@ -1108,7 +1239,8 @@ void AHF::FastFlowLoop()
         fprintf(pofile_verbose, "Failed, hmean > %f\n", opt.hmean_tol);
         fflush(pofile_verbose);
       }
-      failed = true;
+      last_exit = ExitCode::hmean_diverged;
+      failed    = true;
       break;
     }
 
@@ -1119,7 +1251,8 @@ void AHF::FastFlowLoop()
         fprintf(pofile_verbose, "Failed, meanradius < 0\n");
         fflush(pofile_verbose);
       }
-      failed = true;
+      last_exit = ExitCode::meanradius_neg;
+      failed    = true;
       break;
     }
 
@@ -1131,21 +1264,32 @@ void AHF::FastFlowLoop()
         fprintf(pofile_verbose, "Failed mass < min_mass\n");
         fflush(pofile_verbose);
       }
-      failed = true;
+      last_exit = ExitCode::mass_collapse;
+      failed    = true;
       break;
     }
 
     // End flow criteria:
     // - Require k >= 1 so that mass_prev was set from a previous iteration
     // - Mass must satisfy tol
-    // - hrms*mass < hrms_tol: dimensionless RMS expansion
+    // - hrms*mass < hrms_tol
+    // - |hrms - hrms_prev| < hrms_rel_tol * hrms_prev
     // - spec_resid: spectral residual on the projected update is small
+    const bool hrms_abs_ok = (hrms * mass < opt.hrms_tol);
+    const bool hrms_rel_ok =
+      (k >= 2) && (hrms_prev > 0.0) &&
+      (std::fabs(hrms - hrms_prev) < opt.hrms_rel_tol * hrms_prev);
+
     if ((k >= 1) && (std::fabs(mass_prev - mass) < opt.mass_tol) &&
-        (hrms * mass < opt.hrms_tol) && (spec_resid < opt.spec_tol))
+        hrms_abs_ok && hrms_rel_ok && (spec_resid < opt.spec_tol))
     {
-      ah_found = true;
+      ah_found  = true;
+      last_exit = ExitCode::success;
       break;
     }
+
+    hrms_prev = hrms;
+
     // Apply reduced spectral update (optimistic projection was done above)
     for (int l = 0; l <= opt.lmax; l++)
       a0(l) -= ABfac[l] * spec0[l];
@@ -1282,9 +1426,10 @@ void AHF::UpdateFlowSpectralComponents()
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::InitialGuess()
-// \brief initial guess for spectral coefs of horizon n
-void AHF::InitialGuess()
+// \!fn void AHF::InitialGuess(bool cold)
+// \brief initial guess for spectral coefs of horizon n.
+//        If `cold` is true, ignore the warm-start cache.
+void AHF::InitialGuess(bool cold)
 {
   // ---- Phase A: center update --------------------------------------------
   // Center updates are applied in order so that later options (extrema /
@@ -1317,7 +1462,7 @@ void AHF::InitialGuess()
   ac.ZeroClear();
   as.ZeroClear();
 
-  if (ah_found && last_a0 > 0)
+  if (!cold && ah_found && last_a0 > 0)
   {
     if (opt.propagate_iter_coefficients)
     {

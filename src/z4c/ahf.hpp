@@ -43,6 +43,17 @@ class AHF
     bb2
   };
 
+  // FastFlowLoop termination status
+  enum class ExitCode
+  {
+    success        = 0,
+    not_finite     = 1,
+    hmean_diverged = 2,
+    meanradius_neg = 3,
+    mass_collapse  = 4,
+    max_iters      = 5
+  };
+
   // -- Construction / destruction --------------------------------------------
   AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf);
   ~AHF();
@@ -84,6 +95,11 @@ class AHF
     Real mass_tol;
     Real spec_tol;
     Real hrms_tol;
+    Real hrms_rel_tol;
+    bool auto_retry;
+    int max_retries;
+    Real retry_shrink;
+    Real retry_grow;
     int flow_iterations;
     Real flow_alpha_beta_const;
     StepRule step_rule = StepRule::monotone;
@@ -171,6 +187,7 @@ class AHF
   int idx_ahf;
   int fastflow_iter    = 0;
   Real spec_resid_last = -1.0;
+  ExitCode last_exit   = ExitCode::max_iters;
 
   // -- I/O -------------------------------------------------------------------
   FILE* pofile_summary;
@@ -189,7 +206,7 @@ class AHF
   void SurfaceIntegrals();
   void FastFlowLoop();
   void UpdateFlowSpectralComponents();
-  void InitialGuess();
+  void InitialGuess(bool cold = false);
   void RecomputeABfac(Real alpha, Real beta, int lmax, Real* ABfac) const;
 
   bool LevelSetGradient(int i,
