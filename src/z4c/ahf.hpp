@@ -83,6 +83,7 @@ class AHF
     Real hmean_tol;
     Real mass_tol;
     Real spec_tol;
+    Real hrms_tol;
     int flow_iterations;
     Real flow_alpha_beta_const;
     StepRule step_rule = StepRule::monotone;

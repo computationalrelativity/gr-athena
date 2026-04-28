@@ -57,27 +57,26 @@ void AHF::ReadOptions(ParameterInput* pin)
   { return std::string(base) + n_str; };
 
   // Grid and quadrature weights
-  const int ntheta_val = pin->GetOrAddInteger("ahf", "ntheta", 5);
-  const int nphi_val   = pin->GetOrAddInteger("ahf", "nphi", 10);
+  const int ntheta_val = pin->GetOrAddInteger("ahf", "ntheta", 14);
+  const int nphi_val   = pin->GetOrAddInteger("ahf", "nphi", 28);
   std::string quadrature =
     pin->GetOrAddString("ahf", "quadrature", "gausslegendre");
   if (quadrature == "sums")
     quadrature = "midpoint";
   grid_.Initialize(ntheta_val, nphi_val, quadrature);
 
-  opt.lmax = pin->GetOrAddInteger("ahf", "lmax", 4);
+  opt.lmax = pin->GetOrAddInteger("ahf", "lmax", 12);
 
   opt.flow_iterations =
-    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 100);
+    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 250);
 
   opt.flow_alpha_beta_const =
     pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
 
   opt.hmean_tol = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
-
-  opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-2);
-
+  opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-3);
   opt.spec_tol = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
+  opt.hrms_tol = pin->GetOrAddReal("ahf", parkey("hrms_tol_"), 1e-3);
 
   // Adaptive step-size (line-search) options
   {
@@ -945,7 +944,7 @@ void AHF::FastFlowLoop()
     std::memcpy(integrals, cb_integrals, invar * sizeof(Real));
 
     area  = integrals[iarea];
-    hrms  = integrals[ihrms] / area;
+    hrms  = std::sqrt(integrals[ihrms] / area);
     hmean = integrals[ihmean];
     Sx    = integrals[iSx] / (8 * PI);
     Sy    = integrals[iSy] / (8 * PI);
@@ -1100,6 +1099,8 @@ void AHF::FastFlowLoop()
       fflush(pofile_verbose);
     }
 
+    // Divergence catch: |hmean| blowing up past hmean_tol indicates the
+    // surface has run away.
     if (std::fabs(hmean) > opt.hmean_tol)
     {
       if (opt.verbose && (Globals::my_rank == opt.mpi_root))
@@ -1137,9 +1138,10 @@ void AHF::FastFlowLoop()
     // End flow criteria:
     // - Require k >= 1 so that mass_prev was set from a previous iteration
     // - Mass must satisfy tol
-    // - hmean tol must be satisfied
+    // - hrms*mass < hrms_tol: dimensionless RMS expansion
+    // - spec_resid: spectral residual on the projected update is small
     if ((k >= 1) && (std::fabs(mass_prev - mass) < opt.mass_tol) &&
-        (std::fabs(hmean) < opt.hmean_tol) && (spec_resid < opt.spec_tol))
+        (hrms * mass < opt.hrms_tol) && (spec_resid < opt.spec_tol))
     {
       ah_found = true;
       break;
