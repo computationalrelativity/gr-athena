@@ -1,0 +1,61 @@
+# options: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+Language: Cpp
+
+IndentWidth: 2
+ContinuationIndentWidth: 2
+ColumnLimit: 79
+UseTab: Never
+
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 2
+
+AlignOperands: AlignAfterOperator
+
+# AlignOperands: DontAlign
+# PenaltyBreakExpression: 10000
+# PenaltyBreakBeforeFirstCallParameter: 1000
+
+AlignConsecutiveAssignments: Consecutive
+
+AllowAllParametersOfDeclarationOnNextLine: false
+
+BreakStringLiterals: true
+
+BreakBeforeBraces: Allman
+# NamespaceBraces: SameLine
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AccessModifierOffset: 0
+
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+CompactNamespaces: true
+Cpp11BracedListStyle: false
+BasedOnStyle: Google
+BinPackArguments: false
+BinPackParameters: false
+FixNamespaceComments: true
+NamespaceIndentation: None
+
+ReflowComments: true
+
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+
+SpacesInAngles: false
+SpacesInSquareBrackets: false
+
+IndentCaseLabels: true
+
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
