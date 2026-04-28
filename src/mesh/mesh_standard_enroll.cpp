@@ -81,8 +81,8 @@ Real windowed_int(MeshBlock *pmb,
     {
 
       const Real dx1 = pmb->pcoord->dx1v(i);
-      const Real dx2 = pmb->pcoord->dx2v(i);
-      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real dx2 = pmb->pcoord->dx2v(j);
+      const Real dx3 = pmb->pcoord->dx3v(k);
       const Real w = dx1*dx2*dx3;
       sum_Q += quantity(IQ,k,j,i)*w;
     }
@@ -100,8 +100,8 @@ Real weighted_avg(MeshBlock *pmb,
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3 * weight(IWG,k,j,i);
     sum_Q += quantity(IQ,k,j,i) * w;
   }
@@ -124,8 +124,8 @@ Real windowed_weighted_avg(MeshBlock *pmb,
          win_max >= window(IWN,k,j,i))
     {
       const Real dx1 = pmb->pcoord->dx1v(i);
-      const Real dx2 = pmb->pcoord->dx2v(i);
-      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real dx2 = pmb->pcoord->dx2v(j);
+      const Real dx3 = pmb->pcoord->dx3v(k);
       const Real w = dx1*dx2*dx3 * weight(IWG,k,j,i);
       sum_Q += quantity(IQ,k,j,i) * w;
     }
@@ -198,8 +198,8 @@ Real E_int(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
 
     const Real D = pmb->phydro->u(IDN,k,j,i);
@@ -216,8 +216,8 @@ Real Etau_int(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
 
 
@@ -241,8 +241,8 @@ Real Etau_kin(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
 
 
@@ -254,6 +254,82 @@ Real Etau_kin(MeshBlock *pmb, int iout)
     sum_Q += sqrt_det_gamma__ * w * rho * W * (W - 1.0);
   }
   return sum_Q;
+}
+
+Real V_bulk(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  const Real rho_bulk_thr = 1.6120972e-7;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+
+    if (rho > rho_bulk_thr)
+    {
+      const Real dx1 = pmb->pcoord->dx1v(i);
+      const Real dx2 = pmb->pcoord->dx2v(j);
+      const Real dx3 = pmb->pcoord->dx3v(k);
+      const Real w = dx1*dx2*dx3;
+
+      const Real sqrt_det_gamma__ = (
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+      );
+
+      sum_Q += sqrt_det_gamma__ * w;
+    }
+  }
+
+  return sum_Q;
+}
+
+Real R_eq_0(MeshBlock *pmb, int iout)
+{
+  Real R_eq_ = 0;
+
+  const Real rho_thr = 1.6120972e-5;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+
+    if (rho > rho_thr)
+    {
+      const Real x1 = pmb->pcoord->x1v(i);
+      const Real x2 = pmb->pcoord->x2v(j);
+      const Real x3 = pmb->pcoord->x3v(k);
+
+      const Real R_eq_tmp_ = std::sqrt(x1*x1 + x2*x2 + x3*x3);
+      R_eq_ = std::max(R_eq_, R_eq_tmp_);
+    }
+  }
+
+  return R_eq_;
+}
+
+Real R_eq_1(MeshBlock *pmb, int iout)
+{
+  Real R_eq_ = 0;
+
+  const Real rho_thr = 1.6120972e-6;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+
+    if (rho > rho_thr)
+    {
+      const Real x1 = pmb->pcoord->x1v(i);
+      const Real x2 = pmb->pcoord->x2v(j);
+      const Real x3 = pmb->pcoord->x3v(k);
+
+      const Real R_eq_tmp_ = std::sqrt(x1*x1 + x2*x2 + x3*x3);
+      R_eq_ = std::max(R_eq_, R_eq_tmp_);
+    }
+  }
+
+  return R_eq_;
 }
 
 
@@ -472,8 +548,8 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
       const Real D = pmb->phydro->u(IDN,k,j,i);
 
       const Real dx1 = pmb->pcoord->dx1v(i);
-      const Real dx2 = pmb->pcoord->dx2v(i);
-      const Real dx3 = pmb->pcoord->dx3v(i);
+      const Real dx2 = pmb->pcoord->dx2v(j);
+      const Real dx3 = pmb->pcoord->dx3v(k);
       const Real w = dx1*dx2*dx3;
 
       E_kin_ += w * (
@@ -503,6 +579,18 @@ void Mesh::EnrollUserStandardHydro(ParameterInput * pin)
   EnrollUserHistoryOutput(
     Etau_kin, "Etau_kin",
     UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(
+  R_eq_0, "R_eq_0",
+  UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(
+  R_eq_1, "R_eq_1",
+  UserHistoryOperation::max);
+
+  EnrollUserHistoryOutput(
+  V_bulk, "V_bulk",
+  UserHistoryOperation::sum);
 
   // --------------------------------------------------------------------------
   #endif // FLUID_ENABLED
@@ -593,8 +681,8 @@ Real E_B(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
 
     const Real sqrt_det_gamma__ = (
@@ -608,6 +696,37 @@ Real E_B(MeshBlock *pmb, int iout)
   return 0.5 * sum_Q;
 }
 
+Real v_a_bulk(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  const Real rho_bulk_thr = 1.6120972e-7;
+  
+  CC_ILOOP3(k,j,i)
+  {
+    const Real rho = pmb->phydro->w(IDN,k,j,i);
+
+    if (rho > rho_bulk_thr)
+    {
+      const Real dx1 = pmb->pcoord->dx1v(i);
+      const Real dx2 = pmb->pcoord->dx2v(j);
+      const Real dx3 = pmb->pcoord->dx3v(k);
+      const Real w = dx1*dx2*dx3;
+
+      const Real sqrt_det_gamma__ =
+        pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i);
+
+      const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
+      const Real h  = pmb->phydro->derived_ms(IX_ETH,k,j,i);
+
+      sum_Q += sqrt_det_gamma__ *
+               std::sqrt(b2 / (rho*h + b2)) * w;
+    }
+  }
+
+  return sum_Q;
+}
+
 Real Etau_B(MeshBlock *pmb, int iout)
 {
   Real sum_Q = 0;
@@ -615,8 +734,8 @@ Real Etau_B(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
 
     const Real sqrt_det_gamma__ = (
@@ -632,6 +751,87 @@ Real Etau_B(MeshBlock *pmb, int iout)
   return sum_Q;
 }
 
+Real bsq(MeshBlock *pmb, int iout)
+{
+  Real sum_Q = 0;
+
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
+    const Real w = dx1*dx2*dx3;
+
+    const Real sqrt_det_gamma__ = (
+      pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+    );
+
+    const Real b2 = pmb->pfield->derived_ms(IX_b2,k,j,i);
+
+    sum_Q += sqrt_det_gamma__ * b2 * w;
+  }
+  return sum_Q;
+}
+
+Real bisq(MeshBlock *pmb, int iout)
+{
+  #if defined(Z4C_VC_ENABLED)
+  //hard coded to CC metric sampling
+  assert(false);
+  #endif
+
+  AT_N_vec adm_beta(pmb->pz4c->storage.adm, Z4c::I_ADM_betax);
+  AT_N_sym adm_gamma_dd(pmb->pz4c->storage.adm, Z4c::I_ADM_gxx);
+
+
+
+  Field *pf = pmb->pfield;
+  Real sum_Q = 0;
+  CC_ILOOP3(k,j,i)
+  {
+    const Real dx1 = pmb->pcoord->dx1v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
+    const Real w = dx1*dx2*dx3;
+
+
+    Real adm_beta_d[3];
+
+
+
+    for (int n = 0; n < NDIM; ++n)
+    {
+      adm_beta_d[n] = 0.0;
+      for (int m = 0; m < NDIM; ++m)
+      {
+        adm_beta_d[n] += adm_gamma_dd(m,n,k,j,i) * adm_beta(m,k,j,i);
+      }
+    }
+
+    const Real sqrt_det_gamma__ = (
+      pmb->pz4c->aux_extended.ms_sqrt_detgamma(k,j,i)
+    );
+    const Real b_u_x = pf->derived_ms(IX_b_U_1,k,j,i);
+    const Real b_u_y = pf->derived_ms(IX_b_U_2,k,j,i);
+    const Real b_u_z = pf->derived_ms(IX_b_U_3,k,j,i);
+    Real b_d_x = adm_beta_d[0]*pf->derived_ms(IX_b0);
+    Real b_d_y = adm_beta_d[1]*pf->derived_ms(IX_b0);
+    Real b_d_z = adm_beta_d[2]*pf->derived_ms(IX_b0);
+
+    for (int n = 0; n < NDIM; ++n)
+    {
+      b_d_x += adm_gamma_dd(0,n,k,j,i) * pf->derived_ms(IX_b_U_1+n,k,j,i);    
+      b_d_y += adm_gamma_dd(1,n,k,j,i) * pf->derived_ms(IX_b_U_1+n,k,j,i);  
+      b_d_z += adm_gamma_dd(2,n,k,j,i) * pf->derived_ms(IX_b_U_1+n,k,j,i);  
+
+    }
+
+    const Real bisq = b_d_x*b_u_x + b_d_y*b_u_y + b_d_z*b_u_z;
+
+    sum_Q += sqrt_det_gamma__ * bisq * w;
+  }    
+  return sum_Q;
+}
 
 Real bphisq(MeshBlock *pmb, int iout) 
 {
@@ -654,8 +854,8 @@ Real bphisq(MeshBlock *pmb, int iout)
   CC_ILOOP3(k,j,i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
     const Real x = pmb->pcoord->x1v(i); 
     const Real y = pmb->pcoord->x2v(j); 
@@ -749,6 +949,15 @@ void Mesh::EnrollUserStandardField(ParameterInput * pin)
                           UserHistoryOperation::sum);
 
   EnrollUserHistoryOutput(bphisq, "bphisq",
+                          UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(bsq, "bsq",
+                          UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(bisq, "bisq",
+                          UserHistoryOperation::sum);
+
+  EnrollUserHistoryOutput(v_a_bulk, "v_a_bulk",
                           UserHistoryOperation::sum);
 
 
@@ -1036,8 +1245,8 @@ Real src_Y_e(const int ix_g, MeshBlock *pmb, int iout)
   CC_ILOOP3(k, j, i)
   {
     const Real dx1 = pmb->pcoord->dx1v(i);
-    const Real dx2 = pmb->pcoord->dx2v(i);
-    const Real dx3 = pmb->pcoord->dx3v(i);
+    const Real dx2 = pmb->pcoord->dx2v(j);
+    const Real dx3 = pmb->pcoord->dx3v(k);
     const Real w = dx1*dx2*dx3;
     const Real src = mb_raw * (
       pmb->pm1->sources.sc_nG(ix_g,1)(k,j,i) -
