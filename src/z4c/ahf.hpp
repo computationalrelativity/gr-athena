@@ -51,7 +51,8 @@ class AHF
     hmean_diverged = 2,
     meanradius_neg = 3,
     mass_collapse  = 4,
-    max_iters      = 5
+    max_iters      = 5,
+    stagnated      = 6
   };
 
   // -- Construction / destruction --------------------------------------------
@@ -96,6 +97,10 @@ class AHF
     Real spec_tol;
     Real hrms_tol;
     Real hrms_rel_tol;
+    bool stagnation_detect;
+    int stagnation_window;
+    Real stagnation_improvement_frac;
+    int stagnation_warmup;
     bool auto_retry;
     int max_retries;
     Real retry_shrink;

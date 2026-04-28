@@ -11,10 +11,11 @@
 #include <unistd.h>
 
 #include <algorithm>  // std::fill
-#include <iterator>
 #include <cmath>      // NAN
 #include <cstdio>
 #include <cstring>  // std::memcpy
+#include <iterator>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -79,6 +80,17 @@ void AHF::ReadOptions(ParameterInput* pin)
   opt.spec_tol     = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
   opt.hrms_tol     = pin->GetOrAddReal("ahf", parkey("hrms_tol_"), 1e-1);
   opt.hrms_rel_tol = pin->GetOrAddReal("ahf", parkey("hrms_rel_tol_"), 1e-3);
+
+  // Stagnation detection: abort FastFlowLoop when hrms plateaus while still
+  // above the absolute hrms tol.
+  opt.stagnation_detect =
+    pin->GetOrAddBoolean("ahf", parkey("stagnation_detect_"), true);
+  opt.stagnation_window =
+    pin->GetOrAddInteger("ahf", parkey("stagnation_window_"), 8);
+  opt.stagnation_improvement_frac =
+    pin->GetOrAddReal("ahf", parkey("stagnation_improvement_frac_"), 1.0e-1);
+  opt.stagnation_warmup =
+    pin->GetOrAddInteger("ahf", parkey("stagnation_warmup_"), 5);
 
   // Auto-retry options. On failed Find(), retry with adjusted initial_radius
   // selected by exit-code (see ExitCode enum / Find() retry loop).
@@ -828,6 +840,8 @@ const char* ExitCodeName(AHF::ExitCode c)
       return "mass_collapse";
     case AHF::ExitCode::max_iters:
       return "max_iters";
+    case AHF::ExitCode::stagnated:
+      return "stagnated";
   }
   return "?";
 }
@@ -857,9 +871,9 @@ void AHF::Find(int iter, Real time)
 
   // Compile-time alternate pattern: shrink, grow, shrink (cycles)
   static constexpr int alt_dir[3] = { -1, +1, -1 };  // taken modulo
-  static constexpr int alt_n     = std::size(alt_dir);
+  static constexpr int alt_n      = std::size(alt_dir);
 
-  const int max_attempts          = (opt.auto_retry ? opt.max_retries : 0) + 1;
+  const int max_attempts = (opt.auto_retry ? opt.max_retries : 0) + 1;
 
   for (int attempt = 0; attempt < max_attempts; ++attempt)
   {
@@ -880,6 +894,7 @@ void AHF::Find(int iter, Real time)
           break;
         case ExitCode::meanradius_neg:
         case ExitCode::max_iters:
+        case ExitCode::stagnated:
         {
           const int dir = alt_dir[alternate_idx % alt_n];
           factor_step   = (dir < 0) ? opt.retry_shrink : opt.retry_grow;
@@ -947,18 +962,20 @@ void AHF::FastFlowLoop()
   // Set default status
   last_exit = ExitCode::max_iters;
 
-  Real meanradius = a0(0) / SQRT_4PI;
-  Real mass       = 0;
-  Real mass_prev  = 0;
-  Real area       = 0;
-  Real hrms       = 0;
-  Real hrms_prev  = -1.0;  // no prior hrms yet
-  Real hmean      = 0;
-  Real Sx         = 0;
-  Real Sy         = 0;
-  Real Sz         = 0;
-  Real S          = 0;
-  bool failed     = false;
+  Real meanradius      = a0(0) / SQRT_4PI;
+  Real mass            = 0;
+  Real mass_prev       = 0;
+  Real area            = 0;
+  Real hrms            = 0;
+  Real hrms_prev       = -1.0;  // no prior hrms yet
+  Real hrms_best       = std::numeric_limits<Real>::infinity();
+  int iters_no_improve = 0;
+  Real hmean           = 0;
+  Real Sx              = 0;
+  Real Sy              = 0;
+  Real Sz              = 0;
+  Real S               = 0;
+  bool failed          = false;
 
   if (opt.verbose && (Globals::my_rank == opt.mpi_root))
   {
@@ -987,6 +1004,7 @@ void AHF::FastFlowLoop()
 
   std::vector<Real> ABfac_vec(nspec0);
   Real* ABfac = ABfac_vec.data();
+
   RecomputeABfac(alpha, 0.5 * alpha, opt.lmax, ABfac);
 
   // Caches for line search (BB requires previous iterate + previous bare
@@ -1286,6 +1304,45 @@ void AHF::FastFlowLoop()
       ah_found  = true;
       last_exit = ExitCode::success;
       break;
+    }
+
+    // Stagnation detection: hrms failing to improve over a window while still
+    // above the absolute hrms tolerate.
+    {
+      const Real impr_thresh =
+        hrms_best * (1.0 - opt.stagnation_improvement_frac);
+      if (hrms < impr_thresh)
+      {
+        hrms_best        = hrms;
+        iters_no_improve = 0;
+      }
+      else
+      {
+        ++iters_no_improve;
+      }
+
+      const bool past_warmup = (k >= opt.stagnation_warmup);
+      const bool below_abs   = (hrms * mass < opt.hrms_tol);
+
+      if (opt.stagnation_detect && past_warmup && !below_abs &&
+          iters_no_improve >= opt.stagnation_window)
+      {
+        if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+        {
+          fprintf(pofile_verbose,
+                  "Stagnated, hrms %.3e (best %.3e) for %d iters; "
+                  "abs gate hrms*mass=%.3e >= hrms_tol=%.3e\n",
+                  hrms,
+                  hrms_best,
+                  iters_no_improve,
+                  hrms * mass,
+                  opt.hrms_tol);
+          fflush(pofile_verbose);
+        }
+        last_exit = ExitCode::stagnated;
+        failed    = true;
+        break;
+      }
     }
 
     hrms_prev = hrms;
