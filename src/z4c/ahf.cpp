@@ -1,335 +1,286 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file ahf.cpp
 //  \brief implementation of the apparent horizon finder class
 //         Fast flow algorithm of Gundlach:1997us and Alcubierre:1998rq
 
-#include <cstdio>
-#include <stdexcept>
-#include <sstream>
 #include <unistd.h>
-#include <cmath> // NAN
+
+#include <algorithm>  // std::fill
+#include <cmath>      // NAN
+#include <cstdio>
+#include <cstring>  // std::memcpy
+#include <sstream>
+#include <stdexcept>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
 
-#define DEBUG_OUTPUT (0)
-enum{
-  DONOTHING,
-  CURE_DIVU,
-  NCURE,
-};
-#define EXPANSIONFIX (CURE_DIVU)
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
 
-#include "ahf.hpp"
 #include "../globals.hpp"
-#include "../parameter_input.hpp"
 #include "../mesh/mesh.hpp"
-#include "../utils/linear_algebra.hpp"
-#include "../utils/tensor.hpp"
-#include "../coordinates/coordinates.hpp"
-#include "puncture_tracker.hpp"
+#include "../parameter_input.hpp"
 #include "../trackers/extrema_tracker.hpp"
-
-using namespace utils::tensor;
+#include "../utils/linear_algebra.hpp"
+#include "../utils/spherical_harmonics.hpp"
+#include "../utils/tensor_symmetry.hpp"
+#include "ahf.hpp"
+#include "puncture_tracker.hpp"
+#include "z4c.hpp"
 
 //----------------------------------------------------------------------------------------
-//! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n)
+//! \fn AHF::AHF(Mesh * pmesh, ParameterInput * pin, int idx_ahf)
 //  \brief class for apparent horizon finder
-AHF::AHF(Mesh * pmesh, ParameterInput * pin, int n):
-  pmesh(pmesh),
-  pin(pin)
+AHF::AHF(Mesh* pmesh, ParameterInput* pin, int idx_ahf)
+    : pmesh(pmesh), pin(pin), idx_ahf(idx_ahf)
 {
-  nhorizon = pin->GetOrAddInteger("ahf", "num_horizons",1);
+  ReadOptions(pin);
+  PrepareArrays();
+  SetupIO();
+}
 
-  nh = n;
-  std::string parname;
-  std::string n_str = std::to_string(nh);
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::ReadOptions(ParameterInput * pin)
+//  \brief read all configuration from ParameterInput into opt struct and state
+void AHF::ReadOptions(ParameterInput* pin)
+{
+  const std::string n_str = std::to_string(idx_ahf);
+  auto parkey             = [&n_str](const char* base)
+  { return std::string(base) + n_str; };
 
-  ntheta = pin->GetOrAddInteger("ahf","ntheta",5);
-  nphi = pin->GetOrAddInteger("ahf","nphi",10);
-  if ((nphi+1)%2==0) {
+  // Grid and quadrature weights
+  const int ntheta_val = pin->GetOrAddInteger("ahf", "ntheta", 5);
+  const int nphi_val   = pin->GetOrAddInteger("ahf", "nphi", 10);
+  std::string quadrature =
+    pin->GetOrAddString("ahf", "quadrature", "gausslegendre");
+  if (quadrature == "sums")
+    quadrature = "midpoint";
+  grid_.Initialize(ntheta_val, nphi_val, quadrature);
+
+  opt.lmax = pin->GetOrAddInteger("ahf", "lmax", 4);
+
+  opt.flow_iterations =
+    pin->GetOrAddInteger("ahf", parkey("flow_iterations_"), 100);
+
+  opt.flow_alpha_beta_const =
+    pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
+
+  opt.hmean_tol = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
+
+  opt.mass_tol = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-2);
+
+  opt.verbose         = pin->GetOrAddBoolean("ahf", "verbose", false);
+  opt.mpi_root        = pin->GetOrAddInteger("ahf", "mpi_root", 0);
+  opt.merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
+  opt.bitant          = pin->GetOrAddBoolean("mesh", "bitant", false);
+
+  // Initial guess
+  opt.initial_radius =
+    pin->GetOrAddReal("ahf", parkey("initial_radius_"), 1.0);
+  rr_min = -1.0;
+
+  opt.expand_guess = pin->GetOrAddReal("ahf", "expand_guess", 1.0);
+
+  // Center
+  center[0] = pin->GetOrAddReal("ahf", parkey("center_x_"), 0.0);
+  center[1] = pin->GetOrAddReal("ahf", parkey("center_y_"), 0.0);
+  center[2] = pin->GetOrAddReal("ahf", parkey("center_z_"), 0.0);
+
+  opt.use_puncture = pin->GetOrAddInteger("ahf", parkey("use_puncture_"), -1);
+
+  if (opt.use_puncture >= 0)
+  {
+    // Center is determined on the fly during the initial guess
+    // to follow the chosen puncture
+    const int npunct = static_cast<int>(pmesh->pz4c_tracker.size());
+    if (opt.use_puncture >= npunct)
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF constructor" << std::endl;
+      msg << " : punc = " << opt.use_puncture << " > npunct = " << npunct;
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
+  opt.use_puncture_massweighted_center = pin->GetOrAddBoolean(
+    "ahf", parkey("use_puncture_massweighted_center_"), 0);
+
+  opt.use_extrema = pin->GetOrAddInteger("ahf", parkey("use_extrema_"), -1);
+
+  if (opt.use_extrema >= 0)
+  {
+    const int N_tracker = pmesh->ptracker_extrema->N_tracker;
+    if (opt.use_extrema >= N_tracker)
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF constructor" << std::endl;
+      msg << " : extrema = " << opt.use_extrema
+          << " > N_tracker = " << N_tracker;
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
+
+  opt.start_time = pin->GetOrAddReal(
+    "ahf", parkey("start_time_"), std::numeric_limits<double>::max());
+
+  opt.stop_time = pin->GetOrAddReal("ahf", parkey("stop_time_"), -1.0);
+
+  opt.wait_until_punc_are_close =
+    pin->GetOrAddBoolean("ahf", parkey("wait_until_punc_are_close_"), 0);
+
+  // Initialize last & found
+  last_a0 = pin->GetOrAddReal("ahf", parkey("last_a0_"), -1);
+
+  ah_found = pin->GetOrAddBoolean("ahf", parkey("ah_found_a0_"), false);
+
+  time_first_found =
+    pin->GetOrAddReal("ahf", parkey("time_first_found_"), -1.0);
+
+  // Output filenames
+  opt.ofname_summary = pin->GetString("job", "problem_id") + ".";
+  opt.ofname_summary += pin->GetOrAddString(
+    "ahf", parkey("horizon_file_summary_"), "horizon_summary_" + n_str);
+  opt.ofname_summary += ".txt";
+
+  opt.ofname_shape = pin->GetString("job", "problem_id") + ".";
+  opt.ofname_shape += pin->GetOrAddString(
+    "ahf", parkey("horizon_file_shape_"), "horizon_shape_" + n_str);
+  opt.ofname_shape += ".txt";
+
+  if (opt.verbose)
+  {
+    opt.ofname_verbose = pin->GetString("job", "problem_id") + ".";
+    opt.ofname_verbose += pin->GetOrAddString(
+      "ahf", parkey("horizon_verbose_"), "horizon_verbose_" + n_str);
+    opt.ofname_verbose += ".txt";
+  }
+
+  // Expansion fix method
+  std::string expfix_str =
+    pin->GetOrAddString("ahf", "expansion_fix", "cure_divu");
+  if (expfix_str == "do_nothing")
+    opt.expansion_fix = ExpansionFix::do_nothing;
+  else if (expfix_str == "cure_divu")
+    opt.expansion_fix = ExpansionFix::cure_divu;
+  else
+  {
     std::stringstream msg;
-    msg << "### FATAL ERROR in AHF setup" << std::endl
-        << "nphi must be even " << nphi << std::endl;
+    msg << "### FATAL ERROR in AHF" << std::endl
+        << "unknown expansion_fix: " << expfix_str << std::endl;
     ATHENA_ERROR(msg);
   }
 
-  lmax = pin->GetOrAddInteger("ahf", "lmax",4);
-  lmax1 = lmax+1;
-
-  parname = "flow_iterations_";
-  parname += n_str;
-  flow_iterations = pin->GetOrAddInteger("ahf", parname, 100);
-  
-  parname = "flow_alpha_beta_const_";
-  parname += n_str;
-  flow_alpha_beta_const = pin->GetOrAddReal("ahf", parname, 1.0);
-  
-  parname = "hmean_tol_";
-  parname += n_str;
-  hmean_tol = pin->GetOrAddReal("ahf", parname, 100.);
-  
-  parname = "mass_tol_";
-  parname += n_str;
-  mass_tol = pin->GetOrAddReal("ahf", parname, 1e-2);
-  
-  verbose = pin->GetOrAddBoolean("ahf", "verbose", false);
-  root = pin->GetOrAddInteger("ahf", "mpi_root", 0);
-  merger_distance = pin->GetOrAddReal("ahf", "merger_distance", 0.1);
-  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
-  use_stored_metric_drvts = pin->GetBoolean("z4c", "store_metric_drvts");
-    
-  // Initial guess
-  parname = "initial_radius_";
-  parname += n_str;
-  initial_radius = pin->GetOrAddReal("ahf", parname, 1.0);
-  rr_min = -1.0;
-
-  expand_guess = pin->GetOrAddReal("ahf", "expand_guess",1.0);
-  npunct = pin->GetOrAddInteger("z4c", "npunct", 0);
-
-  // Center
-  parname = "center_x_";
-  parname += n_str;
-  center[0] = pin->GetOrAddReal("ahf", parname, 0.0);
-  parname = "center_y_";
-  parname += n_str;
-  center[1] = pin->GetOrAddReal("ahf", parname, 0.0);
-  parname = "center_z_";
-  parname += n_str;
-  center[2] = pin->GetOrAddReal("ahf", parname, 0.0);
-
-  parname = "use_puncture_";
-  parname += n_str;
-  use_puncture = pin->GetOrAddInteger("ahf", parname, -1);
-
-  // parname = "compute_every_iter_";
-  // parname += n_str;
-  // compute_every_iter = pin->GetOrAddInteger("ahf", parname, 1);
-  // BD: N.B. this is now covered by the task triggers
-  compute_every_iter = 1;
-
-  if (use_puncture>=0) {
-    // Center is determined on the fly during the initial guess
-    // to follow the chosen puncture
-    if (use_puncture >= npunct) {
-        std::stringstream msg;
-        msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << " : punc = " << use_puncture << " > npunct = " << npunct;
-        throw std::runtime_error(msg.str().c_str());
+  // Warn if AHF will run but storage.aux ghost zones won't be communicated
+  {
+    const Real dt_ahf = pin->GetOrAddReal("task_triggers", "dt_Z4c_AHF", 0.0);
+    if (dt_ahf > 0.0 &&
+        !pin->GetOrAddBoolean("z4c", "communicate_aux_adm", false))
+    {
+      if ((Globals::my_rank == 0) && (idx_ahf == 0))
+      {
+        std::printf(
+          "### WARNING [AHF]: z4c/communicate_aux_adm is false.\n"
+          "  AHF interpolates storage.aux (metric derivatives) near "
+          "MeshBlock\n"
+          "  boundaries where ghost-zone values are uninitialized without\n"
+          "  communication. Results may be inaccurate.\n");
+      }
     }
   }
-  parname = "use_puncture_massweighted_center_";
-  parname += n_str;
-  use_puncture_massweighted_center = pin->GetOrAddBoolean("ahf", parname, 0);
+}
 
-  parname = "use_extrema_";
-  parname += n_str;
-  use_extrema = pin->GetOrAddInteger("ahf", parname, -1);
-
-  if (use_extrema>=0) {
-    const int N_tracker = pmesh->ptracker_extrema->N_tracker;
-    if (use_extrema >= N_tracker) {
-        std::stringstream msg;
-        msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << " : extrema = " << use_extrema << " > N_tracker = " << N_tracker;
-        throw std::runtime_error(msg.str().c_str());
-    }
-  }
-
-  parname = "start_time_";
-  parname += n_str;
-  start_time = pin->GetOrAddReal("ahf", parname, std::numeric_limits<double>::max());
-
-  parname = "stop_time_";
-  parname += n_str;
-  stop_time = pin->GetOrAddReal("ahf", parname, -1.0);
-
-  parname = "wait_until_punc_are_close_";
-  parname += n_str;
-  wait_until_punc_are_close = pin->GetOrAddBoolean("ahf", parname, 0);
-
-  // Grid and quadrature weights
-  std::string quadrature = pin->GetOrAddString("ahf","quadrature","gausslegendre");
-  SetGridWeights(quadrature);
-
-  // Initialize last & found
-  parname = "last_a0_";
-  parname += n_str;
-  last_a0 = pin->GetOrAddReal("ahf", parname, -1);
-
-  parname = "ah_found_a0_";
-  parname += n_str;
-  ah_found = pin->GetOrAddBoolean("ahf", parname, false);
-
-  parname = "time_first_found_";
-  parname += n_str;
-  time_first_found = pin->GetOrAddReal("ahf", parname, -1.0);
-
-  // Points for sph harm l>=1
-  lmpoints = lmax1*lmax1; // SB this could/should be lmax^2: check all loop ranges, fix index map before changing.
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::PrepareArrays()
+//  \brief allocate spectral, harmonic, and field arrays; compute Ylm tables
+void AHF::PrepareArrays()
+{
+  // Compute spherical harmonic tables on the grid
+  ylm_.Initialize(
+    opt.lmax, grid_.ntheta, grid_.nphi, grid_.th_grid, grid_.ph_grid);
 
   // Coefficients
-  a0.NewAthenaArray(lmax1);
-  ac.NewAthenaArray(lmpoints);
-  as.NewAthenaArray(lmpoints);
-
-  // Spherical harmonics
-  // the spherical grid is the same for all surfaces
-  Y0.NewAthenaArray(ntheta,nphi,lmax1);
-  Yc.NewAthenaArray(ntheta,nphi,lmpoints);
-  Ys.NewAthenaArray(ntheta,nphi,lmpoints);
-
-  dY0dth.NewAthenaArray(ntheta,nphi,lmax1);
-  dYcdth.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYsdth.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYcdph.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYsdph.NewAthenaArray(ntheta,nphi,lmpoints);
-
-  dY0dth2.NewAthenaArray(ntheta,nphi,lmax1);
-  dYcdth2.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYcdthdph.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYsdth2.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYsdthdph.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYcdph2.NewAthenaArray(ntheta,nphi,lmpoints);
-  dYsdph2.NewAthenaArray(ntheta,nphi,lmpoints);
-
-  ComputeSphericalHarmonics();
+  a0.NewAthenaArray(opt.lmax + 1);
+  ac.NewAthenaArray(ylm_.lmpoints);
+  as.NewAthenaArray(ylm_.lmpoints);
 
   // Fields on the sphere
-  rr.NewAthenaArray(ntheta,nphi);
-  rr_dth.NewAthenaArray(ntheta,nphi);
-  rr_dph.NewAthenaArray(ntheta,nphi);
-  
-  g.NewAthenaTensor(ntheta,nphi);
-  dg.NewAthenaTensor(ntheta,nphi);
-  K.NewAthenaTensor(ntheta,nphi);
+  rr.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  rr_dth.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  rr_dph.NewAthenaArray(grid_.ntheta, grid_.nphi);
+
+  g.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  dg.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  K.NewAthenaTensor(grid_.ntheta, grid_.nphi);
 
   // Array computed in surface integrals
-  rho.NewAthenaArray(ntheta,nphi);
-
-  // Flag points existing on this mesh
-  havepoint.NewAthenaArray(ntheta,nphi);
+  rho.NewAthenaArray(grid_.ntheta, grid_.nphi);
 
   // Initialize horizon properties to NAN
-  for (int v=0; v<hnvar; ++v) {
+  for (int v = 0; v < hnvar; ++v)
+  {
     ah_prop[v] = NAN;
   }
+}
 
-  // Prepare output
-  parname = "horizon_file_summary_";
-  parname += n_str;
-  ofname_summary = pin->GetString("job", "problem_id") + ".";
-  ofname_summary += pin->GetOrAddString("ahf", parname, "horizon_summary_"+n_str);
-  ofname_summary += ".txt";
-
-  parname = "horizon_file_shape_";
-  parname += n_str;
-  ofname_shape = pin->GetString("job", "problem_id") + ".";
-  ofname_shape += pin->GetOrAddString("ahf", parname, "horizon_shape_"+n_str);
-  ofname_shape += ".txt";
-
-  if (verbose) {
-    parname = "horizon_verbose_";
-    parname += n_str;
-    ofname_verbose = pin->GetString("job", "problem_id") + ".";
-    ofname_verbose += pin->GetOrAddString("ahf", parname, "horizon_verbose_"+n_str);
-    ofname_verbose += ".txt";
-  }
-
-#ifdef MPI_PARALLEL
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  ioproc = (root == rank);
-#else
-  ioproc = true;
-#endif
-  if (ioproc) {
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::SetupIO()
+//  \brief open output files, write column headers
+void AHF::SetupIO()
+{
+  if (Globals::my_rank == opt.mpi_root)
+  {
     // Summary file
     bool new_file = true;
-    if (access(ofname_summary.c_str(), F_OK) == 0) {
+    if (access(opt.ofname_summary.c_str(), F_OK) == 0)
+    {
       new_file = false;
     }
-    pofile_summary = fopen(ofname_summary.c_str(), "a");
-    if (NULL == pofile_summary) {
+    pofile_summary = fopen(opt.ofname_summary.c_str(), "a");
+    if (pofile_summary == nullptr)
+    {
       std::stringstream msg;
       msg << "### FATAL ERROR in AHF constructor" << std::endl;
-      msg << "Could not open file '" << pofile_summary << "' for writing!";
+      msg << "Could not open file '" << opt.ofname_summary << "' for writing!";
       throw std::runtime_error(msg.str().c_str());
     }
-    if (new_file) {
-      fprintf(pofile_summary, "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms 10:hmean 11:meanradius 12:minradius\n");
+    if (new_file)
+    {
+      fprintf(pofile_summary,
+              "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms "
+              "10:hmean 11:meanradius 12:minradius\n");
       fflush(pofile_summary);
     }
-    
-    //TODO Output Ylm, grid and center?
 
-    if (verbose) {
-      pofile_verbose = fopen(ofname_verbose.c_str(), "a");
-      if (NULL == pofile_verbose) {
+    if (opt.verbose)
+    {
+      pofile_verbose = fopen(opt.ofname_verbose.c_str(), "a");
+      if (pofile_verbose == nullptr)
+      {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << "Could not open file '" << pofile_verbose << "' for writing!";
+        msg << "Could not open file '" << opt.ofname_verbose
+            << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
     }
   }
 }
 
-AHF::~AHF() {
-  // Grid and weights
-  th_grid.DeleteAthenaArray();
-  ph_grid.DeleteAthenaArray();
-  weights.DeleteAthenaArray();
-
-  // Coefficients
-  a0.DeleteAthenaArray();
-  ac.DeleteAthenaArray();
-  as.DeleteAthenaArray();
-
-  // Spherical harmonics
-  Y0.DeleteAthenaArray();
-  Yc.DeleteAthenaArray();
-  Ys.DeleteAthenaArray();
-
-  dY0dth.DeleteAthenaArray();
-  dYcdth.DeleteAthenaArray();
-  dYcdph.DeleteAthenaArray();
-  dYsdth.DeleteAthenaArray();
-  dYsdph.DeleteAthenaArray();
-
-  dY0dth2.DeleteAthenaArray();
-  dYcdth2.DeleteAthenaArray();
-  dYcdthdph.DeleteAthenaArray();
-  dYcdph2.DeleteAthenaArray();
-  dYsdth2.DeleteAthenaArray();
-  dYsdthdph.DeleteAthenaArray();
-  dYsdph2.DeleteAthenaArray();
-
-  // Fields on the sphere
-  rr.DeleteAthenaArray();
-  rr_dth.DeleteAthenaArray();
-  rr_dph.DeleteAthenaArray();
-  
-  g.DeleteAthenaTensor();
-  dg.DeleteAthenaTensor();
-  K.DeleteAthenaTensor();
-
-  // Array computed in surface integrals
-  rho.DeleteAthenaArray();
-
-  // Flag points existing on this mesh
-  havepoint.DeleteAthenaArray();
-
+AHF::~AHF()
+{
   // Close files
-  if (ioproc) {
+  if (Globals::my_rank == opt.mpi_root)
+  {
     fclose(pofile_summary);
-    if (verbose) {
+    if (opt.verbose)
+    {
       fclose(pofile_verbose);
     }
   }
@@ -340,50 +291,55 @@ AHF::~AHF() {
 // \brief output summary and shape file, for each horizon
 void AHF::Write(int iter, Real time)
 {
-  if (ioproc) {
+  if (Globals::my_rank == opt.mpi_root)
+  {
     std::string i_str = std::to_string(iter);
-    if((time < start_time) || (time > stop_time)) return;
-    if (wait_until_punc_are_close && !(PuncAreClose())) return;
-    if (iter % compute_every_iter != 0) return;
+    if ((time < opt.start_time) || (time > opt.stop_time))
+      return;
+    if (opt.wait_until_punc_are_close && !(PuncAreClose()))
+      return;
 
     // Summary file
     fprintf(pofile_summary, "%d %g ", iter, time);
-    fprintf(pofile_summary, "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e",
-        ah_prop[hmass],
-        ah_prop[hSx],
-        ah_prop[hSy],
-        ah_prop[hSz],
-        ah_prop[hS],
-        ah_prop[harea],
-        ah_prop[hhrms],
-        ah_prop[hhmean],
-        ah_prop[hmeanradius],
-        ah_prop[hminradius]);
+    fprintf(pofile_summary,
+            "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e",
+            ah_prop[hmass],
+            ah_prop[hSx],
+            ah_prop[hSy],
+            ah_prop[hSz],
+            ah_prop[hS],
+            ah_prop[harea],
+            ah_prop[hhrms],
+            ah_prop[hhmean],
+            ah_prop[hmeanradius],
+            ah_prop[hminradius]);
     fprintf(pofile_summary, "\n");
     fflush(pofile_summary);
 
     if (ah_found)
     {
       // Shape file (coefficients)
-      pofile_shape = fopen(ofname_shape.c_str(), "a");
-      if (NULL == pofile_shape)
+      pofile_shape = fopen(opt.ofname_shape.c_str(), "a");
+      if (pofile_shape == nullptr)
       {
         std::stringstream msg;
         msg << "### FATAL ERROR in AHF constructor" << std::endl;
-        msg << "Could not open file '" << pofile_shape << "' for writing!";
+        msg << "Could not open file '" << opt.ofname_shape << "' for writing!";
         throw std::runtime_error(msg.str().c_str());
       }
-      fprintf(pofile_shape, "# iter = %d, Time = %g\n",iter,time);
-      for(int l=0; l<=lmax; l++)
-        fprintf(pofile_shape,"%e ", a0(l));
-      for(int l=1; l<=lmax; l++){
-        for(int m=1; m<=l; m++){
-          int l1 = lmindex(l,m);
-          fprintf(pofile_shape,"%e ",ac(l1));
-          fprintf(pofile_shape,"%e ",as(l1));
+      fprintf(pofile_shape, "# iter = %d, Time = %g\n", iter, time);
+      for (int l = 0; l <= opt.lmax; l++)
+        fprintf(pofile_shape, "%e ", a0(l));
+      for (int l = 1; l <= opt.lmax; l++)
+      {
+        for (int m = 1; m <= l; m++)
+        {
+          int l1 = ylm_.lmindex(l, m);
+          fprintf(pofile_shape, "%e ", ac(l1));
+          fprintf(pofile_shape, "%e ", as(l1));
         }
       }
-      fprintf(pofile_shape,"\n");
+      fprintf(pofile_shape, "\n");
       fclose(pofile_shape);
     }
   }
@@ -391,715 +347,389 @@ void AHF::Write(int iter, Real time)
   // This is needed on all ranks.
   if (ah_found && (time_first_found < 0))
   {
-    std::string parname {"time_first_found_" + std::to_string(nh)};
+    std::string parname{ "time_first_found_" + std::to_string(idx_ahf) };
     time_first_found = time;
     pin->SetReal("ahf", parname, time_first_found);
   }
-
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn void AHF::MetricDerivatives(MeshBlock * pmb)
-// \brief compute drvts of ADM metric at MB level
-// Use 2nd order FD for simplicity and avoid using ghosts
-// This assumes there is a special storage for the ADM drvts at the MB level:
-//   pmb->pz4c->aux_g_ddd
-void AHF::MetricDerivatives(MeshBlock * pmy_block)
+// \!fn void AHF::MetricInterp()
+// \brief interpolate metric on the surface using pre-built interpolator pools
+void AHF::MetricInterp()
 {
-  Z4c *pz4c = pmy_block->pz4c;  // also needed for LOOP macros etc.
+  using InterpType = LagrangeInterpND<metric_interp_order, 3>;
 
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd; // 3-metric  (NDIM=3 in z4c.hpp)
-  adm_g_dd.InitWithShallowSlice(pmy_block->pz4c->storage.adm, Z4c::I_ADM_gxx);
-  pz4c->aux_g_ddd.ZeroClear();
+  // Select the interpolator pool matching Z4c centering
+  std::vector<InterpType>& pool =
+    SW_CCX_VC(grid_.interp_pool_cc, grid_.interp_pool_vc);
 
-#if (DEBUG_OUTPUT)
-  FILE *fp, *fpd;
-  std::string fname ="metricderiv_gxx_";
-  std::string fnamed="metricderiv_dgxxdx_";
-  std::stringstream ss;
-  ss << pmy_block;
-  fname += ss.str()+".txt";
-  fnamed+= ss.str()+".txt";
-  fp = fopen(fname.c_str(),"w");
-  fpd= fopen(fnamed.c_str(),"w");
-#endif
-
-  Real oofdz = 1.0 / pz4c->mbi.dx3(0);
-  Real oofdy = 1.0 / pz4c->mbi.dx2(0);
-  Real oofdx = 1.0 / pz4c->mbi.dx1(0);
-  GLOOP2(k,j){
-    for(int a = 0; a < NDIM; ++a){
-      for(int b = 0; b < NDIM; ++b){
-        GLOOP1(i){
-          if (i==IX_IL-GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j, i ) );
-          } else if (i==IX_IU+GSIZEI){
-            pz4c->aux_g_ddd(0,a,b,k,j,i) =     oofdx * ( adm_g_dd(a,b,k,j, i ) - adm_g_dd(a,b,k,j,i-1) );
-          } else {
-            pz4c->aux_g_ddd(0,a,b,k,j,i) = 0.5*oofdx * ( adm_g_dd(a,b,k,j,i+1) - adm_g_dd(a,b,k,j,i-1) );
-          }
-
-          if (j==IX_JL-GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k, j ,i) );
-          } else if (j==IX_JU+GSIZEJ){
-            pz4c->aux_g_ddd(1,a,b,k,j,i) =     oofdy * ( adm_g_dd(a,b,k, j ,i) - adm_g_dd(a,b,k,j-1,i) );
-          } else {
-            pz4c->aux_g_ddd(1,a,b,k,j,i) = 0.5*oofdy * ( adm_g_dd(a,b,k,j+1,i) - adm_g_dd(a,b,k,j-1,i) );
-          }
-
-          if (k==IX_KL-GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b, k ,j,i) );
-          } else if (k==IX_KU+GSIZEK){
-            pz4c->aux_g_ddd(2,a,b,k,j,i) =     oofdz * ( adm_g_dd(a,b, k ,j,i) - adm_g_dd(a,b,k-1,j,i) );
-          } else {
-            pz4c->aux_g_ddd(2,a,b,k,j,i) = 0.5*oofdz * ( adm_g_dd(a,b,k+1,j,i) - adm_g_dd(a,b,k-1,j,i) );
-          }
-
-#if (DEBUG_OUTPUT)
-          if (a==0 && b==0){
-            fprintf(fp, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j),
-                pz4c->mbi.x3(k), adm_g_dd(0,0,k,j,i));
-            fprintf(fpd, "%23.15e %23.15e %23.15e %23.15e\n",pz4c->mbi.x1(i),pz4c->mbi.x2(j),
-                pz4c->mbi.x3(k), pz4c->aux_g_ddd(0,0,0,k,j,i));
-          }
-#endif
-
-        }
-      }
-    }
-  }
-
-  adm_g_dd.DeleteAthenaTensor();
-
-#if (DEBUG_OUTPUT)
-  fclose(fp);
-  fclose(fpd);
-#endif
-
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::MetricInterp(MeshBlock * pmb)
-// \brief interpolate metric on the surface n
-// Flag here the surface points contained (on this rank)
-void AHF::MetricInterp(MeshBlock * pmb)
-{
-  Z4c *pz4c = pmb->pz4c;
-
-  LagrangeInterpND<metric_interp_order, 3> * pinterp3 = nullptr;
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_g_dd;      // 3-metric  (NDIM=3 in z4c.hpp)
-  AthenaTensor<Real, TensorSymm::SYM2, NDIM, 2> adm_K_dd;      // extr.curv.
-  adm_g_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_gxx);
-  adm_K_dd.InitWithShallowSlice(pz4c->storage.adm, Z4c::I_ADM_Kxx);
-
-  // For interp
-  Real origin[NDIM];
-  Real delta[NDIM];
-  int size[NDIM];
-  Real coord[NDIM];
-
-  // Center of the surface
-  const Real xc = center[0];
-  const Real yc = center[1];
   const Real zc = center[2];
 
-#if (DEBUG_OUTPUT)
-  FILE *fp, *fp_d;
-  std::string fname   = "metricinterp_gxx_iter"+std::to_string(fastflow_iter)+"_";
-  std::string fname_d = "metricinterp_dgxxdx_iter"+std::to_string(fastflow_iter)+"_";
-  std::stringstream ss;
-  ss << pmb;
-  fname   += ss.str();
-  fname_d += ss.str();
-#ifdef MPI_PARALLEL
-  int rank_tmp;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank_tmp);
-  fname   += "_rank"+std::to_string(rank_tmp);
-  fname_d += "_rank"+std::to_string(rank_tmp);
-#endif
-  fname   += ".txt";
-  fname_d += ".txt";
-  fp   = fopen(fname.c_str(), "w");
-  fp_d = fopen(fname_d.c_str(), "w");
-#endif
+#pragma omp parallel for collapse(2) schedule(dynamic)
+  for (int i = 0; i < grid_.ntheta; ++i)
+  {
+    for (int j = 0; j < grid_.nphi; ++j)
+    {
+      const Real costh = grid_.cos_theta(i);
+      if (!grid_.IsOwned(i, j))
+        continue;
 
-  for(int i=0; i<ntheta; i++){
+      MeshBlock* pmb = grid_.mask_mb(i, j);
+      Z4c* pz4c      = pmb->pz4c;
 
-    Real theta = th_grid(i);
-    Real sinth = std::sin(theta);
-    Real costh = std::cos(theta);
+      AT_N_sym adm_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
+      AT_N_sym adm_K_dd(pz4c->storage.adm, Z4c::I_ADM_Kxx);
 
-    for(int j=0; j<nphi; j++){
+      InterpType& interp = pool[grid_.mask_interp_idx(i, j)];
 
-      Real phi   = ph_grid(j);
-      Real sinph = std::sin(phi);
-      Real cosph = std::cos(phi);
-
-      // Global coordinates of the surface
-      Real x = xc + rr(i,j) * sinth * cosph;
-      Real y = yc + rr(i,j) * sinth * sinph;
-      Real z = zc + rr(i,j) * costh;
-
-      // Impose bitant symmetry below
-      bool bitant_sym = ( bitant && z < 0 ) ? true : false;
-      // Associate z -> -z if bitant
-      if (bitant) z = std::abs(z);
-
-      if (!pmb->PointContained(x,y,z)) continue;
-
-      // this surface point is in this MB
-      havepoint(i,j) += 1;
-
-      // Interpolate
-      origin[0] = pz4c->mbi.x1(0);
-      size[0]   = pz4c->mbi.nn1;
-      delta[0]  = pz4c->mbi.dx1(0);
-      coord[0]  = x;
-
-      origin[1] = pz4c->mbi.x2(0);
-      size[1]   = pz4c->mbi.nn2;
-      delta[1]  = pz4c->mbi.dx2(0);
-      coord[1]  = y;
-
-      origin[2] = pz4c->mbi.x3(0);
-      size[2]   = pz4c->mbi.nn3;
-      delta[2]  = pz4c->mbi.dx3(0);
-      coord[2]  = z;
-
-      pinterp3 = new LagrangeInterpND<metric_interp_order, 3>(origin, delta, size, coord);
+      // Bitant: check the raw (unreflected) z coordinate
+      const Real z_raw      = zc + rr(i, j) * costh;
+      const bool bitant_sym = (opt.bitant && z_raw < 0);
 
       // With bitant wrt z=0, pick a (-) sign every time a z component is
       // encountered.
-      for(int a = 0; a < NDIM; ++a)
-      for(int b = a; b < NDIM; ++b) {
-        int bitant_z_fac = 1;
-        if (bitant_sym) {
-          if (a == 2) bitant_z_fac *= -1;
-          if (b == 2) bitant_z_fac *= -1;
-        }
-        g(a,b,i,j) = pinterp3->eval(&(adm_g_dd(a,b,0,0,0)))*bitant_z_fac;
-        K(a,b,i,j) = pinterp3->eval(&(adm_K_dd(a,b,0,0,0)))*bitant_z_fac;
-        for(int c = 0; c < NDIM; ++c) {
-          if (bitant_sym)  {
-            if (c == 2) bitant_z_fac *= -1;
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+        {
+          const int bsign = BitantSign(bitant_sym, a, b);
+          g(a, b, i, j)   = interp.eval(&(adm_g_dd(a, b, 0, 0, 0))) * bsign;
+          K(a, b, i, j)   = interp.eval(&(adm_K_dd(a, b, 0, 0, 0))) * bsign;
+          for (int c = 0; c < NDIM; ++c)
+          {
+            dg(c, a, b, i, j) =
+              interp.eval(&(pz4c->aux.dg_ddd(c, a, b, 0, 0, 0))) *
+              BitantSign(bitant_sym, a, b, c);
           }
-	  if (use_stored_metric_drvts) {
-	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux.dg_ddd(c,a,b,0,0,0)))*bitant_z_fac;
-	  } else {
-	    dg(c,a,b,i,j) = pinterp3->eval(&(pz4c->aux_g_ddd(c,a,b,0,0,0)))*bitant_z_fac;
-	  }
         }
-      }
 
-      delete pinterp3;
-
-#if (DEBUG_OUTPUT)
-      fprintf(fp,   "%23.15e %23.15e %23.15e\n", theta, phi,  g(0,0,i,j));
-      fprintf(fp_d, "%23.15e %23.15e %23.15e\n", theta, phi, dg(0,0,0,i,j));
-#endif
-
-    } // phi loop
-  } // theta loop
-
-  adm_g_dd.DeleteAthenaTensor();
-  adm_K_dd.DeleteAthenaTensor();
-
-#if (DEBUG_OUTPUT)
-  fclose(fp);
-  fclose(fp_d);
-#endif
-
+    }  // phi loop
+  }  // theta loop
 }
 //----------------------------------------------------------------------------------------
-//! \fn void AHF::SurfaceIntegrals(const int n)
-//  \brief compute expansion, surface element and spin integrand on surface n
-// Needs metric and extr. curv. interpolated on the surface
-// Performs local sums and MPI reduce
-void AHF::SurfaceIntegrals()
+//! \fn bool AHF::LevelSetGradient(...)
+//  \brief Compute Cartesian coords and level-set function derivatives dFdi,
+//  dFdidj via chain rule.  Reads precomputed Jacobian from grid_.con_J/con_J2
+//  and spherical harmonic derivatives from ylm_.  Returns false if the surface
+//  radius is below min_surface_radius (caller should break).
+bool AHF::LevelSetGradient(int i,
+                           int j,
+                           ATP_N_vec& dFdi,
+                           ATP_N_sym& dFdidj,
+                           Real& xp,
+                           Real& yp,
+                           Real& zp)
+{
+  using namespace gra::sph_harm::ix_D;
+  const AT_N_T2& con_J        = grid_.con_J;
+  const AT_N_VS2& con_J2      = grid_.con_J2;
+  const AthenaArray<Real>& Y0 = ylm_.Y0;
+  const AthenaArray<Real>& Yc = ylm_.Yc;
+  const AthenaArray<Real>& Ys = ylm_.Ys;
+
+  // Cartesian coordinates of the surface point (relative to center)
+  xp = rr(i, j) * grid_.sin_theta(i) * grid_.cos_phi(j);
+  yp = rr(i, j) * grid_.sin_theta(i) * grid_.sin_phi(j);
+  zp = rr(i, j) * grid_.cos_theta(i);
+
+  const Real rp = std::sqrt(xp * xp + yp * yp + zp * zp);
+  if (rp < min_surface_radius)
+    return false;
+
+  // Chain rule: dF/dx^a = dr/dx^a - sum_{lm} c_{lm} * (dY/dth * dth/dx^a
+  //                                                    + dY/dph * dph/dx^a)
+  // con_J(A, a) = d(sph coord A)/d(cart coord a), A: 0=r, 1=th, 2=ph
+  for (int a = 0; a < NDIM; ++a)
+  {
+    dFdi(a) = con_J(0, a, i, j);
+    for (int l = 0; l <= opt.lmax; l++)
+      dFdi(a) -= a0(l) * con_J(1, a, i, j) * Y0(D10, i, j, l);
+    for (int l = 1; l <= opt.lmax; l++)
+      for (int m = 1; m <= l; m++)
+      {
+        const int l1 = ylm_.lmindex(l, m);
+        dFdi(a) -= ac(l1) * (con_J(1, a, i, j) * Yc(D10, i, j, l1) +
+                             con_J(2, a, i, j) * Yc(D01, i, j, l1)) +
+                   as(l1) * (con_J(1, a, i, j) * Ys(D10, i, j, l1) +
+                             con_J(2, a, i, j) * Ys(D01, i, j, l1));
+      }
+  }
+
+  // Second chain rule (symmetric, upper triangle + copy)
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      dFdidj(a, b) = con_J2(0, a, b, i, j);
+      for (int l = 0; l <= opt.lmax; l++)
+        dFdidj(a, b) -=
+          a0(l) * (con_J2(1, a, b, i, j) * Y0(D10, i, j, l) +
+                   con_J(1, a, i, j) * con_J(1, b, i, j) * Y0(D20, i, j, l));
+      for (int l = 1; l <= opt.lmax; l++)
+        for (int m = 1; m <= l; m++)
+        {
+          const int l1 = ylm_.lmindex(l, m);
+          dFdidj(a, b) -=
+            ac(l1) *
+              (con_J2(1, a, b, i, j) * Yc(D10, i, j, l1) +
+               con_J(1, a, i, j) * (con_J(1, b, i, j) * Yc(D20, i, j, l1) +
+                                    con_J(2, b, i, j) * Yc(D11, i, j, l1)) +
+               con_J2(2, a, b, i, j) * Yc(D01, i, j, l1) +
+               con_J(2, a, i, j) * (con_J(1, b, i, j) * Yc(D11, i, j, l1) +
+                                    con_J(2, b, i, j) * Yc(D02, i, j, l1))) +
+            as(l1) *
+              (con_J2(1, a, b, i, j) * Ys(D10, i, j, l1) +
+               con_J(1, a, i, j) * (con_J(1, b, i, j) * Ys(D20, i, j, l1) +
+                                    con_J(2, b, i, j) * Ys(D11, i, j, l1)) +
+               con_J2(2, a, b, i, j) * Ys(D01, i, j, l1) +
+               con_J(2, a, i, j) * (con_J(1, b, i, j) * Ys(D11, i, j, l1) +
+                                    con_J(2, b, i, j) * Ys(D02, i, j, l1)));
+        }
+      dFdidj(b, a) = dFdidj(a, b);
+    }
+
+  return true;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::ExpansionAndNormal(...)
+//  \brief Compute the expansion H and outward unit normal R from the metric,
+//  extrinsic curvature, metric derivatives, and level-set derivatives at
+//  surface point (i,j).
+void AHF::ExpansionAndNormal(int i,
+                             int j,
+                             const ATP_N_vec& dFdi,
+                             const ATP_N_sym& dFdidj,
+                             ATP_N_vec& R,
+                             Real& H,
+                             Real& u)
 {
   using namespace LinearAlgebra;
 
-  const Real min_rp = 1e-10;
-
-  // Derivatives of (r,theta,phi) w.r.t (x,y,z)
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> drdi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dthetadi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dphidi;
-
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> drdidj;
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dthetadidj;
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dphididj;
-
-  // Derivatives of F
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dFdi;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dFdi_u; // upper index
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> dFdidj;
+  // Determinant of 3-metric
+  Real detg    = Det3Metric(g(0, 0, i, j),
+                         g(0, 1, i, j),
+                         g(0, 2, i, j),
+                         g(1, 1, i, j),
+                         g(1, 2, i, j),
+                         g(2, 2, i, j));
+  Real oo_detg = 1.0 / detg;
 
   // Inverse metric
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> ginv;
+  ATP_N_sym ginv;
+  Inv3Metric(oo_detg,
+             g(0, 0, i, j),
+             g(0, 1, i, j),
+             g(0, 2, i, j),
+             g(1, 1, i, j),
+             g(1, 2, i, j),
+             g(2, 2, i, j),
+             &ginv(0, 0),
+             &ginv(0, 1),
+             &ginv(0, 2),
+             &ginv(1, 1),
+             &ginv(1, 2),
+             &ginv(2, 2));
 
-  // Normal
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> R;
+  // Trace of K
+  Real TrK = TraceRank2(oo_detg,
+                        g(0, 0, i, j),
+                        g(0, 1, i, j),
+                        g(0, 2, i, j),
+                        g(1, 1, i, j),
+                        g(1, 2, i, j),
+                        g(2, 2, i, j),
+                        K(0, 0, i, j),
+                        K(0, 1, i, j),
+                        K(0, 2, i, j),
+                        K(1, 1, i, j),
+                        K(1, 2, i, j),
+                        K(2, 2, i, j));
 
-  // dx^adth , dx^a/dph
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dXdth;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> dXdph;
-
-  // Flat-space coordinate rotational KV
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phix;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phiy;
-  TensorPointwise<Real, Symmetries::NONE, NDIM, 1> phiz;
-
-  TensorPointwise<Real, Symmetries::SYM2, NDIM, 2> nnF;
-
-  // Initialize integrals
-  for(int v=0; v<invar; v++){
-    integrals[v] = 0.0;
+  // Raise index: dFdi_u^a = g^{ab} dFdi_b
+  ATP_N_vec dFdi_u;
+  for (int a = 0; a < NDIM; ++a)
+  {
+    dFdi_u(a) = 0;
+    for (int b = 0; b < NDIM; ++b)
+      dFdi_u(a) += ginv(a, b) * dFdi(b);
   }
 
-  drdi.NewTensorPointwise();
-  dthetadi.NewTensorPointwise();
-  dphidi.NewTensorPointwise();
-
-  drdidj.NewTensorPointwise();
-  dthetadidj.NewTensorPointwise();
-  dphididj.NewTensorPointwise();
-
-  dFdi.NewTensorPointwise();
-  dFdi_u.NewTensorPointwise();
-  dFdidj.NewTensorPointwise();
-
-  ginv.NewTensorPointwise();
-
-  R.NewTensorPointwise();
-
-  dXdth.NewTensorPointwise();
-  dXdph.NewTensorPointwise();
-
-  phix.NewTensorPointwise();
-  phiy.NewTensorPointwise();
-  phiz.NewTensorPointwise();
-
-  nnF.NewTensorPointwise();
-
-  rho.ZeroClear();
-
-#if (DEBUG_OUTPUT)
-  FILE *fp_dFdxdx, *fp_nnFxx;
-  std::string fname_dFdxdx="dFdxdx_iter"+std::to_string(fastflow_iter);
-  std::string fname_nnFxx ="nnFxx_iter"+std::to_string(fastflow_iter);
-#ifdef MPI_PARALLEL
-  int rank_tmp;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank_tmp);
-  fname_dFdxdx += "_rank"+std::to_string(rank_tmp);
-  fname_nnFxx  += "_rank"+std::to_string(rank_tmp);
-#endif
-  fname_dFdxdx += ".txt";
-  fname_nnFxx  += ".txt";
-  fp_dFdxdx = fopen(fname_dFdxdx.c_str(),"w");
-  fp_nnFxx  = fopen(fname_nnFxx.c_str(),"w");
-#endif
-
-  // Loop over surface points
-  for(int i=0; i<ntheta; i++){
-
-    Real const theta = th_grid(i);
-    Real const sinth = std::sin(theta);
-    Real const costh = std::cos(theta);
-
-    for(int j=0; j<nphi; j++){
-
-      if (!havepoint(i,j)) continue;
-
-      Real const phi = ph_grid(j);
-      Real const sinph = std::sin(phi);
-      Real const cosph = std::cos(phi);
-
-      // Calculate the expansion
-      // -----------------------
-
-      // Determinant of 3-metric
-      Real detg = Det3Metric(
-        g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
-        g(1,1,i,j), g(1,2,i,j), g(2,2,i,j)
-      );
-
-      // Inverse metric
-      Inv3Metric(
-        1.0/detg,
-		    g(0,0,i,j), g(0,1,i,j),  g(0,2,i,j),
-		    g(1,1,i,j), g(1,2,i,j),  g(2,2,i,j),
-		    &ginv(0,0), &ginv(0,1),  &ginv(0,2),
-		    &ginv(1,1), &ginv(1,2) , &ginv(2,2)
-      );
-
-      // Trace of K
-      Real TrK = TraceRank2(1.0/detg,
-		       g(0,0,i,j), g(0,1,i,j), g(0,2,i,j),
-		       g(1,1,i,j), g(1,2,i,j), g(2,2,i,j),
-		       K(0,0,i,j), K(0,1,i,j), K(0,2,i,j),
-		       K(1,1,i,j), K(1,2,i,j), K(2,2,i,j));
-
-      // Local coordinates of the surface (re-used below)
-      Real const xp = rr(i,j) * sinth * cosph;
-      Real const yp = rr(i,j) * sinth * sinph;
-      Real const zp = rr(i,j) * costh;
-
-      Real const rp   = std::sqrt(xp*xp + yp*yp + zp*zp);
-      Real const rhop = std::sqrt(xp*xp + yp*yp);
-
-      if (rp < min_rp) {
-#if(0)	
-        std::stringstream msg;
-        msg << "### FATAL ERROR in AHF" << std::endl
-        << "surface radius cannot be zero (rp=" << rp
-        << " < min_rp" << min_rp << ")"  << std::endl;
-        ATHENA_ERROR(msg);
-#else
-	// Do not stop the code, just AHF failing
-	// break the loop and catch the nans in AHF later.
-	break;
-#endif
-      }
-
-      Real const _divrp = 1.0/rp;
-      Real const _divrp3 = SQR(_divrp)*_divrp;
-      Real const _divrhop = 1.0/rhop;
-
-      // First derivatives of (r,theta,phi) with respect to (x,y,z)
-      drdi(0) = xp*_divrp;
-      drdi(1) = yp*_divrp;
-      drdi(2) = zp*_divrp;
-
-      dthetadi(0) = zp*xp*(SQR(_divrp)*_divrhop);
-      dthetadi(1) = zp*yp*(SQR(_divrp)*_divrhop);
-      dthetadi(2) = -rhop*SQR(_divrp);
-
-      dphidi(0) = -yp*SQR(_divrhop);
-      dphidi(1) = xp*SQR(_divrhop);
-      dphidi(2) = 0.0;
-
-      // Second derivatives of (r,theta,phi) with respect to (x,y,z)
-      drdidj(0,0) = _divrp - xp*xp*_divrp3;
-      drdidj(0,1) = - xp*yp*_divrp3;
-      drdidj(0,2) = - xp*zp*_divrp3;
-      drdidj(1,1) = _divrp - yp*yp*_divrp3;
-      drdidj(1,2) = - yp*zp*_divrp3;
-      drdidj(2,2) = _divrp - zp*zp*_divrp3;
-
-      dthetadidj(0,0) = zp*(-2.0*xp*xp*xp*xp-xp*xp*yp*yp+yp*yp*yp*yp+zp*zp*yp*yp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
-      dthetadidj(0,1) = - xp*yp*zp*(3.0*xp*xp+3.0*yp*yp+zp*zp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
-      dthetadidj(0,2) = xp*(xp*xp+yp*yp-zp*zp)*(SQR(_divrp)*(SQR(_divrp)*_divrhop));
-      dthetadidj(1,1) = zp*(-2.0*yp*yp*yp*yp-yp*yp*xp*xp+xp*xp*xp*xp+zp*zp*xp*xp)*(SQR(_divrp)*SQR(_divrp)*SQR(_divrhop)*_divrhop);
-      dthetadidj(1,2) = yp*(xp*xp+yp*yp-zp*zp)*(SQR(_divrp)*(SQR(_divrp)*_divrhop));
-      dthetadidj(2,2) = 2.0*zp*rhop/(rp*rp*rp*rp);
-
-      dphididj(0,0) = 2.0*yp*xp*(SQR(_divrhop)*SQR(_divrhop));
-      dphididj(0,1) = (yp*yp-xp*xp)*(SQR(_divrhop)*SQR(_divrhop));
-      dphididj(0,2) = 0.0;
-      dphididj(1,1) = - 2.0*yp*xp*(SQR(_divrhop)*SQR(_divrhop));
-      dphididj(1,2) = 0.0;
-      dphididj(2,2) = 0.0;
-
-      // Compute first derivatives of F
-      for (int a = 0; a < NDIM; ++a) {
-        dFdi(a) = drdi(a);
-      }
-      for (int a = 0; a < NDIM; ++a) {
-        for(int l=0; l<=lmax; l++){
-          dFdi(a) -= a0(l) * dthetadi(a) * dY0dth(i,j,l);
-        }
-      }
-      for (int a = 0; a < NDIM; ++a) {
-        for(int l=1; l<=lmax; l++){
-          for(int m=1; m<=l; m++){
-            int l1 = lmindex(l,m);
-            dFdi(a) -=
-              ac(l1)*(dthetadi(a)*dYcdth(i,j,l1) + dphidi(a)*dYcdph(i,j,l1))+
-              as(l1)*(dthetadi(a)*dYsdth(i,j,l1) + dphidi(a)*dYsdph(i,j,l1));
-          }
-        }
-      }
-
-      // Compute second derivatives of F
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-          dFdidj(a,b) = drdidj(a,b);
-	}
-      }
-
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-          for(int l=0;l<=lmax;l++){
-            dFdidj(a,b) -= a0(l)*(dthetadidj(a,b)*dY0dth(i,j,l) + dthetadi(a)*dthetadi(b)*dY0dth2(i,j,l));
-          }
-          for(int l=1; l<=lmax; l++) {
-            for(int m=1;m<=l;m++){
-              int l1 = lmindex(l,m);
-              dFdidj(a,b) -= ac(l1)*(dthetadidj(a,b)*dYcdth(i,j,l1)
-                + dthetadi(a)*(dthetadi(b)*dYcdth2(i,j,l1) + dphidi(b)*dYcdthdph(i,j,l1))
-                + dphididj(a,b)*dYcdph(i,j,l1)
-                + dphidi(a)*(dthetadi(b)*dYcdthdph(i,j,l1) + dphidi(b)*dYcdph2(i,j,l1)))
-                + as(l1)*(dthetadidj(a,b)*dYsdth(i,j,l1)
-                + dthetadi(a)*(dthetadi(b)*dYsdth2(i,j,l1) + dphidi(b)*dYsdthdph(i,j,l1))
-                + dphididj(a,b)*dYsdph(i,j,l1)
-                + dphidi(a)*(dthetadi(b)*dYsdthdph(i,j,l1) + dphidi(b)*dYsdph2(i,j,l1)));
-            }
-          }
-        }
-      }
-
-      // Compute dFdi with the index up
-      for (int a = 0; a < NDIM; ++a) {
-        dFdi_u(a) = 0;
-        for (int b = 0; b < NDIM; ++b) {
-          dFdi_u(a) += ginv(a,b)*dFdi(b);
-        }
-      }
-
-      // Compute norm of dFdi
-      Real norm = 0;
-      for (int a = 0; a < NDIM; ++a) {
-      	norm += dFdi_u(a)*dFdi(a);
-      }
-
-      Real u = (norm>0)? std::sqrt(norm) : 0.0;
-
-      // Compute nabla_a nabla_b F
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-          nnF(a,b) = dFdidj(a,b);
-        }
-      }
-      nnF(0,0) -= 0.5*(dFdi_u(0)*dg(0,0,0,i,j) + dFdi_u(1)*(2.0*dg(0,1,0,i,j)-dg(1,0,0,i,j)) + dFdi_u(2)*(2.0*dg(0,2,0,i,j)-dg(2,0,0,i,j)));
-      nnF(0,1) -= 0.5*(dFdi_u(0)*dg(1,0,0,i,j) + dFdi_u(1)*dg(0,1,1,i,j) + dFdi_u(2)*(dg(0,2,1,i,j)+dg(1,2,0,i,j)-dg(2,1,0,i,j)));
-      nnF(0,2) -= 0.5*(dFdi_u(0)*dg(2,0,0,i,j) + dFdi_u(1)*(dg(0,2,1,i,j)+dg(2,1,0,i,j)-dg(1,2,0,i,j)) + dFdi_u(2)*dg(0,2,2,i,j));
-      nnF(1,1) -= 0.5*(dFdi_u(0)*(2.0*dg(1,1,0,i,j)-dg(0,1,1,i,j)) + dFdi_u(1)*dg(1,1,1,i,j) + dFdi_u(2)*(2.0*dg(1,2,1,i,j)-dg(2,1,1,i,j)));
-      nnF(1,2) -= 0.5*(dFdi_u(0)*(2.0*dg(1,2,0,i,j)+dg(2,1,0,i,j)-dg(0,2,1,i,j)) + dFdi_u(1)*dg(2,1,1,i,j) + dFdi_u(2)*dg(1,2,2,i,j));
-      nnF(2,2) -= 0.5*(dFdi_u(0)*(2.0*dg(2,2,0,i,j)-dg(0,2,2,i,j)) + dFdi_u(1)*(2.0*dg(2,2,1,i,j)-dg(1,2,2,i,j)) + dFdi_u(2)*dg(2,2,2,i,j));
-
-#if (DEBUG_OUTPUT)
-      fprintf(fp_dFdxdx, "%23.15e %23.15e %23.15e\n", theta, phi, dFdidj(0,0));
-      fprintf(fp_nnFxx, "%23.15e %23.15e %23.15e\n", theta, phi, nnF(0,0));
-#endif
-
-      // Compute d2F = g^{ab} nabla_a nabla_b F
-      Real d2F = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-	  d2F += ginv(a,b)*nnF(a,b);
-	}
-      }
-
-      // Compute dFd^a dFd^b Kab
-      Real dFdadFdbKab = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-	for (int b = 0; b < NDIM; ++b) {
-	  dFdadFdbKab += dFdi_u(a) * dFdi_u(b) * K(a,b,i,j);
-        }
-      }
-
-      // Compute dFd^a dFd^b Fdadb
-      Real dFdadFdbFdadb = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-	for (int b = 0; b < NDIM; ++b) {
-	  dFdadFdbFdadb += dFdi_u(a) * dFdi_u(b) * nnF(a,b);
-        }
-      }
-
-      // Expansion & rho = H * u * sigma (sigma=1)
-#if(EXPANSIONFIX==DONOTHING)
-      Real divu = 1.0/u;
-      Real H = d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK;
-#elif(EXPANSIONFIX==CURE_DIVU)
-      Real divu = (norm>0)? 1.0/u : 0.0;
-      Real H = d2F*divu + dFdadFdbKab*(divu*divu) - dFdadFdbFdadb*(divu*divu*divu) - TrK;
-#else
-      std::stringstream msg;
-      msg << "### FATAL ERROR in AHF" << std::endl
-	  << " EXPANSIONFIX set incorrectly " << EXPANSIONFIX
-	  << "(0..." << NCURE << ")" << std::endl;
-      ATHENA_ERROR(msg);
-#endif
-      
-#if (DEBUG_OUTPUT)
-      if (!(std::isfinite(H))) {
-	if (verbose && ioproc) {
-	  fprintf(pofile_verbose,"H not finite at i=%d j=%d (norm=%.3e)\n\
-		  divu=%.3e d2F=%.3e dFdadFdbKab=%.3e dFdadFdbFdadb=%.3e TrK=%.3e detg=%.3e\n",
-		  i,j,norm,
-		  divu, d2F, dFdadFdbKab, dFdadFdbFdadb, TrK, detg);
-          fflush(pofile_verbose);
-	}
-      }
-#endif
-      
-      rho(i,j) = H * u; 
-
-      // Normal vector
-      for (int a = 0; a < NDIM; ++a) {
-        R(a) = dFdi_u(a) * divu;
-      }
-
-      // Surface Element
-      // ---------------
-
-      // Derivatives of (x,y,z) vs (thetas, phi)
-
-      // dr/dtheta, dr/dphi
-      Real const drdt = rr_dth(i,j);
-      Real const drdp = rr_dph(i,j);
-      
-      // Derivatives of (x,y,z) with respect to theta
-      dXdth(0) = (drdt*sinth + rr(i,j)*costh)*cosph;
-      dXdth(1) = (drdt*sinth + rr(i,j)*costh)*sinph;
-      dXdth(2) = drdt*costh - rr(i,j)*sinth;
-
-      // Derivatives of (x,y,z) with respect to phi
-      dXdph(0) = (drdp*cosph - rr(i,j)*sinph)*sinth;
-      dXdph(1) = (drdp*sinph + rr(i,j)*cosph)*sinth;
-      dXdph(2) = drdp*costh;
-
-      // Induced metric on the horizon
-      Real h11 = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-	  h11 += dXdth(a) * dXdth(b) * g(a,b,i,j);
-      	}
-      }
-
-      Real h12 = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-          h12 += dXdth(a) * dXdph(b) * g(a,b,i,j);
-        }
-      }
-
-      Real h22 = 0.;
-      for (int a = 0; a < NDIM; ++a) {
-        for (int b = 0; b < NDIM; ++b) {
-	  h22 += dXdph(a) * dXdph(b) * g(a,b,i,j);
-	}
-      }
-
-      // Determinant of the induced metric
-      Real deth = h11*h22 - h12*h12;
-      if (deth<0.) deth = 0.0;
-
-
-      // Spin integrand
-      // --------------
-
-      // Local coordinates on surface (already defined above)
-      // xp = rr(i,j) * sinth * cosph;
-      // yp = rr(i,j) * sinth * sinph;
-      // zp = rr(i,j) * costh;
-
-      // Flat-space coordinate rotational KV
-      phix(0) =  0;
-      phix(1) = -zp; // -(z-zc);
-      phix(2) =  yp; // (y-yc);
-      phiy(0) =  zp; // (z-zc);
-      phiy(1) =  0;
-      phiy(2) = -xp; // -(x-xc);
-      phiz(0) = -yp; // -(y-yc);
-      phiz(1) =  xp; // (x-xc);
-      phiz(2) =  0;
-
-      // Integrand of spin
-      Real intSx = 0;
-      for(int a = 0; a < NDIM; ++a) {
-	      for(int b = 0; b < NDIM; ++b) {
-	        intSx += phix(a) * R(b) * K(a,b,i,j);
-	      }
-      }
-
-      Real intSy = 0;
-      for(int a = 0; a < NDIM; ++a) {
-	      for(int b = 0; b < NDIM; ++b) {
-	        intSy += phiy(a) * R(b) * K(a,b,i,j);
-	      }
-      }
-
-      Real intSz = 0;
-      for(int a = 0; a < NDIM; ++a) {
-	      for(int b = 0; b < NDIM; ++b) {
-	        intSz += phiz(a) * R(b) * K(a,b,i,j);
-	      }
-      }
-
-      // Local sums
-      // ----------
-     
-      const Real wght = weights(i,j);
-      const Real da = wght * std::sqrt(deth) / sinth;
-
-      integrals[iarea]   += da;
-      integrals[icoarea] += wght * SQR(rr(i,j));
-      integrals[ihrms]   += da * SQR(H);
-      integrals[ihmean]  += da * H;
-      integrals[iSx]     += da * intSx;
-      integrals[iSy]     += da * intSy;
-      integrals[iSz]     += da * intSz;
-
-    } // phi loop
-  } // theta loop
-
-#if (DEBUG_OUTPUT)
-  fclose(fp_dFdxdx);
-  fclose(fp_nnFxx);
-#endif
-
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE, integrals, invar, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  drdi.DeleteTensorPointwise();
-  dthetadi.DeleteTensorPointwise();
-  dphidi.DeleteTensorPointwise();
-
-  drdidj.DeleteTensorPointwise();
-  dthetadidj.DeleteTensorPointwise();
-  dphididj.DeleteTensorPointwise();
-
-  dFdi.DeleteTensorPointwise();
-  dFdi_u.DeleteTensorPointwise();
-  dFdidj.DeleteTensorPointwise();
-
-  ginv.DeleteTensorPointwise();
-
-  R.DeleteTensorPointwise();
-
-  dXdth.DeleteTensorPointwise();
-  dXdph.DeleteTensorPointwise();
-
-  phix.DeleteTensorPointwise();
-  phiy.DeleteTensorPointwise();
-  phiz.DeleteTensorPointwise();
-
-  nnF.DeleteTensorPointwise();
+  // Norm of gradient: |nabla F|^2
+  Real norm = 0;
+  for (int a = 0; a < NDIM; ++a)
+    norm += dFdi_u(a) * dFdi(a);
+
+  u = (norm > 0) ? std::sqrt(norm) : 0.0;
+
+  // Covariant Hessian: nabla_a nabla_b F = d_a d_b F - Gamma^c_{ab} d_c F
+  ATP_N_sym nnF;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      nnF(a, b) = dFdidj(a, b);
+      for (int d = 0; d < NDIM; ++d)
+        nnF(a, b) -=
+          0.5 * dFdi_u(d) *
+          (dg(a, b, d, i, j) + dg(b, a, d, i, j) - dg(d, a, b, i, j));
+      nnF(b, a) = nnF(a, b);
+    }
+
+  // Contract symmetric tensors for expansion
+  Real d2F = 0.0, dFdadFdbKab = 0.0, dFdadFdbFdadb = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      d2F += ginv(a, b) * nnF(a, b);
+      Real ff = dFdi_u(a) * dFdi_u(b);
+      dFdadFdbKab += ff * K(a, b, i, j);
+      dFdadFdbFdadb += ff * nnF(a, b);
+    }
+
+  // Expansion: Theta = div(s) = (1/u) nabla^2 F + (1/u^3) dF^a dF^b K_ab
+  //                            - (1/u^3) dF^a dF^b nabla_a nabla_b F - K
+  Real divu = (opt.expansion_fix == ExpansionFix::cure_divu)
+              ? ((norm > 0) ? 1.0 / u : 0.0)
+              : 1.0 / u;
+
+  // Assemble
+  H = d2F * divu + dFdadFdbKab * (divu * divu) -
+      dFdadFdbFdadb * (divu * divu * divu) - TrK;
+
+  // Outward unit normal: s^a = dF^a / |nabla F|
+  for (int a = 0; a < NDIM; ++a)
+    R(a) = dFdi_u(a) * divu;
 }
 
 //----------------------------------------------------------------------------------------
-// \!fn bool AHF::CalculateMetricDerivatives(int iter, Real time)
-// \brief calculate metric derivatives (if not stored)
-bool AHF::CalculateMetricDerivatives(int iter, Real time)
+//! \fn Real AHF::SurfaceElement(...)
+//  \brief Compute the determinant of the induced 2-metric on the horizon
+//  surface at point (i,j).  Returns det(h) (clamped >= 0).
+Real AHF::SurfaceElement(int i, int j)
 {
-  if (use_stored_metric_drvts) return false;
-  if((time < start_time) || (time > stop_time)) return false;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
-  if (iter % compute_every_iter != 0) return false;
+  return gra::grids::theta_phi::SurfaceElement2D(rr(i, j),
+                                                 rr_dth(i, j),
+                                                 rr_dph(i, j),
+                                                 grid_.sin_theta(i),
+                                                 grid_.cos_theta(i),
+                                                 grid_.sin_phi(j),
+                                                 grid_.cos_phi(j),
+                                                 g(0, 0, i, j),
+                                                 g(0, 1, i, j),
+                                                 g(0, 2, i, j),
+                                                 g(1, 1, i, j),
+                                                 g(1, 2, i, j),
+                                                 g(2, 2, i, j));
+}
 
-  // Compute and store ADM metric drvts at this iteration
-  MeshBlock * pmb = pmesh->pblock;
-  while (pmb != nullptr) {
-    Z4c *pz4c = pmb->pz4c;
-    pz4c->aux_g_ddd.NewAthenaTensor(pz4c->mbi.nn3, pz4c->mbi.nn2, pz4c->mbi.nn1);
-    MetricDerivatives(pmb);
-    pmb = pmb->next;
-  }
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::SpinIntegrand(...)
+//  \brief Compute the spin angular momentum integrand at a surface point.
+void AHF::SpinIntegrand(Real xp,
+                        Real yp,
+                        Real zp,
+                        const ATP_N_vec& R,
+                        int i,
+                        int j,
+                        Real& Sx,
+                        Real& Sy,
+                        Real& Sz)
+{
+  // Flat-space coordinate rotational Killing vectors
+  ATP_N_vec phix;
+  phix(0) = 0;
+  phix(1) = -zp;
+  phix(2) = yp;
 
-  return true;
+  ATP_N_vec phiy;
+  phiy(0) = zp;
+  phiy(1) = 0;
+  phiy(2) = -xp;
+
+  ATP_N_vec phiz;
+  phiz(0) = -yp;
+  phiz(1) = xp;
+  phiz(2) = 0;
+
+  Sx = 0.0;
+  Sy = 0.0;
+  Sz = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      Real RbKab = R(b) * K(a, b, i, j);
+      Sx += phix(a) * RbKab;
+      Sy += phiy(a) * RbKab;
+      Sz += phiz(a) * RbKab;
+    }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::SurfaceIntegrals()
+//  \brief Compute expansion, surface element and spin integrand on surface.
+//  Needs metric and extrinsic curvature interpolated on the surface.
+//  Performs local sums only; MPI reduce is batched in FastFlowLoop().
+void AHF::SurfaceIntegrals()
+{
+  for (int v = 0; v < invar; v++)
+    integrals[v] = 0.0;
+  rho.ZeroClear();
+
+  Real sum_area = 0.0, sum_coarea = 0.0, sum_hrms = 0.0, sum_hmean = 0.0;
+  Real sum_Sx = 0.0, sum_Sy = 0.0, sum_Sz = 0.0;
+
+#pragma omp parallel for schedule(dynamic) reduction( \
+    + : sum_area, sum_coarea, sum_hrms, sum_hmean, sum_Sx, sum_Sy, sum_Sz)
+  for (int i = 0; i < grid_.ntheta; i++)
+  {
+    ATP_N_vec dFdi;
+    ATP_N_sym dFdidj;
+    ATP_N_vec R;
+
+    for (int j = 0; j < grid_.nphi; j++)
+    {
+      if (!grid_.IsOwned(i, j))
+        continue;
+
+      // Level-set derivatives (Jacobian + Ylm chain rule)
+      Real xp, yp, zp;
+      if (!LevelSetGradient(i, j, dFdi, dFdidj, xp, yp, zp))
+        break;
+
+      // Expansion and outward unit normal
+      Real H, u;
+      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u);
+      rho(i, j) = H * u;
+
+      // Surface area element
+      Real deth = SurfaceElement(i, j);
+
+      // Spin angular momentum integrand
+      Real Sx, Sy, Sz;
+      SpinIntegrand(xp, yp, zp, R, i, j, Sx, Sy, Sz);
+
+      // Accumulate weighted integrals
+      const Real wght  = grid_.weights(i, j);
+      const Real sinth = grid_.sin_theta(i);
+      const Real da    = wght * std::sqrt(deth) / sinth;
+
+      sum_area += da;
+      sum_coarea += wght * SQR(rr(i, j));
+      sum_hrms += da * SQR(H);
+      sum_hmean += da * H;
+      sum_Sx += da * Sx;
+      sum_Sy += da * Sy;
+      sum_Sz += da * Sz;
+
+    }  // phi loop
+  }  // theta loop
+
+  integrals[iarea]   = sum_area;
+  integrals[icoarea] = sum_coarea;
+  integrals[ihrms]   = sum_hrms;
+  integrals[ihmean]  = sum_hmean;
+  integrals[iSx]     = sum_Sx;
+  integrals[iSy]     = sum_Sy;
+  integrals[iSz]     = sum_Sz;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1107,10 +737,12 @@ bool AHF::CalculateMetricDerivatives(int iter, Real time)
 // \brief Search for the horizons
 void AHF::Find(int iter, Real time)
 {
-  if((time < start_time) || (time > stop_time)) return;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return;
-  if (iter % compute_every_iter != 0) return;
-  if (verbose && ioproc) {
+  if ((time < opt.start_time) || (time > opt.stop_time))
+    return;
+  if (opt.wait_until_punc_are_close && !(PuncAreClose()))
+    return;
+  if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+  {
     fprintf(pofile_verbose, "time=%.4f, cycle=%d\n", time, iter);
   }
   InitialGuess();
@@ -1120,32 +752,13 @@ void AHF::Find(int iter, Real time)
   if (ah_found)
   {
     std::string parname;
-    parname = "last_a0_" + std::to_string(nh); // nh: horizon index
+    parname = "last_a0_" + std::to_string(idx_ahf);
 
     pin->SetReal("ahf", parname, last_a0);
 
-    parname = "ah_found_a0_" + std::to_string(nh);
+    parname = "ah_found_a0_" + std::to_string(idx_ahf);
     pin->SetBoolean("ahf", parname, ah_found);
   }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn bool AHF::DeleteMetricDerivatives(int iter, Real time)
-// \brief DeleteMetricDerivatives
-bool AHF::DeleteMetricDerivatives(int iter, Real time)
-{
-  if (use_stored_metric_drvts) return false;
-  if((time < start_time) || (time > stop_time)) return false;
-  if (wait_until_punc_are_close && !(PuncAreClose())) return false;
-  if (iter % compute_every_iter != 0) return false;
-
-  // Delete tensors
-  MeshBlock * pmb = pmesh->pblock;
-  while (pmb != nullptr) {
-    pmb->pz4c->aux_g_ddd.DeleteAthenaTensor();
-    pmb = pmb->next;
-  }
-  return true;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1155,100 +768,180 @@ void AHF::FastFlowLoop()
 {
   ah_found = false;
 
-  Real meanradius = a0(0)/std::sqrt(4.0*PI);
-  Real mass = 0;
-  Real mass_prev = 0;
-  Real area = 0;
-  Real hrms = 0;
-  Real hmean = 0;
-  Real Sx = 0;
-  Real Sy = 0;
-  Real Sz = 0;
-  Real S = 0;
-  bool failed = false;
+  Real meanradius = a0(0) / SQRT_4PI;
+  Real mass       = 0;
+  Real mass_prev  = 0;
+  Real area       = 0;
+  Real hrms       = 0;
+  Real hmean      = 0;
+  Real Sx         = 0;
+  Real Sy         = 0;
+  Real Sz         = 0;
+  Real S          = 0;
+  bool failed     = false;
 
-  if (verbose && ioproc) {
-    fprintf(pofile_verbose, "\nSearching for horizon %d\n", nh);
-    fprintf(pofile_verbose, "center = (%f, %f, %f)\n", center[0], center[1], center[2]);
+  if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+  {
+    fprintf(pofile_verbose, "\nSearching for horizon %d\n", idx_ahf);
+    fprintf(pofile_verbose,
+            "center = (%f, %f, %f)\n",
+            center[0],
+            center[1],
+            center[2]);
     fprintf(pofile_verbose, "r_mean = %f\n", meanradius);
-    fprintf(pofile_verbose, " iter      area            mass         meanradius       minradius        hmean            Sx              Sy              Sz             S\n");
+    fprintf(pofile_verbose,
+            " iter      area            mass         meanradius       "
+            "minradius        hmean            Sx              Sy             "
+            " Sz             S\n");
   }
 
-  for(int k=0; k<flow_iterations; k++){
+  // Pre-compute flow constants for UpdateFlowSpectralComponents
+  const Real ff_alpha = opt.flow_alpha_beta_const;
+  const Real ff_beta  = 0.5 * opt.flow_alpha_beta_const;
+  const Real ff_A     = ff_alpha / (opt.lmax * (opt.lmax + 1)) + ff_beta;
+  const Real ff_B     = ff_beta / ff_alpha;
+
+  const int nspec0 = opt.lmax + 1;
+  const int ntotal = nspec0 + 2 * ylm_.lmpoints;
+
+  std::vector<Real> ABfac_vec(nspec0);
+  Real* ABfac = ABfac_vec.data();
+  for (int l = 0; l <= opt.lmax; l++)
+    ABfac[l] = ff_A / (1.0 + ff_B * l * (l + 1));
+
+  // Combined buffer: integrals[invar] + spec_buf[ntotal]
+  const int combined_size = invar + ntotal;
+  std::vector<Real> combined_buf(combined_size);
+  Real* cb_integrals = combined_buf.data();
+  Real* cb_spec_buf  = combined_buf.data() + invar;
+
+  for (int k = 0; k < opt.flow_iterations; k++)
+  {
     fastflow_iter = k;
 
     // Compute radius r = a_lm Y_lm
-    RadiiFromSphericalHarmonics();
+    ylm_.Synthesize(
+      a0, ac, as, grid_.ntheta, grid_.nphi, rr, rr_dth, rr_dph, rr_min);
 
-    // In MetricInterp() we'll flag the surface points on this mesh
-    // default to 0 (no points)
-    havepoint.ZeroClear();
+    // Fill x_cart with sphere coordinates (bitant-reflected)
+    grid_.FillCartesianCoords(center, rr, opt.bitant);
 
-    // Metric interpolated on the surface
+    // Compute Jacobian d(r,th,ph)/d(x,y,z)
+    grid_.ComputeConJacobian(rr, min_surface_radius);
+
+    // Build interpolator pools
+    grid_.Prepare(pmesh, SW_CCX_VC(true, false), SW_CCX_VC(false, true));
+
+    // Zero metric arrays and interpolate on surface
     g.ZeroClear();
     dg.ZeroClear();
     K.ZeroClear();
+    MetricInterp();
 
-    // Interpolate metric on surface
-    // Flag surface points contained in the MBs
-    MeshBlock * pmb = pmesh->pblock;
-    while (pmb != nullptr) {
-      MetricInterp(pmb);
-      pmb = pmb->next;
-    }
-
+    // Compute local sums for surface integrals (no MPI reduce)
     SurfaceIntegrals();
 
-    area  = integrals[iarea];
-    hrms  = integrals[ihrms]/area;
-    hmean = integrals[ihmean];
-    Sx = integrals[iSx]/(8*PI);
-    Sy = integrals[iSy]/(8*PI);
-    Sz = integrals[iSz]/(8*PI);
-    S  = std::sqrt(SQR(Sx)+SQR(Sy)+SQR(Sz));
+    // Compute local sums for spectral projection (optimistic, before reduce)
+    std::fill(cb_spec_buf, cb_spec_buf + ntotal, 0.0);
+    Real* spec0 = cb_spec_buf;
+    Real* specc = cb_spec_buf + nspec0;
+    Real* specs = specc + ylm_.lmpoints;
 
-    meanradius = a0(0)/std::sqrt(4.0*PI);
+    ylm_.Project(grid_.weights,
+                 rho,
+                 grid_.ntheta,
+                 grid_.nphi,
+                 spec0,
+                 specc,
+                 specs,
+                 [this](int i, int j) { return grid_.IsOwned(i, j); });
+
+    // Pack integrals into the combined buffer
+    std::memcpy(cb_integrals, integrals, invar * sizeof(Real));
+
+    // Single batched MPI_Allreduce for both integrals and spectral sums
+#ifdef MPI_PARALLEL
+    MPI_Allreduce(MPI_IN_PLACE,
+                  combined_buf.data(),
+                  combined_size,
+                  MPI_ATHENA_REAL,
+                  MPI_SUM,
+                  MPI_COMM_WORLD);
+#endif
+
+    // Unpack reduced integrals
+    std::memcpy(integrals, cb_integrals, invar * sizeof(Real));
+
+    area  = integrals[iarea];
+    hrms  = integrals[ihrms] / area;
+    hmean = integrals[ihmean];
+    Sx    = integrals[iSx] / (8 * PI);
+    Sy    = integrals[iSy] / (8 * PI);
+    Sz    = integrals[iSz] / (8 * PI);
+    S     = std::sqrt(SQR(Sx) + SQR(Sy) + SQR(Sz));
+
+    meanradius = a0(0) / SQRT_4PI;
 
     // Check we get a finite result
-    if (!(std::isfinite(area))) {
-      if (verbose && ioproc) {
+    if (!(std::isfinite(area)))
+    {
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
         fprintf(pofile_verbose, "Failed, Area not finite\n");
         fflush(pofile_verbose);
       }
       failed = true;
       break;
     }
- 
-    if (!(std::isfinite(hmean))) {
-      if (verbose && ioproc) {
+
+    if (!(std::isfinite(hmean)))
+    {
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
         fprintf(pofile_verbose, "Failed, hmean not finite\n");
         fflush(pofile_verbose);
       }
       failed = true;
       break;
     }
-    
+
     // Irreducible mass
     mass_prev = mass;
-    mass = std::sqrt(area/(16.0*PI));
+    mass      = std::sqrt(area / (16.0 * PI));
 
-    if (verbose && ioproc) {
-      fprintf(pofile_verbose, "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e\n",
-              k, area, mass, meanradius, rr_min, hmean, Sx, Sy, Sz, S);
+    if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+    {
+      fprintf(
+        pofile_verbose,
+        "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e\n",
+        k,
+        area,
+        mass,
+        meanradius,
+        rr_min,
+        hmean,
+        Sx,
+        Sy,
+        Sz,
+        S);
       fflush(pofile_verbose);
     }
 
-    if (std::fabs(hmean) > hmean_tol) {
-      if (verbose && ioproc) {
-        fprintf(pofile_verbose, "Failed, hmean > %f\n", hmean_tol);
+    if (std::fabs(hmean) > opt.hmean_tol)
+    {
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
+        fprintf(pofile_verbose, "Failed, hmean > %f\n", opt.hmean_tol);
         fflush(pofile_verbose);
       }
       failed = true;
       break;
-     }
+    }
 
-    if (meanradius < 0.) {
-      if (verbose && ioproc) {
+    if (meanradius < 0.)
+    {
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
         fprintf(pofile_verbose, "Failed, meanradius < 0\n");
         fflush(pofile_verbose);
       }
@@ -1257,9 +950,11 @@ void AHF::FastFlowLoop()
     }
 
     // Check to prevent horizon radius blow up and mass = 0
-    if (mass < 1.0e-10) {
-      if (verbose && ioproc) {
-        fprintf(pofile_verbose, "Failed mass < 1e-10\n");
+    if (mass < min_mass)
+    {
+      if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+      {
+        fprintf(pofile_verbose, "Failed mass < min_mass\n");
         fflush(pofile_verbose);
       }
       failed = true;
@@ -1267,37 +962,56 @@ void AHF::FastFlowLoop()
     }
 
     // End flow when mass difference is small
-    if (std::fabs(mass_prev-mass) < mass_tol) {
+    if (std::fabs(mass_prev - mass) < opt.mass_tol)
+    {
       ah_found = true;
       break;
     }
 
-    // Find new spectral components
-    UpdateFlowSpectralComponents();
+    // Apply reduced spectral update (optimistic projection was done above)
+    for (int l = 0; l <= opt.lmax; l++)
+      a0(l) -= ABfac[l] * spec0[l];
+
+    for (int l = 1; l <= opt.lmax; l++)
+    {
+      for (int m = 1; m <= l; m++)
+      {
+        int l1 = ylm_.lmindex(l, m);
+        ac(l1) -= ABfac[l] * specc[l1];
+        as(l1) -= ABfac[l] * specs[l1];
+      }
+    }
+
+    // Release pools (AHF rebuilds every iteration)
+    grid_.TearDown();
   }
 
-  if (ah_found) {
+  // Ensure pools are released after early-exit breaks
+  grid_.TearDown();
 
+  if (ah_found)
+  {
     last_a0 = a0(0);
 
-    ah_prop[harea] = area;
-    ah_prop[hcoarea] = integrals[icoarea];
-    ah_prop[hhrms] = hrms;
-    ah_prop[hhmean] = hmean;
+    ah_prop[harea]       = area;
+    ah_prop[hcoarea]     = integrals[icoarea];
+    ah_prop[hhrms]       = hrms;
+    ah_prop[hhmean]      = hmean;
     ah_prop[hmeanradius] = meanradius;
-    ah_prop[hminradius] = rr_min;
-    ah_prop[hSx] = Sx;
-    ah_prop[hSy] = Sy;
-    ah_prop[hSz] = Sz;
-    ah_prop[hS]  = S;
-    ah_prop[hmass] = std::sqrt( SQR(mass) + 0.25*SQR(S/mass) ); // Christodoulu mass
-
+    ah_prop[hminradius]  = rr_min;
+    ah_prop[hSx]         = Sx;
+    ah_prop[hSy]         = Sy;
+    ah_prop[hSz]         = Sz;
+    ah_prop[hS]          = S;
+    // Christodoulou mass
+    ah_prop[hmass] = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
   }
 
-  if (verbose && ioproc) {
-
-    if (ah_found) {
-      fprintf(pofile_verbose, "Found horizon %d\n", nh);
+  if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+  {
+    if (ah_found)
+    {
+      fprintf(pofile_verbose, "Found horizon %d\n", idx_ahf);
       fprintf(pofile_verbose, " mass_irr = %f\n", mass);
       fprintf(pofile_verbose, " meanradius = %f\n", meanradius);
       fprintf(pofile_verbose, " minradius = %f\n", rr_min);
@@ -1307,8 +1021,12 @@ void AHF::FastFlowLoop()
       fprintf(pofile_verbose, " Sy = %f\n", Sy);
       fprintf(pofile_verbose, " Sz = %f\n", Sz);
       fprintf(pofile_verbose, " S  = %f\n", S);
-    } else if (!failed && !ah_found) {
-      fprintf(pofile_verbose, "Failed, reached max iterations %d\n", flow_iterations);
+    }
+    else if (!failed && !ah_found)
+    {
+      fprintf(pofile_verbose,
+              "Failed, reached max iterations %d\n",
+              opt.flow_iterations);
     }
     fflush(pofile_verbose);
   }
@@ -1318,558 +1036,146 @@ void AHF::FastFlowLoop()
 // \!fn void AHF::UpdateFlowSpectralComponents(const int n)
 // \brief find new spectral components with fast flow
 
-
-// Old routine: logic seems strange, changed below
-void AHF::UpdateFlowSpectralComponents_old()
-{
-  const Real alpha = flow_alpha_beta_const;
-  const Real beta = 0.5 * flow_alpha_beta_const;
-  const Real A = alpha/(lmax*lmax1) + beta;
-  const Real B = beta/alpha;
-
-  Real * spec0 = new Real[lmax1];
-  Real * specc = new Real[lmpoints];
-  Real * specs = new Real[lmpoints];
-
-  // Local sums
-  for(int l=0; l<=lmax; l++){
-
-    spec0[l] = 0;
-
-    for(int m=0; m<=l; m++){ 
-
-      int l1 = lmindex(l,m);
-
-      specc[l1] = 0;
-      specs[l1] = 0;
-
-      for(int i=0; i<ntheta; i++){
-        for(int j=0; j<nphi; j++){
-	  
-          if (!havepoint(i,j)) continue;
-	  
-	  const Real dw = weights(i,j);
-	  
-          if (m==0) {
-            spec0[l] += dw * Y0(i,j,l) * rho(i,j);
-          }
-          specc[l1] += dw * Yc(i,j,l1) * rho(i,j);
-          specs[l1] += dw * Ys(i,j,l1) * rho(i,j);
-
-	}//phi loop
-      }//theta loop
-
-    }//m loop
-  }//l loop
-
-// MPI reduce
-#ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE, spec0, lmax1,    MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, specc, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, specs, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  // Update the coefs
-  for(int l=0; l<=lmax; l++){
-
-    Real ABfact = A/(1.0+B*l*(l+1));
-
-    a0(l) -= ABfact * spec0[l];
-
-    for(int m=0; m<=l; m++){
-      int l1 = lmindex(l,m);
-      ac(l1) -= ABfact * specc[l1];
-      as(l1) -= ABfact * specs[l1];
-    }
-  }
-
-  delete[] spec0;
-  delete[] specc;
-  delete[] specs;
-
-}
-
-// New routine: inverted angular-lm loops
-// better to take care of special case
 void AHF::UpdateFlowSpectralComponents()
 {
-  const Real alpha = flow_alpha_beta_const;
-  const Real beta = 0.5 * flow_alpha_beta_const;
-  const Real A = alpha/(lmax*lmax1) + beta;
-  const Real B = beta/alpha;
-  
-  Real * ABfac = new Real[lmax1];
-  Real * spec0 = new Real[lmax1];
-  Real * specc = new Real[lmpoints];
-  Real * specs = new Real[lmpoints];
-  
-  // Initialize coefficients to zero
-  for(int l=0; l<=lmax; l++) {
-    spec0[l] = 0;
-    ABfac[l] = A/(1.0+B*l*(l+1));    
-  }
-  for(int l=1; l<=lmax; l++) {
-    for(int m=1; m<=l; m++) {
-      int l1 = lmindex(l,m);
-      specc[l1] = 0;
-      specs[l1] = 0;
-    }
-  }
-  
-  // Local sums
-  for(int i=0; i<ntheta; i++){
-    for(int j=0; j<nphi; j++){
-      
-      if (!havepoint(i,j)) continue;
-      //const Real dw = weights(i,j);
-      const Real drho = weights(i,j) * rho(i,j);
-      
-      for(int l=0; l<=lmax; l++) 
-	//spec0[l] += dw * Y0(i,j,l) * rho(i,j);
-	spec0[l] += drho * Y0(i,j,l) ;
-      
-      for(int l=1; l<=lmax; l++) {
-	for(int m=1; m<=l; m++) { 
-	  int l1 = lmindex(l,m);
-          //specc[l1] += dw * Yc(i,j,l1) * rho(i,j);
-          //specs[l1] += dw * Ys(i,j,l1) * rho(i,j);
-          specc[l1] += drho * Yc(i,j,l1);
-          specs[l1] += drho * Ys(i,j,l1);
+  const Real alpha = opt.flow_alpha_beta_const;
+  const Real beta  = 0.5 * opt.flow_alpha_beta_const;
+  const Real A     = alpha / (opt.lmax * (opt.lmax + 1)) + beta;
+  const Real B     = beta / alpha;
 
-	}
-      }
-      
-    }//phi loop
-  }//theta loop
-       
-// MPI reduce
+  const int nspec0 = opt.lmax + 1;
+  const int ntotal = nspec0 + 2 * ylm_.lmpoints;
+
+  std::vector<Real> ABfac_vec(nspec0);
+  std::vector<Real> spec_buf_vec(ntotal, 0.0);  // zero-initialized
+  Real* ABfac    = ABfac_vec.data();
+  Real* spec_buf = spec_buf_vec.data();
+
+  Real* spec0 = spec_buf;
+  Real* specc = spec_buf + nspec0;
+  Real* specs = specc + ylm_.lmpoints;
+
+  for (int l = 0; l <= opt.lmax; l++)
+  {
+    ABfac[l] = A / (1.0 + B * l * (l + 1));
+  }
+
+  // Local sums via ylm_.Project
+  ylm_.Project(grid_.weights,
+               rho,
+               grid_.ntheta,
+               grid_.nphi,
+               spec0,
+               specc,
+               specs,
+               [this](int i, int j) { return grid_.IsOwned(i, j); });
+
 #ifdef MPI_PARALLEL
-  MPI_Allreduce(MPI_IN_PLACE, spec0, lmax1,    MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, specc, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, specs, lmpoints, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(
+    MPI_IN_PLACE, spec_buf, ntotal, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
   // Update the coefs
-  for(int l=0; l<=lmax; l++) {
-    //const Real ABfact = A/(1.0+B*l*(l+1));    
+  for (int l = 0; l <= opt.lmax; l++)
+  {
     a0(l) -= ABfac[l] * spec0[l];
   }
 
-  for(int l=1; l<=lmax; l++) {
-    //const Real ABfact = A/(1.0+B*l*(l+1));
-    for(int m=1; m<=l; m++){
-      int l1 = lmindex(l,m);
+  for (int l = 1; l <= opt.lmax; l++)
+  {
+    for (int m = 1; m <= l; m++)
+    {
+      int l1 = ylm_.lmindex(l, m);
       ac(l1) -= ABfac[l] * specc[l1];
       as(l1) -= ABfac[l] * specs[l1];
     }
   }
-
-  delete[] ABfac;
-  delete[] spec0;
-  delete[] specc;
-  delete[] specs;
-
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::RadiiFromSphericalHarmonics()
-// \brief compute the radius of the surface
-void AHF::RadiiFromSphericalHarmonics()
-{
-  rr.ZeroClear();
-  rr_dth.ZeroClear();
-  rr_dph.ZeroClear();
-  
-
-  rr_min = std::numeric_limits<Real>::infinity();
-  for(int i=0; i<ntheta; i++){
-    for(int j=0; j<nphi; j++){
-
-      for(int l=0; l<=lmax; l++){
-        rr(i,j)     += a0(l) * Y0(i,j,l);
-	rr_dth(i,j) += a0(l) * dY0dth(i,j,l);
-	//rr_dph(i,j) += a0(l) * 0.0;
-      }
-      
-      for(int l=1; l<=lmax; l++){
-        for(int m=1;m<=l;m++){
-	  int l1 = lmindex(l,m);
-	  rr(i,j) += ac(l1) * Yc(i,j,l1) + as(l1) * Ys(i,j,l1);
-	  rr_dth(i,j) += ac(l1) * dYcdth(i,j,l1) + as(l1) * dYsdth(i,j,l1);
-	  rr_dph(i,j) += ac(l1) * dYcdph(i,j,l1) + as(l1) * dYsdph(i,j,l1);
-        }
-      }
-      rr_min = std::min(rr_min, rr(i,j));
-    } // phi loop
-  } // theta loop
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn void AHF::InitialGuess()
 // \brief initial guess for spectral coefs of horizon n
 void AHF::InitialGuess()
-{  
+{
   // Reset Coefficients to Zero
   a0.ZeroClear();
   ac.ZeroClear();
   as.ZeroClear();
-  
-  if (use_puncture>=0) {
+
+  if (opt.use_puncture >= 0)
+  {
     // Update the center to the puncture position
-    center[0] = pmesh->pz4c_tracker[use_puncture]->GetPos(0);
-    center[1] = pmesh->pz4c_tracker[use_puncture]->GetPos(1);
-    center[2] = pmesh->pz4c_tracker[use_puncture]->GetPos(2);
+    center[0] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(0);
+    center[1] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(1);
+    center[2] = pmesh->pz4c_tracker[opt.use_puncture]->GetPos(2);
     // Update a0
     // For single BH in isotropic coordinates: horizon radius=m/2
     // but make sure it can surround all punctures comfortably, i.e.
-    // make radius a bit larger than half the distance between any of the punctures
-    Real mass = pmesh->pz4c_tracker[use_puncture]->GetMass();
-    Real largedist = PuncMaxDistance(use_puncture);
-    if (ah_found && last_a0>0) {
-      a0(0) = last_a0 * expand_guess;
-    } else {
+    // make radius a bit larger than half the distance between any of the
+    // punctures
+    Real mass      = pmesh->pz4c_tracker[opt.use_puncture]->GetMass();
+    Real largedist = PuncMaxDistance(opt.use_puncture);
+    if (ah_found && last_a0 > 0)
+    {
+      a0(0) = last_a0 * opt.expand_guess;
+    }
+    else
+    {
       a0(0) = std::max(0.5 * mass, std::min(mass, 0.5 * largedist));
-      a0(0) *= std::sqrt(4.0*PI);
+      a0(0) *= SQRT_4PI;
     }
     return;
   }
 
-  if (use_extrema>=0) {
+  if (opt.use_extrema >= 0)
+  {
     // Update the center to the extrema
-    center[0] = pmesh->ptracker_extrema->c_x1(use_extrema);
-    center[1] = pmesh->ptracker_extrema->c_x2(use_extrema);
-    center[2] = pmesh->ptracker_extrema->c_x3(use_extrema);
+    center[0] = pmesh->ptracker_extrema->c_x1(opt.use_extrema);
+    center[1] = pmesh->ptracker_extrema->c_x2(opt.use_extrema);
+    center[2] = pmesh->ptracker_extrema->c_x3(opt.use_extrema);
   }
 
-  if (use_puncture_massweighted_center) {
+  if (opt.use_puncture_massweighted_center)
+  {
     // Update the center based on the mass-weighted distance
     Real pos[3];
-    PuncWeightedMassCentralPoint(&pos[0],&pos[1],&pos[2]);
+    PuncWeightedMassCentralPoint(&pos[0], &pos[1], &pos[2]);
     center[0] = pos[0];
     center[1] = pos[1];
     center[2] = pos[2];
   }
 
   // Take a0 either from previous or from input value
-  if (ah_found && last_a0>0) {
-    a0(0) = last_a0 * expand_guess;
-  } else {
-    a0(0) = std::sqrt(4.0*PI) * initial_radius;
+  if (ah_found && last_a0 > 0)
+  {
+    a0(0) = last_a0 * opt.expand_guess;
   }
-
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::ComputeSphericalHarmonics()
-// \brief compute spherical harmonics for grid of size ntheta*nphi.
-// Results are used for all horizons.
-void AHF::ComputeSphericalHarmonics()
-{
-  const Real sqrt2 = std::sqrt(2.0);
-
-  Y0.ZeroClear();
-  Yc.ZeroClear();
-  Ys.ZeroClear();
-
-  dY0dth.ZeroClear();
-  dYcdth.ZeroClear();
-  dYsdth.ZeroClear();
-  dYcdph.ZeroClear();
-  dYsdph.ZeroClear();
-
-  dY0dth2.ZeroClear();
-  dYcdth2.ZeroClear();
-  dYcdthdph.ZeroClear();
-  dYsdth2.ZeroClear();
-  dYsdthdph.ZeroClear();
-  dYcdph2.ZeroClear();
-  dYsdph2.ZeroClear();
-
-  // Legendre polynomials
-  P.NewAthenaArray(lmax1,lmax1);
-  dPdth.NewAthenaArray(lmax1,lmax1);
-  dPdth2.NewAthenaArray(lmax1,lmax1);
-
-  for(int i=0; i<ntheta; ++i){
-
-    const Real theta = th_grid(i);
-
-    ComputeLegendre(theta);
-
-    for(int j=0; j<nphi; ++j){
-
-      const Real phi = ph_grid(j);
-
-      // l=0 spherical harmonics and drvts
-      for(int l=0; l<=lmax; l++){
-        Y0(i,j,l) = P(l,0);
-	dY0dth(i,j,l) = dPdth(l,0);
-	dY0dth2(i,j,l) = dPdth2(l,0);
-      }
-
-      // l>=1 spherical harmonics and drvts
-      for(int l=1; l<=lmax; l++){
-        for(int m=1; m<=l; m++){
-	  
-          const int l1 = lmindex(l,m);
-
-	  const Real cosmph = std::cos(m*phi);
-	  const Real sinmph = std::sin(m*phi);
-
-	  // spherical harmonics
-          Yc(i,j,l1) = sqrt2 * P(l,m) * cosmph;
-          Ys(i,j,l1) = sqrt2 * P(l,m) * sinmph;
-
-          // first drvts
-          dYcdth(i,j,l1) =  sqrt2 * dPdth(l,m) * cosmph;
-          dYsdth(i,j,l1) =  sqrt2 * dPdth(l,m) * sinmph;
-          dYcdph(i,j,l1) = -sqrt2 * P(l,m) * m * sinmph;
-          dYsdph(i,j,l1) =  sqrt2 * P(l,m) * m * cosmph;
-
-	  // second drvts
-	  dYcdth2(i,j,l1)   =  sqrt2 * dPdth2(l,m) * cosmph;
-          dYcdthdph(i,j,l1) = -sqrt2 * dPdth(l,m)  * m * sinmph;
-          dYsdth2(i,j,l1)   =  sqrt2 * dPdth2(l,m) * sinmph;
-          dYsdthdph(i,j,l1) =  sqrt2 * dPdth(l,m)  * m * cosmph;
-          dYcdph2(i,j,l1)   = -sqrt2 * P(l,m) * m * m * cosmph;
-          dYsdph2(i,j,l1)   = -sqrt2 * P(l,m) * m * m * sinmph;
-        }
-      }
-    } // phi loop
-  } // theta loop
-
-  P.DeleteAthenaArray();
-  dPdth.DeleteAthenaArray();
-  dPdth2.DeleteAthenaArray();
-
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::ComputeLegendre(const Real theta)
-// \brief compute Legendre polys for l>=m and derivatives
-void AHF::ComputeLegendre(const Real theta)
-{
-  const Real costh = std::cos(theta);
-  const Real sinth = std::sin(theta);
-  //const Real sqrt3 = std::sqrt(3.);
-
-  int l,m; // Need persistent indexes
-
-  // Precompute list of factorial
-  Real * fac = new Real[2*lmax1+1];
-  factorial_list(fac, 2*lmax1);
-
-  // Initialize P, dPdth and dPdth2
-  P.ZeroClear();
-  dPdth.ZeroClear();
-  dPdth2.ZeroClear();
-
-  // Compute the Legendre functions
-  // diagonal terms
-  for(l=0; l<=lmax; ++l){
-    P(l,l) = std::sqrt((2*l+1)*fac[2*l]/(4.0*PI))/(std::pow(2,l)*fac[l])*std::pow((-sinth),l);
+  else
+  {
+    a0(0) = SQRT_4PI * opt.initial_radius;
   }
-
-  // the loop has special treatment for all (l,l-1) where (l-2,l-1) is not needed.
-  P(1,0) = SQRT3*costh*P(0,0);
-  for(l=2; l<=lmax; l++){
-    for(m=0; m<l-1; m++){
-      P(l,m) = std::sqrt((Real)(2*l+1)/(l*l-m*m));
-      P(l,m) *= (std::sqrt((Real)2*l-1)*costh*P(l-1,m)
-		 - std::sqrt((Real)((l-1)*(l-1)-m*m)/(2*l-3))*P(l-2,m));
-    }
-    // do (l,l-1) separately otherwise P(l-2,m) not defined
-    P(l,l-1) = std::sqrt((Real)(2*l+1)/(l*l-m*m))*(std::sqrt((Real)2*l-1)*costh*P(l-1,m));
-  }
-
-  // Compute first derivatives of the Legendre functions
-  for(l=0;l<=lmax;l++){
-    dPdth(l,l) = std::sqrt((2*l+1)*fac[2*l]/(4.0*PI))
-      /(std::pow(2,l)*fac[l])*l*std::pow((-sinth),l-1)*(-costh);
-  }
-
-  dPdth(1,0) = SQRT3*(-sinth*P(0,0)+costh*dPdth(0,0));
-
-  for(l=2;l<=lmax;l++){
-    for(m=0;m<l-1;m++){
-      dPdth(l,m) = std::sqrt((Real)(2*l+1)/(l*l-m*m));
-      dPdth(l,m) *= (std::sqrt((Real)2*l-1)*(-sinth*P(l-1,m) + costh*dPdth(l-1,m))
-			-std::sqrt((Real)((l-1)*(l-1)-m*m)/(2*l-3))*dPdth(l-2,m));
-    }
-    dPdth(l,l-1) = std::sqrt((Real)(2*l+1)/(l*l-m*m));
-    dPdth(l,l-1) *= (std::sqrt((Real)2*l-1)*(-sinth*P(l-1,m) + costh*dPdth(l-1,m)) );
-  }
-
-  // Compute second derivatives of the Legendre functions
-  for(l=0;l<=lmax;l++){
-    dPdth2(l,l) = std::sqrt((Real)(2*l+1)*fac[2*l]/(4.0*PI))/(std::pow(2,l)*fac[l])*l
-      *((l-1)*std::pow(-sinth,l-2)*costh*costh
-	    + std::pow(-sinth,l-1)*sinth);
-  }
-
-  dPdth2(1,0) = SQRT3*(- costh*P(0,0)-2.0*sinth*dPdth(0,0) + costh*dPdth2(0,0));
-
-  for(l=2;l<=lmax;l++){
-    for(m=0;m<l-1;m++){
-      dPdth2(l,m) =
-	      std::sqrt((Real)(2*l+1)/(l*l-m*m))*(std::sqrt((Real)2*l-1)*(-costh*P(l-1,m) - 2.0*sinth*dPdth(l-1,m) + costh*dPdth2(l-1,m))
-			  - std::sqrt((Real)((l-1)*(l-1)-m*m)/(2*l-3))*dPdth2(l-2,m));
-    }
-    // m will be l-1
-    dPdth2(l,m) = std::sqrt((Real)(2*l+1)/(l*l-m*m));
-    dPdth2(l,m) *= (std::sqrt((Real)2*l-1)*(-costh*P(l-1,m) - 2.0*sinth*dPdth(l-1,m) + costh*dPdth2(l-1,m)) );
-  }
-
-  delete[] fac;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::lmindex(const int l, const int m)
-// \brief multipolar single index (l,m) -> index
-int AHF::lmindex(const int l, const int m)
-{
-  return l*lmax1 + m;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::tpindex(const int i, const int j)
-// \brief spherical grid single index (i,j) -> index
-int AHF::tpindex(const int i, const int j)
-{
-  return i*nphi + j;
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn int AHF::GLQuad_Nodes_Weights(Real a, Real b, Real * x, Real * w, const int n)
-// \brief Nodes and weights for Gauss-Legendre quadrature
-void AHF::GLQuad_Nodes_Weights(const Real a, const Real b, Real * x, Real * w, const int n)
-{
-  Real z1,z,xm,xl,pp,p3,p2,p1;
-#define SMALL (1e-14)  
-  const int m=(n+1)/2;
-  xm=0.5*(b+a);
-  xl=0.5*(b-a);
-  for (int i=1;i<=m;i++) {
-    z=std::cos(PI*(i-0.25)/(n+0.5));
-    do {
-      p1=1.0;
-      p2=0.0;
-      for (int j=1;j<=n;j++) {
-	p3=p2;
-	p2=p1;
-	p1=((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
-      }
-      pp=n*(z*p1-p2)/(z*z-1.0);
-      z1=z;
-      z=z1-p1/pp;
-    } while (std::fabs(z-z1) > SMALL);
-    x[i-1]=xm-xl*z;
-    x[n-i]=xm+xl*z;
-    w[i-1]=2.0*xl/((1.0-z*z)*pp*pp);
-    w[n-i]=w[i-1];
-  }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::SetWeightsIntegral()
-// \brief set nodes on the sphere & weights for the 2D integrals 
-void AHF::SetGridWeights(std::string method)
-{
-  
-  if ((nphi+1)%2==0) {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in AHF" << std::endl
-        << "nphi must be even " << nphi << std::endl;
-    ATHENA_ERROR(msg);
-  }
-  
-  th_grid.NewAthenaArray(ntheta);
-  ph_grid.NewAthenaArray(nphi);
-  weights.NewAthenaArray(ntheta,nphi);
-  
-  if (method == "sums") {
-    
-    const Real dphi = 2.0*PI/nphi;
-    for (int j = 0; j < nphi; ++j)
-      ph_grid(j) = dphi*(0.5 + j);
-
-    const Real dtheta = PI/ntheta;
-    for (int i = 0; i < ntheta; ++i) {
-      th_grid(i) =  dtheta*(0.5 + i);
-    }
-    
-    for (int i = 0; i < ntheta; ++i) {
-      const Real dcosth = std::sin(th_grid(i)) * dtheta;
-      for (int j = 0; j < nphi; ++j) {
-	weights(i,j) = dcosth * dphi;
-      }
-    }
-
-  } else if (method == "gausslegendre") {
-    
-    if (ntheta != nphi/2) {
-      std::stringstream msg;
-      msg << "### FATAL ERROR in AHF setup" << std::endl
-	  << "ntheta should be nphi/2 = " << nphi/2 << std::endl;
-      ATHENA_ERROR(msg);
-    }
-
-    const Real dphi = 2.0*PI/nphi;
-    for (int j = 0; j < nphi; ++j)
-      ph_grid(j) = dphi*(0.5 + j);
-
-    Real * gl_weights = new Real[ntheta];
-    Real * gl_nodes = new Real[ntheta];
- 
-    GLQuad_Nodes_Weights(-1.0,1.0, gl_nodes, gl_weights, ntheta);
-
-    for (int i = 0; i < ntheta; ++i) {
-      th_grid(i) =  std::acos(gl_nodes[i]);
-    }
-    
-    for (int i = 0; i < ntheta; ++i) {
-      for (int j = 0; j < nphi; ++j) {
-	weights(i,j) = gl_weights[i] * dphi;
-      }
-    }
-    
-    delete[] gl_weights;
-    delete[] gl_nodes;
-    
-  } else {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in AHF::SetWeightsIntegral" << std::endl
-        << "unknown method  " << method << std::endl;
-    ATHENA_ERROR(msg);
-  }
-}
-
-//----------------------------------------------------------------------------------------
-// \!fn void AHF::factorial_list(Real * fac, int maxn)
-// \brief ist of factorials up to maxn
-
-void AHF::factorial_list(Real * fac, const int maxn)
-{
-  fac[0] = 1.0;
-  for (int i=1; i<=maxn; ++i)
-    fac[i] = fac[i-1]*i;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn Real AHF::PuncMaxDistance()
 // \brief Max Euclidean distance between punctures
 
-Real AHF::PuncMaxDistance() {
-  Real maxdist = 0.0;
-  for (int pix = 0; pix < npunct; ++pix) {
+Real AHF::PuncMaxDistance()
+{
+  const int npunct = static_cast<int>(pmesh->pz4c_tracker.size());
+  Real maxdist     = 0.0;
+  for (int pix = 0; pix < npunct; ++pix)
+  {
     Real xp = pmesh->pz4c_tracker[pix]->GetPos(0);
     Real yp = pmesh->pz4c_tracker[pix]->GetPos(1);
     Real zp = pmesh->pz4c_tracker[pix]->GetPos(2);
-    for (int p = pix+1; p < npunct; ++p) {
+    for (int p = pix + 1; p < npunct; ++p)
+    {
       Real x = pmesh->pz4c_tracker[p]->GetPos(0);
       Real y = pmesh->pz4c_tracker[p]->GetPos(1);
       Real z = pmesh->pz4c_tracker[p]->GetPos(2);
-      maxdist = std::max(maxdist, std::sqrt(SQR(x-xp)+SQR(y-yp)+SQR(z-zp)));
+      maxdist =
+        std::max(maxdist, std::sqrt(SQR(x - xp) + SQR(y - yp) + SQR(z - zp)));
     }
   }
   return maxdist;
@@ -1879,17 +1185,22 @@ Real AHF::PuncMaxDistance() {
 // \!fn Real AHF::PuncMaxDistance(const int pix)
 // \brief Max Euclidean distance from puncture pix to other punctures
 
-Real AHF::PuncMaxDistance(const int pix) {
-  Real xp = pmesh->pz4c_tracker[pix]->GetPos(0);
-  Real yp = pmesh->pz4c_tracker[pix]->GetPos(1);
-  Real zp = pmesh->pz4c_tracker[pix]->GetPos(2);
-  Real maxdist = 0.0;
-  for (int p = 0; p < npunct; ++p) {
-    if (p==pix) continue;
+Real AHF::PuncMaxDistance(const int pix)
+{
+  const int npunct = static_cast<int>(pmesh->pz4c_tracker.size());
+  Real xp          = pmesh->pz4c_tracker[pix]->GetPos(0);
+  Real yp          = pmesh->pz4c_tracker[pix]->GetPos(1);
+  Real zp          = pmesh->pz4c_tracker[pix]->GetPos(2);
+  Real maxdist     = 0.0;
+  for (int p = 0; p < npunct; ++p)
+  {
+    if (p == pix)
+      continue;
     Real x = pmesh->pz4c_tracker[p]->GetPos(0);
     Real y = pmesh->pz4c_tracker[p]->GetPos(1);
     Real z = pmesh->pz4c_tracker[p]->GetPos(2);
-    maxdist = std::max(maxdist, std::sqrt(SQR(x-xp)+SQR(y-yp)+SQR(z-zp)));
+    maxdist =
+      std::max(maxdist, std::sqrt(SQR(x - xp) + SQR(y - yp) + SQR(z - zp)));
   }
   return maxdist;
 }
@@ -1898,9 +1209,12 @@ Real AHF::PuncMaxDistance(const int pix) {
 // \!fn Real AHF::PuncSumMasses()
 // \brief Return sum of puncture's intial masses
 
-Real AHF::PuncSumMasses() {
-  Real mass = 0.0;
-  for (int p = 0; p < npunct; ++p) {
+Real AHF::PuncSumMasses()
+{
+  const int npunct = static_cast<int>(pmesh->pz4c_tracker.size());
+  Real mass        = 0.0;
+  for (int p = 0; p < npunct; ++p)
+  {
     mass += pmesh->pz4c_tracker[p]->GetMass();
   }
   return mass;
@@ -1910,33 +1224,38 @@ Real AHF::PuncSumMasses() {
 // \!fn void AHF::PuncWeightedMassCentralPoint(Real *xc, Real *yc, Real *zc)
 // \brief Return mss-weighted center of puncture positions
 
-void AHF::PuncWeightedMassCentralPoint(Real *xc, Real *yc, Real *zc) {
-  Real sumx = 0.0; // sum of m_i*x_i
-  Real sumy = 0.0;
-  Real sumz = 0.0;
-  Real divsum = 0.0; // sum of m_i to later divide by
-  for (int p = 0; p < npunct; p++) {
+void AHF::PuncWeightedMassCentralPoint(Real* xc, Real* yc, Real* zc)
+{
+  const int npunct = static_cast<int>(pmesh->pz4c_tracker.size());
+  Real sumx        = 0.0;  // sum of m_i*x_i
+  Real sumy        = 0.0;
+  Real sumz        = 0.0;
+  Real divsum      = 0.0;  // sum of m_i to later divide by
+  for (int p = 0; p < npunct; p++)
+  {
     Real x = pmesh->pz4c_tracker[p]->GetPos(0);
     Real y = pmesh->pz4c_tracker[p]->GetPos(1);
     Real z = pmesh->pz4c_tracker[p]->GetPos(2);
     Real m = pmesh->pz4c_tracker[p]->GetMass();
-    sumx += m*x;
-    sumy += m*y;
-    sumz += m*z;
+    sumx += m * x;
+    sumy += m * y;
+    sumz += m * z;
     divsum += m;
   }
-  divsum = 1.0/divsum;
-  *xc = sumx * divsum;
-  *yc = sumy * divsum;
-  *zc = sumz * divsum;
+  divsum = 1.0 / divsum;
+  *xc    = sumx * divsum;
+  *yc    = sumy * divsum;
+  *zc    = sumz * divsum;
 }
 
 //----------------------------------------------------------------------------------------
 // \!fn int AHF::PuncAreClose()
-// \brief Check when the maximal distance between all punctures is below threshold
+// \brief Check when the maximal distance between all punctures is below
+// threshold
 
-bool AHF::PuncAreClose() {
-  Real const mass = PuncSumMasses();
+bool AHF::PuncAreClose()
+{
+  Real const mass    = PuncSumMasses();
   Real const maxdist = PuncMaxDistance();
-  return (maxdist < merger_distance * mass);
+  return (maxdist < opt.merger_distance * mass);
 }

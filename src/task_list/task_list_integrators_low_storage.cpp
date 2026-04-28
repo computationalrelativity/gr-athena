@@ -149,9 +149,9 @@ LowStorage::LowStorage(ParameterInput *pin, Mesh *pm)
     // Because it is an SSP method, we can use the SSP coefficient c=1.508 to to trivially
     // relate the CFL constraint to the RK1 CFL=1 (for first-order fluxes). There is no
     // need to perform stability analysis from scratch (unlike e.g. the linear stability
-    // analysis for classical/non-SSP RK4 in Colella (2011)) However, PLM and PPM w/o the
-    // limiter engaged are unconditionally unstable under RK1 integration, so the SSP
-    // guarantees do not hold for the Athena++ spatial discretizations.
+    // analysis for classical/non-SSP RK4 in Colella (2011)) However, the spatial
+    // discretizations may be unconditionally unstable under RK1 integration, so the SSP
+    // guarantees do not necessarily hold for the Athena++ spatial discretizations.
     cfl_limit = 1.508;         //  (effective SSP coeff = 0.302) Gottlieb (2009) pg 272
     // u^(1)
     stage_wghts[0].delta = 1.0; // u1 = u^n

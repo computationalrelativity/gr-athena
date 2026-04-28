@@ -6,8 +6,6 @@
 
 // Athena++ classes headers
 #include "../../m1.hpp"
-#include "../../../hydro/hydro.hpp"
-#include "../../../eos/eos.hpp"
 
 // ============================================================================
 namespace M1::Opacities::Photon {
@@ -32,7 +30,7 @@ public:
     assert(N_GRPS == 1);
     assert(N_SPCS == 1);
 
-#if !USETM
+#if !FLUID_ENABLED
     #pragma omp critical
     {
       std::cout << "Warning: ";
@@ -79,15 +77,9 @@ public:
     {
 
 // TODO: check
-#if USETM
       const Real rho = 1.0;
       const Real T   = 0.0;
       const Real Y_e = 0.0;
-#else
-      const Real rho = 1.0;
-      const Real T   = 0.0;
-      const Real Y_e = 0.0;
-#endif
 
       ierr[0] = calc_kap_a(sc_kap_a, k, j, i, rho, T, Y_e);
       ierr[1] = calc_kap_s(sc_kap_s, k, j, i, rho, T, Y_e);

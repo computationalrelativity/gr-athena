@@ -13,7 +13,7 @@
 #   --eos=xxx           use xxx as the equation of state
 #   --eospolicy=xxx     use xxx as eos policy for eostaudyn_ps
 #   --errorpolicy=xxx   use xxx as error policy for eostaudyn_ps
-#   --flux=xxx          use xxx as the Riemann solver
+#   --flux=xxx          (deprecated, ignored)
 #   --nghost=xxx        set NGHOST=xxx
 #   --ncghost=xxx       set NCGHOST=xxx
 #   --ncghost_cx=xxx    set NCGHOST_CX=xxx
@@ -24,8 +24,6 @@
 #   -b                  enable magnetic fields
 #   -s                  enable special relativity
 #   -g                  enable general relativity
-#   -t                  enable interface frame transformations for GR
-#   -shear              enable shearing periodic boundary conditions
 #   -debug              enable debug flags (-g -O0); override other compiler options
 #   -coverage           enable compiler-dependent code coverage flags
 #   -float              enable single precision (default is double)
@@ -33,8 +31,6 @@
 #   -omp                enable parallelization with OpenMP
 #   -hdf5               enable HDF5 output (requires the HDF5 library)
 #   --hdf5_path=path    path to HDF5 libraries (requires the HDF5 library)
-#   -fft                enable FFT (requires the FFTW library)
-#   --fftw_path=path    path to FFTW libraries (requires the FFTW library)
 #   -gsl                enable GNU scientific library (requires the gsl library)
 #   --gsl_path=path     path to gsl libraries (requires the gsl library)
 #   -lorene             enable LORENE
@@ -45,7 +41,6 @@
 #   --elliptica_path=path  path to Elliptica (requires the Elliptica_ID_Reader)
 #   -sgrid             enable SGRID
 #   --sgrid_path=path  path to SGRID (requires SGRID library)
-#   --grav=xxx          use xxx as the self-gravity solver
 #   --cxx=xxx           use xxx as the C++ compiler
 #   --ccmd=name         use name as the command to call the (non-MPI) C++ compiler
 #   --mpiccmd=name      use name as the command to call the MPI C++ compiler
@@ -60,13 +55,13 @@
 #   -no_flto            avoid some linker problems encountered with old gcc versions
 #
 # S/AMR:
-#   -cons_bc            use _only_ conserved vars at distinct levels
+#   -cons_bc            [DEPRECATED] cons BC is the only supported mode; flag is redundant
 #
 # Lorene:
 #   -lorene_hardcoded_units
 #
 # Hydro/passive scalars:
-#   -recon_cmb_hydpa    reconstruct hydro & passive sca. at same time
+#   -recon_cmb_hydpa    [DEPRECATED] combined recon is the only supported mode; flag is redundant
 #   -DBG_FALLBACK_NO_TABLE_LIMITS: employ fallback with Y<0 check instead
 #
 # z4c settings:
@@ -94,13 +89,11 @@
 # M1 neutrino transport:
 #
 #   -m1                 enable M1 neutrino transport
+#   -m1_bns_nurates     enable bns_nurates (nu opacities)
 #
 # Ejecta:
 #
 #   -ejecta             enable ejecta (requires PrimitiveSolver)
-#
-# Tasklist:
-#   -tasklist_comm_dependency    ensure communication during task-list completes prior to clear_bnd
 #
 # development stuff:
 #
@@ -115,6 +108,7 @@ import glob
 import os
 import re
 import subprocess
+import sys
 
 
 def get_git_revision_hash() -> str:
@@ -125,6 +119,7 @@ def get_git_revision_hash() -> str:
     .strip()
   )
 
+
 def get_git_revision_short_hash() -> str:
   path = os.path.dirname(os.path.realpath(__file__))
   return (
@@ -132,6 +127,7 @@ def get_git_revision_short_hash() -> str:
     .decode("ascii")
     .strip()
   )
+
 
 def get_git_status() -> str:
   # should return "" if no changes
@@ -145,6 +141,7 @@ def get_git_status() -> str:
     return "c"
   return "m"
 
+
 # Set template and output filenames
 makefile_input = "Makefile.in"
 makefile_output = "Makefile"
@@ -153,24 +150,28 @@ defsfile_output = "src/defs.hpp"
 
 # --- Step 1. Prepare parser, add each of the arguments ------------------
 athena_description = (
-    "Prepare custom Makefile and defs.hpp for compiling Athena++ solver"
+  "Prepare custom Makefile and defs.hpp for compiling Athena++ solver"
 )
 athena_epilog = (
-    "Full documentation of options available at "
-    "https://github.com/PrincetonUniversity/athena-public-version/wiki/Configuring"
+  "Full documentation of options available at "
+  "https://github.com/PrincetonUniversity/athena-public-version/wiki/Configuring"
 )
-parser = argparse.ArgumentParser(description=athena_description, epilog=athena_epilog)
+parser = argparse.ArgumentParser(
+  description=athena_description, epilog=athena_epilog
+)
 
 # --prob=[name] argument
 pgen_directory = "src/pgen/"
 # set pgen_choices to list of .cpp files in src/pgen/
 pgen_choices = sorted(glob.glob(pgen_directory + "*.cpp"))
 # remove 'src/pgen/' prefix and '.cpp' extension from each filename
-pgen_choices = [choice[len(pgen_directory):-4] for choice in pgen_choices]
-parser.add_argument("--prob",
-                    default="shock_tube",
-                    choices=pgen_choices,
-                    help="select problem generator")
+pgen_choices = [choice[len(pgen_directory) : -4] for choice in pgen_choices]
+parser.add_argument(
+  "--prob",
+  default="shock_tube",
+  choices=pgen_choices,
+  help="select problem generator",
+)
 
 # --coord=[name] argument
 parser.add_argument(
@@ -186,22 +187,20 @@ parser.add_argument(
     "tilted",
     "schwarzschild",
     "kerr-schild",
-    "gr_user",
     "gr_dynamical",
   ],
   help="select coordinate system",
 )
 
-# --eos=[name] argument
+# --eos=[name] argument (DEPRECATED - EOS is now derived from -f)
 parser.add_argument(
   "--eos",
   default="none",
   choices=[
     "none",
-    "adiabatictaudyn_rep",
     "eostaudyn_ps",
   ],
-  help="select equation of state",
+  help="(deprecated) select equation of state; now derived from -f flag",
 )
 
 # --eospolicy=[name] argument
@@ -220,16 +219,17 @@ parser.add_argument(
   help="select error policy for PrimitiveSolver framework",
 )
 
-# --flux=[name] argument
+# --flux=[name] argument (DEPRECATED: ignored; solver is now selected at runtime
+# via [hydro] rsolver = llf|hlle in the input file. This flag is kept for
+# backward compatibility but its value is ignored.)
 parser.add_argument(
   "--flux",
   default="default",
   choices=[
     "default",
-    "hlletaudyn",
     "llftaudyn",
   ],
-  help="select Riemann solver",
+  help="(deprecated) ignored; use [hydro] rsolver instead",
 )
 
 # --nghost=[value] argument
@@ -282,15 +282,15 @@ parser.add_argument(
 parser.add_argument(
   "-cons_bc",
   action="store_true",
-  default=False,
-  help="utilize cons vars for all BC",
+  default=True,
+  help="[DEPRECATED] cons BC is the only supported mode; flag is redundant",
 )
 
 parser.add_argument(
   "-recon_cmb_hydpa",
   action="store_true",
-  default=False,
-  help="reconstruct hydro & passive scalars simult.",
+  default=True,
+  help="[DEPRECATED] combined recon is the only supported mode; flag is redundant",
 )
 
 parser.add_argument(
@@ -300,12 +300,6 @@ parser.add_argument(
   help="DBG_FALLBACK_NO_TABLE_LIMITS",
 )
 
-parser.add_argument(
-  "-tasklist_comm_dependency",
-  action="store_true",
-  default=False,
-  help="ensure communication during task-list completes prior to clear_bnd.",
-)
 
 # -f argument
 parser.add_argument(
@@ -315,16 +309,6 @@ parser.add_argument(
 # -b argument
 parser.add_argument(
   "-b", action="store_true", default=False, help="enable magnetic field"
-)
-
-# -sts argument
-parser.add_argument(
-  "-sts", action="store_true", default=False, help="enable super-time-stepping"
-)
-
-# -s argument
-parser.add_argument(
-  "-s", action="store_true", default=False, help="enable special relativity"
 )
 
 # -g argument
@@ -424,12 +408,12 @@ parser.add_argument(
   "-m1", action="store_true", default=False, help="enable M1 neutrino transport"
 )
 
-# -m1_no_weakrates argument
+# -m1_bns_nurates argument
 parser.add_argument(
-  "-m1_no_weakrates",
+  "-m1_bns_nurates",
   action="store_true",
   default=False,
-  help="disable compilation of M1 weakrates opacities",
+  help="enable compilation of M1 BNS_NuRates opacities",
 )
 
 # -ejecta argument
@@ -438,14 +422,6 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="enable ejecta (requires PrimitiveSolver)",
-)
-
-# -t argument
-parser.add_argument(
-  "-t",
-  action="store_true",
-  default=False,
-  help="enable interface frame transformations for GR",
 )
 
 # -ref_box_in_box argument
@@ -462,11 +438,6 @@ parser.add_argument(
   action="store_true",
   default=False,
   help="use sphere refinement (disables box-in-box)",
-)
-
-# -shear argument
-parser.add_argument(
-  "-shear", action="store_true", default=False, help="enable shearing box"
 )
 
 # -debug argument
@@ -520,6 +491,14 @@ parser.add_argument(
   help="enable parallelization with MPI",
 )
 
+# -mpi_no_persist argument
+parser.add_argument(
+  "-mpi_no_persist",
+  action="store_true",
+  default=False,
+  help="disable persistent MPI requests (use MPI_Isend/MPI_Irecv instead)",
+)
+
 # -omp argument
 parser.add_argument(
   "-omp",
@@ -528,25 +507,12 @@ parser.add_argument(
   help="enable parallelization with OpenMP",
 )
 
-# --grav=[name] argument
-parser.add_argument(
-  "--grav",
-  default="none",
-  choices=["none", "fft"],
-  help="select self-gravity solver",
-)
-
-# -fft argument
-parser.add_argument(
-  "-fft", action="store_true", default=False, help="enable FFT",
-)
-
-# --fftw_path argument
-parser.add_argument("--fftw_path", default="", help="path to FFTW libraries")
-
 # -hdf5 argument
 parser.add_argument(
-  "-hdf5", action="store_true", default=False, help="enable HDF5 Output",
+  "-hdf5",
+  action="store_true",
+  default=False,
+  help="enable HDF5 Output",
 )
 
 # -h5double argument
@@ -578,12 +544,17 @@ parser.add_argument("--gsl_path", default="", help="path to gsl libraries")
 
 # -lorene argument
 parser.add_argument(
-  "-lorene", action="store_true", default=False, help="enable Lorene library",
+  "-lorene",
+  action="store_true",
+  default=False,
+  help="enable Lorene library",
 )
 
 # --lorene_path argument
 parser.add_argument(
-  "--lorene_path", default="", help="path to LORENE libraries",
+  "--lorene_path",
+  default="",
+  help="path to LORENE libraries",
 )
 
 # -lorene_hardcoded_units argument
@@ -596,12 +567,18 @@ parser.add_argument(
 
 # -mkl argument
 parser.add_argument(
-  "-mkl", action="store_true", default=False, help="use mkl libraries",
+  "-mkl",
+  action="store_true",
+  default=False,
+  help="use mkl libraries",
 )
 
 # -openblas argument
 parser.add_argument(
-  "-openblas", action="store_true", default=False, help="use openblas libraries",
+  "-openblas",
+  action="store_true",
+  default=False,
+  help="use openblas libraries",
 )
 
 # -elliptica argument
@@ -618,23 +595,21 @@ parser.add_argument(
 )
 
 ## rns_path_argument
-parser.add_argument('--rns_path',
-                    default='',
-                    help='path to rns library')
+parser.add_argument("--rns_path", default="", help="path to rns library")
 # -sgrid argument
-parser.add_argument('-sgrid',
-                    action='store_true',
-                    default=False,
-                    help='enable sgrid')
+parser.add_argument(
+  "-sgrid", action="store_true", default=False, help="enable sgrid"
+)
 
 # --sgrid_path argument
-parser.add_argument('--sgrid_path',
-                    default='',
-                    help='path to SGRID libraries')
+parser.add_argument("--sgrid_path", default="", help="path to SGRID libraries")
 
 # -ccache argument
 parser.add_argument(
-  "-ccache", action="store_true", default=False, help="enable caching compiler",
+  "-ccache",
+  action="store_true",
+  default=False,
+  help="enable caching compiler",
 )
 
 # -rpath
@@ -647,12 +622,18 @@ parser.add_argument(
 
 # -link_gold argument
 parser.add_argument(
-  "-link_gold", action="store_true", default=False, help="use gold linker",
+  "-link_gold",
+  action="store_true",
+  default=False,
+  help="use gold linker",
 )
 
 # -no_flto argument
 parser.add_argument(
-  "-no_flto", action="store_true", default=False, help="disable flto",
+  "-no_flto",
+  action="store_true",
+  default=False,
+  help="disable flto",
 )
 
 # The main choices for --cxx flag, using "ctype[-suffix]" formatting, where "ctype" is the
@@ -758,59 +739,33 @@ args = vars(parser.parse_args())
 
 # --- Step 2. Test for incompatible arguments ----------------------------
 
-# Set default flux; HLLD for MHD, HLLC for hydro, HLLE for isothermal hydro or any GR
-if args['flux'] == 'default':
-    if args['g']:
-        args['flux'] = 'hlle'
-    elif args['b']:
-        args['flux'] = 'hlld'
-    elif args['eos'] == 'isothermal':
-        args['flux'] = 'hlle'
-    else:
-        args['flux'] = 'hllc'
-
-# Check Riemann solver compatibility
-if args['flux'] == 'hllc' and args['eos'] == 'isothermal':
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with isothermal EOS')
-if args['flux'] == 'hllc' and args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLC flux cannot be used with MHD')
-if args['flux'] == 'hlld' and not args['b']:
-    raise SystemExit('### CONFIGURE ERROR: HLLD flux can only be used with MHD')
+# Set default flux: always llftaudyn (deprecated, value ignored)
+if args["flux"] != "default":
+  print("### WARNING: --flux is deprecated and its value is ignored.")
+  print(
+    "###          Use [hydro] rsolver = llf|hlle in the input file instead."
+  )
 
 # Check relativity
-if args['s'] and args['g']:
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + 'GR implies SR; the -s option is restricted to pure SR')
-if args['t'] and not args['g']:
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations only apply to GR')
-if args['g'] and not args['t'] and args['flux'] not in ('llf','llftaudyn', 'hlle', 'hlletaudyn'):
-    raise SystemExit('### CONFIGURE ERROR: Frame transformations required for {0}'
-                     .format(args['flux']))
-if args['g'] and args['coord'] in ('cartesian', 'cylindrical', 'spherical_polar'):
-    raise SystemExit('### CONFIGURE ERROR: GR cannot be used with {0} coordinates'
-                     .format(args['coord']))
-if not args['g'] and args['coord'] not in ('cartesian',
-                                           'cylindrical',
-                                           'spherical_polar',
-                                           'spherical_polar_uniform'):
-    raise SystemExit('### CONFIGURE ERROR: '
-                     + args['coord'] + ' coordinates only apply to GR')
-
-if args['eos'] == 'isothermal':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'Isothermal EOS is incompatible with relativity')
-if args['eos'] == 'eostaudyn_ps':
-    if not args['z']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'PrimitiveSolver EOS interface requires Z4c')
-if args['eos'][:8] == 'general/':
-    if args['s'] or args['g']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with relativity')
-    if args['flux'] not in ['hllc', 'hlld', 'hlle']:
-        raise SystemExit('### CONFIGURE ERROR: '
-                         + 'General EOS is incompatible with flux ' + args['flux'])
+if args["g"] and args["coord"] in (
+  "cartesian",
+  "cylindrical",
+  "spherical_polar",
+):
+  raise SystemExit(
+    "### CONFIGURE ERROR: GR cannot be used with {0} coordinates".format(
+      args["coord"]
+    )
+  )
+if not args["g"] and args["coord"] not in (
+  "cartesian",
+  "cylindrical",
+  "spherical_polar",
+  "spherical_polar_uniform",
+):
+  raise SystemExit(
+    "### CONFIGURE ERROR: " + args["coord"] + " coordinates only apply to GR"
+  )
 
 # Check Z4c
 if args["z"] and args["coord"] not in ("cartesian", "gr_dynamical"):
@@ -835,18 +790,30 @@ definitions["COORDINATE_SYSTEM"] = makefile_options["COORDINATES_FILE"] = args[
   "coord"
 ]
 
-# --eos=[name] argument
-definitions["NON_BAROTROPIC_EOS"] = "1"
+# --eos=[name] argument (DEPRECATED - EOS is now derived from -f)
+# When -f is active, EOS is implicitly eostaudyn_ps.
+# When -f is not active, EOS is implicitly none.
+if args["eos"] != "none":
+  import warnings
+
+  warnings.warn(
+    "The --eos flag is deprecated. EOS is now derived from the -f flag. "
+    "Use --eospolicy and --errorpolicy to configure PrimitiveSolver.",
+    DeprecationWarning,
+    stacklevel=1,
+  )
+
+# Auto-derive EOS from -f flag
+if args["f"]:
+  args["eos"] = "eostaudyn_ps"
+else:
+  args["eos"] = "none"
+
+
 makefile_options["EOS_FILE"] = args["eos"]
 definitions["EQUATION_OF_STATE"] = args["eos"]
 
-# set number of hydro variables for adiabatic/isothermal
-definitions["GENERAL_EOS"] = "0"
-makefile_options["GENERAL_EOS_FILE"] = "noop"
-definitions["EOS_TABLE_ENABLED"] = "0"
-
 # defaults for PrimitiveSolver definitions
-definitions["USE_TM"] = "0"
 definitions["EOS_POLICY"] = ""
 definitions["ERROR_POLICY"] = ""
 definitions["EOS_POLICY_CODE"] = "0"
@@ -855,13 +822,8 @@ definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
   "PRIMITIVE_SOLVER_ADJUST_CONSERVED"
 )
 
-if args["eos"] == "adiabatictaudyn_rep":
+if args["eos"] == "eostaudyn_ps":
   definitions["NHYDRO_VARIABLES"] = "5"
-  makefile_options["GENERAL_EOS_FILE"] = "ideal"
-  definitions["COLDEOS_POLICY"] = "None"
-elif args["eos"] == "eostaudyn_ps":
-  definitions["NHYDRO_VARIABLES"] = "5"
-  definitions["USE_TM"] = "1"
   if args["eospolicy"] == "idealgas":
     definitions["EOS_POLICY"] = "IdealGas"
     definitions["EOS_POLICY_CODE"] = "0"
@@ -912,8 +874,7 @@ elif args["eos"] == "eostaudyn_ps":
 else:
   definitions["NHYDRO_VARIABLES"] = "0"
 
-# --flux=[name] argument
-definitions["RSOLVER"] = makefile_options["RSOLVER_FILE"] = args["flux"]
+# --flux is deprecated; RSOLVER macro is no longer emitted
 
 # --nghost=[value] argument
 definitions["NUMBER_GHOST_CELLS"] = args["nghost"]
@@ -958,27 +919,15 @@ else:
 # -f argument
 if args["f"]:
   definitions["FLUID_ENABLED"] = "1"
-else:
-  definitions["FLUID_ENABLED"] = "0"
-
-if args["f"]:
-  definitions["FLUID_ENABLED"] = "1"
   aux = [
-    "src/eos/general/$(GENERAL_EOS_FILE)",
     "src/eos/$(EOS_FILE)",
-    #   "src/eos/eos_high_order.cpp",
-    #   "src/eos/eos_scalars.cpp"
+    "src/eos/eos_utils.cpp",
   ]
   makefile_options["EOS_BASE_SRC"] = "\\\n".join(aux)
 
   aux = [
-    "$(wildcard src/bvals/cc/hydro/*.cpp)",
     "$(wildcard src/field/*.cpp)",
-    "$(wildcard src/field/field_diffusion/*.cpp)",
     "$(wildcard src/hydro/*.cpp)",
-    "$(wildcard src/hydro/srcterms/*.cpp)",
-    "$(wildcard src/hydro/hydro_diffusion/*.cpp)",
-    "src/hydro/rsolvers/$(RSOLVER_DIR)$(RSOLVER_FILE)",
     "$(wildcard src/reconstruct/recon*.cpp)",
     "$(wildcard src/scalars/*.cpp)",
   ]
@@ -993,60 +942,25 @@ else:
 # set variety of macros based on whether MHD/hydro or adi/iso are defined
 if args["b"]:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "1"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_mhd"
-  else:
-    makefile_options["EOS_FILE"] += "_mhd"
   definitions["NFIELD_VARIABLES"] = "3"
-  makefile_options["RSOLVER_DIR"] = "mhd/"
-  if (
-    args["flux"] == "hlle"
-    or args["flux"] == "llf"
-    or args["flux"] == "roe"
-    or args["flux"] == "llftaudyn"
-  ):
-    makefile_options["RSOLVER_FILE"] += "_mhd"
-  if args["eos"] == "isothermal":
-    definitions["NWAVE_VALUE"] = "6"
-    if args["flux"] == "hlld":
-      makefile_options["RSOLVER_FILE"] += "_iso"
-  else:
-    definitions["NWAVE_VALUE"] = "7"
+  rsolver_prefix = "mhd"
+  definitions["NWAVE_VALUE"] = "7"
 else:
   definitions["MAGNETIC_FIELDS_ENABLED"] = "0"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_hydro"
-  else:
-    makefile_options["EOS_FILE"] += "_hydro"
   definitions["NFIELD_VARIABLES"] = "0"
-  makefile_options["RSOLVER_DIR"] = "hydro/"
-  if args["eos"] == "isothermal":
-    definitions["NWAVE_VALUE"] = "4"
-  else:
-    definitions["NWAVE_VALUE"] = "5"
+  rsolver_prefix = "hd"
+  definitions["NWAVE_VALUE"] = "5"
 
-# -sts argument
-if args["sts"]:
-  definitions["STS_ENABLED"] = "1"
-else:
-  definitions["STS_ENABLED"] = "0"
+# Append rsolver wildcard to HYDRO_DEPENDENT_SRC (must come after -b sets prefix)
+if args["f"]:
+  makefile_options["HYDRO_DEPENDENT_SRC"] += (
+    "\\\n$(wildcard src/hydro/rsolvers/" + rsolver_prefix + "_*.cpp)"
+  )
 
-# -s, -g, and -t arguments
-definitions["RELATIVISTIC_DYNAMICS"] = "1" if args["s"] or args["g"] else "0"
+# -g argument
 definitions["GENERAL_RELATIVITY"] = "1" if args["g"] else "0"
-definitions["FRAME_TRANSFORMATIONS"] = "1" if args["t"] else "0"
-if args["s"]:
-  makefile_options["EOS_FILE"] += "_sr"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_sr"
-  makefile_options["RSOLVER_FILE"] += "_rel"
 if args["g"]:
   makefile_options["EOS_FILE"] += "_gr"
-  if definitions["GENERAL_EOS"] != "0":
-    makefile_options["GENERAL_EOS_FILE"] += "_gr"
-  makefile_options["RSOLVER_FILE"] += "_rel"
-  if not args["t"]:
-    makefile_options["RSOLVER_FILE"] += "_no_transform"
 
 # -z argument
 if args["z"]:
@@ -1182,11 +1096,11 @@ if args["m1"]:
 else:
   definitions["M1_ENABLED"] = "0"
 
-# -m1 - neutrino transport
-if args["m1_no_weakrates"]:
-  definitions["M1_NO_WEAKRATES"] = "1"
+# -m1 - weak rates / bns nurates
+if args["m1_bns_nurates"]:
+  definitions["M1_BNS_NURATES"] = "1"
 else:
-  definitions["M1_NO_WEAKRATES"] = "0"
+  definitions["M1_BNS_NURATES"] = "0"
 
 # -ejecta
 if args["ejecta"]:
@@ -1200,17 +1114,21 @@ if args["hybridinterp"]:
 else:
   definitions["HYBRID_INTERP"] = "NO_HYBRID_INTERP"
 
-# -cons_bc argument
-if args["cons_bc"]:
-  definitions["DBG_USE_CONS_BC"] = "DBG_USE_CONS_BC"
-else:
-  definitions["DBG_USE_CONS_BC"] = "NO_DBG_USE_CONS_BC"
+# -cons_bc argument (deprecated: cons_bc is always enabled)
+if "-cons_bc" in sys.argv:
+  print(
+    "WARNING: -cons_bc is deprecated. Conservative BC is the only "
+    "supported mode. This flag is redundant and will be removed in "
+    "a future release."
+  )
 
-# -recon_cmb_hydpa argument
-if args["recon_cmb_hydpa"]:
-  definitions["DBG_COMBINED_HYDPA"] = "DBG_COMBINED_HYDPA"
-else:
-  definitions["DBG_COMBINED_HYDPA"] = "NO_DBG_COMBINED_HYDPA"
+# -recon_cmb_hydpa argument (deprecated - combined recon is always on)
+if "-recon_cmb_hydpa" in sys.argv:
+  print(
+    "WARNING: -recon_cmb_hydpa is deprecated. Combined hydro & passive "
+    "scalar reconstruction is the only supported mode. This flag is "
+    "redundant and will be removed in a future release."
+  )
 
 # -DBG_FALLBACK_NO_TABLE_LIMITS argument
 if args["DBG_FALLBACK_NO_TABLE_LIMITS"]:
@@ -1220,17 +1138,6 @@ else:
     "NO_DBG_FALLBACK_NO_TABLE_LIMITS"
   )
 
-# -tasklist_comm_dependency argument
-if args["tasklist_comm_dependency"]:
-  definitions["USE_COMM_DEPENDENCY"] = "USE_COMM_DEPENDENCY"
-else:
-  definitions["USE_COMM_DEPENDENCY"] = "NO_USE_COMM_DEPENDENCY"
-
-# -shear argument
-if args["shear"]:
-  definitions["SHEARING_BOX"] = "1"
-else:
-  definitions["SHEARING_BOX"] = "0"
 
 # --cxx=[name] argument
 if args["cxx"] == "g++":
@@ -1289,7 +1196,7 @@ if args["cxx"] == "g++-simd":
   makefile_options["PREPROCESSOR_FLAGS"] = ""
   makefile_options["COMPILER_FLAGS"] = (
     "-O3 -std=c++17 -fwhole-program -flto=auto "
-    "-fno-strict-aliasing "
+    # "-fno-strict-aliasing "
     "-fprefetch-loop-arrays -march=native "
     "-fopenmp-simd "
     # '-Wunknown-pragmas '
@@ -1372,9 +1279,7 @@ if args["cxx"] == "cray":
   definitions["COMPILER_CHOICE"] = "cray"
   definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "CC"
   makefile_options["PREPROCESSOR_FLAGS"] = ""
-  makefile_options["COMPILER_FLAGS"] = (
-    "-O3 -std=c++17 "
-  )
+  makefile_options["COMPILER_FLAGS"] = "-O3 -std=c++17 "
   makefile_options["LINKER_FLAGS"] = "-flto=auto "
   makefile_options["LIBRARY_FLAGS"] = "-lm"
 
@@ -1437,8 +1342,6 @@ if args["cxx"] == "clang++-apple":
   makefile_options["LINKER_FLAGS"] = ""
   makefile_options["LIBRARY_FLAGS"] = ""
 
-if args["eos"] == "adiabatictaudyn_rep":
-  makefile_options["LIBRARY_FLAGS"] = "-lRePrimAnd"
 # -float argument
 if args["float"]:
   definitions["SINGLE_PRECISION_ENABLED"] = "1"
@@ -1480,7 +1383,11 @@ if args["coverage"]:
   # For now, append new compiler flags and don't override --cxx set, but set code to be
   # unoptimized (-O0 instead of -O3) to get useful statement annotations. Should we add
   # '-g -fopenmp-simd', by default? Don't combine lines when writing source code!
-  if args["cxx"] == "g++" or args["cxx"] == "g++-simd" or args["cxx"] == "g++-simd_O2":
+  if (
+    args["cxx"] == "g++"
+    or args["cxx"] == "g++-simd"
+    or args["cxx"] == "g++-simd_O2"
+  ):
     makefile_options["COMPILER_FLAGS"] += (
       " -O0 -fprofile-arcs -ftest-coverage"
       " -fno-inline -fno-exceptions -fno-elide-constructors"
@@ -1554,6 +1461,12 @@ if args["mpi"]:
 else:
   definitions["MPI_OPTION"] = "NOT_MPI_PARALLEL"
 
+# -mpi_no_persist argument
+if args["mpi_no_persist"]:
+  definitions["MPI_NO_PERSIST_OPTION"] = "MPI_NO_PERSIST"
+else:
+  definitions["MPI_NO_PERSIST_OPTION"] = "NO_MPI_NO_PERSIST"
+
 # -omp argument
 if args["omp"]:
   definitions["OPENMP_OPTION"] = "OPENMP_PARALLEL"
@@ -1596,32 +1509,6 @@ else:
     # suppressed messages:
     #   3180: pragma omp not recognized
     makefile_options["COMPILER_FLAGS"] += " -diag-disable 3180"
-
-# -fft argument
-makefile_options["MPIFFT_FILE"] = " "
-definitions["FFT_OPTION"] = "NO_FFT"
-if args["fft"]:
-  definitions["FFT_OPTION"] = "FFT"
-  if args["fftw_path"] != "":
-    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/include".format(
-      args["fftw_path"]
-    )
-    makefile_options["LINKER_FLAGS"] += " -L{}/lib".format(args["fftw_path"])
-
-    if args["rpath"]:
-      makefile_options["LINKER_FLAGS"] += " -Wl,-rpath {}/lib".format(
-        args["fftw_path"]
-      )
-  if args["omp"]:
-    makefile_options["LIBRARY_FLAGS"] += " -lfftw3_omp"
-  if args["mpi"]:
-    makefile_options["MPIFFT_FILE"] = " $(wildcard src/fft/plimpton/*.cpp)"
-  makefile_options["LIBRARY_FLAGS"] += " -lfftw3"
-
-  aux = ["$(wildcard src/fft/*.cpp)"]
-  makefile_options["FFT_SRC"] = "\\\n".join(aux)
-else:
-  makefile_options["FFT_SRC"] = ""
 
 # -hdf5 argument
 if args["hdf5"]:
@@ -1680,9 +1567,7 @@ else:
 if args["prob"] == "z4c_two_punctures":
   if not args["gsl"]:
     msg = "### CONFIGURE ERROR: To compile with two punctures -gsl is required."
-    raise SystemExit(
-      msg
-    )
+    raise SystemExit(msg)
 
   definitions["TWO_PUNCTURES_OPTION"] = "TWO_PUNCTURES"
 
@@ -1734,9 +1619,7 @@ if args["lorene"]:
       " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
     )
   elif args["openblas"]:
-    makefile_options["LIBRARY_FLAGS"] += (
-      " -lopenblas"
-    )
+    makefile_options["LIBRARY_FLAGS"] += " -lopenblas"
   else:
     makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
 
@@ -1744,8 +1627,8 @@ if args["lorene"]:
   if args["lorene_path"] != "":
     definitions["LORENE_OPTION"] = "LORENE"
 
-    makefile_options["PREPROCESSOR_FLAGS"] += (
-      " -I{}/Export/C++/Include".format(args["lorene_path"])
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/Export/C++/Include".format(
+      args["lorene_path"]
     )
     makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/C++/Include".format(
       args["lorene_path"]
@@ -1764,8 +1647,9 @@ else:
 if "Lorene" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-f -g -z.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1773,8 +1657,9 @@ if "Lorene" in args["prob"]:
 
   if not args["lorene"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-lorene.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -lorene.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1797,8 +1682,9 @@ if args["elliptica"]:
 if "Elliptica" in args["prob"]:
   if not args["f"] or not args["g"] or not args["z"]:
     msg = (
-      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-      "-f -g -z.".format(name=args["prob"])
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
     )
     raise SystemExit(
       msg,
@@ -1809,86 +1695,104 @@ if "Elliptica" in args["prob"]:
       '### CONFIGURE ERROR: The pgen "{name}" requires flags '
       "-elliptica.".format(name=args["prob"])
     )
-    raise SystemExit(
-      msg
-    )
+    raise SystemExit(msg)
 
 # -rns argument
-if args['prob'] == "gr_rns":
-#    if not args['gsl']:
-#        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
+if args["prob"] == "gr_rns":
+  #    if not args['gsl']:
+  #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 
-    definitions['RNS_OPTION'] = 'RNS'
+  definitions["RNS_OPTION"] = "RNS"
 
-    if args['rns_path'] == '':
-        os.system('mkdir -p extern/initial_data')
-        args['rns_path'] = 'extern/initial_data/rns'
-        if os.path.exists('../rnsc'):
-            os.system('rm {}'.format(args['rns_path']))
-            os.system('ln -s ../../../rnsc {}'.format(args['rns_path']))
-        else:
-            raise SystemExit('### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc.')
-    if args['rns_path'] != '':
-        makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/include'.format(
-            args['rns_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/obj'.format(
-            args['rns_path'])
-    if (args['cxx'] == 'g++'
-        or args['cxx'] == 'g++-simd'
-        or args['cxx'] == 'g++-simd_O2'
-        or args['cxx'] == 'icc' or args['cxx'] == 'cray'
-        or args['cxx'] == 'icc-debug' or args['cxx'] == 'icc-phi'
-        or args['cxx'] == 'clang++' or args['cxx'] == 'clang++-simd'
-        or args['cxx'] == 'bgxl'):
+  if args["rns_path"] == "":
+    os.system("mkdir -p extern/initial_data")
+    args["rns_path"] = "extern/initial_data/rns"
+    if os.path.exists("../rnsc"):
+      os.system("rm {}".format(args["rns_path"]))
+      os.system("ln -s ../../../rnsc {}".format(args["rns_path"]))
+    else:
+      raise SystemExit(
+        "### CONFIGURE ERROR: To compile with rns, it is necessary to have external initial data rns library ../rnsc."
+      )
+  if args["rns_path"] != "":
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{0}/include".format(
+      args["rns_path"]
+    )
+    makefile_options["LINKER_FLAGS"] += " -L{0}/obj".format(args["rns_path"])
+  if (
+    args["cxx"] == "g++"
+    or args["cxx"] == "g++-simd"
+    or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "icc"
+    or args["cxx"] == "cray"
+    or args["cxx"] == "icc-debug"
+    or args["cxx"] == "icc-phi"
+    or args["cxx"] == "clang++"
+    or args["cxx"] == "clang++-simd"
+    or args["cxx"] == "bgxl"
+  ):
+    obj_dir = args["rns_path"] + "/obj/"
+    so_names = [
+      "RNS_equil_util.o",
+      "RNS_nrutil.o",
+      "RNS_rnsid_util.o",
+      "RNS_equil.o",
+      "RNS_extra.o",
+      "RNS.o",
+    ]
 
-        obj_dir = args['rns_path'] + '/obj/'
-        so_names = ['RNS_equil_util.o', 'RNS_nrutil.o', 'RNS_rnsid_util.o',
-                    'RNS_equil.o', 'RNS_extra.o', 'RNS.o']
-
-
-        ## Check the external library has been compiled
-        for so in so_names:
-            if not os.path.isfile(obj_dir + so):
-                print(obj_dir + so)
-                raise SystemExit('### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing.')
-
-        for n in so_names:
-            makefile_options['LIBRARY_FLAGS'] += ' ' + obj_dir + n
-else:
-    definitions['RNS_OPTION'] = 'NO_RNS'
-
-if args['sgrid']:
-    definitions['SGRID_OPTION'] = 'SGRID'
-
-    makefile_options['LIBRARY_FLAGS'] += ' -lsgrid -llapack -lblas'
-
-    # this can be specified as sgrid_path _or_ directly
-    if args['sgrid_path'] != '':
-        definitions['SGRID_OPTION'] = 'SGRID'
-
-        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
-        ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
-        makefile_options['LINKER_FLAGS'] += ' -L{0}/lib'.format(args['sgrid_path'])
-
-else:
-    definitions['SGRID_OPTION'] = 'NO_SGRID'
-
-if 'Sgrid' in args['prob']:
-    if not args['f'] or not args['g'] or not args['z']:
+    ## Check the external library has been compiled
+    for so in so_names:
+      if not os.path.isfile(obj_dir + so):
+        print(obj_dir + so)
         raise SystemExit(
-            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-            '-f -g -z.'.format(
-                name=args['prob']
-            )
+          "### CONFIGURE ERROR: It appears that library ../rnsc has not been compiled yet: some objects files are missing."
         )
 
-    if not args['sgrid']:
-        raise SystemExit(
-            '### CONFIGURE ERROR: The pgen "{name}" requires flags '
-            '-sgrid.'.format(
-                name=args['prob']
-            )
-        )
+    for n in so_names:
+      makefile_options["LIBRARY_FLAGS"] += " " + obj_dir + n
+else:
+  definitions["RNS_OPTION"] = "NO_RNS"
+
+if args["sgrid"]:
+  definitions["SGRID_OPTION"] = "SGRID"
+
+  makefile_options["LIBRARY_FLAGS"] += " -lsgrid"
+
+  if args["mkl"]:
+    makefile_options["LIBRARY_FLAGS"] += (
+      " -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core"
+    )
+  elif args["openblas"]:
+    makefile_options["LIBRARY_FLAGS"] += " -lopenblas"
+  else:
+    makefile_options["LIBRARY_FLAGS"] += " -llapack -lblas"
+
+  # this can be specified as sgrid_path _or_ directly
+  if args["sgrid_path"] != "":
+    definitions["SGRID_OPTION"] = "SGRID"
+
+    ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/Export/C++/Include'.format(args['sgrid_path'])
+    ##makefile_options['PREPROCESSOR_FLAGS'] += ' -I{0}/C++/Include'.format(args['sgrid_path'])
+    makefile_options["LINKER_FLAGS"] += " -L{0}/lib".format(args["sgrid_path"])
+
+else:
+  definitions["SGRID_OPTION"] = "NO_SGRID"
+
+if "Sgrid" in args["prob"]:
+  if not args["f"] or not args["g"] or not args["z"]:
+    raise SystemExit(
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
+    )
+
+  if not args["sgrid"]:
+    raise SystemExit(
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -sgrid.'.format(
+        name=args["prob"]
+      )
+    )
 
 
 # --cflag=[string] argument
@@ -1983,8 +1887,6 @@ if args["z"]:
   src_aux.append("src/task_list/gr/task_list_post_amr_z4c.cpp")
 
   if args["f"]:
-    src_aux.append("src/task_list/gr/task_list_grmhd_z4c.cpp")
-
     src_aux.append("src/task_list/gr/task_list_grmhd_z4c_split_phase_mhd.cpp")
     src_aux.append(
       "src/task_list/gr/task_list_grmhd_z4c_split_phase_mhd_com.cpp"
@@ -1993,6 +1895,7 @@ if args["z"]:
     src_aux.append(
       "src/task_list/gr/task_list_grmhd_z4c_split_phase_finalize.cpp"
     )
+    src_aux.append("src/task_list/gr/task_list_grmhd_z4c_monolithic.cpp")
   else:
     src_aux.append("src/task_list/gr/task_list_gr_z4c.cpp")
 
@@ -2015,9 +1918,6 @@ elif args["m1"]:
 else:
   src_aux.append("$(wildcard src/task_list/time_integrator.cpp)")
 
-if args["sts"]:
-  src_aux.append("$(wildcard src/task_list/sts_task_list.cpp)")
-
 makefile_options["TASK_LIST_SRC"] = "\\\n".join(src_aux)
 
 # wave eqn: -------------------------------------------------------------------
@@ -2036,8 +1936,9 @@ if args["m1"]:
   src_aux.append("$(wildcard src/m1/opacities/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/fake/*.cpp)")
   src_aux.append("$(wildcard src/m1/opacities/photon/*.cpp)")
-  if not args["m1_no_weakrates"]:
-    src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
+  src_aux.append("$(wildcard src/m1/opacities/weakrates/*.cpp)")
+  if args["m1_bns_nurates"]:
+    src_aux.append("$(wildcard src/m1/opacities/bnsnurates/*.cpp)")
 
 makefile_options["M1_SRC"] = "\\\n".join(src_aux)
 
@@ -2057,8 +1958,6 @@ else:
 makefile_options["PROBLEM_FILE"] += ".cpp"
 makefile_options["COORDINATES_FILE"] += ".cpp"
 makefile_options["EOS_FILE"] += ".cpp"
-makefile_options["GENERAL_EOS_FILE"] += ".cpp"
-makefile_options["RSOLVER_FILE"] += ".cpp"
 
 # Read templates
 with open(defsfile_input, "r") as current_file:
@@ -2072,7 +1971,7 @@ makefile_options["EOS_FILES"] = ""
 # Absence of EOS
 if args["eos"] == "none":
   print(args["eos"])
-  aux = [ "        src/eos/none.cpp \\" ]
+  aux = ["        src/eos/none.cpp \\"]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
@@ -2080,7 +1979,7 @@ files = [
   args["eospolicy"],
   args["errorpolicy"],
   "ps_error",
-  f'cold_{args["eospolicy"]}',
+  f"cold_{args['eospolicy']}",
 ]
 if args["eospolicy"] == "eos_transition":
     files.append("eos_compose")
@@ -2116,55 +2015,85 @@ print("GR-Athena++ configured with:")
 print("  Problem generator:            " + args["prob"])
 print("  Coordinate system:            " + args["coord"])
 print("  Equation of state:            " + args["eos"])
-print("  Riemann solver:               " + args["flux"])
 print("  Hydrodynamics:                " + ("ON" if args["f"] else "OFF"))
 print("  Magnetic fields:              " + ("ON" if args["b"] else "OFF"))
 print("  Number of scalars:            " + args["nscalars"])
-print("  Special relativity:           " + ("ON" if args["s"] else "OFF"))
 print("  General relativity:           " + ("ON" if args["g"] else "OFF"))
 print("  Z4c equations:                " + ("ON" if args["z"] else "OFF"))
 if args["z"]:
-    print("  z_cc:                         " + ("ON" if args["z_cc"] else "OFF"))
-    print("  z_cx:                         " + ("ON" if args["z_cx"] else "OFF"))
-    print("  z_vc:                         " + ("ON" if args["z_vc"] else "OFF"))
+  print("  z_cc:                         " + ("ON" if args["z_cc"] else "OFF"))
+  print("  z_cx:                         " + ("ON" if args["z_cx"] else "OFF"))
+  print("  z_vc:                         " + ("ON" if args["z_vc"] else "OFF"))
 
 if args["z"]:
-    print("  Z4c shift damping:            " + self_eta_damp_string)
-    print("  Z4c refinement strategy:      " + ("box-in-box" if args["ref_box_in_box"]
-                                                else "spheres"))
-    print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
-    print("  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF"))
+  print("  Z4c shift damping:            " + self_eta_damp_string)
+  print(
+    "  Z4c refinement strategy:      "
+    + ("box-in-box" if args["ref_box_in_box"] else "spheres")
+  )
+  print("  CCE:                          " + ("ON" if args["cce"] else "OFF"))
+  print(
+    "  Ejecta:                       " + ("ON" if args["ejecta"] else "OFF")
+  )
 
 print("  M1 neutrino transport:        " + ("ON" if args["m1"] else "OFF"))
+if args["m1"]:
+  print(
+    "  M1 neutrino bns_nurates:      "
+    + ("ON" if args["m1_bns_nurates"] else "OFF")
+  )
 
 print("  Wave equation:                " + ("ON" if args["w"] else "OFF"))
 if args["w"]:
-    print("  w_cc:                         " + ("ON" if args["w_cc"] else "OFF"))
-    print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
-    print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
+  print("  w_cc:                         " + ("ON" if args["w_cc"] else "OFF"))
+  print("  w_cx:                         " + ("ON" if args["w_cx"] else "OFF"))
+  print("  w_vc:                         " + ("ON" if args["w_vc"] else "OFF"))
 
-print("  Frame transformations:        " + ("ON" if args["t"] else "OFF"))
-print("  Super-Time-Stepping:          " + ("ON" if args["sts"] else "OFF"))
-print("  Shearing Box BCs:             " + ("ON" if args["shear"] else "OFF"))
 print("  Debug flags:                  " + ("ON" if args["debug"] else "OFF"))
-print("  Code coverage flags:          " + ("ON" if args["coverage"] else "OFF"))
-print("  Linker flags:                 " + makefile_options["LINKER_FLAGS"] + " "
-      + makefile_options["LIBRARY_FLAGS"])
-print("  Floating-point precision:     " + ("single" if args["float"] else "double"))
+print(
+  "  Code coverage flags:          " + ("ON" if args["coverage"] else "OFF")
+)
+print(
+  "  Linker flags:                 "
+  + makefile_options["LINKER_FLAGS"]
+  + " "
+  + makefile_options["LIBRARY_FLAGS"]
+)
+print(
+  "  Floating-point precision:     " + ("single" if args["float"] else "double")
+)
 print("  Number of ghost cells:        " + args["nghost"])
 print("  Number of coarse ghosts (VC): " + definitions["NUMBER_COARSE_GHOSTS"])
-print("  Number of coarse ghosts (CX): " + definitions["NUMBER_COARSE_GHOSTS_CX"])
-print("  Total # extrapolation points: " + definitions["NUMBER_EXTRAPOLATION_POINTS"])
+print(
+  "  Number of coarse ghosts (CX): " + definitions["NUMBER_COARSE_GHOSTS_CX"]
+)
+print(
+  "  Total # extrapolation points: "
+  + definitions["NUMBER_EXTRAPOLATION_POINTS"]
+)
 print("  MPI parallelism:              " + ("ON" if args["mpi"] else "OFF"))
+if args["mpi"]:
+  print(
+    "  MPI persistent requests:      "
+    + ("OFF" if args["mpi_no_persist"] else "ON")
+  )
 print("  OpenMP parallelism:           " + ("ON" if args["omp"] else "OFF"))
-print("  FFT:                          " + ("ON" if args["fft"] else "OFF"))
 print("  HDF5 output:                  " + ("ON" if args["hdf5"] else "OFF"))
 if args["hdf5"]:
-    print("  HDF5 precision:               " + ("double" if args["h5double"] else "single"))
+  print(
+    "  HDF5 precision:               "
+    + ("double" if args["h5double"] else "single")
+  )
 print("  GSL enabled:                  " + ("ON" if args["gsl"] else "OFF"))
 print("  Compiler:                     " + args["cxx"])
-print("  Compilation command:          " + makefile_options["COMPILER_COMMAND"] + " "
-      + makefile_options["PREPROCESSOR_FLAGS"] + " " + makefile_options["COMPILER_FLAGS"])
+print(
+  "  Compilation command:          "
+  + makefile_options["COMPILER_COMMAND"]
+  + " "
+  + makefile_options["PREPROCESSOR_FLAGS"]
+  + " "
+  + makefile_options["COMPILER_FLAGS"]
+)
 
 #
 # :D

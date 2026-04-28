@@ -106,17 +106,22 @@ bool Enforce_Xi_Limits(Real & xi);
 void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
                             const int k, const int j, const int i);
 
+// Type alias for brevity
+using DPCache = Assemble::Frames::DotProductCache;
+
 // Function to find root of.
 Real Z_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i);
 
 Real dZ_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i);
 
 void ZdZ_xi(
@@ -125,6 +130,7 @@ void ZdZ_xi(
   const Real xi__,
   M1 & pm1,
   ClosureMetaVector & C,
+  const DPCache & cache,
   const int k, const int j, const int i);
 
 status gsl_Brent(M1 & pm1,

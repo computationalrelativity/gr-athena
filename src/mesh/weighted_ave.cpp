@@ -186,11 +186,11 @@ void MeshBlock::WeightedAveFC(FaceField &b_out, FaceField &b_in1, FaceField &b_i
                               const Real wght[3]) {
   int jl=js; int ju=je+1;
   // move these limit modifications outside the loop
-  if (pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar
-      || pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar_wedge)
+  if (nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar_wedge)
     jl=js+1;
-  if (pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::polar
-      || pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::polar_wedge)
+  if (nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar
+      || nc_.boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar_wedge)
     ju=je;
 
   // Note: these loops can be combined now that they avoid curl terms

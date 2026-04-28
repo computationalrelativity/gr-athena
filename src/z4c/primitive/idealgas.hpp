@@ -10,143 +10,183 @@
 #include "eos_policy_interface.hpp"
 #include "unit_system.hpp"
 
-namespace Primitive {
+namespace Primitive
+{
 
-class IdealGas : public EOSPolicyInterface {
+class IdealGas : public EOSPolicyInterface
+{
   protected:
-    /// Adiabatic index
-    Real gamma;
-    Real gammam1;
+  /// Adiabatic index
+  Real gamma;
+  Real gammam1;
 
-    /// Constructor
-    IdealGas();
+  /// Constructor
+  IdealGas();
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromE(Real n, Real e, Real *Y);
+  /// Calculate the temperature using the ideal gas law.
+  Real TemperatureFromE(Real n, Real e, Real* Y);
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromEps(Real n, Real e, Real *Y);
+  /// Calculate the temperature using the ideal gas law.
+  Real TemperatureFromP(Real n, Real p, Real* Y);
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromP(Real n, Real p, Real *Y);
+  /// Calculate the temperature using the entropy.
+  Real TemperatureFromEntropy(Real n, Real p, Real* Y);
 
-    /// Calculate the temperature using the entropy.
-    Real TemperatureFromEntropy(Real n, Real p, Real *Y);
+  /// Calculate the energy density using the ideal gas law.
+  Real Energy(Real n, Real T, Real* Y);
 
-    /// Calculate the energy density using the ideal gas law.
-    Real Energy(Real n, Real T, Real *Y);
+  /// Calculate the pressure using the ideal gas law.
+  Real Pressure(Real n, Real T, Real* Y);
 
-    /// Calculate the pressure using the ideal gas law.
-    Real Pressure(Real n, Real T, Real *Y);
+  /// Calculate the entropy per baryon using the ideal gas law.
+  // MJ: TODO
+  Real Entropy(Real n, Real T, Real* Y)
+  {
+    return NAN;
+  }
 
-    /// Calculate the entropy per baryon using the ideal gas law.
-    // MJ: TODO
-    Real Entropy(Real n, Real T, Real *Y)
-    {
-      return NAN;
-    }
+  /// Calculate the enthalpy per baryon using the ideal gas law.
+  Real Enthalpy(Real n, Real T, Real* Y);
 
-    /// Calculate the enthalpy per baryon using the ideal gas law.
-    Real Enthalpy(Real n, Real T, Real *Y);
+  /// Fused temperature + pressure + enthalpy from energy.
+  void TemperaturePressureAndEnthalpyFromE(Real n,
+                                           Real e,
+                                           Real* Y,
+                                           Real* T,
+                                           Real* P,
+                                           Real* h,
+                                           int* guess_it = nullptr);
 
-    /// Get the minimum enthalpy per baryon according to the ideal gas law.
-    Real MinimumEnthalpy();
+  void PressureAndEnthalpyFromE(Real n,
+                                Real e,
+                                Real* Y,
+                                Real* P,
+                                Real* h,
+                                int* guess_it = nullptr);
 
-    /// Calculate the sound speed for an ideal gas.
-    Real SoundSpeed(Real n, Real T, Real *Y);
+  /// Fused pressure + enthalpy query.
+  void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
 
-    /// Species fractions
-    [[ noreturn ]]
-    Real FrYn(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYp(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYh(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYa(Real n, Real T, Real *Y);
+  /// Get the minimum enthalpy per baryon according to the ideal gas law.
+  Real MinimumEnthalpy();
 
-    [[ noreturn ]]
-    Real AN(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real ZN(Real n, Real T, Real *Y);
+  /// Calculate the sound speed for an ideal gas.
+  Real SoundSpeed(Real n, Real T, Real* Y);
 
-    [[ noreturn ]]
-    Real Abar(Real n, Real T, Real *Y);
+  // Returns neutron number fraction Y_n = n_n / n_b.
+  [[noreturn]]
+  Real FrYn(Real n, Real T, Real* Y);
+  // Returns proton number fraction Y_p = n_p / n_b.
+  [[noreturn]]
+  Real FrYp(Real n, Real T, Real* Y);
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
+  [[noreturn]]
+  Real FrXh(Real n, Real T, Real* Y);
 
+  [[noreturn]]
+  Real AN(Real n, Real T, Real* Y);
+  [[noreturn]]
+  Real ZN(Real n, Real T, Real* Y);
 
-    /// Calculate the internal energy per mass
-    Real SpecificInternalEnergy(Real n, Real T, Real *Y);
+  /// Calculate the internal energy per mass
+  Real SpecificInternalEnergy(Real n, Real T, Real* Y);
 
-    /// Calculate the baryon chemical potential
-    [[ noreturn ]]
-    Real BaryonChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the baryon chemical potential
+  [[noreturn]]
+  Real BaryonChemicalPotential(Real n, Real T, Real* Y);
 
-    /// Calculate the charge chemical potential
-    [[ noreturn ]]
-    Real ChargeChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the charge chemical potential
+  [[noreturn]]
+  Real ChargeChemicalPotential(Real n, Real T, Real* Y);
 
-    /// Calculate the electron-lepton chemical potential
-    [[ noreturn ]]
-    Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the electron-lepton chemical potential
+  [[noreturn]]
+  Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
 
-    /// Calculate the minimum pressure at a given density and composition
-    inline Real MinimumPressure(Real n, Real *Y) {
-      return 0.0;
-    }
+  /// Calculate the effective nucleon interaction potential difference
+  [[noreturn]]
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
-    /// Calculate the maximum pressure at a given density and composition
-    inline Real MaximumPressure(Real n, Real *Y) {
-      return std::numeric_limits<Real>::max();
-    }
+  /// Calculate the minimum pressure at a given density and composition
+  inline Real MinimumPressure(Real n, Real* Y)
+  {
+    return 0.0;
+  }
 
-    /// Calculate the minimum energy density at a given density and composition
-    Real MinimumEnergy(Real n, Real *Y);
+  /// Calculate the maximum pressure at a given density and composition
+  inline Real MaximumPressure(Real n, Real* Y)
+  {
+    return std::numeric_limits<Real>::max();
+  }
 
-    /// Calculate the maximum energy density at a given density and composition
-    inline Real MaximumEnergy(Real n, Real *Y) {
-      return std::numeric_limits<Real>::max();
-    }
+  /// Calculate the minimum energy density at a given density and composition
+  Real MinimumEnergy(Real n, Real* Y);
 
-    /// Calculate the minimum specific internal energy at a given density and composition
-    Real MinimumSpecificInternalEnergy(Real n, Real *Y) {
-      return MinimumEnergy(n, Y)/(mb*n) - 1.0;
-    }
+  /// Calculate the maximum energy density at a given density and composition
+  inline Real MaximumEnergy(Real n, Real* Y)
+  {
+    return std::numeric_limits<Real>::max();
+  }
 
-    /// Calculate the maximum specific internal energy at a given density and composition
-    inline Real MaximumSpecificInternalEnergy(Real n, Real *Y) {
-      return MaximumEnergy(n, Y)/(mb*n) - 1.0;
-    }
+  /// Calculate the minimum entropy at a given density and composition.
+  /// Not implemented for IdealGas (stub for eos.hpp linkage; gated at
+  /// reconstruction ctor so this should never be reached at runtime).
+  [[noreturn]]
+  Real MinimumEntropy(Real n, Real* Y);
+
+  /// Calculate the maximum entropy at a given density and composition.
+  [[noreturn]]
+  Real MaximumEntropy(Real n, Real* Y);
+
+  /// Calculate the minimum specific internal energy at a given density and
+  /// composition
+  Real MinimumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MinimumEnergy(n, Y) / (mb * n) - 1.0;
+  }
+
+  /// Calculate the maximum specific internal energy at a given density and
+  /// composition
+  inline Real MaximumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MaximumEnergy(n, Y) / (mb * n) - 1.0;
+  }
 
   public:
-    /// Set the adiabatic index for the ideal gas.
-    /// The range \f$1 < \gamma < 1\f$ is imposed. The lower
-    /// constraint ensures that enthalpy is finite, and the upper
-    /// bound keeps the sound speed causal.
-    inline void SetGamma(Real g) {
-      gamma = (g <= 1.0) ? 1.00001 : ((g >= 2.0) ? 2.00001 : g);
-      gammam1 = gamma - 1.0;
-    }
+  /// Set the adiabatic index for the ideal gas.
+  /// The range \f$1 < \gamma < 1\f$ is imposed. The lower
+  /// constraint ensures that enthalpy is finite, and the upper
+  /// bound keeps the sound speed causal.
+  inline void SetGamma(Real g)
+  {
+    gamma   = (g <= 1.0) ? 1.00001 : ((g >= 2.0) ? 2.00001 : g);
+    gammam1 = gamma - 1.0;
+  }
 
-    /// Get the adiabatic index.
-    inline Real GetGamma() const {
-      return gamma;
-    }
+  /// Get the adiabatic index.
+  inline Real GetGamma() const
+  {
+    return gamma;
+  }
 
-    /// Set the baryon mass
-    inline void SetBaryonMass(Real m) {
-      mb = m;
-    }
+  /// Set the baryon mass
+  inline void SetBaryonMass(Real m)
+  {
+    mb = m;
+  }
 
-    /// Set the number of species. Throw an exception if
-    /// the number of species is invalid.
-    void SetNSpecies(int n);
+  /// Set the number of species. Throw an exception if
+  /// the number of species is invalid.
+  void SetNSpecies(int n);
 
-    /// Set the EOS unit system.
-    inline void SetEOSUnitSystem(UnitSystem* units) {
-      eos_units = units;
-    }
+  /// Set the EOS unit system.
+  inline void SetEOSUnitSystem(UnitSystem* units)
+  {
+    eos_units = units;
+  }
 };
 
-} // namespace
+}  // namespace Primitive
 
 #endif

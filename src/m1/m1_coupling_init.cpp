@@ -4,30 +4,30 @@
 // Athena++ headers
 #include "../coordinates/coordinates.hpp"
 #include "../hydro/hydro.hpp"
-#include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../z4c/z4c.hpp"
 #include "m1.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
 
 // ============================================================================
-namespace M1 {
+namespace M1
+{
 // ============================================================================
 
 // ----------------------------------------------------------------------------
 // Prepare coupled (background) geometry (only during M1 ctor)
-void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
+void M1::InitializeGeometry(vars_Geom& geom, vars_Scratch& scratch)
 {
   // Allocate / slice dense storage -------------------------------------------
 #ifdef Z4C_CX_ENABLED
-  AA & u_adm = pmy_block->pz4c->storage.adm;
-  geom.sc_alpha.InitWithShallowSlice( u_adm, Z4c::I_ADM_alpha);
+  AA& u_adm = pmy_block->pz4c->storage.adm;
+  geom.sc_alpha.InitWithShallowSlice(u_adm, Z4c::I_ADM_alpha);
   geom.sp_beta_u.InitWithShallowSlice(u_adm, Z4c::I_ADM_betax);
-  geom.sp_g_dd.InitWithShallowSlice(  u_adm, Z4c::I_ADM_gxx);
-  geom.sp_K_dd.InitWithShallowSlice(  u_adm, Z4c::I_ADM_Kxx);
+  geom.sp_g_dd.InitWithShallowSlice(u_adm, Z4c::I_ADM_gxx);
+  geom.sp_K_dd.InitWithShallowSlice(u_adm, Z4c::I_ADM_Kxx);
   geom.sc_sqrt_det_g.InitWithShallowSlice(
-    pmy_block->pz4c->aux_extended.gs_sqrt_detgamma.array(), 0
-  );
+    pmy_block->pz4c->aux_extended.gs_sqrt_detgamma.array(), 0);
 #else
   geom.sc_alpha.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
   geom.sp_beta_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
@@ -36,7 +36,7 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
   geom.sp_K_dd.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
   geom.sc_sqrt_det_g.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-#endif // Z4C_CX_ENABLED
+#endif  // Z4C_CX_ENABLED
 
   // always allocated ---------------------------------------------------------
   geom.sp_dalpha_d.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
@@ -58,12 +58,12 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
     geom.sp_beta_u.Fill(0.0);
 
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    M1_GLOOP3(k,j,i)
-    {
-      geom.sp_g_dd(a,b,k,j,i) = (a==b);
-    }
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        M1_GLOOP3(k, j, i)
+        {
+          geom.sp_g_dd(a, b, k, j, i) = (a == b);
+        }
 
     geom.sp_K_dd.Fill(0.0);
     geom.sp_dg_ddd.Fill(0.0);
@@ -74,17 +74,16 @@ void M1::InitializeGeometry(vars_Geom & geom, vars_Scratch & scratch)
   return;
 }
 
-
 // ----------------------------------------------------------------------------
 // Update coupled (background) geometry (only _after_ M1 ctor)
-void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
+void M1::UpdateGeometry(vars_Geom& geom, vars_Scratch& scratch)
 {
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_coord);
 
   // Populate storage ---------------------------------------------------------
   if (Z4C_ENABLED)
   {
-    Z4c * pz4c = pmy_block->pz4c;
+    Z4c* pz4c = pmy_block->pz4c;
 
     // sliced quantities
     AT_C_sca sl_alpha(pz4c->storage.adm, Z4c::I_ADM_alpha);
@@ -110,113 +109,108 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
     // M1: on CC --------------------------------------------------------------
     int IL, IU, JL, JU, KL, KU;
-    pco_gr->GetGeometricFieldCCIdxRanges(
-      IL, IU,
-      JL, JU,
-      KL, KU);
+    pco_gr->GetGeometricFieldCCIdxRanges(IL, IU, JL, JU, KL, KU);
 
 #ifndef Z4C_CX_ENABLED
-    for (int k=KL; k<=KU; ++k)
-    for (int j=JL; j<=JU; ++j)
-    {
-      pco_gr->GetGeometricFieldCC(alpha_, sl_alpha, k, j);
-
-      pco_gr->GetGeometricFieldCC(beta_u_, sl_beta_u, k, j);
-
-      pco_gr->GetGeometricFieldCC(g_dd_, sl_g_dd, k, j);
-      pco_gr->GetGeometricFieldCC(K_dd_, sl_K_dd, k, j);
-
-      // Copy to dense storage ------------------------------------------------
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
+    for (int k = KL; k <= KU; ++k)
+      for (int j = JL; j <= JU; ++j)
       {
-        geom.sc_alpha(k,j,i) = alpha_(i);
-      }
+        pco_gr->GetGeometricFieldCC(alpha_, sl_alpha, k, j);
 
-      for(int a = 0; a < NDIM; ++a)
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
-      {
-        geom.sp_beta_u(a,k,j,i) = beta_u_(a,i);
-      }
+        pco_gr->GetGeometricFieldCC(beta_u_, sl_beta_u, k, j);
 
-      for(int a = 0; a < NDIM; ++a)
-      for(int b = a; b < NDIM; ++b)
-      #pragma omp simd
-      for (int i=IL; i<=IU; ++i)
-      {
-        geom.sp_g_dd(a,b,k,j,i) = g_dd_(a,b,i);
-        geom.sp_K_dd(a,b,k,j,i) = K_dd_(a,b,i);
+        pco_gr->GetGeometricFieldCC(g_dd_, sl_g_dd, k, j);
+        pco_gr->GetGeometricFieldCC(K_dd_, sl_K_dd, k, j);
+
+// Copy to dense storage ------------------------------------------------
+#pragma omp simd
+        for (int i = IL; i <= IU; ++i)
+        {
+          geom.sc_alpha(k, j, i) = alpha_(i);
+        }
+
+        for (int a = 0; a < NDIM; ++a)
+#pragma omp simd
+          for (int i = IL; i <= IU; ++i)
+          {
+            geom.sp_beta_u(a, k, j, i) = beta_u_(a, i);
+          }
+
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = a; b < NDIM; ++b)
+#pragma omp simd
+            for (int i = IL; i <= IU; ++i)
+            {
+              geom.sp_g_dd(a, b, k, j, i) = g_dd_(a, b, i);
+              geom.sp_K_dd(a, b, k, j, i) = K_dd_(a, b, i);
+            }
       }
-    }
-#endif // Z4C_CX_ENABLED
+#endif  // Z4C_CX_ENABLED
 
     // Derivatives for geometric sources needed on interior -------------------
-    for (int k=mbi.kl; k<=mbi.ku; ++k)
-    for (int j=mbi.jl; j<=mbi.ju; ++j)
-    {
-
+    for (int k = mbi.kl; k <= mbi.ku; ++k)
+      for (int j = mbi.jl; j <= mbi.ju; ++j)
+      {
 #if !defined(DBG_FD_CX_COORDDIV) || !defined(Z4C_CX_ENABLED)
-      for(int a=0; a<NDIM; ++a)
-      {
-        pco_gr->GetGeometricFieldDerCC(dalpha_d_, sl_alpha,  a, k, j);
-        pco_gr->GetGeometricFieldDerCC(dbeta_du_, sl_beta_u, a, k, j);
-        pco_gr->GetGeometricFieldDerCC(dg_ddd_,   sl_g_dd,   a, k, j);
-      }
+        for (int a = 0; a < NDIM; ++a)
+        {
+          pco_gr->GetGeometricFieldDerCC(dalpha_d_, sl_alpha, a, k, j);
+          pco_gr->GetGeometricFieldDerCC(dbeta_du_, sl_beta_u, a, k, j);
+          pco_gr->GetGeometricFieldDerCC(dg_ddd_, sl_g_dd, a, k, j);
+        }
 #else
-    FiniteDifference::Uniform * fd_cx = pco_gr->fd_cx;
+        // Read pre-computed physical derivatives from storage.aux
+        for (int a = 0; a < NDIM; ++a)
+#pragma omp simd
+          for (int i = mbi.il; i <= mbi.iu; ++i)
+          {
+            dalpha_d_(a, i) = pz4c->aux.dalpha_d(a, k, j, i);
+          }
 
-    for (int a=0; a<NDIM; ++a)
-    #pragma omp simd
-    for (int i=mbi.il; i<=mbi.iu; ++i)
-    {
-      dalpha_d_(a,i) = fd_cx->Dx(a, sl_alpha(k,j,i));
-    }
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = 0; b < NDIM; ++b)
+#pragma omp simd
+            for (int i = mbi.il; i <= mbi.iu; ++i)
+            {
+              dbeta_du_(b, a, i) = pz4c->aux.dbeta_du(b, a, k, j, i);
+            }
 
-    for (int a=0; a<NDIM; ++a)
-    for (int b=0; b<NDIM; ++b)
-    #pragma omp simd
-    for (int i=mbi.il; i<=mbi.iu; ++i)
-    {
-      dbeta_du_(b,a,i) = fd_cx->Dx(b, sl_beta_u(a,k,j,i));
-    }
+        for (int a = 0; a < NDIM; ++a)
+          for (int b = a; b < NDIM; ++b)
+            for (int c = 0; c < NDIM; ++c)
+#pragma omp simd
+              for (int i = mbi.il; i <= mbi.iu; ++i)
+              {
+                dg_ddd_(c, a, b, i) = pz4c->aux.dg_ddd(c, a, b, k, j, i);
+              }
+#endif  // DBG_FD_CX_COORDDIV
 
-    for (int a=0; a<NDIM; ++a)
-    for (int b=a; b<NDIM; ++b)
-    for (int c=0; c<NDIM; ++c)
-    #pragma omp simd
-    for (int i=mbi.il; i<=mbi.iu; ++i)
-    {
-      dg_ddd_(c,a,b,i) = fd_cx->Dx(c, sl_g_dd(a,b,k,j,i));
-    }
-#endif // DBG_FD_CX_COORDDIV
+        // Copy to dense storage
+        // ------------------------------------------------
+        for (int c = 0; c < NDIM; ++c)
+#pragma omp simd
+          for (int i = mbi.il; i <= mbi.iu; ++i)
+          {
+            geom.sp_dalpha_d(c, k, j, i) = dalpha_d_(c, i);
+          }
 
-      // Copy to dense storage ------------------------------------------------
-      for(int c = 0; c < NDIM; ++c)
-      #pragma omp simd
-      for (int i=mbi.il; i<=mbi.iu; ++i)
-      {
-        geom.sp_dalpha_d(c,k,j,i) = dalpha_d_(c,i);
+        for (int c = 0; c < NDIM; ++c)
+          for (int a = 0; a < NDIM; ++a)
+#pragma omp simd
+            for (int i = mbi.il; i <= mbi.iu; ++i)
+            {
+              geom.sp_dbeta_du(c, a, k, j, i) = dbeta_du_(c, a, i);
+            }
+
+        for (int c = 0; c < NDIM; ++c)
+          for (int a = 0; a < NDIM; ++a)
+            for (int b = a; b < NDIM; ++b)
+#pragma omp simd
+              for (int i = mbi.il; i <= mbi.iu; ++i)
+              {
+                geom.sp_dg_ddd(c, a, b, k, j, i) = dg_ddd_(c, a, b, i);
+              }
       }
-
-      for(int c = 0; c < NDIM; ++c)
-      for(int a = 0; a < NDIM; ++a)
-      #pragma omp simd
-      for (int i=mbi.il; i<=mbi.iu; ++i)
-      {
-        geom.sp_dbeta_du(c,a,k,j,i) = dbeta_du_(c,a,i);
-      }
-
-      for(int c = 0; c < NDIM; ++c)
-      for(int a = 0; a < NDIM; ++a)
-      for(int b = a; b < NDIM; ++b)
-      #pragma omp simd
-      for (int i=mbi.il; i<=mbi.iu; ++i)
-      {
-        geom.sp_dg_ddd(c,a,b,k,j,i) = dg_ddd_(c,a,b,i);
-      }
-
-    }
 
     // Derived quantities (sqrt_det, spatial inv)
     DerivedGeometry(geom, scratch);
@@ -225,87 +219,92 @@ void M1::UpdateGeometry(vars_Geom & geom, vars_Scratch & scratch)
 
 // ----------------------------------------------------------------------------
 // Derived quantities based on coupled (background) geometry
-void M1::DerivedGeometry(vars_Geom & geom, vars_Scratch & scratch)
+void M1::DerivedGeometry(vars_Geom& geom, vars_Scratch& scratch)
 {
   using namespace LinearAlgebra;
 
   GRDynamical* pco_gr = static_cast<GRDynamical*>(pmy_coord);
 
-  AT_C_sca detgamma_(   mbi.nn1);  // spatial met det
-  AT_C_sca oo_detgamma_(mbi.nn1);  // 1 / spatial met det
-
-  AT_N_sym sp_g_uu_(mbi.nn1);
-
   // M1: on CC ----------------------------------------------------------------
   int IL, IU, JL, JU, KL, KU;
-  pco_gr->GetGeometricFieldCCIdxRanges(
-    IL, IU,
-    JL, JU,
-    KL, KU);
+  pco_gr->GetGeometricFieldCCIdxRanges(IL, IU, JL, JU, KL, KU);
 
-  for (int k=KL; k<=KU; ++k)
-  for (int j=JL; j<=JU; ++j)
-  {
 #ifdef Z4C_CX_ENABLED
-    #pragma omp simd
-    for (int i=IL; i<=IU; ++i)
-    {
-      // have geom.sc_sqrt_det_g(k,j,i)
-      geom.sc_oo_sqrt_det_g(k,j,i) = OO(geom.sc_sqrt_det_g(k,j,i));
-      oo_detgamma_(i) = SQR(geom.sc_oo_sqrt_det_g(k,j,i));
-    }
+  Z4c* pz4c = pmy_block->pz4c;
+  AT_N_sym adm_gamma_uu;
+  adm_gamma_uu.InitWithShallowSlice(pz4c->storage.aux_extended,
+                                    Z4c::I_AUX_EXTENDED_guxx);
 #else
-    Det3Metric(detgamma_,geom.sp_g_dd,
-               k,j,IL,IU);
+  AT_C_sca detgamma_(mbi.nn1);     // spatial met det
+  AT_C_sca oo_detgamma_(mbi.nn1);  // 1 / spatial met det
+  AT_N_sym sp_g_uu_(mbi.nn1);
+#endif
 
-    #pragma omp simd
-    for (int i=IL; i<=IU; ++i)
+  for (int k = KL; k <= KU; ++k)
+    for (int j = JL; j <= JU; ++j)
     {
-      oo_detgamma_(i) = 1.0 / detgamma_(i);
-      geom.sc_sqrt_det_g(k,j,i) = std::sqrt(detgamma_(i));
-      geom.sc_oo_sqrt_det_g(k,j,i) = OO(geom.sc_sqrt_det_g(k,j,i));
+#ifdef Z4C_CX_ENABLED
+#pragma omp simd
+      for (int i = IL; i <= IU; ++i)
+      {
+        // have geom.sc_sqrt_det_g(k,j,i)
+        geom.sc_oo_sqrt_det_g(k, j, i) = OO(geom.sc_sqrt_det_g(k, j, i));
+      }
+
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+#pragma omp simd
+          for (int i = IL; i <= IU; ++i)
+          {
+            geom.sp_g_uu(a, b, k, j, i) = adm_gamma_uu(a, b, k, j, i);
+          }
+#else
+      Det3Metric(detgamma_, geom.sp_g_dd, k, j, IL, IU);
+
+#pragma omp simd
+      for (int i = IL; i <= IU; ++i)
+      {
+        oo_detgamma_(i)                = 1.0 / detgamma_(i);
+        geom.sc_sqrt_det_g(k, j, i)    = std::sqrt(detgamma_(i));
+        geom.sc_oo_sqrt_det_g(k, j, i) = OO(geom.sc_sqrt_det_g(k, j, i));
+      }
+
+      Inv3Metric(oo_detgamma_, geom.sp_g_dd, sp_g_uu_, k, j, IL, IU);
+
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+#pragma omp simd
+          for (int i = IL; i <= IU; ++i)
+          {
+            geom.sp_g_uu(a, b, k, j, i) = sp_g_uu_(a, b, i);
+          }
+#endif  // Z4C_CX_ENABLED
+
+      Assemble::sp_beta_d(
+        geom.sp_beta_d, geom.sp_beta_u, geom.sp_g_dd, scratch, k, j, IL, IU);
     }
-#endif // Z4C_CX_ENABLED
-
-    Inv3Metric(oo_detgamma_, geom.sp_g_dd, sp_g_uu_,
-               k,j,IL,IU);
-
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
-    #pragma omp simd
-    for (int i=IL; i<=IU; ++i)
-    {
-      geom.sp_g_uu(a,b,k,j,i) = sp_g_uu_(a,b,i);
-    }
-
-    Assemble::sp_beta_d(geom.sp_beta_d, geom.sp_beta_u, geom.sp_g_dd, scratch,
-                        k, j, IL, IU);
-
-  }
-
-
 }
 
 // ----------------------------------------------------------------------------
 // Prepare coupled (background) hydro (only during M1 ctor)
-void M1::InitializeHydro(vars_Hydro & hydro,
-                         vars_Geom & geom,
-                         vars_Scratch & scratch)
+void M1::InitializeHydro(vars_Hydro& hydro,
+                         vars_Geom& geom,
+                         vars_Scratch& scratch)
 {
   // Allocate dense storage ---------------------------------------------------
   if (FLUID_ENABLED)
   {
-    Hydro * phydro = pmy_block->phydro;
-    PassiveScalars * pscalars = pmy_block->pscalars;
+    Hydro* phydro            = pmy_block->phydro;
+    PassiveScalars* pscalars = pmy_block->pscalars;
 
     // slice primitives
-    hydro.sc_w_rho.InitWithShallowSlice(   phydro->w, IDN);
+    hydro.sc_w_rho.InitWithShallowSlice(phydro->w, IDN);
     if (NSCALARS > 0)
     {
-      hydro.sc_w_Ye.InitWithShallowSlice(  pscalars->r, 0);
+      hydro.sc_w_Ye.InitWithShallowSlice(pscalars->r, 0);
     }
     hydro.sp_w_util_u.InitWithShallowSlice(phydro->w, IVX);
-    hydro.sc_w_p.InitWithShallowSlice(     phydro->w, IPR);
+    hydro.sc_w_p.InitWithShallowSlice(phydro->w, IPR);
     hydro.sc_T.InitWithShallowSlice(phydro->derived_ms, IX_T);
 
     if (opt.fiducial_velocity == opt_fiducial_velocity::fluid)
@@ -320,16 +319,16 @@ void M1::InitializeHydro(vars_Hydro & hydro,
   else
   {
     // Fixed hydro background
-    hydro.sc_w_rho.NewAthenaTensor(   mbi.nn3, mbi.nn2, mbi.nn1);
-    hydro.sc_w_Ye.NewAthenaTensor(    mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_w_rho.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_w_Ye.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sp_w_util_u.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
-    hydro.sc_w_p.NewAthenaTensor(     mbi.nn3, mbi.nn2, mbi.nn1);
+    hydro.sc_w_p.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     hydro.sc_W.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
     hydro.sc_T.NewAthenaTensor(mbi.nn3, mbi.nn2, mbi.nn1);
 
     // set constant Gamma=2 EoS with K=1 for debug
-    const Real K = 1;
+    const Real K     = 1;
     const Real Gamma = 2;
 
     hydro.sc_w_rho.Fill(1e-10);
@@ -337,9 +336,9 @@ void M1::InitializeHydro(vars_Hydro & hydro,
 
     // DR: we should store the temperature and not the pressure
     // BD: TODO - T slice (also see weak-rates)
-    M1_GLOOP3(k,j,i)
+    M1_GLOOP3(k, j, i)
     {
-      hydro.sc_w_p(k,j,i) = K * std::pow(hydro.sc_w_rho(k,j,i), Gamma);
+      hydro.sc_w_p(k, j, i) = K * std::pow(hydro.sc_w_rho(k, j, i), Gamma);
     }
   }
 
@@ -350,9 +349,7 @@ void M1::InitializeHydro(vars_Hydro & hydro,
 
 // ----------------------------------------------------------------------------
 // Update coupled (background) hydro (only _after_ M1 ctor)
-void M1::UpdateHydro(vars_Hydro & hydro,
-                     vars_Geom & geom,
-                     vars_Scratch & scratch)
+void M1::UpdateHydro(vars_Hydro& hydro, vars_Geom& geom, vars_Scratch& scratch)
 {
   if (FLUID_ENABLED)
   {
@@ -364,9 +361,9 @@ void M1::UpdateHydro(vars_Hydro & hydro,
 
 // ----------------------------------------------------------------------------
 // Derived quantities based on coupled (background) geometry
-void M1::DerivedHydro(vars_Hydro & hydro,
-                      vars_Geom & geom,
-                      vars_Scratch & scratch)
+void M1::DerivedHydro(vars_Hydro& hydro,
+                      vars_Geom& geom,
+                      vars_Scratch& scratch)
 {
   using namespace LinearAlgebra;
 
@@ -375,42 +372,44 @@ void M1::DerivedHydro(vars_Hydro & hydro,
   if (!((opt.fiducial_velocity == opt_fiducial_velocity::fluid) &&
         FLUID_ENABLED))
   {
-    M1_GLOOP3(k,j,i)
+    M1_GLOOP3(k, j, i)
     {
-      const Real norm2_util = InnerProductVecMetric(
-        hydro.sp_w_util_u, geom.sp_g_dd,
-        k,j,i
-      );
-      hydro.sc_W(k,j,i) = std::sqrt(1. + norm2_util);
+      const Real norm2_util =
+        InnerProductVecMetric(hydro.sp_w_util_u, geom.sp_g_dd, k, j, i);
+      hydro.sc_W(k, j, i) = std::sqrt(1. + norm2_util);
     }
   }
 
+  /*
 #if !FLUID_ENABLED
   M1_GLOOP2(k,j)
   {
     M1_GLOOP1(i)
     {
-#if USETM
-      const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
-      const Real nb = hydro.sc_w_rho(k,j,i) / mb;
-      const Real w_p = hydro.sc_w_p(k,j,i);
-      Real Y[MAX_SPECIES] = {0.0};
-      Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
-
-      hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(
-        nb, w_p, Y
-      );
-#endif // USETM
-
+      // NOTE: Temperature inversion from fixed hydro background without fluid
+      // is not currently implemented. The previous code path
+(`peos->GetEOS()`)
+      // was broken because peos is never instantiated when FLUID_ENABLED=0.
+      // If you need this, enable fluid (-f) or implement a standalone EOS
+path. assert(false && "M1 DerivedHydro: temperature inversion without fluid is
+not implemented");
+      // Original (broken) code for reference:
+      // const Real mb = pmy_block->peos->GetEOS().GetBaryonMass();
+      // const Real nb = hydro.sc_w_rho(k,j,i) / mb;
+      // const Real w_p = hydro.sc_w_p(k,j,i);
+      // Real Y[MAX_SPECIES] = {0.0};
+      // Y[0] = pm1->hydro.sc_w_Ye(k, j, i);
+      // hydro.sc_T(k,j,i) = pmy_block->peos->GetEOS().GetTemperatureFromP(nb,
+w_p, Y);
     }
   }
 
 #endif // !FLUID_ENABLED
-
+*/
 }
 
 // ============================================================================
-} // namespace M1
+}  // namespace M1
 // ============================================================================
 
 //

@@ -1,16 +1,16 @@
 // C++ standard headers
+#include <unistd.h>
+
 #include <cmath>
 #include <iostream>
 #include <limits>
 #include <sstream>
-#include <unistd.h>
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
-#include "hydro.hpp"
 #include "../utils/linear_algebra.hpp"
 #include "../z4c/z4c.hpp"
-
+#include "hydro.hpp"
 #include "rescaling.hpp"
 
 // External libraries
@@ -21,38 +21,35 @@
 #endif
 
 // ============================================================================
-namespace gra::hydro::rescaling {
+namespace gra::hydro::rescaling
+{
 // ============================================================================
 
-Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
-  pm (pm),
-  pin (pin),
-  ini {
-    false, // initialized
-  }
+Rescaling::Rescaling(Mesh* pm, ParameterInput* pin)
+    : pm(pm),
+      pin(pin),
+      ini{
+        false,  // initialized
+      }
 {
   // scrape settings ----------------------------------------------------------
   {
-    opt.verbose = pin->GetOrAddBoolean("rescaling", "verbose", false);
+    opt.verbose    = pin->GetOrAddBoolean("rescaling", "verbose", false);
     opt.use_cutoff = pin->GetOrAddBoolean("rescaling", "use_cutoff", false);
     opt.rescale_conserved_density =
-        pin->GetOrAddBoolean("rescaling", "rescale_conserved_density", false);
+      pin->GetOrAddBoolean("rescaling", "rescale_conserved_density", false);
     opt.rescale_conserved_scalars =
-        pin->GetOrAddBoolean("rescaling", "rescale_conserved_scalars", false);
+      pin->GetOrAddBoolean("rescaling", "rescale_conserved_scalars", false);
 
     opt.apply_on_substeps =
-        pin->GetOrAddBoolean("rescaling", "apply_on_substeps", false);
+      pin->GetOrAddBoolean("rescaling", "apply_on_substeps", false);
     opt.disable_on_first_failure =
-        pin->GetOrAddBoolean("rescaling", "disable_on_first_failure", false);
+      pin->GetOrAddBoolean("rescaling", "disable_on_first_failure", false);
 
-    opt.start_time =
-        pin->GetOrAddReal("rescaling", "start_time", -1.0);
-    opt.end_time =
-        pin->GetOrAddReal("rescaling", "end_time", -1.0);
+    opt.start_time = pin->GetOrAddReal("rescaling", "start_time", -1.0);
+    opt.end_time   = pin->GetOrAddReal("rescaling", "end_time", -1.0);
 
-    opt.dump_status =
-        pin->GetOrAddBoolean("rescaling", "dump_status", false);
-
+    opt.dump_status = pin->GetOrAddBoolean("rescaling", "dump_status", false);
 
     filename = pin->GetOrAddString("rescaling", "filename", "resc");
     filename += ".txt";
@@ -60,7 +57,7 @@ Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
 
   if (opt.rescale_conserved_density)
   {
-    opt.fac_mul_D = pin->GetOrAddReal("rescaling", "fac_mul_D", 1.5);
+    opt.fac_mul_D     = pin->GetOrAddReal("rescaling", "fac_mul_D", 1.5);
     opt.err_rel_hydro = pin->GetOrAddReal("rescaling", "err_rel_hydro", 1e-8);
 
     cur.fac_mul_D = SQR(opt.fac_mul_D);
@@ -69,12 +66,11 @@ Rescaling::Rescaling(Mesh *pm, ParameterInput *pin) :
   if (opt.rescale_conserved_scalars)
   {
     opt.fac_mul_s = pin->GetOrAddReal("rescaling", "fac_mul_s", 1.5);
-    opt.err_rel_scalars = pin->GetOrAddReal("rescaling",
-                                            "err_rel_scalars",
-                                            1e-8);
+    opt.err_rel_scalars =
+      pin->GetOrAddReal("rescaling", "err_rel_scalars", 1e-8);
 
     cur.fac_mul_s.NewAthenaArray(NSCALARS);
-    for (int n=0; n<NSCALARS; ++n)
+    for (int n = 0; n < NSCALARS; ++n)
     {
       cur.fac_mul_s(n) = SQR(opt.fac_mul_s);
     }
@@ -105,10 +101,10 @@ void Rescaling::Initialize()
   if (opt.rescale_conserved_density)
   {
     const Real D_cut = 0;
-    ini.m = pin->GetOrAddReal(
-      "rescaling", "ini_m",
-      IntegrateField(variety_cs::conserved_hydro, IDN, D_cut)
-    );
+    ini.m            = pin->GetOrAddReal(
+      "rescaling",
+      "ini_m",
+      IntegrateField(variety_cs::conserved_hydro, IDN, D_cut));
     cur.m = ini.m;
   }
 
@@ -121,9 +117,7 @@ void Rescaling::Initialize()
 
     if (pin->DoesParameterExist("rescaling", "ini_S"))
     {
-      AA ini_S_inp = pin->GetOrAddRealArray(
-        "rescaling", "ini_S", 0, 0
-      );
+      AA ini_S_inp = pin->GetOrAddRealArray("rescaling", "ini_S", 0, 0);
 
       if (ini_S_inp.GetSize() != NSCALARS)
       {
@@ -134,22 +128,21 @@ void Rescaling::Initialize()
       }
       else
       {
-        for (int n=0; n<NSCALARS; ++n)
+        for (int n = 0; n < NSCALARS; ++n)
         {
           ini.S(n) = ini_S_inp(n);
         }
       }
-
     }
     else
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         ini.S(n) = IntegrateField(variety_cs::conserved_scalar, n, s_cut);
       }
     }
 
-    for (int n=0; n<NSCALARS; ++n)
+    for (int n = 0; n < NSCALARS; ++n)
     {
       cur.S(n) = ini.S(n);
     }
@@ -188,36 +181,31 @@ void Rescaling::Apply()
   (void)nthreads;
 
   int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
 
-  if (opt.rescale_conserved_density ||
-      ((NSCALARS > 0) && opt.rescale_conserved_scalars))
-  {
-    // initialize a vector of MeshBlock pointers
-    pm->GetMeshBlocksMyRank(pmb_array);
-    nmb = pmb_array.size();
-  }
-  else
+  if (!(opt.rescale_conserved_density ||
+        ((NSCALARS > 0) && opt.rescale_conserved_scalars)))
   {
     // don't need to do anything
     return;
   }
 
+  // initialize a vector of MeshBlock pointers
+  const auto& pmb_array = pm->GetMeshBlocksCached();
+  nmb                   = pmb_array.size();
+
   // check cur.X is finite - if not, disable ----------------------------------
   if (opt.rescale_conserved_density)
   {
-    opt.rescale_conserved_density = (
-      opt.rescale_conserved_density && std::isfinite(cur.m)
-    );
+    opt.rescale_conserved_density =
+      (opt.rescale_conserved_density && std::isfinite(cur.m));
   }
 
   if (opt.rescale_conserved_scalars)
   {
-    for (int n=0; n<NSCALARS; ++n)
+    for (int n = 0; n < NSCALARS; ++n)
     {
-      opt.rescale_conserved_scalars = (
-        opt.rescale_conserved_scalars && std::isfinite(cur.S(n))
-      );
+      opt.rescale_conserved_scalars =
+        (opt.rescale_conserved_scalars && std::isfinite(cur.S(n)));
     }
   }
   // --------------------------------------------------------------------------
@@ -232,8 +220,8 @@ void Rescaling::Apply()
       cur.fac_mul_D /= opt.fac_mul_D;
 
       const bool require_positive = true;
-      cur.min_D = GlobalMinimum(variety_cs::conserved_hydro,
-                                IDN, require_positive);
+      cur.min_D =
+        GlobalMinimum(variety_cs::conserved_hydro, IDN, require_positive);
       cur.m = IntegrateField(variety_cs::conserved_hydro, IDN, 0);
 
       const Real dm = std::abs(ini.m - cur.m);
@@ -252,48 +240,46 @@ void Rescaling::Apply()
 
       cur.cut_D = cur.fac_mul_D * cur.min_D;
       cur.rsc_D = (cur_m_atm != 0)
-        ? std::abs(((ini.m - cur.m) + cur_m_atm) / cur_m_atm)
-        : 1.0;
+                  ? std::abs(((ini.m - cur.m) + cur_m_atm) / cur_m_atm)
+                  : 1.0;
     }
     else
     {
       cur.cut_D = -std::numeric_limits<Real>::infinity();
-      cur.m = IntegrateField(variety_cs::conserved_hydro, IDN, cur.cut_D);
+      cur.m     = IntegrateField(variety_cs::conserved_hydro, IDN, cur.cut_D);
       cur.rsc_D = std::abs(ini.m / cur.m);
     }
 
     // Now do rescaling: ------------------------------------------------------
     // cur.err_rel_D = std::abs(1-cur.rsc_D);
-    cur.err_rel_D = std::abs(1-cur.m / ini.m);
+    cur.err_rel_D = std::abs(1 - cur.m / ini.m);
 
     if (opt.err_rel_hydro > cur.err_rel_D)
     {
-      #pragma omp parallel for num_threads(nthreads)
+#pragma omp parallel for num_threads(nthreads)
       for (int ix = 0; ix < nmb; ++ix)
       {
-        MeshBlock *pmb = pmb_array[ix];
-        Hydro * ph = pmb->phydro;
-        Z4c * pz4c = pmb->pz4c;
+        MeshBlock* pmb = pmb_array[ix];
+        Hydro* ph      = pmb->phydro;
+        Z4c* pz4c      = pmb->pz4c;
 
         Z4c::Aux_extended_vars aux_extended;
-        pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
-                                    aux_extended);
+        pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended, aux_extended);
 
         CC_GLOOP2(k, j)
-        for (int n=NHYDRO-1; n>=0; --n)
-        CC_GLOOP1(i)
-        {
-          const Real oo_sqrt_detgamma = OO(
-            aux_extended.ms_sqrt_detgamma(k,j,i)
-          );
+        for (int n = NHYDRO - 1; n >= 0; --n)
+          CC_GLOOP1(i)
+          {
+            const Real oo_sqrt_detgamma =
+              OO(aux_extended.ms_sqrt_detgamma(k, j, i));
 
-          const Real fac = ((oo_sqrt_detgamma * ph->u(IDN,k,j,i)) <=
-                            std::abs(cur.cut_D))
-            ? cur.rsc_D
-            : 1.0;
+            const Real fac =
+              ((oo_sqrt_detgamma * ph->u(IDN, k, j, i)) <= std::abs(cur.cut_D))
+                ? cur.rsc_D
+                : 1.0;
 
-          ph->u(n,k,j,i) *= fac;
-        }
+            ph->u(n, k, j, i) *= fac;
+          }
       }
     }
     else
@@ -309,13 +295,13 @@ void Rescaling::Apply()
     // infer any required cut:
     if (opt.use_cutoff)
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         cur.fac_mul_s(n) /= opt.fac_mul_s;
 
         const bool require_positive = true;
-        cur.min_s(n) = GlobalMinimum(variety_cs::conserved_scalar,
-                                     n, require_positive);
+        cur.min_s(n) =
+          GlobalMinimum(variety_cs::conserved_scalar, n, require_positive);
         cur.S(n) = IntegrateField(variety_cs::conserved_scalar, n, 0);
 
         const Real ds = std::abs(ini.S(n) - cur.S(n));
@@ -327,66 +313,63 @@ void Rescaling::Apply()
         while (cur_S_atm < ds)
         {
           cur.fac_mul_s(n) *= opt.fac_mul_s;
-          cur_S_atm = cur.S(n) - IntegrateField(
-            variety_cs::conserved_scalar,
-            n,
-            cur.fac_mul_s(n) * cur.min_s(n)
-          );
+          cur_S_atm =
+            cur.S(n) - IntegrateField(variety_cs::conserved_scalar,
+                                      n,
+                                      cur.fac_mul_s(n) * cur.min_s(n));
         }
 
         cur.cut_s(n) = cur.fac_mul_s(n) * cur.min_s(n);
-        cur.rsc_s(n) = (cur_S_atm != 0)
-          ? std::abs(((ini.S(n) - cur.S(n)) + cur_S_atm) / cur_S_atm)
-          : 1.0;
+        cur.rsc_s(n) =
+          (cur_S_atm != 0)
+            ? std::abs(((ini.S(n) - cur.S(n)) + cur_S_atm) / cur_S_atm)
+            : 1.0;
       }
-
     }
     else
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         cur.cut_s(n) = -std::numeric_limits<Real>::infinity();
-        cur.S(n) = IntegrateField(variety_cs::conserved_scalar,
-                                  n, cur.cut_s(n));
+        cur.S(n) =
+          IntegrateField(variety_cs::conserved_scalar, n, cur.cut_s(n));
         cur.rsc_s(n) = std::abs(ini.S(n) / cur.S(n));
       }
     }
 
     // Now do rescaling: ------------------------------------------------------
-    for (int n=0; n<NSCALARS; ++n)
+    for (int n = 0; n < NSCALARS; ++n)
     {
       // cur.err_rel_S(n) = std::abs(1-cur.rsc_s(n));
-      cur.err_rel_S(n) = std::abs(1-cur.S(n) / ini.S(n));
+      cur.err_rel_S(n) = std::abs(1 - cur.S(n) / ini.S(n));
     }
 
-    #pragma omp parallel for num_threads(nthreads)
+#pragma omp parallel for num_threads(nthreads)
     for (int ix = 0; ix < nmb; ++ix)
     {
-      MeshBlock *pmb = pmb_array[ix];
-      PassiveScalars * ps = pmb->pscalars;
-      Z4c * pz4c = pmb->pz4c;
+      MeshBlock* pmb     = pmb_array[ix];
+      PassiveScalars* ps = pmb->pscalars;
+      Z4c* pz4c          = pmb->pz4c;
 
       Z4c::Aux_extended_vars aux_extended;
-      pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
-                                  aux_extended);
+      pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended, aux_extended);
 
       CC_GLOOP2(k, j)
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         if (opt.err_rel_scalars > cur.err_rel_S(n))
         {
           CC_GLOOP1(i)
           {
-            const Real oo_sqrt_detgamma = OO(
-              aux_extended.ms_sqrt_detgamma(k,j,i)
-            );
+            const Real oo_sqrt_detgamma =
+              OO(aux_extended.ms_sqrt_detgamma(k, j, i));
 
-            const Real fac = ((oo_sqrt_detgamma * ps->s(n,k,j,i)) <=
+            const Real fac = ((oo_sqrt_detgamma * ps->s(n, k, j, i)) <=
                               std::abs(cur.cut_s(n)))
-              ? cur.rsc_s(n)
-              : 1.0;
+                             ? cur.rsc_s(n)
+                             : 1.0;
 
-            ps->s(n,k,j,i) *= fac;
+            ps->s(n, k, j, i) *= fac;
           }
         }
         else
@@ -404,20 +387,15 @@ void Rescaling::Apply()
     {
       opt.rescale_conserved_density = false;
       // and keep it disabled for future restarts
-      pin->OverwriteParameter("rescaling",
-                              "rescale_conserved_density",
-                              false);
+      pin->OverwriteParameter("rescaling", "rescale_conserved_density", false);
     }
 
     if (outside_threshold_conserved_scalars)
     {
       opt.rescale_conserved_scalars = false;
       // and keep it disabled for future restarts
-      pin->OverwriteParameter("rescaling",
-                              "rescale_conserved_scalars",
-                              false);
+      pin->OverwriteParameter("rescaling", "rescale_conserved_scalars", false);
     }
-
   }
 
   // debug info ---------------------------------------------------------------
@@ -440,7 +418,7 @@ void Rescaling::Apply()
 
     if (opt.rescale_conserved_scalars)
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         std::cout << "ini.S : " << n << " : " << ini.S(n) << "\n";
         std::cout << "cur.S : " << n << " : " << cur.S(n) << "\n";
@@ -456,7 +434,6 @@ void Rescaling::Apply()
       }
     }
   }
-
 }
 
 Real Rescaling::CompensatedSummation(const variety_cs v_cs,
@@ -468,27 +445,23 @@ Real Rescaling::CompensatedSummation(const variety_cs v_cs,
   int nthreads = pm->GetNumMeshThreads();
   (void)nthreads;
 
-  int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
-
-  pm->GetMeshBlocksMyRank(pmb_array);
-  nmb = pmb_array.size();
+  const auto& pmb_array = pm->GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
   AA partial_KBN(nmb);
 
-  #pragma omp parallel for num_threads(nthreads)
+#pragma omp parallel for num_threads(nthreads)
   for (int ix = 0; ix < nmb; ++ix)
   {
-    MeshBlock *pmb = pmb_array[ix];
-    Z4c * pz4c = pmb->pz4c;
+    MeshBlock* pmb = pmb_array[ix];
+    Z4c* pz4c      = pmb->pz4c;
 
     Z4c::Aux_extended_vars aux_extended;
-    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
-                                aux_extended);
+    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended, aux_extended);
 
     AA arr;
     AA warr;
-    warr.NewAthenaArray(pmb->ke+1, pmb->je+1, pmb->ie+1);
+    warr.NewAthenaArray(pmb->ke + 1, pmb->je + 1, pmb->ie + 1);
 
     switch (v_cs)
     {
@@ -510,24 +483,18 @@ Real Rescaling::CompensatedSummation(const variety_cs v_cs,
 
     CC_ILOOP3(k, j, i)
     {
-      const Real oo_sqrt_detgamma = OO(
-        aux_extended.ms_sqrt_detgamma(k,j,i)
-      );
-      const Real v = oo_sqrt_detgamma * arr(0,k,j,i);
-      const Real vol = pmb->pcoord->GetCellVolume(k,j,i);
+      const Real oo_sqrt_detgamma = OO(aux_extended.ms_sqrt_detgamma(k, j, i));
+      const Real v                = oo_sqrt_detgamma * arr(0, k, j, i);
+      const Real vol              = pmb->pcoord->GetCellVolume(k, j, i);
 
-      warr(k,j,i) = (v > v_cut) ? vol * arr(0,k,j,i) : 0;
+      warr(k, j, i) = (v > v_cut) ? vol * arr(0, k, j, i) : 0;
     }
 
     partial_KBN(ix) = FloatingPoint::KB_compensated(
-      warr, 0, 0,
-      pmb->ks, pmb->ke,
-      pmb->js, pmb->je,
-      pmb->is, pmb->ie
-    );
+      warr, 0, 0, pmb->ks, pmb->ke, pmb->js, pmb->je, pmb->is, pmb->ie);
   }
 
-  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb-1);
+  return FloatingPoint::KB_compensated(partial_KBN, 0, nmb - 1);
 }
 
 Real Rescaling::IntegrateField(const variety_cs v_cs,
@@ -544,11 +511,11 @@ Real Rescaling::IntegrateField(const variety_cs v_cs,
 
   AthenaArray<Real> buf(Globals::nranks);
 
-  MPI_Allgather(&val, 1, MPI_ATHENA_REAL, buf.data(), 1, MPI_ATHENA_REAL,
-                MPI_COMM_WORLD);
+  MPI_Allgather(
+    &val, 1, MPI_ATHENA_REAL, buf.data(), 1, MPI_ATHENA_REAL, MPI_COMM_WORLD);
 
-  val = FloatingPoint::KB_compensated(buf, 0, Globals::nranks-1);
-#endif // MPI_PARALLEL
+  val = FloatingPoint::KB_compensated(buf, 0, Globals::nranks - 1);
+#endif  // MPI_PARALLEL
 
   return val;
 }
@@ -565,21 +532,17 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
   int nthreads = pm->GetNumMeshThreads();
   (void)nthreads;
 
-  int nmb = -1;
-  std::vector<MeshBlock*> pmb_array;
+  const auto& pmb_array = pm->GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
 
-  pm->GetMeshBlocksMyRank(pmb_array);
-  nmb = pmb_array.size();
-
-  #pragma omp parallel for num_threads(nthreads) reduction(min:min_V)
+#pragma omp parallel for num_threads(nthreads) reduction(min : min_V)
   for (int ix = 0; ix < nmb; ++ix)
   {
-    MeshBlock *pmb = pmb_array[ix];
-    Z4c * pz4c = pmb->pz4c;
+    MeshBlock* pmb = pmb_array[ix];
+    Z4c* pz4c      = pmb->pz4c;
 
     Z4c::Aux_extended_vars aux_extended;
-    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended,
-                                aux_extended);
+    pz4c->SetAuxExtendedAliases(pz4c->storage.aux_extended, aux_extended);
 
     AA arr;
 
@@ -602,15 +565,12 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
     }
 
     CC_ILOOP2(k, j)
-    #pragma omp simd reduction(min:min_V)
-    for (int i=pmb->is; i<=pmb->ie; ++i)
+#pragma omp simd reduction(min : min_V)
+    for (int i = pmb->is; i <= pmb->ie; ++i)
     {
+      const Real oo_sqrt_detgamma = OO(aux_extended.ms_sqrt_detgamma(k, j, i));
 
-      const Real oo_sqrt_detgamma = OO(
-        aux_extended.ms_sqrt_detgamma(k,j,i)
-      );
-
-      const Real V = oo_sqrt_detgamma * arr(k,j,i);
+      const Real V = oo_sqrt_detgamma * arr(k, j, i);
 
       if (require_positive)
       {
@@ -647,8 +607,8 @@ Real Rescaling::GlobalMinimum(const variety_cs v_cs,
   // Real min_all_V;
   // MPI_Allreduce(&min_V, &min_all_V, 1,
   //   MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &min_V, 1,
-    MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(
+    MPI_IN_PLACE, &min_V, 1, MPI_ATHENA_REAL, MPI_MIN, MPI_COMM_WORLD);
 #endif
 
   return min_V;
@@ -662,9 +622,9 @@ void Rescaling::OutputPrepare()
 
   if (0 == Globals::my_rank)
   {
-
     // check if output file already exists
-    if (access(filename.c_str(), F_OK) == 0) {
+    if (access(filename.c_str(), F_OK) == 0)
+    {
       pofile = fopen(filename.c_str(), "a");
     }
     else
@@ -699,7 +659,7 @@ void Rescaling::OutputPrepare()
 
     if (opt.rescale_conserved_scalars)
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         // fprintf(pofile, "[%d]=cur.S_%d ", ix++, n);
         fprintf(pofile, "[%d]=cur.err_rel_S_%d ", ix++, n);
@@ -743,7 +703,7 @@ void Rescaling::OutputWrite(const int iter, const Real time, const int nstage)
 
     if (opt.rescale_conserved_scalars)
     {
-      for (int n=0; n<NSCALARS; ++n)
+      for (int n = 0; n < NSCALARS; ++n)
       {
         // fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.S(n));
         fprintf(pofile, "%.*g ", FPRINTF_PREC, cur.err_rel_S(n));
@@ -781,11 +741,10 @@ void Rescaling::FinalizePreOutput()
     pin->SetReal("rescaling", "ini_m", ini.m);
   }
 
-  if (opt.rescale_conserved_scalars &&
-      (NSCALARS > 0))
+  if (opt.rescale_conserved_scalars && (NSCALARS > 0))
   {
     AA ini_S(NSCALARS);
-    for (int n=0; n<NSCALARS; ++n)
+    for (int n = 0; n < NSCALARS; ++n)
     {
       ini_S(n) = ini.S(n);
     }
@@ -794,7 +753,7 @@ void Rescaling::FinalizePreOutput()
 }
 
 // ============================================================================
-} // namespace gra::hydro::rescaling
+}  // namespace gra::hydro::rescaling
 // ============================================================================
 
 //

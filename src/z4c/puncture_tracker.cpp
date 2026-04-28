@@ -1,42 +1,40 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file puncture_tracker.cpp
 //  \brief implementation of functions in the PunctureTracker classes
 
+#include <unistd.h>
+
 #include <cmath>
 #include <sstream>
-#include <unistd.h>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
 
-#include "puncture_tracker.hpp"
-
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../globals.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../parameter_input.hpp"
+#include "../globals.hpp"
 #include "../mesh/mesh.hpp"
+#include "../parameter_input.hpp"
 #include "../utils/lagrange_interp.hpp"
-
+#include "puncture_tracker.hpp"
 #include "z4c.hpp"
 #include "z4c_macro.hpp"
 
-
 //----------------------------------------------------------------------------------------
-PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n)
-  :
-  owns_puncture {false},
-  pos           {NAN, NAN, NAN},
-  betap         {NAN, NAN, NAN},
-  pmesh         {pmesh}
+PunctureTracker::PunctureTracker(Mesh* pmesh, ParameterInput* pin, int n)
+    : owns_puncture{ false },
+      pos{ NAN, NAN, NAN },
+      betap{ NAN, NAN, NAN },
+      pmesh{ pmesh },
+      pofile{ nullptr }
 {
-
   ofname = pin->GetString("job", "problem_id") + ".";
   ofname += pin->GetOrAddString("z4c", "filename", "puncture_");
   ofname += std::to_string(n) + ".txt";
@@ -45,29 +43,34 @@ PunctureTracker::PunctureTracker(Mesh * pmesh, ParameterInput * pin, int n)
   pos[1] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_y", 0.0);
   pos[2] = pin->GetOrAddReal("z4c", "bh_" + std::to_string(n) + "_z", 0.0);
 
-  initial_mass = (pos[0] > 0) ? std::max(pin->GetOrAddReal("problem",
-                                                           "target_M_plus",
-                                                           0.0),
-                                         pin->GetOrAddReal("problem",
-                                                           "par_m_plus",
-                                                           0.0))
-                              : std::max(pin->GetOrAddReal("problem",
-                                                           "target_M_minus",
-                                                           0.0),
-                                         pin->GetOrAddReal("problem",
-                                                           "par_m_minus",
-                                                           0.0));
+  initial_mass =
+    (pos[0] > 0)
+      ? std::max(pin->GetOrAddReal("problem", "target_M_plus", 0.0),
+                 pin->GetOrAddReal("problem", "par_m_plus", 0.0))
+      : std::max(pin->GetOrAddReal("problem", "target_M_minus", 0.0),
+                 pin->GetOrAddReal("problem", "par_m_minus", 0.0));
 
   bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
 
-  if (0 == Globals::my_rank) {
+  if (0 == Globals::my_rank)
+  {
     // check if output file already exists
-    if (access(ofname.c_str(), F_OK) == 0) {
+    if (access(ofname.c_str(), F_OK) == 0)
+    {
       pofile = fopen(ofname.c_str(), "a");
+      if (NULL == pofile)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in PunctureTracker constructor" << std::endl;
+        msg << "Could not open file '" << ofname << "' for appending!";
+        throw std::runtime_error(msg.str().c_str());
+      }
     }
-    else {
+    else
+    {
       pofile = fopen(ofname.c_str(), "w");
-      if (NULL == pofile) {
+      if (NULL == pofile)
+      {
         std::stringstream msg;
         msg << "### FATAL ERROR in PunctureTracker constructor" << std::endl;
         msg << "Could not open file '" << ofname << "' for writing!";
@@ -89,14 +92,14 @@ PunctureTracker::~PunctureTracker()
 }
 
 //----------------------------------------------------------------------------------------
-void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u)
+void PunctureTracker::InterpolateShift(MeshBlock* pmb, AthenaArray<Real>& u)
 {
-  Z4c * pz4c = pmb->pz4c;
+  Z4c* pz4c = pmb->pz4c;
 
   Z4c::Z4c_vars z4c;
   pmb->pz4c->SetZ4cAliases(u, z4c);
 
-  if (pmb->PointContained(pos[0], pos[1], pos[2]))
+  if (pmb->PointContainedExclusive(pos[0], pos[1], pos[2]))
   {
 #pragma omp atomic write
     owns_puncture = true;
@@ -117,10 +120,10 @@ void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u)
       pz4c->mbi.nn3,
     };
 
-    LagrangeInterpND<2*NGHOST-1, 3> linterp(origin, delta, size, pos);
+    LagrangeInterpND<2 * NGHOST - 1, 3> linterp(origin, delta, size, pos);
     for (int a = 0; a < NDIM; ++a)
     {
-      Real & beta = z4c.beta_u(a, 0, 0, 0);
+      Real& beta = z4c.beta_u(a, 0, 0, 0);
 #pragma omp atomic write
       betap[a] = linterp.eval(&beta);
     }
@@ -128,14 +131,17 @@ void PunctureTracker::InterpolateShift(MeshBlock * pmb, AthenaArray<Real> & u)
 }
 
 //----------------------------------------------------------------------------------------
-void PunctureTracker::EvolveTracker() {
-  if (owns_puncture) {
+void PunctureTracker::EvolveTracker()
+{
+  if (owns_puncture)
+  {
     for (int a = 0; a < NDIM; ++a)
     {
       pos[a] -= pmesh->dt * betap[a];
     }
     // Impose the motion on the z = 0 plane with bitant.
-    if (bitant) pos[2] = 0;
+    if (bitant)
+      pos[2] = 0;
   }
 #ifndef MPI_PARALLEL
   else
@@ -146,8 +152,9 @@ void PunctureTracker::EvolveTracker() {
     ATHENA_ERROR(msg);
   }
 #else
-  Real buf[2*NDIM + 1] = {0., 0., 0., 0., 0., 0., 0.};
-  if (owns_puncture) {
+  Real buf[2 * NDIM + 1] = { 0., 0., 0., 0., 0., 0., 0. };
+  if (owns_puncture)
+  {
     buf[0] = pos[0];
     buf[1] = pos[1];
     buf[2] = pos[2];
@@ -156,21 +163,22 @@ void PunctureTracker::EvolveTracker() {
     buf[5] = betap[2];
     buf[6] = 1.0;
   }
-  MPI_Allreduce(MPI_IN_PLACE, buf, 2*NDIM + 1,
-                MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
-  if (buf[6] < 1.) {
+  MPI_Allreduce(
+    MPI_IN_PLACE, buf, 2 * NDIM + 1, MPI_ATHENA_REAL, MPI_SUM, MPI_COMM_WORLD);
+  if (buf[6] < 1.)
+  {
     std::stringstream msg;
     msg << "### FATAL ERROR in PunctureTracker::EvolveTracker" << std::endl;
     msg << "The puncture has left the grid" << std::endl;
     ATHENA_ERROR(msg);
   }
-  pos[0] = buf[0]/buf[6];
-  pos[1] = buf[1]/buf[6];
-  pos[2] = buf[2]/buf[6];
-  betap[0] = buf[3]/buf[6];
-  betap[1] = buf[4]/buf[6];
-  betap[2] = buf[5]/buf[6];
-#endif // MPI_PARALLEL
+  pos[0]   = buf[0] / buf[6];
+  pos[1]   = buf[1] / buf[6];
+  pos[2]   = buf[2] / buf[6];
+  betap[0] = buf[3] / buf[6];
+  betap[1] = buf[4] / buf[6];
+  betap[2] = buf[5] / buf[6];
+#endif  // MPI_PARALLEL
 
   // After the puncture has moved it might have changed ownership
   owns_puncture = false;
@@ -181,8 +189,16 @@ void PunctureTracker::WriteTracker(int iter, Real time) const
 {
   if (0 == Globals::my_rank)
   {
-    fprintf(pofile, "%d %.15e %.15e %.15e %.15e %.15e %.15e %.15e\n",
-        iter, time, pos[0], pos[1], pos[2], betap[0], betap[1], betap[2]);
+    fprintf(pofile,
+            "%d %.15e %.15e %.15e %.15e %.15e %.15e %.15e\n",
+            iter,
+            time,
+            pos[0],
+            pos[1],
+            pos[2],
+            betap[0],
+            betap[1],
+            betap[2]);
     fflush(pofile);
   }
 }

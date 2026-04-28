@@ -33,7 +33,7 @@ int IOWrapper::Open(const char* fname, FileMode rw) {
   if (rw == FileMode::read) {
 #ifdef MPI_PARALLEL
     // NOLINTNEXTLINE
-    if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_RDONLY,MPI_INFO_NULL,&fh_)
+    if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_RDONLY,info_,&fh_)
         !=MPI_SUCCESS) // use const_cast to convince the compiler.
 #else
       if ((fh_ = std::fopen(fname,"rb")) == nullptr) // NOLINT
@@ -47,10 +47,10 @@ int IOWrapper::Open(const char* fname, FileMode rw) {
 
   } else if (rw == FileMode::write) {
 #ifdef MPI_PARALLEL
-    MPI_File_delete(const_cast<char*>(fname), MPI_INFO_NULL); // truncation
+    MPI_File_delete(const_cast<char*>(fname), info_); // truncation
     // NOLINTNEXTLINE
     if (MPI_File_open(comm_,const_cast<char*>(fname),MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                      MPI_INFO_NULL,&fh_) != MPI_SUCCESS)
+                      info_,&fh_) != MPI_SUCCESS)
 #else
       if ((fh_ = std::fopen(fname,"wb")) == nullptr) // NOLINT
 #endif
@@ -84,7 +84,7 @@ std::size_t IOWrapper::Read(void *buf, IOWrapperSizeT size, IOWrapperSizeT count
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
 #endif // DBG_RST_WRITE_PER_MB
 
@@ -112,7 +112,7 @@ std::size_t IOWrapper::Read_all(void *buf, IOWrapperSizeT size, IOWrapperSizeT c
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
 #endif // DBG_RST_WRITE_PER_MB
 
@@ -141,7 +141,7 @@ std::size_t IOWrapper::Read_at(void *buf, IOWrapperSizeT size,
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
   if (MPI_File_read_at(fh_,offset,buf,count*size,MPI_BYTE,&status)!=MPI_SUCCESS)
     return -1;
@@ -172,7 +172,7 @@ std::size_t IOWrapper::Read_at_all(void *buf, IOWrapperSizeT size,
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
 #endif // DBG_RST_WRITE_PER_MB
 
@@ -202,7 +202,7 @@ std::size_t IOWrapper::Write(const void *buf, IOWrapperSizeT size, IOWrapperSize
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
 #endif // DBG_RST_WRITE_PER_MB
 
@@ -232,7 +232,7 @@ std::size_t IOWrapper::Write_at(const void *buf, IOWrapperSizeT size,
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
   if (MPI_File_write_at(fh_,offset,const_cast<void*>(buf),count*size,MPI_BYTE,&status)
       !=MPI_SUCCESS)
@@ -264,7 +264,7 @@ std::size_t IOWrapper::Write_at_all(const void *buf, IOWrapperSizeT size,
         << "The data size is too large. size * count = " << count*size
         << " > " << std::numeric_limits<int>::max() << std::endl;;
     ATHENA_ERROR(msg);
-    return false;
+    return 0;
   }
 #endif // DBG_RST_WRITE_PER_MB
 

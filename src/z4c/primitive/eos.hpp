@@ -31,12 +31,12 @@
 //  following functions:
 //    bool PrimitiveFloor(Real& n, Real& v[3], Real& p)
 //    bool ConservedFloor(Real& D, Real& Sd[3], Real& tau, Real& Bu[3])
-//    void DensityLimits(Real& n, Real n_min, Real n_max);
-//    void TemperatureLimits(Real& T, Real T_min, Real T_max);
+//    bool DensityLimits(Real& n, Real n_min, Real n_max);
+//    bool TemperatureLimits(Real& T, Real T_min, Real T_max);
 //    bool SpeciesLimits(Real* Y, Real* Y_min, Real* Y_max, int n_species);
 //    void PressureLimits(Real& P, Real P_min, Real P_max);
 //    void EnergyLimits(Real& e, Real e_min, Real e_max);
-//    void FailureResponse(Real prim[NPRIM])
+//    void FailureResponse(Real prim[NPRIM], int n_species)
 //  And the following protected variables (available via
 //  ErrorPolicyInterface):
 //    Real n_atm
@@ -64,30 +64,33 @@ class EOS : public EOSPolicy, public ErrorPolicy
 {
   private:
   // EOSPolicy member functions
-  using EOSPolicy::Abar;
   using EOSPolicy::BaryonChemicalPotential;
   using EOSPolicy::ChargeChemicalPotential;
   using EOSPolicy::ElectronLeptonChemicalPotential;
   using EOSPolicy::Energy;
   using EOSPolicy::Enthalpy;
   using EOSPolicy::Entropy;
+  using EOSPolicy::InteractionPotentialDifference;
   using EOSPolicy::MaximumEnergy;
+  using EOSPolicy::MaximumEntropy;
   using EOSPolicy::MaximumPressure;
-  using EOSPolicy::MaximumSpecificInternalEnergy;
   using EOSPolicy::MinimumEnergy;
   using EOSPolicy::MinimumEnthalpy;
+  using EOSPolicy::MinimumEntropy;
   using EOSPolicy::MinimumPressure;
-  using EOSPolicy::MinimumSpecificInternalEnergy;
   using EOSPolicy::Pressure;
+  using EOSPolicy::PressureAndEnthalpy;
+  using EOSPolicy::PressureAndEnthalpyFromE;
   using EOSPolicy::SoundSpeed;
   using EOSPolicy::SpecificInternalEnergy;
   using EOSPolicy::TemperatureFromE;
   using EOSPolicy::TemperatureFromEntropy;
   using EOSPolicy::TemperatureFromEps;
   using EOSPolicy::TemperatureFromP;
+  using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
 
+  using EOSPolicy::FrXh;
   using EOSPolicy::FrYa;
-  using EOSPolicy::FrYh;
   using EOSPolicy::FrYn;
   using EOSPolicy::FrYp;
 
@@ -122,6 +125,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using ErrorPolicy::EnergyLimits;
   using ErrorPolicy::FailureResponse;
   using ErrorPolicy::MagnetizationResponse;
+  using ErrorPolicy::MomentumLimits;
   using ErrorPolicy::PressureLimits;
   using ErrorPolicy::PrimitiveFloor;
   using ErrorPolicy::SpeciesLimits;
@@ -131,6 +135,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using ErrorPolicy::adjust_conserved;
   using ErrorPolicy::fail_conserved_floor;
   using ErrorPolicy::fail_primitive_floor;
+  using ErrorPolicy::limit_momenta;
   using ErrorPolicy::max_bsq;
   using ErrorPolicy::n_atm;
   using ErrorPolicy::n_threshold;
@@ -151,7 +156,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
     T_atm       = 1e-10;
     v_max       = 1.0 - 1e-15;
     max_bsq     = std::numeric_limits<Real>::max();
-    code_units  = &Primitive::GeometricSolar;
+    code_units  = eos_units;
     for (int i = 0; i < MAX_SPECIES; i++)
     {
       Y_atm[i] = 0.0;
@@ -305,6 +310,72 @@ class EOS : public EOSPolicy, public ErrorPolicy
             eos_units->MassConversion(*code_units));
   }
 
+  //! \brief Fused temperature + pressure + enthalpy query from energy.
+  inline void GetTemperaturePressureAndEnthalpyFromE(Real n,
+                                                     Real e,
+                                                     Real* Y,
+                                                     Real* T,
+                                                     Real* P,
+                                                     Real* h,
+                                                     int* guess_it = nullptr)
+  {
+    Real T_eos, P_eos, h_eos;
+    TemperaturePressureAndEnthalpyFromE(
+      n,
+      e * code_units->PressureConversion(*eos_units),
+      Y,
+      &T_eos,
+      &P_eos,
+      &h_eos,
+      guess_it);
+    *T = T_eos * eos_units->TemperatureConversion(*code_units);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
+  }
+
+  //! \brief Fused pressure + enthalpy query from energy.
+  inline void GetPressureAndEnthalpyFromE(Real n,
+                                          Real e,
+                                          Real* Y,
+                                          Real* P,
+                                          Real* h,
+                                          int* guess_it = nullptr)
+  {
+    Real P_eos, h_eos;
+    PressureAndEnthalpyFromE(n,
+                             e * code_units->PressureConversion(*eos_units),
+                             Y,
+                             &P_eos,
+                             &h_eos,
+                             guess_it);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
+  }
+
+  //! \brief Fused pressure + enthalpy query.
+  //
+  //  For tabulated EOS this avoids redundant weight and log/exp computation.
+  //
+  //  \param[in]  n  The number density
+  //  \param[in]  T  The temperature
+  //  \param[in]  Y  An array of size n_species of the particle fractions.
+  //  \param[out] P  The pressure
+  //  \param[out] h  The enthalpy per mass
+  inline void GetPressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h)
+  {
+    Real T_eos = T * code_units->TemperatureConversion(*eos_units);
+    Real P_eos, h_eos;
+    PressureAndEnthalpy(n, T_eos, Y, &P_eos, &h_eos);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
+  }
+
   //! \fn Real GetMinimumEnthalpy()
   //  \brief Get the global minimum for enthalpy per mass from the EOS.
   //
@@ -340,12 +411,16 @@ class EOS : public EOSPolicy, public ErrorPolicy
            eos_units->VelocityConversion(*code_units);
   }
 
-  // Extract fractions: N.B. check units etc if used outside of weak-rates
+  // Extract fractions: N.B. check units etc if used outside of weak-rates.
+  // Temperature T is converted from code units to EOS units before dispatch.
+
+  // Returns neutron number fraction Y_n = n_n / n_b.
   inline Real GetYn(Real n, Real T, Real* Y)
   {
     return FrYn(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
+  // Returns proton number fraction Y_p = n_p / n_b.
   inline Real GetYp(Real n, Real T, Real* Y)
   {
     return FrYp(n, T * code_units->TemperatureConversion(*eos_units), Y);
@@ -356,9 +431,11 @@ class EOS : public EOSPolicy, public ErrorPolicy
     return FrYa(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
-  inline Real GetYh(Real n, Real T, Real* Y)
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
+  inline Real GetXh(Real n, Real T, Real* Y)
   {
-    return FrYh(n, T * code_units->TemperatureConversion(*eos_units), Y);
+    return FrXh(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
   inline Real GetAN(Real n, Real T, Real* Y)
@@ -392,14 +469,14 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The baryon chemical potential for the EOS.
-  inline Real GetBaryonChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetBaryonChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return BaryonChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
 
@@ -408,14 +485,14 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The charge chemical potential for the EOS.
-  inline Real GetChargeChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetChargeChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return ChargeChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
 
@@ -424,29 +501,30 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  density, temperature,
   //         and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
   //  \return The electron-lepton chemical potential for the EOS.
-  inline Real GetElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
+  inline Real GetElectronLeptonChemicalPotential(Real n_eos, Real T, Real* Y)
   {
     return ElectronLeptonChemicalPotential(
-             n, T * code_units->TemperatureConversion(*eos_units), Y) *
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
            eos_units->ChemicalPotentialConversion(*code_units);
   }
 
-  //! \fn Real GetAbar(Real n, Real T, Real *Y)
-  //  \brief Get the average mass number from the number density, temperature,
-  //  and
-  //         particle fractions.
+  //! \fn Real GetInteractionPotentialDifference(Real n, Real T, Real *Y)
+  //  \brief Get the effective interaction potential difference from the
+  //         number density, temperature, and particle fractions.
   //
-  //  \param[in] n  The number density
+  //  \param[in] n  The number density [eos_units]
   //  \param[in] T  The temperature
   //  \param[in] Y  An array of size n_species of the particle fractions.
-  //  \return The average mass number according to the EOS.
-  inline Real GetAbar(Real n, Real T, Real* Y)
+  //  \return The effective interaction potential difference for the EOS.
+  inline Real GetInteractionPotentialDifference(Real n_eos, Real T, Real* Y)
   {
-    return Abar(n, T * code_units->TemperatureConversion(*eos_units), Y);
+    return InteractionPotentialDifference(
+             n_eos, T * code_units->TemperatureConversion(*eos_units), Y) *
+           eos_units->TemperatureConversion(*code_units);
   }
 
   //! \fn int Getn_species() const
@@ -514,15 +592,21 @@ class EOS : public EOSPolicy, public ErrorPolicy
                                   Real* Y,
                                   Real Bsq)
   {
+    Real D_floor     = n_atm * GetBaryonMass();
+    Real t_floor     = 0.0;
+    Real t_abs_floor = 0.0;
+
+    if (D < D_floor * n_threshold)
+    {
+      t_abs_floor = GetTauFloor(D_floor, Y_atm, Bsq);
+    }
+    else
+    {
+      t_floor = GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq);
+    }
+
     return ConservedFloor(
-      D,
-      Sd,
-      tau,
-      Y,
-      n_atm * GetBaryonMass(),
-      GetTauFloor(std::max(D, min_n * GetBaryonMass()), Y, Bsq),
-      GetTauFloor(n_atm * GetBaryonMass(), Y_atm, Bsq),
-      n_species);
+      D, Sd, tau, Y, D_floor, t_floor, t_abs_floor, n_species);
   }
 
   //! \fn Real GetDensityFloor() const
@@ -563,10 +647,8 @@ class EOS : public EOSPolicy, public ErrorPolicy
   inline Real GetTauFloor(Real D, Real* Y, Real Bsq)
   {
     // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
-    Real n      = D / GetBaryonMass();
-    Real minEps = std::max(GetSpecificInternalEnergy(n, T_atm, Y),
-                           MinimumSpecificInternalEnergy(n, Y));
-    return D * minEps + 0.5 * Bsq;
+    return D * GetSpecificInternalEnergy(D / GetBaryonMass(), T_atm, Y) +
+           0.5 * Bsq;
   }
 
   //! \fn void SetDensityFloor(Real floor)
@@ -591,7 +673,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   inline void SetSpeciesAtmosphere(Real atmo, int i)
   {
     assert((i < n_species) && "Not enough species");
-    Y_atm[i] = std::min(1.0, std::max(0.0, atmo));
+    Y_atm[i] = std::min(max_Y[i], std::max(min_Y[i], atmo));
   }
 
   //! \fn void SetThreshold(Real threshold)
@@ -606,17 +688,6 @@ class EOS : public EOSPolicy, public ErrorPolicy
   inline Real GetMaxVelocity() const
   {
     return v_max;
-  }
-
-  //! \fn void SetMaxVelocity(Real v)
-  //  \brief Set the maximum velocity in the ErrorPolicy.
-  //
-  //  The velocity will be automatically restricted to the range [0,1 - 1e-15].
-  //
-  //  \param[in] v The maximum velocity
-  inline void SetMaxVelocity(Real v)
-  {
-    v_max = (v >= 0) ? ((v <= 1.0 - 1e-15) ? v : 1.0 - 1.0e-15) : 0.0;
   }
 
   // Maximum velocity will be set according to Lorentz factor W
@@ -713,18 +784,68 @@ class EOS : public EOSPolicy, public ErrorPolicy
     return MagnetizationResponse(bsq, b_u);
   }
 
-  //! \brief Limit the density to a physical range
-  inline void ApplyDensityLimits(Real& n)
+  //! \brief Cap momentum to enforce r^i r_i <= h_min * (q + 1)
+  //
+  //  In the Kastaun et al. (2021) conservative-to-primitive framework, the
+  //  root variable mu lies in the bracket [0, 1/h_min].  A valid root exists
+  //  only when the rescaled momentum satisfies
+  //
+  //      r^i r_i  <  h_min * (q + 1),
+  //
+  //  where r_i = S_i / D is the rescaled covariant momentum and q = tau / D
+  //  is the rescaled energy.  In terms of the un-rescaled conserved
+  //  variables this reads
+  //
+  //      S^i S_i  <  D * h_min * (tau + D).
+  //
+  //  Violation means the conserved state implies a superluminal fluid
+  //  velocity (v >= 1), making the root-finding bracket empty and the
+  //  inversion unsolvable.  This can occur due to numerical truncation
+  //  error in the evolution step.
+  //
+  //  Note: the condition above is derived in the zero-B (unmagnetized)
+  //  limit and is *conservative* (sufficient but not necessary) when B != 0.
+  //
+  //  The fix rescales S_i uniformly by sqrt(Ssq_max / Ssq), which clamps
+  //  S^i S_i to the maximum physical value while preserving the momentum
+  //  direction.  The resulting state corresponds to the highest velocity
+  //  consistent with the given D, tau, and the EOS.
+  //
+  //  \param[in,out] Sd   Covariant momentum density (rescaled in-place if
+  //  limited)
+  //  \param[in]     Ssq  Precomputed squared momentum norm S_i g^{ij} S_j
+  //  \param[in]     tau  Conserved energy variable (tau = e - D)
+  //  \param[in]     D    Conserved baryon density
+  //
+  //  \return true if the momentum was rescaled, false otherwise.
+  //
+  //  Reference: Kastaun et al., Phys. Rev. D 103, 023018 (2021)
+  inline bool ApplyMomentumLimits(Real Sd[3], Real Ssq, Real tau, Real D)
   {
-    DensityLimits(n, min_n, max_n);
+    Real h_min   = GetMinimumEnthalpy();
+    Real Ssq_max = D * h_min * (tau + D);
+    return MomentumLimits(Sd, Ssq, Ssq_max);
+  }
+
+  //! \brief Enable or disable momentum limiting.
+  inline void SetLimitMomenta(bool limit)
+  {
+    limit_momenta = limit;
+  }
+
+  //! \brief Limit the density to a physical range
+  inline bool ApplyDensityLimits(Real& n)
+  {
+    return DensityLimits(n, min_n, max_n);
   }
 
   //! \brief Limit the temperature to a physical range
-  inline void ApplyTemperatureLimits(Real& T)
+  inline bool ApplyTemperatureLimits(Real& T)
   {
-    Real T_eos = T * code_units->TemperatureConversion(*eos_units);
-    TemperatureLimits(T_eos, min_T, max_T);
-    T = T_eos * eos_units->TemperatureConversion(*code_units);
+    Real T_eos    = T * code_units->TemperatureConversion(*eos_units);
+    bool adjusted = TemperatureLimits(T_eos, min_T, max_T);
+    T             = T_eos * eos_units->TemperatureConversion(*code_units);
+    return adjusted;
   }
 
   //! \brief Limit Y to a specified range
@@ -735,37 +856,51 @@ class EOS : public EOSPolicy, public ErrorPolicy
 
   //! \brief Limit the pressure to a specified range at a given density and
   //! composition
-  inline void ApplyPressureLimits(Real& P, Real n, Real* Y)
+  inline bool ApplyPressureLimits(Real& P, Real n, Real* Y)
   {
     Real P_eos = P * code_units->PressureConversion(*eos_units);
-    PressureLimits(P_eos, MinimumPressure(n, Y), MaximumPressure(n, Y));
+    bool result =
+      PressureLimits(P_eos, MinimumPressure(n, Y), MaximumPressure(n, Y));
     P = P_eos * eos_units->PressureConversion(*code_units);
+    return result;
   }
 
   //! \brief Limit the energy density to a specified range at a given density
   //! and composition
-  inline void ApplyEnergyLimits(Real& e, Real n, Real* Y)
+  inline bool ApplyEnergyLimits(Real& e, Real n, Real* Y)
   {
     Real e_eos = e * code_units->PressureConversion(*eos_units);
-    EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
+    bool result =
+      EnergyLimits(e_eos, MinimumEnergy(n, Y), MaximumEnergy(n, Y));
     e = e_eos * eos_units->PressureConversion(*code_units);
+    return result;
   }
 
-  //! \brief Limit the specific internal energy to a specified range at a given
-  //! density and composition
-  inline void ApplySpecificInternalEnergyLimits(Real& eps, Real n, Real* Y)
+  //! \brief Clamp the entropy per baryon to the range supported by the EOS
+  //! at a given density and composition. Entropy per baryon is dimensionless
+  //! (units of k_B), so no unit conversion is required.
+  inline bool ApplyEntropyLimits(Real& s, Real n, Real* Y)
   {
-    Real e    = (1.0 + eps) * n * mb;  // this is already in eos units
-    Real minE = MinimumEnergy(n, Y);
-    Real maxE = MaximumEnergy(n, Y);
-    EnergyLimits(e, minE, maxE);
-    eps = e / n / mb - 1.0;
+    const Real s_min = MinimumEntropy(n, Y);
+    const Real s_max = MaximumEntropy(n, Y);
+    bool result      = false;
+    if (s < s_min)
+    {
+      s      = s_min;
+      result = true;
+    }
+    else if (s > s_max)
+    {
+      s      = s_max;
+      result = true;
+    }
+    return result;
   }
 
   //! \brief Respond to a failed solve.
   inline bool DoFailureResponse(Real prim[NPRIM])
   {
-    bool result = FailureResponse(prim);
+    bool result = FailureResponse(prim, n_species);
     if (result)
     {
       // Adjust the pressure to be consistent with the new primitive variables.

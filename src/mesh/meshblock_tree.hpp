@@ -16,10 +16,17 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../bvals/bvals.hpp"
 #include "../defs.hpp"
 
 class Mesh;
+
+// Forward declarations for the free function so MeshBlockTree can befriend it
+class MeshBlock;
+class MeshBlockTree;
+namespace mesh_topology {
+void SearchAndSetNeighbors(MeshBlock *pmb, MeshBlockTree &tree,
+                           int *ranklist, int *nslist);
+} // namespace mesh_topology
 
 //--------------------------------------------------------------------------------------
 //! \class MeshBlockTree
@@ -28,7 +35,9 @@ class Mesh;
 class MeshBlockTree {
   friend class Mesh;
   friend class MeshBlock;
-  friend class BoundaryBase;
+  // Allow the new mesh_topology free function to access private tree data
+  friend void mesh_topology::SearchAndSetNeighbors(MeshBlock*, MeshBlockTree&,
+                                                   int*, int*);
  public:
   explicit MeshBlockTree(Mesh *pmesh);
   MeshBlockTree(MeshBlockTree *parent, int ox1, int ox2, int ox3);
@@ -49,12 +58,19 @@ class MeshBlockTree {
   void GetMeshBlockList(LogicalLocation *list, int *pglist, int& count);
   MeshBlockTree* FindNeighbor(LogicalLocation myloc, int ox1, int ox2, int ox3,
                               bool amrflag=false);
+  // Pre-compute, for each leaf node, whether all of its neighbors are at the
+  // same refinement level.  Called once after the tree is finalized (before
+  // SearchAndSetNeighbors) so the flag can be propagated to NeighborBlock.
+  void ComputeNeighborLevelFlags();
 
  private:
   // data
   MeshBlockTree** pleaf_;
   int gid_;
   LogicalLocation loc_;
+  // True when every neighbor of this leaf is at the same refinement level.
+  // Only meaningful for leaf nodes; set by ComputeNeighborLevelFlags().
+  bool all_neighbors_same_level_;
 
   static MeshBlockTree* proot_;
   static int nleaf_;

@@ -93,7 +93,7 @@ void str_replace(std::string & str,
 // any lines with only leading spaces should be dropped
 bool is_line_empty(const std::string& str)
 {
-  return !str.empty() && std::all_of(str.begin(), str.end(), [](char c)
+  return str.empty() || std::all_of(str.begin(), str.end(), [](char c)
   {
       return c == '\n' || c == '\r' || c == ' ' || c == '\t';
   });
@@ -104,12 +104,14 @@ void line_to_var_comment(
   std::string& content,
   std::string& comment)
 {
-  size_t pos = input.find('#'); // Find the first occurrence of '#'
+  size_t hash_pos = input.find('#');
+  size_t cmt_pos = input.find("//");
+  size_t pos = std::min(hash_pos, cmt_pos);
 
   if (pos != std::string::npos)
   {
-    content = input.substr(0, pos);  // Extract everything before '#'
-    comment = input.substr(pos);     // Extract the comment including '#'
+    content = input.substr(0, pos);  // Extract everything before comment
+    comment = input.substr(pos);     // Extract the comment
   } else {
       content = input;  // No comment found, so full string is content
       comment = "";     // No comment
@@ -208,20 +210,21 @@ void ParameterInput::LoadFromStream(std::istream &is) {
     if (line.empty()) continue;                             // skip blank line
     first_char = line.find_first_not_of(" ");               // skip white space
     if (first_char == std::string::npos) continue;          // line is all white space
-    if (line.compare(first_char, 1, "#") == 0) continue;      // skip comments
+    if (line.compare(first_char, 1, "#") == 0 ||
+        line.compare(first_char, 2, "//") == 0) continue;   // skip comments
     if (line.compare(first_char, 9, "<par_end>") == 0) break; // stop on <par_end>
 
     if (line.compare(first_char, 1, "<") == 0) {              // a new block
       first_char++;
       last_char = (line.find_first_of(">", first_char));
-      block_name.assign(line, first_char, last_char-1);       // extract block name
 
       if (last_char == std::string::npos) {
         msg << "### FATAL ERROR in function [ParameterInput::LoadFromStream]"
-            << std::endl << "Block name '" << block_name
-            << "' in the input stream'" << "' not properly ended";
+            << std::endl << "Block name in the input stream not properly ended";
         ATHENA_ERROR(msg);
       }
+
+      block_name.assign(line, first_char, last_char - first_char); // extract block name
 
       pib = FindOrAddBlock(block_name);  // find or add block to singly linked list
 
@@ -267,7 +270,8 @@ void ParameterInput::LoadFromStream(std::istream &is) {
         first_char = line.find_first_not_of(" ");
 
         if (is_line_empty(line)) continue;
-        if (line.compare(first_char, 1, "#") == 0) continue;
+        if (line.compare(first_char, 1, "#") == 0 ||
+            line.compare(first_char, 2, "//") == 0) continue;
 
         if ((line.compare(first_char, 1, "<") == 0) ||
             (line.compare(first_char, 9, "<par_end>") == 0))
@@ -383,11 +387,21 @@ InputBlock* ParameterInput::FindOrAddBlock(std::string name) {
 void ParameterInput::ParseLine(InputBlock *pib, std::string line,
                                std::string& name, std::string& value,
                                std::string& comment) {
-  std::size_t first_char, last_char, equal_char, hash_char, len;
+  std::size_t first_char, last_char, equal_char, comment_char, len;
 
   first_char = line.find_first_not_of(" ");   // find first non-white space
   equal_char = line.find_first_of("=");       // find "=" char
-  hash_char  = line.find_first_of("#");       // find "#" (optional)
+
+  std::size_t hash_char = line.find_first_of("#");
+  std::size_t cmt_char = line.find("//");
+  comment_char = std::min(hash_char, cmt_char);
+
+  if (equal_char == std::string::npos) {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in function [ParameterInput::ParseLine]"
+        << std::endl << "Malformed parameter line (missing '='): " << line;
+    ATHENA_ERROR(msg);
+  }
 
   // copy substring into name, remove white space at end of name
   len = equal_char - first_char;
@@ -397,7 +411,7 @@ void ParameterInput::ParseLine(InputBlock *pib, std::string line,
   name.erase(last_char+1, std::string::npos);
 
   // copy substring into value, remove white space at start and end
-  len = hash_char - equal_char - 1;
+  len = comment_char - equal_char - 1;
   value.assign(line, equal_char+1, len);
 
   first_char = value.find_first_not_of(" ");
@@ -407,8 +421,8 @@ void ParameterInput::ParseLine(InputBlock *pib, std::string line,
   value.erase(last_char+1, std::string::npos);
 
   // copy substring into comment, if present
-  if (hash_char != std::string::npos) {
-    comment = line.substr(hash_char);
+  if (comment_char != std::string::npos) {
+    comment = line.substr(comment_char);
   } else {
     comment = "";
   }
@@ -849,12 +863,14 @@ void ParameterInput::GetExistingStringArray(
     str_replace(to_tokenize, c, "");
   }
 
-  std::istringstream iss(to_tokenize);
-  std::string s;
+  if (!to_tokenize.empty()) {
+    std::istringstream iss(to_tokenize);
+    std::string s;
 
-  while (std::getline(iss, s, ','))
-  {
-    vec.push_back(s);
+    while (std::getline(iss, s, ','))
+    {
+      vec.push_back(s);
+    }
   }
 }
 
@@ -878,9 +894,6 @@ ParameterInput::t_vec_str ParameterInput::GetOrAddStringArray(
   std::string name,
   t_vec_str def_values)
 {
-  InputBlock* pb;
-  InputLine *pl;
-  std::stringstream ss_value;
   t_vec_str ret;
 
   Lock();
@@ -908,8 +921,6 @@ ParameterInput::t_vec_Real ParameterInput::GetOrAddRealArray(
   std::string name,
   t_vec_Real def_values)
 {
-  InputBlock* pb;
-  InputLine *pl;
   t_vec_Real ret;
 
   // Convert def_values to string representation for internal storage
@@ -949,8 +960,6 @@ ParameterInput::t_vec_int ParameterInput::GetOrAddIntegerArray(
   std::string name,
   t_vec_int def_values)
 {
-  InputBlock* pb;
-  InputLine *pl;
   t_vec_int ret;
 
   // Convert def_values to string representation for internal storage
@@ -990,8 +999,6 @@ ParameterInput::t_vec_bool ParameterInput::GetOrAddBooleanArray(
   std::string name,
   t_vec_bool def_values)
 {
-  InputBlock* pb;
-  InputLine *pl;
   t_vec_bool ret;
 
   // Convert def_values to string representation for internal storage
@@ -1314,7 +1321,6 @@ void ParameterInput::RollbackNextTime() {
         ATHENA_ERROR(msg);
       }
       next_time -= numeric_from_str<Real>(pl->param_value.c_str());
-      msg << next_time;
       //AddParameter(pb, "next_time", msg.str().c_str(), "# Updated during run time");
       SetReal(pb->block_name, "next_time", next_time);
     }
@@ -1335,6 +1341,7 @@ void ParameterInput::ForwardNextTime(Real mesh_time) {
 
   while (pb != nullptr) {
     if (pb->block_name.compare(0, 6, "output") == 0) {
+      fresh = false;
       std::stringstream msg;
       pl = pb->GetPtrToLine("next_time");
       if (pl == nullptr) {

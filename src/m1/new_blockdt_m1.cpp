@@ -70,7 +70,7 @@ Real M1::NewBlockTimeStep(void)
 
   min_dt *= pmb->pmy_mesh->cfl_number;
 
-  pmb->new_block_dt_ = min_dt;
+  pmb->new_block_dt_ = std::min(pmb->new_block_dt_, min_dt);
   return min_dt;
 }
 

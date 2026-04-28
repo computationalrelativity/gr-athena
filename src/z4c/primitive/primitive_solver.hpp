@@ -110,8 +110,9 @@ class PrimitiveSolver
                            Real* Y,
                            EOS<EOSPolicy, ErrorPolicy>* const peos,
                            Real* n,
-                           Real* T,
-                           Real* P)
+                           Real* e,
+                           Real* P,
+                           int* guess_it)
     {
       // We need to get some utility quantities first.
       const Real x    = 1.0 / (1.0 + mu * bsq);
@@ -150,30 +151,16 @@ class PrimitiveSolver
       Real nhat   = rhohat / mb;
       peos->ApplyDensityLimits(nhat);
 
-      // // Estimate the specific internal energy.
-      // Real What = 1.0/iWhat;
-      // Real tauoverD = qbar - mu*rbarsq;
-      // Real eoverD = tauoverD + 1.0;
-      // Real epshat = tauoverD*What + What - 1.0;
-      // peos->ApplySpecificInternalEnergyLimits(epshat, nhat, Y);
-      // // Now we can get an estimate of the temperature, and from that, the
-      // pressure and enthalpy. Real That = peos->GetTemperatureFromEps(nhat,
-      // epshat, Y);
-
       // Estimate the energy density.
       Real eoverD = qbar - mu * rbarsq + 1.0;
       Real ehat   = D * eoverD;
-      peos->ApplyEnergyLimits(ehat, nhat, Y);
-      // eoverD = ehat/D;
-      //  Now we can get an estimate of the temperature, and from that, the
-      //  pressure and enthalpy.
-      Real That = peos->GetTemperatureFromE(nhat, ehat, Y);
+      // Note: ApplyEnergyLimits is not needed here because
+      // GetTemperatureFromE already clamps to min_T/max_T when
+      // the energy falls outside the table bounds.
 
-      peos->ApplyTemperatureLimits(That);
-
-      // ehat = peos->GetEnergy(nhat, That, Y);
-      Real Phat = peos->GetPressure(nhat, That, Y);
-      Real hhat = peos->GetEnthalpy(nhat, That, Y);
+      // Now we can get an estimate of the pressure and enthalpy.
+      Real Phat, hhat;
+      peos->GetPressureAndEnthalpyFromE(nhat, ehat, Y, &Phat, &hhat, guess_it);
 
       // Now we can get two different estimates for nu = h/W.
       Real nu_a = hhat * iWhat;
@@ -187,7 +174,7 @@ class PrimitiveSolver
       Real muhat = 1.0 / (nuhat + mu * rbarsq);
 
       *n = nhat;
-      *T = That;
+      *e = ehat;
       *P = Phat;
 
       // FIXME: Debug only!
@@ -246,7 +233,11 @@ class PrimitiveSolver
   bool use_toms_748;
 
   /// Constructor
-  PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy>* eos) : peos(eos)
+  PrimitiveSolver(EOS<EOSPolicy, ErrorPolicy>* eos)
+      : peos(eos),
+        validate_density(true),
+        tighten_bracket(true),
+        use_toms_748(false)
   {
     // root = NumTools::Root();
     tol             = 1e-15;
@@ -350,12 +341,15 @@ class PrimitiveSolver
   void HandleFailure(Real prim[NPRIM],
                      Real cons[NCONS],
                      Real bu[NMAG],
-                     Real g3d[NSPMETRIC])
+                     Real g3d[NSPMETRIC],
+                     SolverResult& solver_result)
   {
     bool result = peos->DoFailureResponse(prim);
     if (result)
     {
       PrimToCon(prim, cons, bu, g3d);
+      solver_result.cons_adjusted    = true;
+      solver_result.scalars_adjusted = true;
     }
   }
 };
@@ -462,7 +456,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Real g3d[NSPMETRIC],
   Real g3u[NSPMETRIC])
 {
-  SolverResult solver_result{ Error::SUCCESS, 0, false, false, false };
+  SolverResult solver_result{ Error::SUCCESS, 0, false, false, false, false };
 
   // Extract the undensitized conserved variables.
   Real D      = cons[IDN];
@@ -486,7 +480,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   solver_result.cons_floor = floored;
   if (floored && peos->IsConservedFlooringFailure())
   {
-    HandleFailure(prim, cons, b, g3d);
+    HandleFailure(prim, cons, b, g3d, solver_result);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
   }
@@ -499,6 +493,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
       {
         cons[IYD + s] = D * Y[s];
       }
+      solver_result.scalars_adjusted = true;
     }
 
   // Calculate some utility quantities.
@@ -518,7 +513,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   //     !std::isfinite(rbsqr) || !std::isfinite(bsqr))
   if (!std::isfinite(D + rsqr + q + rbsqr + bsqr))
   {
-    HandleFailure(prim, cons, b, g3d);
+    HandleFailure(prim, cons, b, g3d, solver_result);
     solver_result.error = Error::NANS_IN_CONS;
     return solver_result;
   }
@@ -527,7 +522,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   {
     if (!std::isfinite(Y[s]))
     {
-      HandleFailure(prim, cons, b, g3d);
+      HandleFailure(prim, cons, b, g3d, solver_result);
       solver_result.error = Error::NANS_IN_CONS;
       return solver_result;
     }
@@ -537,7 +532,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Error error = peos->DoMagnetizationResponse(bsqr, b_u);
   if (error == Error::MAG_TOO_BIG)
   {
-    HandleFailure(prim, cons, b, g3d);
+    HandleFailure(prim, cons, b, g3d, solver_result);
     solver_result.error = Error::MAG_TOO_BIG;
     return solver_result;
   }
@@ -551,11 +546,29 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     r_d[0]   = S_d[0] / D;
     r_d[1]   = S_d[1] / D;
     r_d[2]   = S_d[2] / D;
-    RaiseForm(r_u, r_d, g3d);
+    RaiseForm(r_u, r_d, g3u);
     rb    = Contract(b_u, r_d);
     rbsqr = rb * rb;
     q     = tau / D;
     rsqr  = Contract(r_u, r_d);
+  }
+
+  // Cap momentum so that r^i r_i <= h_min * (q + 1).  When violated, the
+  // conserved state implies v >= 1 and the root-finding bracket is empty.
+  // See ApplyMomentumLimits for the full derivation.
+  {
+    Real Ssq = SquareForm(S_d, g3u);
+    if (peos->ApplyMomentumLimits(S_d, Ssq, tau, D))
+    {
+      solver_result.cons_adjusted = true;
+      r_d[0]                      = S_d[0] / D;
+      r_d[1]                      = S_d[1] / D;
+      r_d[2]                      = S_d[2] / D;
+      RaiseForm(r_u, r_d, g3u);
+      rsqr  = Contract(r_u, r_d);
+      rb    = Contract(b_u, r_d);
+      rbsqr = rb * rb;
+    }
   }
 
   // If rsqr is identically zero, we have zero velocity and can solve the
@@ -603,7 +616,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
       // Scream if the bracketing failed.
       if (!result)
       {
-        HandleFailure(prim, cons, b, g3d);
+        HandleFailure(prim, cons, b, g3d, solver_result);
         solver_result.error = Error::BRACKETING_FAILED;
         return solver_result;
       }
@@ -626,7 +639,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     // ErrorPolicy.
     if (error != Error::SUCCESS)
     {
-      HandleFailure(prim, cons, b, g3d);
+      HandleFailure(prim, cons, b, g3d, solver_result);
       solver_result.error = error;
       return solver_result;
     }
@@ -635,8 +648,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   // Do the root solve.
   // TODO: This should be done with something like TOMS748 once it's
   // available.
-  Real n, P, T, mu;
-
+  Real n, P, e, mu;
+  Real T;
+  int guess_it = -1;
   bool result;
   if (use_toms_748)
   {
@@ -652,8 +666,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                             Y,
                             peos,
                             &n,
-                            &T,
-                            &P);
+                            &e,
+                            &P,
+                            &guess_it);
     result = true;
   }
   else
@@ -671,8 +686,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                                 Y,
                                 peos,
                                 &n,
-                                &T,
-                                &P);
+                                &e,
+                                &P,
+                                &guess_it);
   }
 
   // WARNING: the reported number of iterations is not thread-safe and should
@@ -680,7 +696,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   solver_result.iterations = root.iterations;
   if (!result)
   {
-    HandleFailure(prim, cons, b, g3d);
+    HandleFailure(prim, cons, b, g3d, solver_result);
     solver_result.error = Error::NO_SOLUTION;
     return solver_result;
   }
@@ -699,12 +715,16 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Wv_u[1]      = Wmux * (r_u[1] + rbmu * b_u[1]);
   Wv_u[2]      = Wmux * (r_u[2] + rbmu * b_u[2]);
 
+  // Compute final temperature
+  T = peos->GetTemperatureFromE(n, e, Y);
+  peos->ApplyTemperatureLimits(T);
+
   // Apply the flooring policy to the primitive variables.
   floored                  = peos->ApplyPrimitiveFloor(n, Wv_u, P, T, Y);
   solver_result.prim_floor = floored;
   if (floored && peos->IsPrimitiveFlooringFailure())
   {
-    HandleFailure(prim, cons, b, g3d);
+    HandleFailure(prim, cons, b, g3d, solver_result);
     solver_result.error = Error::PRIM_FLOOR;
     return solver_result;
   }
@@ -744,7 +764,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
   Real prim[NPRIM],
   Real cons[NCONS],
   Real bu[NMAG],
-  Real g3d[NMETRIC])
+  Real g3d[NSPMETRIC])
 {
   // Extract the primitive variables
   const Real& n       = prim[IDN];  // number density

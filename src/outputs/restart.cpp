@@ -1,7 +1,8 @@
 //========================================================================================
 // Athena++ astrophysical MHD code
-// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code contributors
-// Licensed under the 3-clause BSD License, see LICENSE file for details
+// Copyright(C) 2014 James M. Stone <jmstone@princeton.edu> and other code
+// contributors Licensed under the 3-clause BSD License, see LICENSE file for
+// details
 //========================================================================================
 //! \file restart.cpp
 //  \brief writes restart files
@@ -9,10 +10,9 @@
 // C headers
 
 // C++ headers
-#include <cstdio>    // snprintf()
-#include <cstring>   // memcpy()
+#include <cstdio>   // snprintf()
+#include <cstring>  // memcpy()
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -25,23 +25,26 @@
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
+#include "../m1/m1.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../scalars/scalars.hpp"
-#include "../wave/wave.hpp"
-#include "../z4c/z4c.hpp"
-#include "../m1/m1.hpp"
-#include "../z4c/puncture_tracker.hpp"
 #include "../trackers/extrema_tracker.hpp"
+#include "../wave/wave.hpp"
+#include "../z4c/puncture_tracker.hpp"
+#include "../z4c/z4c.hpp"
 #include "outputs.hpp"
 
-
 //----------------------------------------------------------------------------------------
-//! \fn void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
+//! \fn void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool
+//! flag)
 //  \brief Cycles over all MeshBlocks and writes data to a single restart file.
 
-void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_write) {
-  MeshBlock *pmb;
+void RestartOutput::WriteOutputFile(Mesh* pm,
+                                    ParameterInput* pin,
+                                    bool force_write)
+{
+  MeshBlock* pmb;
   IOWrapper resfile;
   IOWrapperSizeT listsize, headeroffset, datasize;
 
@@ -53,33 +56,39 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   fname.assign(output_params.file_basename);
   fname.append(".");
-  // add file number to name, unless write is forced by terminate signal, in which case
-  // replace number in the name by the string "final".  This keeps the restart file
-  // numbers consistent with output.dt when a job is restarted many times.
+  // add file number to name, unless write is forced by terminate signal, in
+  // which case replace number in the name by the string "final".  This keeps
+  // the restart file numbers consistent with output.dt when a job is restarted
+  // many times.
   if (!force_write)
     fname.append(number);
   else
-    fname.append("final");
+    fname.append(restart_tag);
   fname.append(".rst");
 
-  // increment counters now so values for *next* dump are stored in restart file
-  if (!force_write) {
+  // increment counters now so values for *next* dump are stored in restart
+  // file
+  if (!force_write)
+  {
     output_params.file_number++;
     output_params.next_time += output_params.dt;
-    pin->SetInteger(output_params.block_name, "file_number", output_params.file_number);
-    pin->SetReal(output_params.block_name, "next_time", output_params.next_time);
+    pin->SetInteger(
+      output_params.block_name, "file_number", output_params.file_number);
+    pin->SetReal(
+      output_params.block_name, "next_time", output_params.next_time);
   }
   resfile.Open(fname.c_str(), IOWrapper::FileMode::write);
 
-  // subset of parameters that are to be injected to par due to update during runtime
+  // subset of parameters that are to be injected to par due to update during
+  // runtime
   if (pm->ptracker_extrema->use_new_style)
   {
-    pin->SetRealArray("trackers_extrema", "ini_x1",
-                      pm->ptracker_extrema->c_x1);
-    pin->SetRealArray("trackers_extrema", "ini_x2",
-                      pm->ptracker_extrema->c_x2);
-    pin->SetRealArray("trackers_extrema", "ini_x3",
-                      pm->ptracker_extrema->c_x3);
+    pin->SetRealArray(
+      "trackers_extrema", "ini_x1", pm->ptracker_extrema->c_x1);
+    pin->SetRealArray(
+      "trackers_extrema", "ini_x2", pm->ptracker_extrema->c_x2);
+    pin->SetRealArray(
+      "trackers_extrema", "ini_x3", pm->ptracker_extrema->c_x3);
   }
 
   // prepare the input parameters
@@ -89,12 +98,12 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
   // calculate the header size
   IOWrapperSizeT udsize = 0;
-  for (int n=0; n<pm->nint_user_mesh_data_; n++)
+  for (int n = 0; n < pm->nint_user_mesh_data_; n++)
     udsize += pm->iuser_mesh_data[n].GetSizeInBytes();
-  for (int n=0; n<pm->nreal_user_mesh_data_; n++)
+  for (int n = 0; n < pm->nreal_user_mesh_data_; n++)
     udsize += pm->ruser_mesh_data[n].GetSizeInBytes();
 
-  udsize += 2*NDIM*sizeof(Real)*pm->pz4c_tracker.size();
+  udsize += 2 * NDIM * sizeof(Real) * pm->pz4c_tracker.size();
 
   if (!pm->ptracker_extrema->use_new_style)
   {
@@ -103,27 +112,30 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     udsize += pm->ptracker_extrema->c_x3.GetSizeInBytes();
   }
 
-  headeroffset = sbuf.size()*sizeof(char) + 3*sizeof(int)+sizeof(RegionSize)
-                 + 2*sizeof(Real)+sizeof(IOWrapperSizeT)+udsize;
+  headeroffset = sbuf.size() * sizeof(char) + 3 * sizeof(int) +
+                 sizeof(RegionSize) + 2 * sizeof(Real) +
+                 sizeof(IOWrapperSizeT) + udsize;
   // the size of an element of the ID and cost list
-  listsize = sizeof(LogicalLocation)+sizeof(double);
+  listsize = sizeof(LogicalLocation) + sizeof(double);
   // the size of each MeshBlock
-  datasize = pm->pblock->GetBlockSizeInBytes();
+  datasize    = pm->pblock->GetBlockSizeInBytes();
   int nbtotal = pm->nbtotal;
-  int myns = pm->nslist[Globals::my_rank];
-  int mynb = pm->nblist[Globals::my_rank];
-#if defined (DBG_RST_WRITE_PER_MB)
+  int myns    = pm->nslist[Globals::my_rank];
+  int mynb    = pm->nblist[Globals::my_rank];
+#if defined(DBG_RST_WRITE_PER_MB)
   int nbmin = pm->nblist[0];
-  for (int n = 1; n < Globals::nranks; ++n) {
+  for (int n = 1; n < Globals::nranks; ++n)
+  {
     if (nbmin > pm->nblist[n])
       nbmin = pm->nblist[n];
   }
-#endif // DBG_RST_WRITE_PER_MB
+#endif  // DBG_RST_WRITE_PER_MB
 
   // write the header; this part is serial
-  if (Globals::my_rank == 0) {
+  if (Globals::my_rank == 0)
+  {
     // output the input parameters
-    resfile.Write(sbuf.c_str(),sizeof(char),sbuf.size());
+    resfile.Write(sbuf.c_str(), sizeof(char), sbuf.size());
 
     // output Mesh information
     resfile.Write(&(pm->nbtotal), sizeof(int), 1);
@@ -135,24 +147,31 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     resfile.Write(&(datasize), sizeof(IOWrapperSizeT), 1);
 
     // collect and write user Mesh data
-    if (udsize != 0) {
-      char *ud = new char[udsize];
+    if (udsize != 0)
+    {
+      ud_buf_.resize(udsize);
+      char* ud                = ud_buf_.data();
       IOWrapperSizeT udoffset = 0;
-      for (int n=0; n<pm->nint_user_mesh_data_; n++) {
-        std::memcpy(&(ud[udoffset]), pm->iuser_mesh_data[n].data(),
+      for (int n = 0; n < pm->nint_user_mesh_data_; n++)
+      {
+        std::memcpy(&(ud[udoffset]),
+                    pm->iuser_mesh_data[n].data(),
                     pm->iuser_mesh_data[n].GetSizeInBytes());
         udoffset += pm->iuser_mesh_data[n].GetSizeInBytes();
       }
-      for (int n=0; n<pm->nreal_user_mesh_data_; n++) {
-        std::memcpy(&(ud[udoffset]), pm->ruser_mesh_data[n].data(),
+      for (int n = 0; n < pm->nreal_user_mesh_data_; n++)
+      {
+        std::memcpy(&(ud[udoffset]),
+                    pm->ruser_mesh_data[n].data(),
                     pm->ruser_mesh_data[n].GetSizeInBytes());
         udoffset += pm->ruser_mesh_data[n].GetSizeInBytes();
       }
-      for (auto ptracker : pm->pz4c_tracker) {
-        std::memcpy(&(ud[udoffset]), ptracker->pos, NDIM*sizeof(Real));
-        udoffset += NDIM*sizeof(Real);
-        std::memcpy(&(ud[udoffset]), ptracker->betap, NDIM*sizeof(Real));
-        udoffset += NDIM*sizeof(Real);
+      for (auto ptracker : pm->pz4c_tracker)
+      {
+        std::memcpy(&(ud[udoffset]), ptracker->pos, NDIM * sizeof(Real));
+        udoffset += NDIM * sizeof(Real);
+        std::memcpy(&(ud[udoffset]), ptracker->betap, NDIM * sizeof(Real));
+        udoffset += NDIM * sizeof(Real);
       }
 
       if (!pm->ptracker_extrema->use_new_style)
@@ -174,23 +193,25 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
       }
 
       resfile.Write(ud, 1, udsize);
-      delete [] ud;
     }
   }
 
   // allocate memory for the ID list and the data
-  char *idlist = new char[listsize*mynb];
+  idlist_buf_.resize(listsize * mynb);
+  char* idlist = idlist_buf_.data();
 
 #if !defined(DBG_RST_WRITE_PER_MB)
-  char *data = new char[mynb*datasize];
+  data_buf_.resize(mynb * datasize);
 #else
-  char *data = new char[datasize];
-#endif // DBG_RST_WRITE_PER_MB
+  data_buf_.resize(datasize);
+#endif  // DBG_RST_WRITE_PER_MB
+  char* data = data_buf_.data();
 
   // Loop over MeshBlocks and pack the meta data
-  pmb = pm->pblock;
-  int os=0;
-  while (pmb != nullptr) {
+  pmb    = pm->pblock;
+  int os = 0;
+  while (pmb != nullptr)
+  {
     std::memcpy(&(idlist[os]), &(pmb->loc), sizeof(LogicalLocation));
     os += sizeof(LogicalLocation);
     std::memcpy(&(idlist[os]), &(pmb->cost_), sizeof(double));
@@ -199,25 +220,27 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
   }
 
   // write the ID list collectively
-  IOWrapperSizeT myoffset = headeroffset + listsize*myns;
+  IOWrapperSizeT myoffset = headeroffset + listsize * myns;
   resfile.Write_at_all(idlist, listsize, mynb, myoffset);
 
-  // deallocate the idlist array
-  delete [] idlist;
+  // idlist buffer persists across dumps (no deallocation needed)
 
   // Loop over MeshBlocks and pack the data
-  pmb = pm->pblock;
+  pmb   = pm->pblock;
   int b = 0;
-  while (pmb != nullptr) {
+  while (pmb != nullptr)
+  {
 #if !defined(DBG_RST_WRITE_PER_MB)
-    char *pdata = &(data[pmb->lid*datasize]);
+    char* pdata = &(data[pmb->lid * datasize]);
 #else
-    char *pdata = data;
-#endif // DBG_RST_WRITE_PER_MB
-    // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also update
-    // MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock constructor for restarts.
+    char* pdata = data;
+#endif                          // DBG_RST_WRITE_PER_MB
+    char* pdata_start = pdata;  // record start for size validation
+    // NEW_OUTPUT_TYPES: add output of additional physics to restarts here also
+    // update MeshBlock::GetBlockSizeInBytes accordingly and MeshBlock
+    // constructor for restarts.
 
-    auto write_data = [&](AA & data)
+    auto write_data = [&](AA& data)
     {
       std::memcpy(pdata, data.data(), data.GetSizeInBytes());
       pdata += data.GetSizeInBytes();
@@ -226,14 +249,14 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // Hydro conserved variables:
     if (FLUID_ENABLED)
     {
-      Hydro * phydro = pmb->phydro;
+      Hydro* phydro = pmb->phydro;
       write_data(phydro->u);
     }
 
     // Hydro primitive variables (at current and previous step):
     if (GENERAL_RELATIVITY)
     {
-      Hydro * phydro = pmb->phydro;
+      Hydro* phydro = pmb->phydro;
       write_data(phydro->w);
       if (!Z4C_ENABLED)  // We don't need this; reduce storage
         write_data(phydro->w1);
@@ -242,7 +265,7 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // Longitudinal, face-centered magnetic field components:
     if (MAGNETIC_FIELDS_ENABLED)
     {
-      Field * pfield = pmb->pfield;
+      Field* pfield = pmb->pfield;
       write_data(pfield->b.x1f);
       write_data(pfield->b.x2f);
       write_data(pfield->b.x3f);
@@ -251,20 +274,20 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
     // (conserved variable) Passive scalars:
     if (NSCALARS > 0)
     {
-      PassiveScalars * pscalars = pmb->pscalars;
+      PassiveScalars* pscalars = pmb->pscalars;
       write_data(pscalars->s);
       write_data(pscalars->r);
     }
 
     if (WAVE_ENABLED)
     {
-      Wave * pwave = pmb->pwave;
+      Wave* pwave = pmb->pwave;
       write_data(pwave->u);
     }
 
     if (Z4C_ENABLED)
     {
-      Z4c * pz4c = pmb->pz4c;
+      Z4c* pz4c = pmb->pz4c;
       write_data(pz4c->storage.u);
       // write_data(pz4c->storage.adm);
       // write_data(pz4c->storage.mat);
@@ -272,43 +295,58 @@ void RestartOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool force_wr
 
     if (M1_ENABLED)
     {
-      M1::M1 * pm1 = pmb->pm1;
+      M1::M1* pm1 = pmb->pm1;
       write_data(pm1->storage.u);
     }
 
     // User MeshBlock data:
     // integer data:
-    for (int n=0; n<pmb->nint_user_meshblock_data_; n++) {
-      std::memcpy(pdata, pmb->iuser_meshblock_data[n].data(),
+    for (int n = 0; n < pmb->nint_user_meshblock_data_; n++)
+    {
+      std::memcpy(pdata,
+                  pmb->iuser_meshblock_data[n].data(),
                   pmb->iuser_meshblock_data[n].GetSizeInBytes());
       pdata += pmb->iuser_meshblock_data[n].GetSizeInBytes();
     }
     // floating-point data:
-    for (int n=0; n<pmb->nreal_user_meshblock_data_; n++) {
-      std::memcpy(pdata, pmb->ruser_meshblock_data[n].data(),
+    for (int n = 0; n < pmb->nreal_user_meshblock_data_; n++)
+    {
+      std::memcpy(pdata,
+                  pmb->ruser_meshblock_data[n].data(),
                   pmb->ruser_meshblock_data[n].GetSizeInBytes());
       pdata += pmb->ruser_meshblock_data[n].GetSizeInBytes();
     }
+    // Verify packed data size matches GetBlockSizeInBytes() - if these
+    // diverge, the restart file is silently corrupted.
+    {
+      IOWrapperSizeT packed = static_cast<IOWrapperSizeT>(pdata - pdata_start);
+      if (packed != datasize)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in function [RestartOutput::WriteOutputFile]"
+            << std::endl
+            << "Restart packing size mismatch: packed " << packed
+            << " bytes but GetBlockSizeInBytes() = " << datasize << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
     pmb = pmb->next;
 
-#if defined (DBG_RST_WRITE_PER_MB)
-    myoffset = headeroffset + listsize*nbtotal + datasize*(myns+b);
+#if defined(DBG_RST_WRITE_PER_MB)
+    myoffset = headeroffset + listsize * nbtotal + datasize * (myns + b);
     if (b < nbmin)
       resfile.Write_at_all(data, datasize, 1, myoffset);
     else
       resfile.Write_at(data, datasize, 1, myoffset);
-#endif // DBG_RST_WRITE_PER_MB
+#endif  // DBG_RST_WRITE_PER_MB
 
     b++;
   }
 
-
-
-#if !defined (DBG_RST_WRITE_PER_MB)
+#if !defined(DBG_RST_WRITE_PER_MB)
   // now write restart data in parallel
-  myoffset = headeroffset + listsize*nbtotal + datasize*myns;
+  myoffset = headeroffset + listsize * nbtotal + datasize * myns;
   resfile.Write_at_all(data, datasize, mynb, myoffset);
-#endif // DBG_RST_WRITE_PER_MB
+#endif  // DBG_RST_WRITE_PER_MB
   resfile.Close();
-  delete [] data;
 }

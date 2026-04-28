@@ -78,20 +78,6 @@ inline Real sc_dot_dense_sp__(
   return dot;
 }
 
-inline Real sc_ddot_dense_sp__(
-  const AT_N_vec & sp_V_u,
-  const AT_N_sym & sp_S_dd,
-  const int k, const int j, const int i)
-{
-  Real dot (0);
-  for (int a=0; a<N; ++a)
-  for (int b=0; b<N; ++b)
-  {
-    dot += sp_V_u(a,k,j,i) * sp_V_u(b,k,j,i) * sp_S_dd(a,b,k,j,i);
-  }
-  return dot;
-}
-
 // geometric ------------------------------------------------------------------
 inline void sp_beta_d(
   AT_N_vec & sp_tar,
@@ -445,6 +431,40 @@ inline Real d_tk(const AT_C_sca & sc_chi,
   return 1.0 - d_th(sc_chi, k, j, i);
 }
 
+// Cache for dot products that are invariant across closure root-finding
+// iterations. These depend only on the grid-point state (E, F, v, metric)
+// and not on the iterated variable xi.
+struct DotProductCache {
+  Real dotFv;      // F_d . v^u
+  Real nF2;        // |F|^2 = g^{ab} F_a F_b
+  Real dotvv;      // v_d . v^u  (= g_{ab} v^a v^b)
+  Real W;          // Lorentz factor
+  Real W2;         // W^2
+  Real E;          // radiation energy density
+  Real oo_nF2;     // 1/nF2  (or 0 if nF2 < fl_nF2)
+  Real oo_nF;      // 1/|F|  (or 0 if nF2 < fl_nF2)
+  Real dotFhatv;   // oo_nF * dotFv
+};
+
+inline DotProductCache make_cache(
+  M1 & pm1,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const int k, const int j, const int i)
+{
+  DotProductCache c;
+  c.W      = pm1.fidu.sc_W(k,j,i);
+  c.W2     = SQR(c.W);
+  c.E      = sc_E(k,j,i);
+  c.dotFv  = sc_dot_dense_sp__(sp_F_d, pm1.fidu.sp_v_u, k, j, i);
+  c.nF2    = sp_norm2__(sp_F_d, pm1.geom.sp_g_uu, k, j, i);
+  c.dotvv  = sc_dot_dense_sp__(pm1.fidu.sp_v_d, pm1.fidu.sp_v_u, k, j, i);
+  c.oo_nF2 = (c.nF2 > pm1.opt.fl_nF2) ? OO(c.nF2) : 0.0;
+  c.oo_nF  = (c.nF2 > pm1.opt.fl_nF2) ? OO(std::sqrt(c.nF2)) : 0.0;
+  c.dotFhatv = c.oo_nF * c.dotFv;
+  return c;
+}
+
 // We write:
 // sc_J   = J_0
 // st_H^a = H_n n^a + H_v v^a + H_F F^a
@@ -607,6 +627,62 @@ inline void ToFiducialExpansionCoefficients(
   }
   */
 
+}
+
+// Cached overload: uses pre-computed dot products from DotProductCache
+// instead of recomputing them. The body is identical to the non-cached
+// variant from d_T/d_t onward.
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  const AT_C_sca & sc_chi,
+  const DotProductCache & cache,
+  const int k,
+  const int j,
+  const int i)
+{
+  const Real W      = cache.W;
+  const Real W2     = cache.W2;
+  const Real E      = cache.E;
+  const Real dotFv  = cache.dotFv;
+  const Real dotvv  = cache.dotvv;
+  const Real oo_nF2 = cache.oo_nF2;
+
+  const Real d_T = Frames::d_tk(sc_chi, k, j, i);
+  const Real d_t = Frames::d_th(sc_chi, k, j, i);
+
+  // Prepare expansion coefficients -------------------------------------------
+  const Real J_c = W2 * (E - 2.0 * dotFv);
+  const Real J_t = W2 * E * SQR(dotFv) * oo_nF2;
+  const Real J_T = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  const Real Hv_c = -W * J_c;
+  const Real Hv_t = -W * J_t;
+  const Real Hv_T = -W * (
+    J_T + 1 / (2.0 * W2 + 1.0) * (
+      (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+    )
+  );
+
+  const Real HF_c = W;
+  const Real HF_t = -W * E * dotFv * oo_nF2;
+  const Real HF_T = -W * dotvv;
+  // --------------------------------------------------------------------------
+
+  // now propagate back
+  J_0 = J_c + d_t * J_t + d_T * J_T;
+  J_0 = std::max(J_0, pm1.opt.fl_J);
+
+  H_v = Hv_c + d_t * Hv_t + d_T * Hv_T;
+  H_F = HF_c + d_t * HF_t + d_T * HF_T;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
 }
 
 inline void ToFiducial(
@@ -1134,6 +1210,426 @@ inline void sources_sc_E_sp_F_d(
   }
 }
 
+// Cached overload: uses pre-computed DotProductCache to avoid redundant
+// dot products and Lorentz factor loads. Calls the cached overload of
+// ToFiducialExpansionCoefficients. Otherwise identical to the non-cached
+// variant above.
+inline void sources_sc_E_sp_F_d(
+  M1 & pm1,
+  AT_C_sca & S_sc_E,
+  AT_N_vec & S_sp_F_d,
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const AT_C_sca & sc_eta,
+  const AT_C_sca & sc_kap_a,
+  const AT_C_sca & sc_kap_s,
+  const DotProductCache & cache,
+  const int k, const int j, const int i)
+{
+  // Read cached quantities instead of reloading from arrays
+  const Real W = cache.W;
+  const Real eta = sc_eta(k,j,i);
+  const Real kap_a = sc_kap_a(k,j,i);
+  const Real kap_s = sc_kap_s(k,j,i);
+  const Real kap_as = kap_a + kap_s;
+
+  const Real alpha    = pm1.geom.sc_alpha(k,j,i);
+  const Real sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+
+  // Prepare H^alpha via cached expansion coefficients
+  Real J_0, H_n, H_v, H_F;
+
+  Assemble::Frames::ToFiducialExpansionCoefficients(
+    pm1,
+    J_0, H_n, H_v, H_F,
+    sc_chi, cache,
+    k, j, i
+  );
+
+  S_sc_E(k,j,i) = alpha * (
+    W * (sqrt_det_g * eta - kap_a * J_0) -
+    kap_as * H_n
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    // Form spatial projection of H_a to H_i
+    const Real sp_Htil_d_a = (
+      H_v * sp_v_d(a,k,j,i) +
+      H_F * sp_F_d(a,k,j,i)
+    );
+
+    S_sp_F_d(a,k,j,i) = alpha * (
+      W * (sqrt_det_g * eta - kap_a * J_0) * sp_v_d(a,k,j,i) -
+      kap_as * sp_Htil_d_a
+    );
+  }
+}
+
+// Cached overload: uses pre-computed DotProductCache to avoid redundant
+// dot products, Lorentz factor, and norm computations. Reads
+// W, W2, E, dotFv, dotvv, nF2, oo_nF2, oo_nF, dotFhatv from cache.
+// d_th, d_tk still depend on sc_chi which changes per Newton iteration.
+// sp_F_u_ (F raised with metric) and W3 are Jacobian-specific and computed
+// here as before.
+inline void Jacobian_sc_E_sp_F_d(
+  M1 & pm1,
+  AA & J,                               // Storage for Jacobian
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const AT_C_sca & sc_kap_a,
+  const AT_C_sca & sc_kap_s,
+  const DotProductCache & cache,
+  const int k, const int j, const int i)
+{
+  // J(a,b) := dSc_a / dX_b where X=(E, F_i)
+
+  // scratch quantities (Jacobian-specific: sp_F_u_, derivative arrays)
+  AT_C_sca & sc_dJ_dE_ = pm1.scratch.sc_dJ_dE_;
+  AT_N_vec & sp_dJ_dF_d_ = pm1.scratch.sp_dJ_dF_d_;
+  AT_N_vec & sp_dH_d_dE_ = pm1.scratch.sp_dH_d_dE_;
+  AT_N_bil & sp_dH_d_dF_d_ = pm1.scratch.sp_dH_d_dF_d_;
+  AT_N_vec & sp_F_u_ = pm1.scratch.sp_F_u_;
+
+  // closure-dependent quantities (recomputed: depend on iterated sc_chi)
+  const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = Assemble::Frames::d_tk(sc_chi, k, j, i);
+
+  const Real kap_a = sc_kap_a(k,j,i);
+  const Real kap_s = sc_kap_s(k,j,i);
+  const Real kap_as = (kap_a + kap_s);
+
+  const Real alpha = pm1.geom.sc_alpha(k,j,i);
+  const AT_N_sym & sp_g_uu = pm1.geom.sp_g_uu;
+
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+
+  // Read cached dot products and Lorentz factor
+  const Real W      = cache.W;
+  const Real W2     = cache.W2;
+  const Real W3     = W * W2;               // Jacobian-specific
+  const Real E      = cache.E;
+  const Real dotFv  = cache.dotFv;
+  const Real dotvv  = cache.dotvv;
+  const Real nF2    = cache.nF2;
+  const Real oo_nF2 = cache.oo_nF2;
+  const Real oo_nF  = cache.oo_nF;
+  const Real dotFhatv = cache.dotFhatv;
+
+  // F raised with metric (Jacobian-specific, not cached)
+  Assemble::sp_d_to_u_(&pm1, sp_F_u_, sp_F_d, k, j, i, i);
+
+  // derivative terms ---------------------------------------------------------
+  sc_dJ_dE_(i) = (
+    W2 * (1.0 + d_th * SQR(dotFhatv)) +
+    d_tk * (3.0 - 2.0 * W2) * (W2 - 1.0) / (1.0 + 2.0 * W2)
+  );
+
+  // sp_dJ_dF_d_ factors
+  const Real fac_a_sp_dJ_dF_d_ = 2.0 * W2 * (
+      -1.0 + d_th * E * oo_nF * dotFhatv +
+      2.0 * d_tk * (W2 - 1.0) / (1.0 + 2 * W2)
+  );
+  const Real fac_b_sp_dJ_dF_d_ = -2.0 * d_th * (
+    W2 * E * oo_nF * SQR(dotFhatv)
+  );
+
+  // sp_dH_d_dE_ factors
+  const Real fac_a_sp_dH_d_dE_ = W3 * (
+    -1.0 - d_th * SQR(dotFhatv) + d_tk * (2.0 * W2 - 3.0) / (1.0 + 2.0 * W2)
+  );
+
+  const Real fac_b_sp_dH_d_dE_ = (
+    -d_th * W * dotFhatv
+  );
+
+  for (int a=0; a<N; ++a)
+  {
+    sp_dJ_dF_d_(a,i) = (
+      fac_a_sp_dJ_dF_d_ * sp_v_u(a,k,j,i) +
+      fac_b_sp_dJ_dF_d_ * (oo_nF * sp_F_u_(a,i))
+    );
+
+    sp_dH_d_dE_(a,i) = (
+      fac_a_sp_dH_d_dE_ * sp_v_d(a,k,j,i) +
+      fac_b_sp_dH_d_dE_ * (oo_nF * sp_F_d(a,k,j,i))
+    );
+  }
+
+  // sp_dH_d_dF_d_ factors
+  const Real fac_a_sp_dH_d_dF_d_ = W * (
+    1.0 - d_th * E * oo_nF * dotFhatv - d_tk * dotvv
+  );
+
+  const Real fac_b_sp_dH_d_dF_d_ = 2.0 * W3 * (
+    1.0 - d_th * E * oo_nF * dotFhatv - d_tk * (
+      dotvv + OO(2.0 * W2 * (1.0 + 2.0 * W2))
+    )
+  );
+
+  const Real fac_c_sp_dH_d_dF_d_ = 2.0 * d_th * W * E *oo_nF * dotFhatv;
+
+  const Real fac_d_sp_dH_d_dF_d_ = (
+    2.0 * d_th * W3 * E * oo_nF * SQR(dotFhatv)
+  );
+
+  const Real fac_e_sp_dH_d_dF_d_ = (
+    -d_th * W * E * oo_nF
+  );
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    sp_dH_d_dF_d_(a,b,i) = (
+      fac_a_sp_dH_d_dF_d_ * (a == b) +
+      fac_b_sp_dH_d_dF_d_ * sp_v_d(a,k,j,i) * sp_v_u(b,k,j,i) +
+      fac_c_sp_dH_d_dF_d_ * (oo_nF2 * sp_F_d(a,k,j,i) * sp_F_u_(b,i)) +
+      fac_d_sp_dH_d_dF_d_ * sp_v_d(a,k,j,i) * (oo_nF * sp_F_u_(b,i)) +
+      fac_e_sp_dH_d_dF_d_ * (oo_nF * sp_F_d(a,k,j,i)) * sp_v_u(b,k,j,i)
+    );
+  }
+
+  // populate Jacobian --------------------------------------------------------
+  J(0,0) = -alpha * W * (kap_as - kap_s * sc_dJ_dE_(i));
+
+  for (int b=0; b<N; ++b)
+  {
+    J(0,1+b) = alpha * W * (kap_s * sp_dJ_dF_d_(b,i) +
+                            kap_as * sp_v_u(b,k,j,i));
+
+    J(1+b,0) = -alpha * (kap_as * sp_dH_d_dE_(b,i) +
+                          W * kap_a * sc_dJ_dE_(i) * sp_v_d(b,k,j,i));
+  }
+
+  for (int a=0; a<N; ++a)
+  for (int b=0; b<N; ++b)
+  {
+    J(1+a,1+b) = -alpha * (
+      kap_as * sp_dH_d_dF_d_(a,b,i) +
+      W * kap_a * sp_v_d(a,k,j,i) * sp_dJ_dF_d_(b,i)
+    );
+  }
+}
+
+// Fused source + residual + Z-Jacobian computation for the custom Newton
+// solver. Computes all three quantities in a single pass, sharing all
+// intermediates (d_th/d_tk, opacities, alpha, Lorentz factor, expansion
+// coefficients, etc.) between the source and Jacobian evaluations.
+//
+// Eliminates:
+// - Redundant loads of kap_a, kap_s, alpha, sp_v_d, sp_v_u between separate
+//   source and Jacobian function calls
+// - Redundant d_th/d_tk computation (d_tk calls d_th internally)
+// - pm1.scratch array indirection: all derivative intermediates are stack
+//   locals (dJ_dE, dJ_dF[3], dH_dE[3], dH_dF[3][3])
+// - Source array write/read round-trip: source values are stack scalars
+//   that feed directly into the residual computation
+// - Separate Z_E_F_d call: residual is formed inline from pre-hoisted
+//   iteration-invariant WE/WF_d constants
+//
+// Outputs:
+//   S_E_out, S_F_d_out[3]  - source terms (for writing to S after convergence)
+//   Z_vec[4]               - residual vector (for Newton linear solve)
+//   ZJ[4][4]               - Z-Jacobian = I - dt * dS/dX (for Newton solve)
+inline void sources_and_ZJacobian_sc_E_sp_F_d(
+  M1 & pm1,
+  Real & S_E_out,              // Output: source S_E (scalar)
+  Real (&S_F_d_out)[3],       // Output: source S_{F_i} (vector)
+  Real (&Z_vec)[4],           // Output: residual vector
+  Real (&ZJ)[4][4],           // Output: Z-Jacobian on the stack
+  const Real dt,
+  const Real WE,               // Pre-hoisted: P.sc_E + dt * I.sc_E
+  const Real (&WF_d)[3],      // Pre-hoisted: P.sp_F_d + dt * I.sp_F_d
+  const AT_C_sca & sc_chi,
+  const AT_C_sca & sc_E,
+  const AT_N_vec & sp_F_d,
+  const AT_C_sca & sc_eta,
+  const AT_C_sca & sc_kap_a,
+  const AT_C_sca & sc_kap_s,
+  const DotProductCache & cache,
+  const int k, const int j, const int i)
+{
+  // === Shared quantities (loaded once, used by both source and Jacobian) ===
+
+  // Closure-dependent: d_th = 0.5*(3*chi - 1), d_tk = 1 - d_th
+  const Real d_th = Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = 1.0 - d_th;
+
+  // Opacities and geometry
+  const Real kap_a  = sc_kap_a(k,j,i);
+  const Real kap_s  = sc_kap_s(k,j,i);
+  const Real kap_as = kap_a + kap_s;
+  const Real alpha  = pm1.geom.sc_alpha(k,j,i);
+  const Real eta    = sc_eta(k,j,i);
+  const Real sqrt_det_g = pm1.geom.sc_sqrt_det_g(k,j,i);
+
+  // Grid references
+  const AT_N_vec & sp_v_u = pm1.fidu.sp_v_u;
+  const AT_N_vec & sp_v_d = pm1.fidu.sp_v_d;
+  const AT_N_sym & sp_g_uu = pm1.geom.sp_g_uu;
+
+  // Cached dot products and Lorentz factor
+  const Real W       = cache.W;
+  const Real W2      = cache.W2;
+  const Real W3      = W * W2;
+  const Real E       = cache.E;
+  const Real dotFv   = cache.dotFv;
+  const Real dotvv   = cache.dotvv;
+  const Real oo_nF2  = cache.oo_nF2;
+  const Real oo_nF   = cache.oo_nF;
+  const Real dotFhatv = cache.dotFhatv;
+
+  // === Source evaluation (inlined ToFiducialExpansionCoefficients) ==========
+
+  // Expansion sub-coefficients for J_0
+  const Real J_c = W2 * (E - 2.0 * dotFv);
+  const Real J_t = W2 * E * SQR(dotFv) * oo_nF2;
+  const Real oo_2W2p1 = OO(2.0 * W2 + 1.0);
+  const Real J_T = (W2 - 1.0) * oo_2W2p1 * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  // Expansion sub-coefficients for H_v, H_F
+  const Real Hv_c = -W * J_c;
+  const Real Hv_t = -W * J_t;
+  const Real Hv_T = -W * (
+    J_T + oo_2W2p1 * (
+      (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+    )
+  );
+
+  const Real HF_c = W;
+  const Real HF_t = -W * E * dotFv * oo_nF2;
+  const Real HF_T = -W * dotvv;
+
+  // Compose fiducial expansion coefficients: J_0, H_v, H_F, H_n
+  Real J_0 = J_c + d_th * J_t + d_tk * J_T;
+  J_0 = std::max(J_0, pm1.opt.fl_J);
+
+  const Real H_v = Hv_c + d_th * Hv_t + d_tk * Hv_T;
+  const Real H_F = HF_c + d_th * HF_t + d_tk * HF_T;
+  const Real H_n = H_F * dotFv + H_v * dotvv;  // from H perp u
+
+  // Source S_E
+  const Real src_common = W * (sqrt_det_g * eta - kap_a * J_0);
+  S_E_out = alpha * (src_common - kap_as * H_n);
+
+  // Source S_{F_i} and residual Z_vec
+  Z_vec[0] = sc_E(k,j,i) - dt * S_E_out - WE;
+
+  for (int a = 0; a < N; ++a)
+  {
+    const Real sp_Htil_d_a = H_v * sp_v_d(a,k,j,i) + H_F * sp_F_d(a,k,j,i);
+    S_F_d_out[a] = alpha * (src_common * sp_v_d(a,k,j,i) - kap_as * sp_Htil_d_a);
+    Z_vec[1 + a] = sp_F_d(a,k,j,i) - dt * S_F_d_out[a] - WF_d[a];
+  }
+
+  // === Jacobian evaluation (all intermediates on stack) =====================
+
+  // Raise F_d with metric: F^a = g^{ab} F_b (stack locals, no scratch array)
+  Real F_u[N];
+  for (int a = 0; a < N; ++a)
+  {
+    F_u[a] = 0.0;
+    for (int b = 0; b < N; ++b)
+    {
+      F_u[a] += sp_F_d(b,k,j,i) * sp_g_uu(a,b,k,j,i);
+    }
+  }
+
+  // Derivative of J_0 w.r.t. E (scalar)
+  const Real dJ_dE = (
+    W2 * (1.0 + d_th * SQR(dotFhatv)) +
+    d_tk * (3.0 - 2.0 * W2) * (W2 - 1.0) * oo_2W2p1
+  );
+
+  // Common sub-expressions shared by multiple derivative factors
+  const Real d_th_E_oo_nF_dotFhatv = d_th * E * oo_nF * dotFhatv;
+  const Real d_tk_W2m1_oo_2W2p1 = d_tk * (W2 - 1.0) * oo_2W2p1;
+
+  // Derivative factors for dJ/dF_b
+  const Real fac_a_dJ_dF = 2.0 * W2 * (
+    -1.0 + d_th_E_oo_nF_dotFhatv + 2.0 * d_tk_W2m1_oo_2W2p1
+  );
+  const Real fac_b_dJ_dF = -2.0 * d_th * W2 * E * oo_nF * SQR(dotFhatv);
+
+  // Derivative factors for dH_d/dE
+  const Real fac_a_dH_dE = W3 * (
+    -1.0 - d_th * SQR(dotFhatv) + d_tk * (2.0 * W2 - 3.0) * oo_2W2p1
+  );
+  const Real fac_b_dH_dE = -d_th * W * dotFhatv;
+
+  // Compute dJ/dF_b and dH_d/dE as stack arrays
+  Real dJ_dF[N];
+  Real dH_dE[N];
+  for (int a = 0; a < N; ++a)
+  {
+    dJ_dF[a] = fac_a_dJ_dF * sp_v_u(a,k,j,i) +
+               fac_b_dJ_dF * (oo_nF * F_u[a]);
+
+    dH_dE[a] = fac_a_dH_dE * sp_v_d(a,k,j,i) +
+               fac_b_dH_dE * (oo_nF * sp_F_d(a,k,j,i));
+  }
+
+  // Derivative factors for dH_d/dF_d (5 scalars)
+  const Real fac_a_dH_dF = W * (
+    1.0 - d_th_E_oo_nF_dotFhatv - d_tk * dotvv
+  );
+  const Real fac_b_dH_dF = 2.0 * W3 * (
+    1.0 - d_th_E_oo_nF_dotFhatv - d_tk * (
+      dotvv + OO(2.0 * W2 * (1.0 + 2.0 * W2))
+    )
+  );
+  const Real fac_c_dH_dF = 2.0 * d_th * W * E * oo_nF * dotFhatv;
+  const Real fac_d_dH_dF = 2.0 * d_th * W3 * E * oo_nF * SQR(dotFhatv);
+  const Real fac_e_dH_dF = -d_th * W * E * oo_nF;
+
+  // Compute dH_d/dF_d as stack array and populate Z-Jacobian
+  Real dH_dF[N][N];
+  for (int a = 0; a < N; ++a)
+  for (int b = 0; b < N; ++b)
+  {
+    dH_dF[a][b] = (
+      fac_a_dH_dF * (a == b) +
+      fac_b_dH_dF * sp_v_d(a,k,j,i) * sp_v_u(b,k,j,i) +
+      fac_c_dH_dF * (oo_nF2 * sp_F_d(a,k,j,i) * F_u[b]) +
+      fac_d_dH_dF * sp_v_d(a,k,j,i) * (oo_nF * F_u[b]) +
+      fac_e_dH_dF * (oo_nF * sp_F_d(a,k,j,i)) * sp_v_u(b,k,j,i)
+    );
+  }
+
+  // === Populate Z-Jacobian: ZJ[a][b] = delta(a,b) - dt * dS_a/dX_b ========
+
+  // (0,0): E equation, dE
+  ZJ[0][0] = 1.0 - dt * (-alpha * W * (kap_as - kap_s * dJ_dE));
+
+  for (int b = 0; b < N; ++b)
+  {
+    // (0,1+b): E equation, dF_b
+    ZJ[0][1+b] = -dt * (alpha * W * (kap_s * dJ_dF[b] +
+                                      kap_as * sp_v_u(b,k,j,i)));
+
+    // (1+b,0): F_b equation, dE
+    ZJ[1+b][0] = -dt * (-alpha * (kap_as * dH_dE[b] +
+                                   W * kap_a * dJ_dE * sp_v_d(b,k,j,i)));
+  }
+
+  for (int a = 0; a < N; ++a)
+  for (int b = 0; b < N; ++b)
+  {
+    // (1+a,1+b): F_a equation, dF_b
+    ZJ[1+a][1+b] = (a == b) - dt * (-alpha * (
+      kap_as * dH_dF[a][b] +
+      W * kap_a * sp_v_d(a,k,j,i) * dJ_dF[b]
+    ));
+  }
+}
+
 inline void sources_sc_nG(
   M1 & pm1,
   AT_C_sca & S_sc_nG,
@@ -1557,6 +2053,84 @@ inline void ToFiducialExpansionCoefficients(
   dH_dchi_F = -d_F_H_dchi;
   dH_dchi_n = dH_dchi_F * dotFv + dH_dchi_v * dotvv;
 }
+
+// Cached overload: uses pre-computed dot products from DotProductCache
+// instead of recomputing them. The body is identical to the non-cached
+// D1 variant from d_th/d_tk onward.
+inline void ToFiducialExpansionCoefficients(
+  M1 & pm1,
+  Real & J_0,
+  Real & H_n,
+  Real & H_v,
+  Real & H_F,
+  Real & dJ_dchi_0,
+  Real & dH_dchi_n,
+  Real & dH_dchi_v,
+  Real & dH_dchi_F,
+  const AT_C_sca & sc_chi,
+  const Frames::DotProductCache & cache,
+  const int k,
+  const int j,
+  const int i)
+{
+  const Real W       = cache.W;
+  const Real W2      = cache.W2;
+  const Real E       = cache.E;
+  const Real dotFv   = cache.dotFv;
+  const Real dotvv   = cache.dotvv;
+  const Real oo_nF   = cache.oo_nF;
+  const Real dotFhatv = cache.dotFhatv;
+
+  const Real d_th = Assemble::Frames::d_th(sc_chi, k, j, i);
+  const Real d_tk = Assemble::Frames::d_tk(sc_chi, k, j, i);
+
+  const Real dd_th_dchi = Assemble::Frames::D1::d_th(sc_chi, k, j, i);
+  const Real dd_tk_dchi = Assemble::Frames::D1::d_tk(sc_chi, k, j, i);
+
+  // ------------------------------------------------------------------------
+  const Real B_0 = W2 * (E - 2.0 * dotFv);
+  const Real B_th = W2 * E * SQR(dotFhatv);
+  const Real B_tk = (W2 - 1.0) / (2.0 * W2 + 1.0) * (
+    4.0 * W2 * dotFv + (3.0 - 2.0 * W2) * E
+  );
+
+  // coefficients appearing in vector-expansion of H
+  const Real v_0  = W * B_0;
+  const Real v_th = W * B_th;
+  const Real v_tk = W * B_tk + W / (2.0 * W2 + 1.0) * (
+    (3.0 - 2.0 * W2) * E + (2.0 * W2 - 1.0) * dotFv
+  );
+
+  const Real F_0 = -W;
+  const Real F_th = oo_nF * W * E * dotFhatv;
+  const Real F_tk = W * dotvv;
+
+  const Real v_H = (v_0 + d_th * v_th + d_tk * v_tk);
+  const Real F_H = (F_0 + d_th * F_th + d_tk * F_tk);
+
+  const Real d_v_H_dchi = (dd_th_dchi * v_th + dd_tk_dchi * v_tk);
+  const Real d_F_H_dchi = (dd_th_dchi * F_th + dd_tk_dchi * F_tk);
+
+  // --------------------------------------------------------------------------
+  // Populate according to comment
+  J_0 = std::max(
+    B_0 + d_th * B_th + d_tk * B_tk,
+    pm1.opt.fl_J
+  );
+
+  H_v = -v_H;
+  H_F = -F_H;
+
+  // (from H \perp u)
+  H_n = H_F * dotFv + H_v * dotvv;
+
+  // Derivative terms
+  dJ_dchi_0 = dd_th_dchi * B_th + dd_tk_dchi * B_tk;
+  dH_dchi_v = -d_v_H_dchi;
+  dH_dchi_F = -d_F_H_dchi;
+  dH_dchi_n = dH_dchi_F * dotFv + dH_dchi_v * dotvv;
+}
+
 // ============================================================================
 } // namespace M1::Assemble::Frames::D1
 // ============================================================================

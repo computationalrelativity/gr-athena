@@ -15,177 +15,209 @@
 #include "eos_policy_interface.hpp"
 #include "unit_system.hpp"
 
-namespace Primitive {
+namespace Primitive
+{
 
-class PiecewisePolytrope : public EOSPolicyInterface {
+class PiecewisePolytrope : public EOSPolicyInterface
+{
   protected:
-    /// Number of polytropes in the EOS
-    int n_pieces;
+  /// Number of polytropes in the EOS
+  int n_pieces;
 
-    /// Parameters for the EOS
-    Real *density_pieces;
-    Real *gamma_pieces;
-    Real *pressure_pieces;
-    Real *eps_pieces;
-    Real gamma_thermal;
-    bool initialized;
+  /// Parameters for the EOS
+  Real* density_pieces;
+  Real* gamma_pieces;
+  Real* pressure_pieces;
+  Real* eps_pieces;
+  Real gamma_thermal;
+  bool initialized;
 
-    /// Allocate memory for the different EOS pieces.
-    void AllocateMemory();
-    /// Constructor
-    PiecewisePolytrope();
+  /// Allocate memory for the different EOS pieces.
+  void AllocateMemory();
+  /// Constructor
+  PiecewisePolytrope();
 
-    /// Destructor
-    ~PiecewisePolytrope();
+  /// Destructor
+  ~PiecewisePolytrope();
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromE(Real n, Real e, Real *Y);
+  /// Calculate the temperature using the ideal gas law.
+  Real TemperatureFromE(Real n, Real e, Real* Y);
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromEps(Real n, Real e, Real *Y);
+  /// Calculate the temperature using the ideal gas law.
+  Real TemperatureFromP(Real n, Real p, Real* Y);
 
-    /// Calculate the temperature using the ideal gas law.
-    Real TemperatureFromP(Real n, Real p, Real *Y);
+  /// Calculate the temperature from the entropy.
+  Real TemperatureFromEntropy(Real n, Real p, Real* Y);
 
-    /// Calculate the temperature from the entropy.
-    Real TemperatureFromEntropy(Real n, Real p, Real *Y);
+  /// Calculate the energy density using the ideal gas law.
+  Real Energy(Real n, Real T, Real* Y);
 
-    /// Calculate the energy density using the ideal gas law.
-    Real Energy(Real n, Real T, Real *Y);
+  /// Calculate the pressure using the ideal gas law.
+  Real Pressure(Real n, Real T, Real* Y);
 
-    /// Calculate the pressure using the ideal gas law.
-    Real Pressure(Real n, Real T, Real *Y);
+  /// Calculate the entropy per baryon using the ideal gas law.
+  // MJ: TODO
+  Real Entropy(Real n, Real T, Real* Y)
+  {
+    return NAN;
+  }
 
-    /// Calculate the entropy per baryon using the ideal gas law.
-    // MJ: TODO
-    Real Entropy(Real n, Real T, Real *Y)
-    {
-      return NAN;
-    }
+  /// Calculate the enthalpy per baryon using the ideal gas law.
+  Real Enthalpy(Real n, Real T, Real* Y);
 
-    /// Calculate the enthalpy per baryon using the ideal gas law.
-    Real Enthalpy(Real n, Real T, Real *Y);
+  /// Fused temperature + pressure + enthalpy from energy.
+  void TemperaturePressureAndEnthalpyFromE(Real n,
+                                           Real e,
+                                           Real* Y,
+                                           Real* T,
+                                           Real* P,
+                                           Real* h,
+                                           int* guess_it = nullptr);
 
-    /// Get the minimum enthalpy per baryon according to the ideal gas law.
-    Real MinimumEnthalpy();
+  void PressureAndEnthalpyFromE(Real n,
+                                Real e,
+                                Real* Y,
+                                Real* P,
+                                Real* h,
+                                int* guess_it = nullptr);
 
-    /// Species fractions
-    [[ noreturn ]]
-    Real FrYn(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYp(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYa(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real FrYh(Real n, Real T, Real *Y);
+  /// Fused pressure + enthalpy query.
+  void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
 
-    [[ noreturn ]]
-    Real Abar(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real AN(Real n, Real T, Real *Y);
-    [[ noreturn ]]
-    Real ZN(Real n, Real T, Real *Y);
+  /// Get the minimum enthalpy per baryon according to the ideal gas law.
+  Real MinimumEnthalpy();
 
-    /// Calculate the sound speed for an ideal gas.
-    Real SoundSpeed(Real n, Real T, Real *Y);
+  // Returns neutron number fraction Y_n = n_n / n_b.
+  [[noreturn]]
+  Real FrYn(Real n, Real T, Real* Y);
+  // Returns proton number fraction Y_p = n_p / n_b.
+  [[noreturn]]
+  Real FrYp(Real n, Real T, Real* Y);
+  // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
+  // This is a mass fraction, not a number fraction.
+  [[noreturn]]
+  Real FrXh(Real n, Real T, Real* Y);
 
-    /// Calculate the internal energy per mass.
-    Real SpecificInternalEnergy(Real n, Real T, Real *Y);
+  [[noreturn]]
+  Real AN(Real n, Real T, Real* Y);
+  [[noreturn]]
+  Real ZN(Real n, Real T, Real* Y);
 
-    /// Calculate the baryon chemical potential
-    [[ noreturn ]]
-    Real BaryonChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the sound speed for an ideal gas.
+  Real SoundSpeed(Real n, Real T, Real* Y);
 
-    /// Calculate the charge chemical potential
-    [[ noreturn ]]
-    Real ChargeChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the internal energy per mass.
+  Real SpecificInternalEnergy(Real n, Real T, Real* Y);
 
-    /// Calculate the electron-lepton chemical potential
-    [[ noreturn ]]
-    Real ElectronLeptonChemicalPotential(Real n, Real T, Real *Y);
+  /// Calculate the baryon chemical potential
+  [[noreturn]]
+  Real BaryonChemicalPotential(Real n, Real T, Real* Y);
 
+  /// Calculate the charge chemical potential
+  [[noreturn]]
+  Real ChargeChemicalPotential(Real n, Real T, Real* Y);
 
-    /// Calculate the minimum pressure at a given density and composition
-    Real MinimumPressure(Real n, Real *Y);
+  /// Calculate the electron-lepton chemical potential
+  [[noreturn]]
+  Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
 
-    /// Calculate the maximum pressure at a given density and composition
-    Real MaximumPressure(Real n, Real *Y);
+  /// Calculate the effective nucleon interaction potential difference
+  [[noreturn]]
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
-    /// Calculate the minimum energy at a given density and composition
-    Real MinimumEnergy(Real n, Real *Y);
+  /// Calculate the minimum pressure at a given density and composition
+  Real MinimumPressure(Real n, Real* Y);
 
-    /// Calculate the minimum specific internal energy at a given density and composition
-    Real MinimumSpecificInternalEnergy(Real n, Real *Y) {
-      return MinimumEnergy(n, Y)/(mb*n) - 1.0;
-    }
+  /// Calculate the maximum pressure at a given density and composition
+  Real MaximumPressure(Real n, Real* Y);
 
-    /// Calculate the maximum energy at a given density and composition
-    Real MaximumEnergy(Real n, Real *Y);
+  /// Calculate the minimum energy at a given density and composition
+  Real MinimumEnergy(Real n, Real* Y);
 
-    /// Calculate the maximum specific internal energy at a given density and composition
-    Real MaximumSpecificInternalEnergy(Real n, Real *Y) {
-      return MaximumEnergy(n, Y)/(mb*n) - 1.0;
-    }
+  /// Calculate the maximum energy at a given density and composition
+  Real MaximumEnergy(Real n, Real* Y);
+
+  /// Minimum/maximum entropy (not implemented; stub for linkage).
+  [[noreturn]]
+  Real MinimumEntropy(Real n, Real* Y);
+  [[noreturn]]
+  Real MaximumEntropy(Real n, Real* Y);
+
+  /// Calculate the maximum specific internal energy at a given density and
+  /// composition
+  Real MaximumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MaximumEnergy(n, Y) / (mb * n) - 1.0;
+  }
 
   public:
-    /// Load the EOS parameters from a file.
-    bool ReadParametersFromFile(std::string fname);
+  /// Load the EOS parameters from a file.
+  bool ReadParametersFromFile(std::string fname);
 
-    //! \brief Initialize PiecewisePolytrope from data.
-    //
-    //  \param[in] densities The dividing densities
-    //  \param[in] gammas    The adiabatic index for each polytrope
-    //  \param[in] P0        The pressure at the first polytrope division
-    //  \param[in] m         The baryon mass
-    //  \param[in] n         The number of pieces in the EOS
-    bool InitializeFromData(Real *densities, Real *gammas,
-                            Real P0, Real m, int n);
+  //! \brief Initialize PiecewisePolytrope from data.
+  //
+  //  \param[in] densities The dividing densities
+  //  \param[in] gammas    The adiabatic index for each polytrope
+  //  \param[in] P0        The pressure at the first polytrope division
+  //  \param[in] m         The baryon mass
+  //  \param[in] n         The number of pieces in the EOS
+  bool InitializeFromData(Real* densities,
+                          Real* gammas,
+                          Real P0,
+                          Real m,
+                          int n);
 
-    /// Check if the EOS has been initialized properly.
-    inline bool IsInitialized() const {
-      return initialized;
-    }
+  /// Check if the EOS has been initialized properly.
+  inline bool IsInitialized() const
+  {
+    return initialized;
+  }
 
-    /// Find out how many polytropes are in the EOS.
-    inline int GetNPieces() const {
-      return n_pieces;
-    }
+  /// Find out how many polytropes are in the EOS.
+  inline int GetNPieces() const
+  {
+    return n_pieces;
+  }
 
-    /// Get the adiabatic constant for a particular density.
-    inline Real GetGamma(Real n) const {
-      return gamma_pieces[FindPiece(n)];
-    }
+  /// Get the adiabatic constant for a particular density.
+  inline Real GetGamma(Real n) const
+  {
+    return gamma_pieces[FindPiece(n)];
+  }
 
-    /// Set the adiabatic constant for the thermal part.
-    inline void SetThermalGamma(Real g) {
-      assert(g > 1.0);
-      gamma_thermal = g;
-    }
+  /// Set the adiabatic constant for the thermal part.
+  inline void SetThermalGamma(Real g)
+  {
+    assert(g > 1.0);
+    gamma_thermal = g;
+  }
 
-    /// Get the adiabatic constant for the thermal part.
-    inline Real GetThermalGamma() const {
-      return gamma_thermal;
-    }
+  /// Get the adiabatic constant for the thermal part.
+  inline Real GetThermalGamma() const
+  {
+    return gamma_thermal;
+  }
 
-    /// Find the index of the piece that the density aligns with.
-    int FindPiece(Real n) const;
+  /// Find the index of the piece that the density aligns with.
+  int FindPiece(Real n) const;
 
-    /// Polytropic Energy Density
-    Real GetColdEnergy(Real n, int p);
+  /// Polytropic Energy Density
+  Real GetColdEnergy(Real n, int p);
 
-    /// Polytropic Pressure
-    Real GetColdPressure(Real n, int p);
+  /// Polytropic Pressure
+  Real GetColdPressure(Real n, int p);
 
-    /// Set the number of species. Throw an exception if
-    /// the number of species is invalid.
-    void SetNSpecies(int n);
+  /// Set the number of species. Throw an exception if
+  /// the number of species is invalid.
+  void SetNSpecies(int n);
 
-    /// Set the EOS unit system
-    inline void SetEOSUnitSystem(UnitSystem* units) {
-      eos_units = units;
-    }
+  /// Set the EOS unit system
+  inline void SetEOSUnitSystem(UnitSystem* units)
+  {
+    eos_units = units;
+  }
 };
 
-} // namespace
+}  // namespace Primitive
 
 #endif

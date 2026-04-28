@@ -32,7 +32,7 @@ Butcher::Butcher(ParameterInput *pin, Mesh *pm)
     bt_a[0] = {0, 0};
     bt_a[1] = {1, 0};
     bt_b    = {0, 1};
-    bt_c    = {0, 1. / 3., 2. / 3.};
+    bt_c    = {0, 1.};
   }
   else if (integrator == "bt_rk4")
   {
@@ -160,13 +160,13 @@ Butcher::Butcher(ParameterInput *pin, Mesh *pm)
     bt_b[7-1]=2518367669./33571977600.;
     // bt_b[8-1]=0.;
 
-    bt_c[2-2]=122./825.;
-    bt_c[3-2]=61./275.;
-    bt_c[4-2]=3355./7863.;
-    bt_c[5-2]=64./93.;
-    bt_c[6-2]=67./87.;
-    bt_c[7-2]=1.;
-    bt_c[8-2]=1.;
+    bt_c[2-1]=122./825.;
+    bt_c[3-1]=61./275.;
+    bt_c[4-1]=3355./7863.;
+    bt_c[5-1]=64./93.;
+    bt_c[6-1]=67./87.;
+    bt_c[7-1]=1.;
+    // bt_c[8-1]=1.; // embedded 8th stage (error estimator), not used
 
   }
   else if (integrator == "bt_rk8_11_cop_ver")
@@ -256,16 +256,16 @@ Butcher::Butcher(ParameterInput *pin, Mesh *pm)
     bt_b[10-1]=49./180.;
     bt_b[11-1]=1./20.;
 
-    bt_c[2-2]=1./2.;
-    bt_c[3-2]=1./2.;
-    bt_c[4-2]=1./2.-1./14.*sqrt_21;
-    bt_c[5-2]=1./2.-1./14.*sqrt_21;
-    bt_c[6-2]=1./2.;
-    bt_c[7-2]=1./2.+1./14.*sqrt_21;
-    bt_c[8-2]=1./2.+1./14.*sqrt_21;
-    bt_c[9-2]=1./2.;
-    bt_c[10-2]=1./2.-1./14.*sqrt_21;
-    bt_c[11-2]=1.;
+    bt_c[2-1]=1./2.;
+    bt_c[3-1]=1./2.;
+    bt_c[4-1]=1./2.-1./14.*sqrt_21;
+    bt_c[5-1]=1./2.-1./14.*sqrt_21;
+    bt_c[6-1]=1./2.;
+    bt_c[7-1]=1./2.+1./14.*sqrt_21;
+    bt_c[8-1]=1./2.+1./14.*sqrt_21;
+    bt_c[9-1]=1./2.;
+    bt_c[10-1]=1./2.-1./14.*sqrt_21;
+    bt_c[11-1]=1.;
 
   }
   else if (integrator == "bt_pep4_2_5")

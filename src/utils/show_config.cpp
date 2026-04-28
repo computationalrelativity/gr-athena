@@ -26,7 +26,6 @@ void ShowConfig() {
   std::cout<<"  Problem generator:          " << PROBLEM_GENERATOR << std::endl;
   std::cout<<"  Coordinate system:          " << COORDINATE_SYSTEM << std::endl;
   std::cout<<"  Equation of state:          " << EQUATION_OF_STATE << std::endl;
-  std::cout<<"  Riemann solver:             " << RIEMANN_SOLVER << std::endl;
   if (FLUID_ENABLED) {
     std::cout<<"  Hydrodynamics:              ON" << std::endl;
   } else {
@@ -36,11 +35,6 @@ void ShowConfig() {
     std::cout<<"  Magnetic fields:            ON" << std::endl;
   } else {
     std::cout<<"  Magnetic fields:            OFF" << std::endl;
-  }
-  if (RELATIVISTIC_DYNAMICS) { // configure.py output: "Special relativity"
-    std::cout<<"  Relativistic dynamics:      ON " << std::endl;
-  } else {
-    std::cout<<"  Relativistic dynamics:      OFF " << std::endl;
   }
   if (GENERAL_RELATIVITY) {
     std::cout<<"  General relativity:         ON " << std::endl;
@@ -69,16 +63,6 @@ void ShowConfig() {
   } else {
     std::cout<<"  Z4c equations:              OFF" << std::endl;
   }
-  if (STS_ENABLED) {
-    std::cout<<"  Super-Time-Stepping:        ON" << std::endl;
-  } else {
-    std::cout<<"  Super-Time-Stepping:        OFF" << std::endl;
-  }
-  if (SHEARING_BOX) {
-    std::cout<<"  Shearing Box BCs:           ON" << std::endl;
-  } else {
-    std::cout<<"  Shearing Box BCs:           OFF" << std::endl;
-  }
   // configure.py output: +"Debug flags"
   // configure.py output: +"Code coverage flags"
   // configure.py output: +"Linker flags"
@@ -97,12 +81,6 @@ void ShowConfig() {
   std::cout<<"  OpenMP parallelism:         ON" << std::endl;
 #else
   std::cout<<"  OpenMP parallelism:         OFF" << std::endl;
-#endif
-
-#ifdef FFT
-  std::cout<<"  FFT:                        ON" << std::endl;
-#else
-  std::cout<<"  FFT:                        OFF" << std::endl;
 #endif
 
 #ifdef HDF5OUTPUT

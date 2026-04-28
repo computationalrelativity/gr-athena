@@ -36,6 +36,8 @@ public:
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -58,92 +60,6 @@ private:
   void Add(
     const TaskID& id, const TaskID& dep,
     TaskStatus (GR_Z4c::*fcn)(MeshBlock*, int),
-    bool lb_time=true)
-  {
-    TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
-      MeshBlock*, int
-    )>(fcn));
-  }
-};
-
-// Coupled GRMHD system tasklist
-class GRMHD_Z4c : public TaskList, TaskLists::Integrators::LowStorage
-{
-public:
-  GRMHD_Z4c(ParameterInput *pin, Mesh *pm, gra::triggers::Triggers &trgs);
-
-  TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
-
-  TaskStatus CalculateHydroFlux(MeshBlock *pmb, int stage);
-  TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
-
-  TaskStatus SendFluxCorrectionHydro(MeshBlock *pmb, int stage);
-  TaskStatus SendFluxCorrectionEMF(  MeshBlock *pmb, int stage);
-
-  TaskStatus ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveAndCorrectEMF(MeshBlock *pmb, int stage);
-
-  TaskStatus IntegrateHydro(MeshBlock *pmb, int stage);
-  TaskStatus IntegrateField(MeshBlock *pmb, int stage);
-
-  TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
-
-  TaskStatus SendHydro(MeshBlock *pmb, int stage);
-  TaskStatus SendField(MeshBlock *pmb, int stage);
-
-  TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveField(MeshBlock *pmb, int stage);
-
-  TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
-
-  TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
-  TaskStatus Primitives(MeshBlock *pmb, int stage);
-  TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);
-  TaskStatus UserWork(MeshBlock *pmb, int stage);
-  TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
-  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
-
-  TaskStatus CalculateScalarFlux(MeshBlock *pmb, int stage);
-  TaskStatus SendScalarFlux(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveScalarFlux(MeshBlock *pmb, int stage);
-  TaskStatus IntegrateScalars(MeshBlock *pmb, int stage);
-  TaskStatus SendScalars(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveScalars(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesScalars(MeshBlock *pmb, int stage);
-
-  TaskStatus CalculateZ4cRHS(MeshBlock *pmb, int stage);
-  TaskStatus IntegrateZ4c(MeshBlock *pmb, int stage);
-  TaskStatus SendZ4c(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveZ4c(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesZ4c(MeshBlock *pmb, int stage);
-  TaskStatus Prolongation_Z4c(MeshBlock *pmb, int stage);
-  TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage);
-  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
-  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
-  TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
-  TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
-#if CCE_ENABLED
-  TaskStatus CCEDump(MeshBlock *pmb, int stage);
-#endif
-  TaskStatus UpdateSource(MeshBlock *pmb, int stage);
-
-public:
-  using TaskList::nstages;
-
-private:
-  // BD - TODO: remove the AddTask logic in favour of Add
-  void AddTask(const TaskID& id, const TaskID& dep) override { };
-  void StartupTaskList(MeshBlock *pmb, int stage) override;
-
-private:
-  gra::triggers::Triggers & trgs;
-
-private:
-  // For slightly cleaner & more flexible, treatment of tasklist graph assembly
-  void Add(
-    const TaskID& id, const TaskID& dep,
-    TaskStatus (GRMHD_Z4c::*fcn)(MeshBlock*, int),
     bool lb_time=true)
   {
     TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
@@ -219,16 +135,10 @@ public:
   TaskStatus PrimitivesPhysical(MeshBlock *pmb, int stage);
 
   TaskStatus SendHydro(MeshBlock *pmb, int stage);
-  TaskStatus SendField(MeshBlock *pmb, int stage);
-  TaskStatus SendScalars(MeshBlock *pmb, int stage);
 
   TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveField(MeshBlock *pmb, int stage);
-  TaskStatus ReceiveScalars(MeshBlock *pmb, int stage);
 
   TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesField(MeshBlock *pmb, int stage);
-  TaskStatus SetBoundariesScalars(MeshBlock *pmb, int stage);
 
   TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
   TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);
@@ -277,6 +187,8 @@ public:
   TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage);
   TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
   TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
 #if CCE_ENABLED
   TaskStatus CCEDump(MeshBlock *pmb, int stage);
 #endif
@@ -348,6 +260,95 @@ private:
   }
 };
 
+// ---------------------------------------------------------------------------
+// Monolithic GRMHD+Z4c task list - fuses all four split phases (MHD, Z4c,
+// MHD_com, Finalize) into a single DAG executed by one DoTaskListOneStage
+// call per substep, eliminating all inter-phase barriers.
+//
+// Selected at runtime when hydro/use_split_grmhd_z4c = false (default).
+// ---------------------------------------------------------------------------
+class GRMHD_Z4c_Monolithic : public TaskList,
+                                    TaskLists::Integrators::LowStorage
+{
+public:
+  GRMHD_Z4c_Monolithic(ParameterInput *pin,
+                        Mesh *pm,
+                        gra::triggers::Triggers &trgs);
+
+  // -- MHD compute ----------------------------------------------------------
+  TaskStatus IntegrateHydroScalars(MeshBlock *pmb, int stage);
+  TaskStatus CalculateHydroScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus SendFluxCorrectionHydro(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveAndCorrectHydroFlux(MeshBlock *pmb, int stage);
+  TaskStatus SendScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveScalarFlux(MeshBlock *pmb, int stage);
+  TaskStatus AddFluxDivergenceHydroScalars(MeshBlock *pmb, int stage);
+  TaskStatus AddSourceTermsHydro(MeshBlock *pmb, int stage);
+  TaskStatus CalculateEMF(MeshBlock *pmb, int stage);
+  TaskStatus SendFluxCorrectionEMF(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveAndCorrectEMF(MeshBlock *pmb, int stage);
+  TaskStatus IntegrateField(MeshBlock *pmb, int stage);
+
+  // -- Z4c compute ----------------------------------------------------------
+  TaskStatus InitializeZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus CalculateZ4cRHS(MeshBlock *pmb, int stage);
+  TaskStatus IntegrateZ4c(MeshBlock *pmb, int stage);
+  TaskStatus SendZ4c(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveZ4c(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesZ4c(MeshBlock *pmb, int stage);
+  TaskStatus Prolongation_Z4c(MeshBlock *pmb, int stage);
+  TaskStatus PhysicalBoundary_Z4c(MeshBlock *pmb, int stage);
+  TaskStatus EnforceAlgConstr(MeshBlock *pmb, int stage);
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
+  TaskStatus Z4cToADM(MeshBlock *pmb, int stage);
+#if CCE_ENABLED
+  TaskStatus CCEDump(MeshBlock *pmb, int stage);
+#endif
+
+  // -- MHD ghost-zone comm + C2P --------------------------------------------
+  TaskStatus SendHydro(MeshBlock *pmb, int stage);
+  TaskStatus ClearFluxCorrection(MeshBlock *pmb, int stage);
+  TaskStatus PrimitivesPhysical(MeshBlock *pmb, int stage);
+  TaskStatus ReceiveHydro(MeshBlock *pmb, int stage);
+  TaskStatus SetBoundariesHydro(MeshBlock *pmb, int stage);
+  TaskStatus Prolongation_Hyd(MeshBlock *pmb, int stage);
+  TaskStatus PhysicalBoundary_Hyd(MeshBlock *pmb, int stage);
+
+  // -- Finalize -------------------------------------------------------------
+  TaskStatus PrimitivesGhosts(MeshBlock *pmb, int stage);
+  TaskStatus UpdateSource(MeshBlock *pmb, int stage);
+  TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
+  TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
+  TaskStatus UserWork(MeshBlock *pmb, int stage);
+  TaskStatus NewBlockTimeStep(MeshBlock *pmb, int stage);
+  TaskStatus CheckRefinement(MeshBlock *pmb, int stage);
+
+  // -- Cleanup --------------------------------------------------------------
+  TaskStatus ClearZ4c(MeshBlock *pmb, int stage);
+  TaskStatus ClearMainInt(MeshBlock *pmb, int stage);
+
+public:
+  using TaskList::nstages;
+
+private:
+  void AddTask(const TaskID& id, const TaskID& dep) override { };
+  void StartupTaskList(MeshBlock *pmb, int stage) override;
+
+private:
+  gra::triggers::Triggers & trgs;
+
+private:
+  void Add(
+    const TaskID& id, const TaskID& dep,
+    TaskStatus (GRMHD_Z4c_Monolithic::*fcn)(MeshBlock*, int),
+    bool lb_time=true)
+  {
+    TaskList::Add(id, dep, static_cast<TaskStatus (TaskList::*)(
+      MeshBlock*, int
+    )>(fcn));
+  }
+};
+
 // Auxiliary functions (post Vac./GRMHD exec.)
 class Aux_Z4c : public TaskList
 {
@@ -395,6 +396,7 @@ public:
 
   TaskStatus ClearAllBoundary(MeshBlock *pmb, int stage);
 
+  TaskStatus PrepareZ4cDerivatives(MeshBlock *pmb, int stage);
   TaskStatus ADM_Constraints(MeshBlock *pmb, int stage);
   TaskStatus Z4c_Weyl(MeshBlock *pmb, int stage);
 

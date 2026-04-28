@@ -1,8 +1,8 @@
 // c++
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
-#include <algorithm>
 
 // Athena++ headers
 #include "m1.hpp"
@@ -16,49 +16,53 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_roots.h>
+
 #include <ostream>
 
 // ============================================================================
-namespace M1 {
+namespace M1
+{
 // ============================================================================
 
 // ============================================================================
-namespace Closures {
+namespace Closures
+{
 // ============================================================================
 
 static const Real XI_MIN = 0.0;
 static const Real XI_MAX = 1.0;
 
 // ============================================================================
-namespace EddingtonFactors {
+namespace EddingtonFactors
+{
 // ============================================================================
 
-void ThinLimit(Real & xi, Real & chi)
+void ThinLimit(Real& xi, Real& chi)
 {
-  xi = 1.0;
+  xi  = 1.0;
   chi = 1.0;
 }
 
-void ThickLimit(Real & xi, Real & chi)
+void ThickLimit(Real& xi, Real& chi)
 {
-  xi = 0.0;
+  xi  = 0.0;
   chi = ONE_3RD;
 }
 
-void Minerbo(Real & xi, Real & chi)
+void Minerbo(Real& xi, Real& chi)
 {
   const Real xi2 = SQR(xi);
-  chi = ONE_3RD + xi2 / 15.0 * (6.0 - 2.0 * xi + 6 * xi2);
+  chi            = ONE_3RD + xi2 / 15.0 * (6.0 - 2.0 * xi + 6 * xi2);
 }
 
-void Kershaw(Real & xi, Real & chi)
+void Kershaw(Real& xi, Real& chi)
 {
   const Real xi2 = SQR(xi);
-  chi = ONE_3RD * (1.0 + 2.0 * xi2);
+  chi            = ONE_3RD * (1.0 + 2.0 * xi2);
 }
 
 // General interface ----------------------------------------------------------
-void Compute(M1 & pm1, Real & xi, Real & chi)
+void Compute(M1& pm1, Real& xi, Real& chi)
 {
   typedef M1::opt_closure_variety ocv;
 
@@ -92,38 +96,37 @@ void Compute(M1 & pm1, Real & xi, Real & chi)
 }
 
 // ============================================================================
-namespace D1 {
+namespace D1
+{
 // ============================================================================
 
 // First derivatives (wrt. xi);
 // chi=chi(xi) -> chi'(xi)
 
-void ThinLimit(Real & xi, Real & chi)
+void ThinLimit(Real& xi, Real& chi)
 {
-  xi = 0.0;
+  xi  = 0.0;
   chi = 0.0;
 }
 
-void ThickLimit(Real & xi, Real & dchi_dxi)
+void ThickLimit(Real& xi, Real& dchi_dxi)
 {
-  xi = 0.0;
+  xi       = 0.0;
   dchi_dxi = 0.0;
 }
 
-void Minerbo(Real & xi, Real & dchi_dxi)
+void Minerbo(Real& xi, Real& dchi_dxi)
 {
-  dchi_dxi = (2.0 / 5.0) * xi * (
-    2.0 + xi * (4.0 * xi - 1.0)
-  );
+  dchi_dxi = (2.0 / 5.0) * xi * (2.0 + xi * (4.0 * xi - 1.0));
 }
 
-void Kershaw(Real & xi, Real & dchi_dxi)
+void Kershaw(Real& xi, Real& dchi_dxi)
 {
   dchi_dxi = 4.0 * ONE_3RD * xi;
 }
 
 // General interface ----------------------------------------------------------
-void Compute(M1 & pm1, Real & xi, Real & dchi_dxi)
+void Compute(M1& pm1, Real& xi, Real& dchi_dxi)
 {
   typedef M1::opt_closure_variety ocv;
 
@@ -156,11 +159,11 @@ void Compute(M1 & pm1, Real & xi, Real & dchi_dxi)
   }
 }
 // ============================================================================
-} // namespace M1::Closures::EddingtonFactors::D1
+}  // namespace D1
 // ============================================================================
 
 // ============================================================================
-} // namespace M1::Closures::EddingtonFactors
+}  // namespace EddingtonFactors
 // ============================================================================
 
 void ClosureMetaVector::Closure(const int k, const int j, const int i)
@@ -217,10 +220,15 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
     //     (ss == status_sol::fail_bracket) ||
     //     (ss == status_sol::fail_value))
     {
-
       if (ss == status_sol::fail_tolerance_not_met &&
           !pm1.opt_closure.fail_on_npg)
       {
+        // The solver did not converge to tolerance.  If the Newton phase
+        // of custom_NAB diverged before the Anderson-Bjorck fallback could
+        // bracket the root, xi may be outside [0,1].  Clamp it before the
+        // Eddington-factor polynomials are evaluated.
+        solvers::Enforce_Xi_Limits(sc_xi(k, j, i));
+        EddingtonFactors::Compute(pm1, sc_xi(k, j, i), sc_chi(k, j, i));
         return;
       }
 
@@ -230,14 +238,15 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
   }
 
   // compute Eddington factor -------------------------------------------------
-  EddingtonFactors::Compute(pm1, sc_xi(k,j,i), sc_chi(k,j,i));
+  EddingtonFactors::Compute(pm1, sc_xi(k, j, i), sc_chi(k, j, i));
 }
 
-ClosureMetaVector ConstructClosureMetaVector(
-  M1 & pm1, M1::vars_Lab & vlab,
-  const int ix_g, const int ix_s)
+ClosureMetaVector ConstructClosureMetaVector(M1& pm1,
+                                             M1::vars_Lab& vlab,
+                                             const int ix_g,
+                                             const int ix_s)
 {
-  return ClosureMetaVector {
+  return ClosureMetaVector{
     pm1,
     ix_g,
     ix_s,
@@ -249,30 +258,33 @@ ClosureMetaVector ConstructClosureMetaVector(
     pm1.fidu.sp_v_u,
     pm1.fidu.sc_W,
     // state-vector dependent
-    vlab.sc_E(  ix_g,ix_s),
-    vlab.sp_F_d(ix_g,ix_s),
+    vlab.sc_E(ix_g, ix_s),
+    vlab.sp_F_d(ix_g, ix_s),
     // group-dependent, but common
-    pm1.lab_aux.sc_chi( ix_g,ix_s),
-    pm1.lab_aux.sc_xi(  ix_g,ix_s),
+    pm1.lab_aux.sc_chi(ix_g, ix_s),
+    pm1.lab_aux.sc_xi(ix_g, ix_s),
     // Lagrangian frame
-    pm1.rad.sc_J(  ix_g,ix_s),
-    pm1.rad.st_H_u(ix_g,ix_s),
+    pm1.rad.sc_J(ix_g, ix_s),
+    pm1.rad.st_H_u(ix_g, ix_s),
   };
 }
 
 // ============================================================================
-namespace solvers {
+namespace solvers
+{
 // ============================================================================
 
 // functional to find root of
-Real Z_xi(
-  const Real xi__,
-  M1 & pm1,
-  ClosureMetaVector & C,
-  const int k, const int j, const int i)
+Real Z_xi(const Real xi__,
+          M1& pm1,
+          ClosureMetaVector& C,
+          const DPCache& cache,
+          const int k,
+          const int j,
+          const int i)
 {
-  C.sc_xi(k,j,i) = xi__;
-  EddingtonFactors::Compute(pm1, C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+  C.sc_xi(k, j, i) = xi__;
+  EddingtonFactors::Compute(pm1, C.sc_xi(k, j, i), C.sc_chi(k, j, i));
 
   // Prepare H^alpha
 
@@ -282,53 +294,30 @@ Real Z_xi(
   Real J_0, H_n, H_v, H_F;
 
   Assemble::Frames::ToFiducialExpansionCoefficients(
-    pm1,
-    J_0, H_n, H_v, H_F,
-    C.sc_chi, C.sc_E, C.sp_F_d,
-    k, j, i
-  );
+    pm1, J_0, H_n, H_v, H_F, C.sc_chi, cache, k, j, i);
 
-  // Projections
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    C.sp_F_d,
-    C.sp_v_u,
-    k, j, i
-  );
-
-  const Real dotFF = Assemble::sp_norm2__(
-    C.sp_F_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real dotvv = Assemble::sp_norm2__(
-    pm1.fidu.sp_v_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real st_H_norm_2__ = (
-    dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
-  );
+  const Real st_H_norm_2__ =
+    (cache.nF2 * SQR(H_F) - SQR(H_n) + 2 * cache.dotFv * H_F * H_v +
+     SQR(H_v) * cache.dotvv);
 
   // Functional
   // N.B. perform a further rescaling
-  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k,j,i), pm1.opt.fl_E)));
-  return OO_E2 * (
-    st_H_norm_2__ - SQR(xi__ * J_0)
-  );
+  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k, j, i), pm1.opt.fl_E)));
+  return OO_E2 * (st_H_norm_2__ - SQR(xi__ * J_0));
 }
 
-void ZdZ_xi(
-  Real & Z__,
-  Real & dZ__,
-  const Real xi__,
-  M1 & pm1,
-  ClosureMetaVector & C,
-  const int k, const int j, const int i)
+void ZdZ_xi(Real& Z__,
+            Real& dZ__,
+            const Real xi__,
+            M1& pm1,
+            ClosureMetaVector& C,
+            const DPCache& cache,
+            const int k,
+            const int j,
+            const int i)
 {
-  C.sc_xi(k,j,i) = xi__;
-  EddingtonFactors::Compute(pm1, C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+  C.sc_xi(k, j, i) = xi__;
+  EddingtonFactors::Compute(pm1, C.sc_xi(k, j, i), C.sc_chi(k, j, i));
 
   Real loc_xi__ = xi__;
   Real d_chi_dxi__;
@@ -342,64 +331,49 @@ void ZdZ_xi(
   Real J_0, H_n, H_v, H_F;
   Real dJ_dchi_0, dH_dchi_n, dH_dchi_v, dH_dchi_F;
 
-  Assemble::Frames::D1::ToFiducialExpansionCoefficients(
-    pm1,
-    J_0, H_n, H_v, H_F,
-    dJ_dchi_0, dH_dchi_n, dH_dchi_v, dH_dchi_F,
-    C.sc_chi, C.sc_E, C.sp_F_d,
-    k, j, i
-  );
+  Assemble::Frames::D1::ToFiducialExpansionCoefficients(pm1,
+                                                        J_0,
+                                                        H_n,
+                                                        H_v,
+                                                        H_F,
+                                                        dJ_dchi_0,
+                                                        dH_dchi_n,
+                                                        dH_dchi_v,
+                                                        dH_dchi_F,
+                                                        C.sc_chi,
+                                                        cache,
+                                                        k,
+                                                        j,
+                                                        i);
 
-  // Projections
-  const Real dotFv = Assemble::sc_dot_dense_sp__(
-    C.sp_F_d,
-    C.sp_v_u,
-    k, j, i
-  );
+  const Real st_H_norm_2__ =
+    (cache.nF2 * SQR(H_F) - SQR(H_n) + 2 * cache.dotFv * H_F * H_v +
+     SQR(H_v) * cache.dotvv);
 
-  const Real dotFF = Assemble::sp_norm2__(
-    C.sp_F_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real dotvv = Assemble::sp_norm2__(
-    pm1.fidu.sp_v_d,
-    pm1.geom.sp_g_uu,
-    k,j,i
-  );
-
-  const Real st_H_norm_2__ = (
-    dotFF * SQR(H_F) - SQR(H_n) + 2 * dotFv * H_F * H_v + SQR(H_v) * dotvv
-  );
-
-  const Real dst_H_norm_2_dxi__ = 2.0 * d_chi_dxi__ * (
-    dotFF * H_F * dH_dchi_F -
-    H_n * dH_dchi_n +
-    dotFv * (dH_dchi_F * H_v + H_F * dH_dchi_v)  +
-    H_v * dH_dchi_v * dotvv
-  );
+  const Real dst_H_norm_2_dxi__ =
+    2.0 * d_chi_dxi__ *
+    (cache.nF2 * H_F * dH_dchi_F - H_n * dH_dchi_n +
+     cache.dotFv * (dH_dchi_F * H_v + H_F * dH_dchi_v) +
+     H_v * dH_dchi_v * cache.dotvv);
 
   // // Functional
-  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k,j,i), pm1.opt.fl_E)));
-  Z__ = OO_E2 * (
-    st_H_norm_2__ - SQR(xi__ * J_0)
-  );
+  const Real OO_E2 = OO(SQR(std::max(C.sc_E(k, j, i), pm1.opt.fl_E)));
+  Z__              = OO_E2 * (st_H_norm_2__ - SQR(xi__ * J_0));
 
-  dZ__ = OO_E2 * (
-    dst_H_norm_2_dxi__ -
-    2.0 * (xi__ * J_0) * (J_0 + xi__ * dJ_dchi_0 * d_chi_dxi__)
-  );
+  dZ__ = OO_E2 * (dst_H_norm_2_dxi__ -
+                  2.0 * (xi__ * J_0) * (J_0 + xi__ * dJ_dchi_0 * d_chi_dxi__));
 }
 
-Real dZ_xi(
-  const Real xi__,
-  M1 & pm1,
-  ClosureMetaVector & C,
-  const int k, const int j, const int i)
+Real dZ_xi(const Real xi__,
+           M1& pm1,
+           ClosureMetaVector& C,
+           const DPCache& cache,
+           const int k,
+           const int j,
+           const int i)
 {
   Real Z__, dZ__;
-  ZdZ_xi(Z__, dZ__, xi__, pm1, C, k, j, i);
+  ZdZ_xi(Z__, dZ__, xi__, pm1, C, cache, k, j, i);
   return dZ__;
 }
 
@@ -413,7 +387,7 @@ Real dZ_xi(
 //   return false;
 // }
 
-bool Enforce_Xi_Limits(Real & xi)
+bool Enforce_Xi_Limits(Real& xi)
 {
   Real restricted_xi = std::clamp(xi, XI_MIN, XI_MAX);
   if (restricted_xi != xi)
@@ -424,10 +398,16 @@ bool Enforce_Xi_Limits(Real & xi)
   return false;
 }
 
-void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
-                            const int k, const int j, const int i)
+void Fallback_Xi_Chi_Limits(M1& pm1,
+                            ClosureMetaVector& C,
+                            const int k,
+                            const int j,
+                            const int i)
 {
   using namespace EddingtonFactors;
+
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
 
   // Admissible ranges for xi entering Eddington factor chi(xi)
   utils::Bracket br_xi;
@@ -436,14 +416,15 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
 
   utils::Bracket br_Z;
 
-  br_Z.a = Z_xi(br_xi.a, pm1, C, k, j, i);
-  br_Z.b = Z_xi(br_xi.b, pm1, C, k, j, i);
+  br_Z.a = Z_xi(br_xi.a, pm1, C, cache, k, j, i);
+  br_Z.b = Z_xi(br_xi.b, pm1, C, cache, k, j, i);
 
   if (!(br_Z.sign_change()))
   {
     if (pm1.opt_closure.fallback_thin)
     {
-      ThinLimit(C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+      ThinLimit(C.sc_xi(k, j, i), C.sc_chi(k, j, i));
+      return;
     }
   }
 
@@ -453,7 +434,7 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
     // {
     //   revert_tk();
     // }
-    ThickLimit(C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+    ThickLimit(C.sc_xi(k, j, i), C.sc_chi(k, j, i));
   }
   else
   {
@@ -461,7 +442,7 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
     // {
     //   revert_tn();
     // }
-    ThinLimit(C.sc_xi(k,j,i), C.sc_chi(k,j,i));
+    ThinLimit(C.sc_xi(k, j, i), C.sc_chi(k, j, i));
   }
 
   /*
@@ -482,60 +463,65 @@ void Fallback_Xi_Chi_Limits(M1 & pm1, ClosureMetaVector & C,
   */
 }
 
-
 // gsl specific ---------------------------------------------------------------
-struct gsl_params {
-  M1 & pm1;
-  ClosureMetaVector & C;
+struct gsl_params
+{
+  M1& pm1;
+  ClosureMetaVector& C;
+  const DPCache* cache;
 
   const int i;
   const int j;
   const int k;
 };
 
-Real gsl_Z_xi(Real xi, void * par_)
+Real gsl_Z_xi(Real xi, void* par_)
 {
-  gsl_params * par = static_cast<gsl_params*>(par_);
+  gsl_params* par = static_cast<gsl_params*>(par_);
 
   const int i = par->i;
   const int j = par->j;
   const int k = par->k;
 
-  return Z_xi(xi, par->pm1, par->C, k, j, i);
+  return Z_xi(xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
-Real gsl_dZ_xi(Real xi, void * par_)
+Real gsl_dZ_xi(Real xi, void* par_)
 {
-  gsl_params * par = static_cast<gsl_params*>(par_);
+  gsl_params* par = static_cast<gsl_params*>(par_);
 
   const int i = par->i;
   const int j = par->j;
   const int k = par->k;
 
-  return dZ_xi(xi, par->pm1, par->C, k, j, i);
+  return dZ_xi(xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
-void gsl_ZdZ_xi(Real xi, void * par_, Real * Z, Real * dZ)
+void gsl_ZdZ_xi(Real xi, void* par_, Real* Z, Real* dZ)
 {
-  gsl_params * par = static_cast<gsl_params*>(par_);
+  gsl_params* par = static_cast<gsl_params*>(par_);
 
   const int i = par->i;
   const int j = par->j;
   const int k = par->k;
 
-  ZdZ_xi(*Z, *dZ, xi, par->pm1, par->C, k, j, i);
+  ZdZ_xi(*Z, *dZ, xi, par->pm1, par->C, *par->cache, k, j, i);
 }
 
-status gsl_Brent(M1 & pm1,
-                 ClosureMetaVector & C,
-                 const int k, const int j, const int i)
+status gsl_Brent(M1& pm1,
+                 ClosureMetaVector& C,
+                 const int k,
+                 const int j,
+                 const int i)
 {
   // select function & solver -------------------------------------------------
-  struct gsl_params par = {pm1, C, i, j, k};
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+  struct gsl_params par = { pm1, C, &cache, i, j, k };
 
   gsl_function Z_;
   Z_.function = &gsl_Z_xi;
-  Z_.params = &par;
+  Z_.params   = &par;
 
   auto gsl_err_kill = [&](const int status)
   {
@@ -543,15 +529,12 @@ status gsl_Brent(M1 & pm1,
     msg << "gsl_Brent unexpected error: ";
     msg << status;
 
-    pm1.StatePrintPoint(
-      msg.str(),
-      C.ix_g, C.ix_s, k, j, i, true
-    );
+    pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
   };
 
   auto gsl_err_warn = [&]()
   {
-    #pragma omp critical
+#pragma omp critical
     {
       std::ostringstream msg;
       msg << "gsl_Brent maxiter=";
@@ -561,10 +544,8 @@ status gsl_Brent(M1 & pm1,
   };
   // --------------------------------------------------------------------------
 
-  int gsl_status = gsl_root_fsolver_set(pm1.gsl_brent_solver,
-                                        &Z_,
-                                        XI_MIN,
-                                        XI_MAX);
+  int gsl_status =
+    gsl_root_fsolver_set(pm1.gsl_brent_solver, &Z_, XI_MIN, XI_MAX);
 
   /*
   typedef struct
@@ -581,7 +562,7 @@ status gsl_Brent(M1 & pm1,
 
   switch (gsl_status)
   {
-    case (GSL_EINVAL): // invalid function or bad initial guess
+    case (GSL_EINVAL):  // invalid function or bad initial guess
     {
       cur_status = status::fail_value;
       break;
@@ -593,7 +574,7 @@ status gsl_Brent(M1 & pm1,
       Real loc_xi_max;
 
       gsl_status = GSL_CONTINUE;
-      int iter = 0;
+      int iter   = 0;
       do
       {
         iter++;
@@ -605,20 +586,14 @@ status gsl_Brent(M1 & pm1,
           break;
         }
 
-        C.sc_xi(k,j,i) = pm1.gsl_brent_solver->root;
+        C.sc_xi(k, j, i) = pm1.gsl_brent_solver->root;
 
         loc_xi_min = gsl_root_fsolver_x_lower(pm1.gsl_brent_solver);
         loc_xi_max = gsl_root_fsolver_x_upper(pm1.gsl_brent_solver);
 
         gsl_status = gsl_root_test_interval(
-          loc_xi_min,
-          loc_xi_max,
-          pm1.opt_closure.abs_tol,
-          0
-        );
-      } while (iter<=pm1.opt_closure.iter_max &&
-               gsl_status == GSL_CONTINUE);
-
+          loc_xi_min, loc_xi_max, pm1.opt_closure.abs_tol, 0);
+      } while (iter <= pm1.opt_closure.iter_max && gsl_status == GSL_CONTINUE);
 
       if (gsl_status != GSL_SUCCESS)
       {
@@ -640,22 +615,26 @@ status gsl_Brent(M1 & pm1,
   return cur_status;
 }
 
-status gsl_Newton(M1 & pm1,
-                  ClosureMetaVector & C,
-                  const int k, const int j, const int i)
+status gsl_Newton(M1& pm1,
+                  ClosureMetaVector& C,
+                  const int k,
+                  const int j,
+                  const int i)
 {
   // select function & solver -------------------------------------------------
-  struct gsl_params par = {pm1, C, i, j, k};
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+  struct gsl_params par = { pm1, C, &cache, i, j, k };
 
   gsl_function_fdf Z_;
-  Z_.f   = &gsl_Z_xi;
-  Z_.df  = &gsl_dZ_xi;
-  Z_.fdf = &gsl_ZdZ_xi;
+  Z_.f      = &gsl_Z_xi;
+  Z_.df     = &gsl_dZ_xi;
+  Z_.fdf    = &gsl_ZdZ_xi;
   Z_.params = &par;
 
   auto gsl_err_warn = [&]()
   {
-    #pragma omp critical
+#pragma omp critical
     {
       std::ostringstream msg;
       msg << "gsl_Newton maxiter=";
@@ -665,9 +644,8 @@ status gsl_Newton(M1 & pm1,
   };
   // --------------------------------------------------------------------------
 
-  int gsl_status = gsl_root_fdfsolver_set(pm1.gsl_newton_solver,
-                                          &Z_,
-                                          C.sc_xi(k,j,i));
+  int gsl_status =
+    gsl_root_fdfsolver_set(pm1.gsl_newton_solver, &Z_, C.sc_xi(k, j, i));
 
   status cur_status = status::success;
 
@@ -681,11 +659,11 @@ status gsl_Newton(M1 & pm1,
     case (0):
     {
       // root-finding loop
-      Real loc_xim1 = C.sc_xi(k,j,i);
-      Real loc_xi   = C.sc_xi(k,j,i);
+      Real loc_xim1 = C.sc_xi(k, j, i);
+      Real loc_xi   = C.sc_xi(k, j, i);
 
       gsl_status = GSL_CONTINUE;
-      int iter = 0;
+      int iter   = 0;
       do
       {
         iter++;
@@ -697,19 +675,15 @@ status gsl_Newton(M1 & pm1,
           break;
         }
 
-        C.sc_xi(k,j,i) = pm1.gsl_newton_solver->root;
+        C.sc_xi(k, j, i) = pm1.gsl_newton_solver->root;
 
         loc_xim1 = loc_xi;
-        loc_xi = gsl_root_fdfsolver_root(pm1.gsl_newton_solver);
+        loc_xi   = gsl_root_fdfsolver_root(pm1.gsl_newton_solver);
 
-        gsl_status = gsl_root_test_delta(
-          loc_xi, loc_xim1,
-          pm1.opt_closure.abs_tol,
-          0
-        );
+        gsl_status =
+          gsl_root_test_delta(loc_xi, loc_xim1, pm1.opt_closure.abs_tol, 0);
 
-      } while (iter<=pm1.opt_closure.iter_max &&
-               gsl_status == GSL_CONTINUE);
+      } while (iter <= pm1.opt_closure.iter_max && gsl_status == GSL_CONTINUE);
 
       break;
     }
@@ -724,10 +698,9 @@ status gsl_Newton(M1 & pm1,
     cur_status = status::fail_tolerance_not_met;
   }
 
-  const bool limits_enforced = Enforce_Xi_Limits(C.sc_xi(k,j,i));
+  const bool limits_enforced = Enforce_Xi_Limits(C.sc_xi(k, j, i));
 
-  if ((cur_status != status::success) ||
-      limits_enforced)
+  if ((cur_status != status::success) || limits_enforced)
   {
     if (pm1.opt_closure.fallback_brent)
     {
@@ -744,36 +717,40 @@ status gsl_Newton(M1 & pm1,
   return cur_status;
 }
 
-status custom_NB(
-    M1 &pm1,
-    ClosureMetaVector &C,
-    const int k, const int j, const int i)
+status custom_NB(M1& pm1,
+                 ClosureMetaVector& C,
+                 const int k,
+                 const int j,
+                 const int i)
 {
   using namespace EddingtonFactors;
 
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
-  const Real dXI = pm1.opt_closure.bnd_xi_delta;
+  const Real dXI     = pm1.opt_closure.bnd_xi_delta;
   const int max_iter = pm1.opt_closure.iter_max;
 
-  Real &xi = C.sc_xi(k,j,i);
+  Real& xi = C.sc_xi(k, j, i);
 
   // Newton method ------------------------------------------------------------
-  int iter = 0;
+  int iter            = 0;
   bool newton_success = false;
 
-  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  // Compute Z and dZ together instead of two separate calls
+  Real Z, dZ;
+  ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
   if (std::abs(Z) <= fcn_tol)  // can we break-fast?
   {
     return status::success;
   }
 
-  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
-
   while (iter < max_iter)
   {
-    if (iter > 0) // init. already takes care of this
-      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+    if (iter > 0)  // init. already takes care of this
+      ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
 
     if (std::abs(Z) <= fcn_tol)
     {
@@ -813,18 +790,18 @@ status custom_NB(
   Real a = XI_MIN, b = XI_MAX;
 
   // We also have a point from the prior iter
-  Real c = xi;
+  Real c  = xi;
   Real fc = Z;
 
   // Check short-circuit
-  Real fa = Z_xi(a, pm1, C, k, j, i);
+  Real fa = Z_xi(a, pm1, C, cache, k, j, i);
   if (std::abs(fa) <= fcn_tol)
   {
     xi = a;
     return status::success;
   }
 
-  Real fb = Z_xi(b, pm1, C, k, j, i);
+  Real fb = Z_xi(b, pm1, C, cache, k, j, i);
   if (std::abs(fb) <= fcn_tol)
   {
     xi = b;
@@ -836,12 +813,12 @@ status custom_NB(
   {
     // fa and fc have same sign
     fa = fc;
-    a = c;
+    a  = c;
   }
   else if (fb * fc > 0.0)
   {
     fb = fc;
-    b = c;
+    b  = c;
   }
 
   if (std::abs(b - a) < abs_tol)
@@ -862,24 +839,23 @@ status custom_NB(
   while (fallback_iter < max_iter)
   {
     Real xi_m = 0.5 * (xi_a + xi_b);
-    Real f_m = Z_xi(xi_m, pm1, C, k, j, i);
+    Real f_m  = Z_xi(xi_m, pm1, C, cache, k, j, i);
 
     if (std::abs(f_m) < fcn_tol || (xi_b - xi_a) < abs_tol)
     {
       xi = xi_m;
       return status::success;
-      break;
     }
 
     if (f_a * f_m < 0.0)
     {
       xi_b = xi_m;
-      f_b = f_m;
+      f_b  = f_m;
     }
     else
     {
       xi_a = xi_m;
-      f_a = f_m;
+      f_a  = f_m;
     }
 
     ++fallback_iter;
@@ -887,43 +863,47 @@ status custom_NB(
 
   if (pm1.opt_closure.verbose)
   {
-    #pragma omp critical
+#pragma omp critical
     std::cerr << "custom_Newton Bisection: max_iter exceeded\n";
   }
 
   return status::fail_tolerance_not_met;
 }
 
-status custom_NAB(
-    M1 &pm1,
-    ClosureMetaVector &C,
-    const int k, const int j, const int i)
+status custom_NAB(M1& pm1,
+                  ClosureMetaVector& C,
+                  const int k,
+                  const int j,
+                  const int i)
 {
   using namespace EddingtonFactors;
 
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
-  const Real dXI = pm1.opt_closure.bnd_xi_delta;
+  const Real dXI     = pm1.opt_closure.bnd_xi_delta;
   const int max_iter = pm1.opt_closure.iter_max;
 
-  Real &xi = C.sc_xi(k,j,i);
+  Real& xi = C.sc_xi(k, j, i);
 
   // Newton method ------------------------------------------------------------
-  int iter = 0;
+  int iter            = 0;
   bool newton_success = false;
 
-  Real Z = Z_xi(xi, pm1, C, k, j, i);
+  // Compute Z and dZ together in a single call
+  Real Z, dZ;
+  ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
   if (std::abs(Z) <= fcn_tol)  // can we break-fast?
   {
     return status::success;
   }
 
-  Real dZ = dZ_xi(xi, pm1, C, k, j, i);
-
   while (iter < max_iter)
   {
-    if (iter > 0) // init. already takes care of this
-      ZdZ_xi(Z, dZ, xi, pm1, C, k, j, i);
+    if (iter > 0)  // init. already takes care of this
+      ZdZ_xi(Z, dZ, xi, pm1, C, cache, k, j, i);
 
     if (std::abs(Z) <= fcn_tol)
     {
@@ -963,18 +943,18 @@ status custom_NAB(
   Real a = XI_MIN, b = XI_MAX;
 
   // We also have a point from the prior iter
-  Real c = xi;
+  Real c  = xi;
   Real fc = Z;
 
   // Check short-circuit
-  Real fa = Z_xi(a, pm1, C, k, j, i);
+  Real fa = Z_xi(a, pm1, C, cache, k, j, i);
   if (std::abs(fa) <= fcn_tol)
   {
     xi = a;
     return status::success;
   }
 
-  Real fb = Z_xi(b, pm1, C, k, j, i);
+  Real fb = Z_xi(b, pm1, C, cache, k, j, i);
   if (std::abs(fb) <= fcn_tol)
   {
     xi = b;
@@ -986,12 +966,12 @@ status custom_NAB(
   {
     // fa and fc have same sign
     fa = fc;
-    a = c;
+    a  = c;
   }
   else if (fb * fc > 0.0)
   {
     fb = fc;
-    b = c;
+    b  = c;
   }
 
   if (std::abs(b - a) < abs_tol)
@@ -1012,7 +992,7 @@ status custom_NAB(
   while (fallback_iter < max_iter)
   {
     Real xi_r = xi_b - f_b * (xi_b - xi_a) / (f_b - f_a);
-    Real f_r = Z_xi(xi_r, pm1, C, k, j, i);
+    Real f_r  = Z_xi(xi_r, pm1, C, cache, k, j, i);
 
     if (std::abs(f_r) < fcn_tol || std::abs(xi_b - xi_a) < abs_tol)
     {
@@ -1023,13 +1003,13 @@ status custom_NAB(
     if (f_a * f_r < 0.0)
     {
       xi_b = xi_r;
-      f_b = f_r;
-      f_a *= 0.5; // Anderson-Björck damping
+      f_b  = f_r;
+      f_a *= 0.5;  // Anderson-Björck damping
     }
     else
     {
       xi_a = xi_r;
-      f_a = f_r;
+      f_a  = f_r;
       f_b *= 0.5;
     }
 
@@ -1038,38 +1018,42 @@ status custom_NAB(
 
   if (pm1.opt_closure.verbose)
   {
-    #pragma omp critical
+#pragma omp critical
     std::cerr << "custom_Newton Anderson-Bjorck: max_iter exceeded\n";
   }
 
   return status::fail_tolerance_not_met;
 }
 
-status custom_ONAB(
-    M1 &pm1,
-    ClosureMetaVector &C,
-    const int k, const int j, const int i)
+status custom_ONAB(M1& pm1,
+                   ClosureMetaVector& C,
+                   const int k,
+                   const int j,
+                   const int i)
 {
   using namespace EddingtonFactors;
 
-  Real &xi = C.sc_xi(k, j, i);
+  const auto cache =
+    Assemble::Frames::make_cache(pm1, C.sc_E, C.sp_F_d, k, j, i);
+
+  Real& xi           = C.sc_xi(k, j, i);
   const Real abs_tol = pm1.opt_closure.abs_tol;
   const Real fcn_tol = pm1.opt_closure.fcn_tol;
   const int max_iter = pm1.opt_closure.iter_max;
 
-  int iter = 0;
+  int iter       = 0;
   bool converged = false;
 
   while (iter < max_iter)
   {
     Real f_x, df_x;
-    ZdZ_xi(f_x, df_x, xi, pm1, C, k, j, i);  // f(xi), f'(xi)
+    ZdZ_xi(f_x, df_x, xi, pm1, C, cache, k, j, i);  // f(xi), f'(xi)
 
     if (std::abs(df_x) < 1e-14)
       break;
 
-    Real y = xi - f_x / df_x;
-    Real f_y = Z_xi(y, pm1, C, k, j, i);
+    Real y   = xi - f_x / df_x;
+    Real f_y = Z_xi(y, pm1, C, cache, k, j, i);
 
     Real den_diff = f_x - 2.0 * f_y;
 
@@ -1077,7 +1061,7 @@ status custom_ONAB(
       break;
 
     Real dx = (f_y / df_x) * (f_x / den_diff);
-    xi = y - dx;
+    xi      = y - dx;
 
     if (Enforce_Xi_Limits(xi))
       break;
@@ -1099,59 +1083,58 @@ status custom_ONAB(
 }
 
 // ============================================================================
-} // namespace M1::Closures::solvers
+}  // namespace solvers
 // ============================================================================
 
 // ============================================================================
-} // namespace M1::Closures
+}  // namespace Closures
 // ============================================================================
 
 // ----------------------------------------------------------------------------
 // Computes the closure on a mesh block
-void M1::CalcClosure(AthenaArray<Real> & u)
+void M1::CalcClosure(AthenaArray<Real>& u)
 {
   using namespace Closures;
 
-  vars_Lab U { {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS}, {N_GRPS,N_SPCS} };
+  vars_Lab U{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } };
   SetVarAliasesLab(u, U);
 
   // dispatch closure strategy ------------------------------------------------
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    ClosureMetaVector C = ConstructClosureMetaVector(*this, U, ix_g, ix_s);
-
-    // BD: TODO - fix limits on loops
-    M1_FLOOP3(k,j,i)
-    if (pm1->MaskGet(k,j,i))
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      // NonFiniteToZero(*this, C, k, j, i);
-      if (pm1->opt_solver.equilibrium_use_thick &&
-          pm1->IsEquilibrium(ix_s,k,j,i))
+      ClosureMetaVector C = ConstructClosureMetaVector(*this, U, ix_g, ix_s);
+
+      // BD: TODO - fix limits on loops
+      M1_FLOOP3(k, j, i)
+      if (pm1->MaskGet(k, j, i))
       {
-        // set directly, only 1 rep of closures
-        Closures::EddingtonFactors::ThickLimit(
-          pm1->lab_aux.sc_xi(ix_g,ix_s)(k,j,i),
-          pm1->lab_aux.sc_chi(ix_g,ix_s)(k,j,i)
-        );
+        // NonFiniteToZero(*this, C, k, j, i);
+        if (pm1->opt_solver.equilibrium_use_thick &&
+            pm1->IsEquilibrium(ix_s, k, j, i))
+        {
+          // set directly, only 1 rep of closures
+          Closures::EddingtonFactors::ThickLimit(
+            pm1->lab_aux.sc_xi(ix_g, ix_s)(k, j, i),
+            pm1->lab_aux.sc_chi(ix_g, ix_s)(k, j, i));
 
-        // M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
-        // pm1->opt_closure.variety = M1::opt_closure_variety::thick;
+          // M1::opt_closure_variety opt_cl_variety = pm1->opt_closure.variety;
+          // pm1->opt_closure.variety = M1::opt_closure_variety::thick;
 
-        // C.Closure(k,j,i);
+          // C.Closure(k,j,i);
 
-        // pm1->opt_closure.variety = opt_cl_variety;
-      }
-      else
-      {
-        C.Closure(k,j,i);
+          // pm1->opt_closure.variety = opt_cl_variety;
+        }
+        else
+        {
+          C.Closure(k, j, i);
+        }
       }
     }
-  }
 }
 
 // ============================================================================
-} // namespace M1
+}  // namespace M1
 // ============================================================================
 
 //

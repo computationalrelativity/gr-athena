@@ -1,283 +1,84 @@
-#include "surfaces.hpp"
+#include <algorithm>  // std::min
+#include <cstring>    // std::memcpy
 #include <limits>
 #include <map>
 #include <string>
+#include <tuple>  // std::tuple
+#include <vector>
+
+#include "surfaces.hpp"
+
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
 
 #include "../coordinates/coordinates.hpp"
-#include "../utils/linear_algebra.hpp"
-#include "../utils/lagrange_interp.hpp"
-#include "../utils/interp_barycentric.hpp"
-#include "../utils/utils.hpp"
-
-#include "../m1/m1.hpp"
 #include "../field/field.hpp"
 #include "../hydro/hydro.hpp"
+#include "../m1/m1.hpp"
 #include "../scalars/scalars.hpp"
+#include "../utils/interp_barycentric.hpp"
+#include "../utils/lagrange_interp.hpp"
+#include "../utils/linear_algebra.hpp"
+#include "../utils/utils.hpp"
 #include "../z4c/z4c.hpp"
 
 // hdf5 / mpi macros
 #include "../outputs/outputs.hpp"
 
 // ============================================================================
-namespace gra::mesh::surfaces {
+namespace gra::mesh::surfaces
+{
 // ============================================================================
 
-SurfacesCartesian::SurfacesCartesian(
-  Mesh *pm,
-  ParameterInput *pin,
-  const int par_ix)
-  : Surfaces(pm, pin, par_ix),
-    num_surf( pin->GetOrAddRealArray(par_block_name, "nx", -1, 0).GetSize() )
+SurfacesCartesian::SurfacesCartesian(Mesh* pm,
+                                     ParameterInput* pin,
+                                     const int par_ix)
+    : Surfaces(pm, pin, par_ix)
 {
-  for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
+  num_surf = pin->GetOrAddRealArray(par_block_name, "nx", -1, 0).GetSize();
+  for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
   {
-    psurf.push_back(new SurfaceCartesian(pm,
-                                         pin,
-                                         dynamic_cast<Surfaces*>(this),
-                                         surf_ix));
+    psurf.push_back(
+      new SurfaceCartesian(pm, pin, dynamic_cast<Surfaces*>(this), surf_ix));
   }
 }
 
-SurfacesCartesian::~SurfacesCartesian()
-{
-  if (can_async)
-  {
-    // Ensure any current writes complete before changing data
-    WriteBlock();
-  }
-
-  for (auto surf : psurf) {
-    delete surf;
-  }
-  psurf.resize(0);
-}
-
-bool SurfacesCartesian::IsActive(const Real time)
-{
-  if ((start_time >= 0) && time < start_time)
-  {
-    return false;
-  }
-
-  if ((stop_time >= 0) && time > stop_time)
-  {
-    return false;
-  }
-  return true;
-};
-
-void SurfacesCartesian::WriteBlock()
-{
-  if (write_future.valid())
-  {
-    write_future.get();
-  }
-}
-
-void SurfacesCartesian::WriteAllSurfaces(const Real time)
-{
-  // launch async write in background
-  write_future = std::async(std::launch::async, [this, time]()
-  {
-    // each surface can write its own contribution
-    for (auto &surf : psurf)
-    {
-      surf->write_hdf5(time);
-    }
-
-    // debug
-    std::printf("%s @ time = %.3e async out!\n", par_block_name.c_str(), time);
-  });
-}
-
-void SurfacesCartesian::Reduce(const int ncycle, const Real time,
-                               const bool is_final)
-{
-  // do not perform reduction if we are outside specified ranges --------------
-  if (!IsActive(time))
-  {
-    return;
-  }
-  // --------------------------------------------------------------------------
-
-  // filename update for final write
-  this->is_final = is_final;
-  if (is_final && !write_final)
-  {
-    return;
-  }
-
-  if (can_async)
-  {
-    // Ensure any current writes complete before changing data
-    WriteBlock();
-  }
-
-  for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
-  {
-    psurf[surf_ix]->Reduce(ncycle, time);
-  }
-
-  if (dump_data)
-  {
-    // immediate, blocking write complete, update file_number here;
-    // in the case of async this is also safe as it starts reduced by 1
-    if (!is_final)
-    {
-      file_number++;
-      pin->OverwriteParameter(par_block_name, "file_number", file_number);
-    }
-
-    // launch writes in the background asynchronously
-    if (can_async)
-    {
-      // only write-rank actually does the write
-      if (Globals::my_rank == write_rank)
-      {
-        WriteAllSurfaces(time);
-      }
-    }
-  }
-}
-
-void SurfacesCartesian::ReinitializeSurfaces(const int ncycle, const Real time)
-{
-  // do not reinitialize if we are outside specified ranges -------------------
-  if (!IsActive(time))
-  {
-    return;
-  }
-  // --------------------------------------------------------------------------
-
-  if (can_async)
-  {
-    // Ensure any current writes complete before changing data
-    WriteBlock();
-  }
-
-  for (int surf_ix=0; surf_ix<num_surf; ++surf_ix)
-  {
-    psurf[surf_ix]->ReinitializeSurface();
-  }
-}
-
-void SurfaceCartesian::write_hdf5(const Real T)
+void SurfaceCartesian::write_hdf5_coordinates(hid_t& id_file,
+                                              const std::string& six)
 {
 #ifdef HDF5OUTPUT
-  if (Globals::my_rank == psurfs->write_rank)
-  {
-    std::string filename;
-    hdf5_get_next_filename(filename);
+  // scalars [grid]
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/x_min", x_min);
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/x_max", x_max);
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/y_min", y_min);
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/y_max", y_max);
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/z_min", z_min);
+  hdf5_write_scalar(id_file, "/coordinates/" + six + "/z_max", z_max);
 
-    // write to existing file if multiple-radii being dumped
-    const bool use_existing = surf_ix > 0;
-    hid_t id_file = hdf5_touch_file(filename, use_existing);
-
-
-    /*
-    // Write attributes:
-    if (ix_rad == 0)
-    {
-      hdf5_write_attribute(id_file, "test_string", "test");
-      hdf5_write_attribute(id_file, "test_integer", 123);
-      hdf5_write_attribute(id_file, "test_Real", 3.21);
-    }
-    */
-
-    std::stringstream ssix;
-    ssix << std::setw(2) << std::setfill('0') << std::to_string(surf_ix);
-    const std::string six { ssix.str() };
-
-    // scalars [grid] -----------------------------------------------------------
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/T", T);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/x_min", x_min);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/x_max", x_max);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/y_min", y_min);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/y_max", y_max);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/z_min", z_min);
-    hdf5_write_scalar(id_file, "/coordinates/" + six + "/z_max", z_max);
-
-    // 1d arrays [grid] ---------------------------------------------------------
-    hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/x", x);
-    hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/y", y);
-    hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/z", z);
-
-    // 2d arrays [geometry] -----------------------------------------------------
-    int ix_dump = 0; // for offset in u_dump
-
-    std::string full_path_base { "/fields/" + six };
-
-    for (int v=0; v<psurfs->variables.GetSize(); ++v)
-    {
-      Surfaces::variety_data vd = psurfs->variables(v);
-
-      // get name prior to initial point i.e. from "M1.lab" extract "M1"
-      std::string var_type;
-      for (auto it = psurfs->map_to_variety_data.begin();
-                it != psurfs->map_to_variety_data.end(); ++it)
-      {
-        if (it->second == vd)
-        {
-          var_type = it->first;
-          continue;
-        }
-      }
-      var_type = var_type.substr(0, var_type.find("."));
-
-      // DEBUG
-      /*
-      #pragma omp critical
-      if (vd == Surfaces::variety_data::M1_lab)
-      {
-        for (int n=0; n<N_cpts(v); ++n)
-        {
-          std::string var_name = GetNameFieldComponent(vd, n);
-          std::printf("%d %s \n", n, var_name.c_str());
-        }
-        std::exit(0);
-      }
-      */
-
-      for (int n=0; n<N_cpts(v); ++n)
-      {
-        // slice into next field component to dump
-        AA sl_u (u_vars, ix_dump, 1);
-
-        std::string var_name = GetNameFieldComponent(vd, n);
-        std::string full_path = full_path_base + "/" + var_type + "/";
-        full_path += var_name;
-
-        hdf5_write_arr_nd(id_file, full_path, sl_u);
-        ix_dump++;
-      }
-    }
-
-    // Finally close
-    hdf5_close_file(id_file);
-  }
-
+  // 1d arrays [grid]
+  hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/x", x);
+  hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/y", y);
+  hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/z", z);
 #endif
 }
 
-SurfaceCartesian::SurfaceCartesian(
-  Mesh *pm,
-  ParameterInput *pin,
-  Surfaces *psurfs,
-  const int surf_ix)
-  : Surface(pm, pin, psurfs, surf_ix)
+SurfaceCartesian::SurfaceCartesian(Mesh* pm,
+                                   ParameterInput* pin,
+                                   Surfaces* psurfs,
+                                   const int surf_ix)
+    : Surface(pm, pin, psurfs, surf_ix)
 {
   // extract [target] sampling variety ----------------------------------------
   {
-    static const std::map<std::string, variety_sampling> opt_vs {
-      {"uniform", variety_sampling::uniform},
-      {"cgl",     variety_sampling::cgl},
+    static const std::map<std::string, variety_sampling> opt_vs{
+      { "uniform", variety_sampling::uniform },
+      { "cgl", variety_sampling::cgl },
     };
 
     const std::string par_name = "sampling";
 
-    auto itr = opt_vs.find(
-      pin->GetString(psurfs->par_block_name, par_name)
-    );
+    auto itr = opt_vs.find(pin->GetString(psurfs->par_block_name, par_name));
 
     if (itr != opt_vs.end())
     {
@@ -286,23 +87,22 @@ SurfaceCartesian::SurfaceCartesian(
     else
     {
       std::ostringstream msg;
-      msg << psurfs->par_block_name
-          << "/" << par_name << " unknown" << std::endl;
+      msg << psurfs->par_block_name << "/" << par_name << " unknown"
+          << std::endl;
       ATHENA_ERROR(msg);
     }
   }
 
   // extract interpolater variety ---------------------------------------------
   {
-    static const std::map<std::string, variety_interpolator> opt_vi {
-      {"Lagrange", variety_interpolator::Lagrange}
+    static const std::map<std::string, variety_interpolator> opt_vi{
+      { "Lagrange", variety_interpolator::Lagrange },
+      { "LagrangeLinear", variety_interpolator::LagrangeLinear }
     };
 
     const std::string par_name = "interpolator";
 
-    auto itr = opt_vi.find(
-      pin->GetString(psurfs->par_block_name, par_name)
-    );
+    auto itr = opt_vi.find(pin->GetString(psurfs->par_block_name, par_name));
 
     if (itr != opt_vi.end())
     {
@@ -311,45 +111,33 @@ SurfaceCartesian::SurfaceCartesian(
     else
     {
       std::ostringstream msg;
-      msg << psurfs->par_block_name
-          << "/" << par_name << " unknown" << std::endl;
+      msg << psurfs->par_block_name << "/" << par_name << " unknown"
+          << std::endl;
       ATHENA_ERROR(msg);
     }
   }
 
   // get other parameters -----------------------------------------------------
-  aliases::AA xmin = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "x_min", -1, 0
-  );
-  aliases::AA xmax = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "x_max", -1, 0
-  );
+  aliases::AA xmin =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "x_min", -1, 0);
+  aliases::AA xmax =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "x_max", -1, 0);
 
-  aliases::AA ymin = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "y_min", -1, 0
-  );
-  aliases::AA ymax = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "y_max", -1, 0
-  );
+  aliases::AA ymin =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "y_min", -1, 0);
+  aliases::AA ymax =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "y_max", -1, 0);
 
-  aliases::AA zmin = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "z_min", -1, 0
-  );
-  aliases::AA zmax = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "z_max", -1, 0
-  );
+  aliases::AA zmin =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "z_min", -1, 0);
+  aliases::AA zmax =
+    pin->GetOrAddRealArray(psurfs->par_block_name, "z_max", -1, 0);
 
-  aliases::AA nx = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "nx", -1, 0
-  );
+  aliases::AA nx = pin->GetOrAddRealArray(psurfs->par_block_name, "nx", -1, 0);
 
-  aliases::AA ny = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "ny", -1, 0
-  );
+  aliases::AA ny = pin->GetOrAddRealArray(psurfs->par_block_name, "ny", -1, 0);
 
-  aliases::AA nz = pin->GetOrAddRealArray(
-    psurfs->par_block_name, "nz", -1, 0
-  );
+  aliases::AA nz = pin->GetOrAddRealArray(psurfs->par_block_name, "nz", -1, 0);
 
   const int sz_xmin = xmin.GetSize();
   const int sz_xmax = xmax.GetSize();
@@ -362,14 +150,10 @@ SurfaceCartesian::SurfaceCartesian(
   const int sz_ny = ny.GetSize();
   const int sz_nz = nz.GetSize();
 
-  int sizes[] = {
-    sz_xmin, sz_xmax,
-    sz_ymin, sz_ymax,
-    sz_zmin, sz_zmax,
-    sz_nx,   sz_ny,   sz_nz
-  };
+  int sizes[] = { sz_xmin, sz_xmax, sz_ymin, sz_ymax, sz_zmin,
+                  sz_zmax, sz_nx,   sz_ny,   sz_nz };
 
-  bool zero_found = false;
+  bool zero_found     = false;
   bool mismatch_found = false;
 
   int expected_size = sizes[0];
@@ -386,7 +170,8 @@ SurfaceCartesian::SurfaceCartesian(
     }
   }
 
-  if (zero_found || mismatch_found) {
+  if (zero_found || mismatch_found)
+  {
     std::ostringstream msg;
     msg << psurfs->par_block_name << "/xmin,..zmax,nx,..,nz ";
     msg << "length must be greater than zero and all equal.\n";
@@ -408,6 +193,14 @@ SurfaceCartesian::SurfaceCartesian(
   this->N_x = nx(use_ix);
   this->N_y = ny(use_ix);
   this->N_z = nz(use_ix);
+
+  if ((this->N_x < 1) || (this->N_y < 1) || (this->N_z < 1))
+  {
+    std::ostringstream msg;
+    msg << psurfs->par_block_name << "/nx,ny,nz "
+        << "entries must each be >= 1.\n";
+    ATHENA_ERROR(msg);
+  }
 
   N_pts = this->N_x * this->N_y * this->N_z;
 
@@ -438,31 +231,18 @@ SurfaceCartesian::SurfaceCartesian(
     }
   }
 
-  // pointer arrays for interpolators -----------------------------------------
+  // index arrays for interpolators -------------------------------------------
   mask_mb.NewAthenaArray(N_x, N_y, N_z);
   mask_mb.Fill(nullptr);
 
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      mask_pinterp_Lag_cc.NewAthenaArray(N_x, N_y, N_z);
-      mask_pinterp_Lag_vc.NewAthenaArray(N_x, N_y, N_z);
-
-      mask_pinterp_Lag_cc.Fill(nullptr);
-      mask_pinterp_Lag_vc.Fill(nullptr);
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
-
+  mask_interp_idx_cc.NewAthenaArray(N_x, N_y, N_z);
+  mask_interp_idx_vc.NewAthenaArray(N_x, N_y, N_z);
+  mask_interp_idx_cc.Fill(-1);
+  mask_interp_idx_vc.Fill(-1);
 
   // finally allocate storage for result of interpolation ---------------------
   int N_cpts_total = 0;
-  for (int i=0; i<N_cpts.GetSize(); ++i)
+  for (int i = 0; i < N_cpts.GetSize(); ++i)
   {
     N_cpts_total += N_cpts(i);
   }
@@ -470,268 +250,185 @@ SurfaceCartesian::SurfaceCartesian(
   u_vars.NewAthenaArray(N_cpts_total, N_x, N_y, N_z);
 }
 
-SurfaceCartesian::~SurfaceCartesian()
-{
-  TearDownInterpolators();
-}
-
-void SurfaceCartesian::PrepareInterpolatorAtPoint(
-  MeshBlock * pmb, const int i, const int j, const int k)
-{
-  switch (vi)
-  {
-    case variety_interpolator::Lagrange:
-    {
-      if (mask_pinterp_Lag_cc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_Lag_cc(i,j,k);
-        mask_pinterp_Lag_cc(i,j,k) = nullptr;
-      }
-
-      if (mask_pinterp_Lag_vc(i,j,k) != nullptr)
-      {
-        delete mask_pinterp_Lag_vc(i,j,k);
-        mask_pinterp_Lag_vc(i,j,k) = nullptr;
-      }
-
-      // CC vars
-      const Real origin_cc[N] = {
-        pmb->pcoord->x1v(0), pmb->pcoord->x2v(0), pmb->pcoord->x3v(0)
-      };
-      const Real delta_cc[N] = {
-        pmb->pcoord->dx1v(0), pmb->pcoord->dx2v(0), pmb->pcoord->dx3v(0)
-      };
-      const int size_cc[N] = {
-        pmb->ncells1, pmb->ncells2, pmb->ncells3
-      };
-
-      // VC
-      const Real origin_vc[N] = {
-        pmb->pcoord->x1f(0), pmb->pcoord->x2f(0), pmb->pcoord->x3f(0)
-      };
-      const Real delta_vc[N] = {
-        pmb->pcoord->dx1f(0), pmb->pcoord->dx2f(0), pmb->pcoord->dx3f(0)
-      };
-      int size_vc[N] = {
-        pmb->nverts1, pmb->nverts2, pmb->nverts3
-      };
-
-      Real tar_coord[N] = {
-        x(i), y(j), z(k)
-      };
-
-      mask_pinterp_Lag_cc(i,j,k) = new LagInterp(origin_cc,
-                                                 delta_cc,
-                                                 size_cc,
-                                                 tar_coord);
-
-      mask_pinterp_Lag_vc(i,j,k) = new LagInterp(origin_vc,
-                                                 delta_vc,
-                                                 size_vc,
-                                                 tar_coord);
-
-      break;
-    }
-    default:
-    {
-      assert(false);
-    }
-  }
-}
-
 void SurfaceCartesian::PrepareInterpolators()
 {
-  // BD: TODO - could be optimized further
   if (prepared)
   {
     return;
   }
 
-  // Connect target (th_i, ph_j) to salient MeshBlock pointer -----------------
-  MeshBlock * pmb = pm->pblock;
-
-  int nthreads = pm->GetNumMeshThreads();
-  (void)nthreads;
-
-  while (pmb != nullptr)
+  // Reserve pool capacity (upper bound: every grid point gets an interpolator)
+  const int N_pts_max = N_x * N_y * N_z;
+  switch (vi)
   {
-    // Given current MeshBlock check whether grid intersects (excluding ghosts)
-    [&] {
-      #pragma omp parallel for collapse(3) num_threads(nthreads)
-      for (int i=0; i<N_x; ++i)
-      for (int j=0; j<N_y; ++j)
-      for (int k=0; k<N_z; ++k)
-      {
-        const Real x_1 = x(i);
-        const Real x_2 = y(j);
-        const Real x_3 = z(k);
+    case variety_interpolator::Lagrange:
+      interp_pool_Lag_cc.reserve(N_pts_max);
+      interp_pool_Lag_vc.reserve(N_pts_max);
+      break;
+    case variety_interpolator::LagrangeLinear:
+      interp_pool_LagLinear_cc.reserve(N_pts_max);
+      interp_pool_LagLinear_vc.reserve(N_pts_max);
+      break;
+    default:
+      assert(false);
+  }
 
-        if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+    // --- Per-thread storage for interpolators built in the parallel region
+    // -----
+#ifdef OPENMP_PARALLEL
+  const int nthreads = pm->GetNumMeshThreads();
+#else
+  const int nthreads = 1;
+#endif
+
+  struct ThreadLocalInterps
+  {
+    std::vector<LagInterp> lag_cc, lag_vc;
+    std::vector<LagInterpLinear> laglin_cc, laglin_vc;
+    // Grid indices of occupied points (for writing mask_interp_idx later)
+    std::vector<std::tuple<int, int, int>> occupied;
+  };
+  std::vector<ThreadLocalInterps> tls(nthreads);
+
+  // Connect target (x_i, y_j, z_k) to salient MeshBlock pointer -------------
+  const auto& pmb_array = pm->GetMeshBlocksCached();
+
+  for (auto* pmb : pmb_array)
+  {
+    // Grid origin / spacing are constant for this MeshBlock
+    const Real origin_cc[N] = { pmb->pcoord->x1v(0),
+                                pmb->pcoord->x2v(0),
+                                pmb->pcoord->x3v(0) };
+    const Real delta_cc[N]  = { pmb->pcoord->dx1v(0),
+                                pmb->pcoord->dx2v(0),
+                                pmb->pcoord->dx3v(0) };
+    const int size_cc[N]    = { pmb->ncells1, pmb->ncells2, pmb->ncells3 };
+
+    const Real origin_vc[N] = { pmb->pcoord->x1f(0),
+                                pmb->pcoord->x2f(0),
+                                pmb->pcoord->x3f(0) };
+    const Real delta_vc[N]  = { pmb->pcoord->dx1f(0),
+                                pmb->pcoord->dx2f(0),
+                                pmb->pcoord->dx3f(0) };
+    const int size_vc[N]    = { pmb->nverts1, pmb->nverts2, pmb->nverts3 };
+
+#pragma omp parallel for num_threads(nthreads) collapse(3)
+    for (int i = 0; i < N_x; ++i)
+    {
+      for (int j = 0; j < N_y; ++j)
+      {
+        for (int k = 0; k < N_z; ++k)
         {
-          mask_mb(i, j, k) = pmb;
-          PrepareInterpolatorAtPoint(pmb, i, j, k);
+          const Real x_1 = x(i);
+          const Real x_2 = y(j);
+          const Real x_3 = z(k);
+
+          if (pmb->PointContainedExclusive(x_1, x_2, x_3))
+          {
+            // Each (i,j,k) is unique per iteration - safe to write without
+            // lock
+            mask_mb(i, j, k) = pmb;
+
+#ifdef OPENMP_PARALLEL
+            const int tid = omp_get_thread_num();
+#else
+            const int tid = 0;
+#endif
+            ThreadLocalInterps& tl = tls[tid];
+
+            const Real tar_coord[N] = { x_1, x_2, x_3 };
+
+            switch (vi)
+            {
+              case variety_interpolator::Lagrange:
+              {
+                tl.lag_cc.emplace_back(
+                  origin_cc, delta_cc, size_cc, tar_coord);
+                tl.lag_vc.emplace_back(
+                  origin_vc, delta_vc, size_vc, tar_coord);
+                tl.occupied.emplace_back(i, j, k);
+                break;
+              }
+              case variety_interpolator::LagrangeLinear:
+              {
+                tl.laglin_cc.emplace_back(
+                  origin_cc, delta_cc, size_cc, tar_coord);
+                tl.laglin_vc.emplace_back(
+                  origin_vc, delta_vc, size_vc, tar_coord);
+                tl.occupied.emplace_back(i, j, k);
+                break;
+              }
+              default:
+                assert(false);
+            }
+          }
         }
       }
-    }();
+    }
+  }
 
-    pmb = pmb->next;
+  // --- Serial merge: move thread-local interpolators into global pools ------
+  for (int t = 0; t < nthreads; ++t)
+  {
+    ThreadLocalInterps& tl = tls[t];
+
+    switch (vi)
+    {
+      case variety_interpolator::Lagrange:
+      {
+        const int base_cc = static_cast<int>(interp_pool_Lag_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_Lag_vc.size());
+
+        for (size_t n = 0; n < tl.lag_cc.size(); ++n)
+        {
+          interp_pool_Lag_cc.push_back(std::move(tl.lag_cc[n]));
+          interp_pool_Lag_vc.push_back(std::move(tl.lag_vc[n]));
+
+          const int gi                   = std::get<0>(tl.occupied[n]);
+          const int gj                   = std::get<1>(tl.occupied[n]);
+          const int gk                   = std::get<2>(tl.occupied[n]);
+          mask_interp_idx_cc(gi, gj, gk) = base_cc + static_cast<int>(n);
+          mask_interp_idx_vc(gi, gj, gk) = base_vc + static_cast<int>(n);
+        }
+        break;
+      }
+      case variety_interpolator::LagrangeLinear:
+      {
+        const int base_cc = static_cast<int>(interp_pool_LagLinear_cc.size());
+        const int base_vc = static_cast<int>(interp_pool_LagLinear_vc.size());
+
+        for (size_t n = 0; n < tl.laglin_cc.size(); ++n)
+        {
+          interp_pool_LagLinear_cc.push_back(std::move(tl.laglin_cc[n]));
+          interp_pool_LagLinear_vc.push_back(std::move(tl.laglin_vc[n]));
+
+          const int gi                   = std::get<0>(tl.occupied[n]);
+          const int gj                   = std::get<1>(tl.occupied[n]);
+          const int gk                   = std::get<2>(tl.occupied[n]);
+          mask_interp_idx_cc(gi, gj, gk) = base_cc + static_cast<int>(n);
+          mask_interp_idx_vc(gi, gj, gk) = base_vc + static_cast<int>(n);
+        }
+        break;
+      }
+      default:
+        assert(false);
+    }
   }
   // --------------------------------------------------------------------------
 
   prepared = true;
 }
 
-void SurfaceCartesian::TearDownInterpolators()
-{
-  if (!prepared)
-  {
-    return;
-  }
-
-  // clean up mask containing salient MeshBlock
-  mask_mb.Fill(nullptr);
-
-  for (int i=0; i<N_x; ++i)
-  for (int j=0; j<N_y; ++j)
-  for (int k=0; k<N_z; ++k)
-  {
-    switch (vi)
-    {
-      case variety_interpolator::Lagrange:
-      {
-        if (mask_pinterp_Lag_cc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_Lag_cc(i,j,k);
-          mask_pinterp_Lag_cc(i,j,k) = nullptr;
-        }
-
-        if (mask_pinterp_Lag_vc(i,j,k) != nullptr)
-        {
-          delete mask_pinterp_Lag_vc(i,j,k);
-          mask_pinterp_Lag_vc(i,j,k) = nullptr;
-        }
-        break;
-      }
-      default:
-      {
-        assert(false);
-      }
-    }
-  }
-
-  prepared = false;
-}
-
-void SurfaceCartesian::ReinitializeSurface()
-{
-  TearDownInterpolators();
-  PrepareInterpolators();
-}
-
-void SurfaceCartesian::Reduce(const int ncycle, const Real time)
-{
-  // ensure we have prepared the interpolators --------------------------------
-  if (!prepared)
-  {
-    PrepareInterpolators();
-
-    /*
-    // DEBUG:
-    bool have_point = false;
-    for (int i=0; i<N_th; ++i)
-    for (int j=0; j<N_ph; ++j)
-    {
-      have_point = have_point || (mask_mb(i,j) != nullptr);
-    }
-    if (have_point)
-      mask_mb.print_all("%p");
-    */
-  }
-
-  // use pre-allocated interpolators on desired data --------------------------
-  DoInterpolations();
-  // --------------------------------------------------------------------------
-
-  // MPI logic for surface reduction to all ranks -----------------------------
-  MPI_Reduce();
-  // --------------------------------------------------------------------------
-
-  // finally write ------------------------------------------------------------
-  if (psurfs->dump_data && !psurfs->can_async)
-  {
-    if (Globals::my_rank == psurfs->write_rank)
-    {
-      write_hdf5(time);
-    }
-  }
-  // --------------------------------------------------------------------------
-};
-
-/*
-void SurfaceCartesian::MPI_Reduce()
-{
-#ifdef MPI_PARALLEL
-
-  int N_cpts_total = 0;
-  for (int cix=0; cix<N_cpts.GetSize(); ++cix)
-  {
-    N_cpts_total += N_cpts(cix);
-  }
-
-  int rank;
-  static const int root = 0;
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  // Useful to have the data on all ranks
-  MPI_Allreduce(MPI_IN_PLACE,
-                &(u_vars(0,0,0,0)),
-                N_cpts_total * N_x * N_y * N_z,
-                MPI_ATHENA_REAL,
-                MPI_SUM,
-                MPI_COMM_WORLD);
-#endif
-}
-*/
-
-void SurfaceCartesian::MPI_Reduce()
-{
-#ifdef MPI_PARALLEL
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  size_t total_bytes = u_vars.GetSizeInBytes();
-
-  // max chunk size in bytes
-  size_t max_chunk_bytes = DBG_SURF_CHUNK * 1024 * 1024;
-  size_t start_byte = 0;
-
-  // Pointer to the data
-  Real* data_ptr = &(u_vars(0,0,0,0));
-
-  while (start_byte < total_bytes) {
-    // Compute number of elements for this chunk
-    size_t bytes_left = total_bytes - start_byte;
-    size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
-    int count = static_cast<int>(chunk_bytes / sizeof(Real));
-
-    MPI_Allreduce(MPI_IN_PLACE,
-                  data_ptr + start_byte / sizeof(Real),
-                  count,
-                  MPI_ATHENA_REAL,
-                  MPI_SUM,
-                  MPI_COMM_WORLD);
-
-    start_byte += chunk_bytes;
-  }
-#endif
-}
-
-Real SurfaceCartesian::InterpolateAtPoint(
-  aliases::AA & raw_cpt, Surfaces::variety_base_grid vs,
-  const int tar_i, const int tar_j, const int tar_k)
+Real SurfaceCartesian::InterpolateAtPoint(aliases::AA& raw_cpt,
+                                          Surfaces::variety_base_grid vs,
+                                          const int tar_i,
+                                          const int tar_j,
+                                          const int tar_k)
 {
   Real res = 0;
+
+  const int idx_cc = mask_interp_idx_cc(tar_i, tar_j, tar_k);
+  const int idx_vc = mask_interp_idx_vc(tar_i, tar_j, tar_k);
 
   switch (vi)
   {
@@ -740,13 +437,35 @@ Real SurfaceCartesian::InterpolateAtPoint(
       // call suitable interpolator
       if (vs == Surfaces::variety_base_grid::cc)
       {
-        if (mask_pinterp_Lag_cc(tar_i,tar_j,tar_k) != nullptr)
-          res = mask_pinterp_Lag_cc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        if (idx_cc >= 0)
+          res = interp_pool_Lag_cc[idx_cc].eval(raw_cpt.data());
       }
       else if (vs == Surfaces::variety_base_grid::vc)
       {
-        if (mask_pinterp_Lag_vc(tar_i,tar_j,tar_k) != nullptr)
-          res = mask_pinterp_Lag_vc(tar_i,tar_j,tar_k)->eval(raw_cpt.data());
+        if (idx_vc >= 0)
+          res = interp_pool_Lag_vc[idx_vc].eval(raw_cpt.data());
+      }
+      else
+      {
+        assert(false);
+      }
+      break;
+    }
+    case (variety_interpolator::LagrangeLinear):
+    {
+      if (vs == Surfaces::variety_base_grid::cc)
+      {
+        if (idx_cc >= 0)
+        {
+          res = interp_pool_LagLinear_cc[idx_cc].eval(raw_cpt.data());
+        }
+      }
+      else if (vs == Surfaces::variety_base_grid::vc)
+      {
+        if (idx_vc >= 0)
+        {
+          res = interp_pool_LagLinear_vc[idx_vc].eval(raw_cpt.data());
+        }
       }
       else
       {
@@ -771,46 +490,67 @@ void SurfaceCartesian::DoInterpolations()
   int nthreads = pm->GetNumMeshThreads();
   (void)nthreads;
 
-  // deal with fields & their components --------------------------------------
-  #pragma omp parallel for num_threads(nthreads) collapse(3)
-  for (int i=0; i<N_x; ++i)
-  for (int j=0; j<N_y; ++j)
-  for (int k=0; k<N_z; ++k)
+  // precompute loop-invariant lookups ----------------------------------------
+  // variable_sampling(vix) and GetRemappedFieldIndex(vd, cix) do not depend
+  // on the grid point (i,j,k), so we hoist them out of the parallel region.
+  std::vector<Surfaces::variety_base_grid> vbg_pre(N_vars);
+  int total_cpts = 0;
+  for (int vix = 0; vix < N_vars; ++vix)
   {
-    if (mask_mb(i,j,k) == nullptr)
-      continue;
+    vbg_pre[vix] = psurfs->variable_sampling(vix);
+    total_cpts += N_cpts(vix);
+  }
 
-    int ix_dump = 0;
-    for (int vix=0; vix<N_vars; ++vix)
+  // flattened array of remapped component indices, indexed by ix_dump
+  std::vector<int> mapped_cix_pre(total_cpts);
+  {
+    int ix = 0;
+    for (int vix = 0; vix < N_vars; ++vix)
     {
-      // given target (th_i, th_j) get pointer to data on relevant MeshBlock
-      AA & raw_var = *GetRawData(psurfs->variables(vix),
-                                 mask_mb(i,j,k));
-
-      Surfaces::variety_base_grid vbg = psurfs->variable_sampling(vix);
-
-      // interpolate field component to the specified target point
-      for (int cix=0; cix<N_cpts(vix); ++cix)
+      Surfaces::variety_data vd = psurfs->variables(vix);
+      for (int cix = 0; cix < N_cpts(vix); ++cix)
       {
-        // slice to current function component for interp
-        const int mapped_cix = GetRemappedFieldIndex(
-          psurfs->variables(vix), cix
-        );
-        AA sl_u(raw_var, mapped_cix, 1);
-
-        // const int ix_dump = cix + vix * N_cpts(vix);
-        u_vars(ix_dump,i,j,k) = InterpolateAtPoint(sl_u, vbg, i, j, k);
-        ix_dump++;
+        mapped_cix_pre[ix++] = GetRemappedFieldIndex(vd, cix);
       }
     }
   }
+
+// deal with fields & their components --------------------------------------
+#pragma omp parallel for num_threads(nthreads) collapse(3)
+  for (int i = 0; i < N_x; ++i)
+    for (int j = 0; j < N_y; ++j)
+      for (int k = 0; k < N_z; ++k)
+      {
+        if (mask_mb(i, j, k) == nullptr)
+          continue;
+
+        int ix_dump = 0;
+        for (int vix = 0; vix < N_vars; ++vix)
+        {
+          // given target (x_i, y_j, z_k) get pointer to data on relevant
+          // MeshBlock
+          AA& raw_var = *GetRawData(psurfs->variables(vix), mask_mb(i, j, k));
+
+          const Surfaces::variety_base_grid vbg = vbg_pre[vix];
+
+          // interpolate field component to the specified target point
+          for (int cix = 0; cix < N_cpts(vix); ++cix)
+          {
+            // slice to current function component for interp
+            AA sl_u(raw_var, mapped_cix_pre[ix_dump], 1);
+
+            u_vars(ix_dump, i, j, k) = InterpolateAtPoint(sl_u, vbg, i, j, k);
+            ix_dump++;
+          }
+        }
+      }
 
   // assemble frame vectors ---------------------------------------------------
   // BD: TODO ...
 }
 
 // ============================================================================
-} // namespace gra::mesh::surfaces
+}  // namespace gra::mesh::surfaces
 // ============================================================================
 
 //

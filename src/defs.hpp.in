@@ -16,6 +16,8 @@
 // symmetrization of VC prol.
 #define DBG_SYMMETRIZE_P_OP
 #define DBG_SYMMETRIZE_FD
+// cheaper symmetrization via balanced opposite-corner pairing (replaces sum_associative)
+#define DBG_SYMMETRIZE_CHEAP
 
 // remove double VC restrict (& hence mitigate MB size restr.)
 #define NO_DBG_VC_DOUBLE_RESTRICT
@@ -28,9 +30,6 @@
 
 // debugging bary opers
 #define NO_DBG_CX_ALL_BARY_RP
-
-// templated, faster cx prolongation
-#define DBG_CX_FASTER_PROL
 
 // do not refine to complementary block coarse layer if all nn on same level
 #define DBG_NO_REF_NN_SAME_LEVEL
@@ -45,43 +44,33 @@
 // this will make order actually consistent
 #define DBG_FD_CX_COORDDIV
 
-// enfore algebraic constraints on all t-evo substeps?
-#define DBG_ALGCONSTR_ALL
-
-// Checks on MB/UNI in tasklist
-#define DBG_TASKLIST_ORDER
-
 // Abort tasklist on hang; dump info
 #define DBG_TASKLIST_HANG
 
-// If activated, use only cons R/P on MeshBlock BC; and phys BC
-#define @DBG_USE_CONS_BC@
-
-// BD: TODO - check carefully... again...
-// Reconstruction X1 convention may require 0 or 1 offset for l/r
-#define DGB_RECON_X1_OFFSET 0
-
 // BD: If DBG enabled, do not use SpeciesWithinLimits during fallback
 #define @DBG_FALLBACK_NO_TABLE_LIMITS@
-
-// BD: If enabled, task-list completion of comm is barrier prior to clear_allbnd
-#define @USE_COMM_DEPENDENCY@
-
-// BD: If enabled, allow for idempotency check in C2P
-#define NO_DBG_IDEMPOTENT_C2P
 
 // Write restarts by MeshBlock instead of in one hit; should avoid spurious
 // dumps
 #define DBG_RST_WRITE_PER_MB
 
-// Additional scattering operation within GRMHD?
-#define NO_DBG_SCATTER_MATTER_GRMHD
-
-// Push physical cell ConservedToPrimitive earlier in Mesh::Initialize?
-#define DBG_EARLY_INIT_CONSTOPRIM
-
 // Surface chunk size (mb)
 #define DBG_SURF_CHUNK 16
+
+// Fuse all channels within a CommGroup into a single MPI message per neighbor
+#define DBG_FUSED_COMM
+
+// Serialize MPI point-to-point calls through an application-level spinlock.
+// Workaround for OpenMPI ob1/BTL thread-safety bugs under MPI_THREAD_MULTIPLE.
+#define DBG_MPI_SPINLOCK
+
+// CX prolongation: use tensor-product 1D sweep separation (3 passes)
+// instead of fused 3D stencil.
+#define DBG_CX_PROLONG_TENSORPRODUCT
+
+// CX restriction: use tensor-product 1D sweep separation (3 passes)
+// instead of fused 3D stencil.
+#define DBG_CX_RESTRICT_TENSORPRODUCT
 
 // For N+1 NR problems, fix N
 #define NDIM 3
@@ -95,23 +84,14 @@
 // coordinate system
 #define COORDINATE_SYSTEM "@COORDINATE_SYSTEM@"
 
-// Riemann solver
-#define RIEMANN_SOLVER "@RSOLVER@"
-
 // configure.py dict(definitions) Boolean values:
 // evolve hydrodynamics? default=0 (false)
 #define FLUID_ENABLED @FLUID_ENABLED@
 
 // hybrid grid-to-grid interp default=0 (false)
 #define @HYBRID_INTERP@
-// enable shearing box? default=0 (false)
-#define SHEARING_BOX @SHEARING_BOX@
-
 // Equation of state
 #define EQUATION_OF_STATE "@EQUATION_OF_STATE@"
-
-// Whether or not temperature should be counted as a primitive variable.
-#define USETM @USE_TM@
 
 // EOS Policy used by the PrimitiveSolver framework
 #define EOS_POLICY @EOS_POLICY@
@@ -135,26 +115,11 @@
 // FIXME: Should be added as an argument later.
 #define MAX_SPECIES 7
 
-// use general EOS framework default=0 (false).
-#define GENERAL_EOS @GENERAL_EOS@
-
-// use EOS table default=0 (false).
-#define EOS_TABLE_ENABLED @EOS_TABLE_ENABLED@
-
-// non-barotropic equation of state (i.e. P not simply a func of rho)? default=1 (true)
-#define NON_BAROTROPIC_EOS @NON_BAROTROPIC_EOS@
-
 // include magnetic fields? default=0 (false)
 #define MAGNETIC_FIELDS_ENABLED @MAGNETIC_FIELDS_ENABLED@
 
-// include super-time-stepping? default=0 (false)
-#define STS_ENABLED @STS_ENABLED@
-
 // include radiative transfer? default=0 (false)
 #define RADIATION_ENABLED 0
-
-// enable special or general relativity? default=0 (false)
-#define RELATIVISTIC_DYNAMICS @RELATIVISTIC_DYNAMICS@
 
 // enable general relativity? default=0 (false)
 #define GENERAL_RELATIVITY @GENERAL_RELATIVITY@
@@ -185,13 +150,11 @@
 // M1 neutrino transport
 #define M1_ENABLED @M1_ENABLED@
 
-#define M1_NO_WEAKRATES @M1_NO_WEAKRATES@
+// M1 neutrino rates to enable
+#define M1_BNS_NURATES @M1_BNS_NURATES@
 
 // ejecta
 #define @EJECTA_ENABLED@
-
-// enable GR frame transformations? default=0 (false)
-#define FRAME_TRANSFORMATIONS @FRAME_TRANSFORMATIONS@
 
 // use single precision floating-point values (binary32)? default=0 (false; use binary64)
 #define SINGLE_PRECISION_ENABLED @SINGLE_PRECISION_ENABLED@
@@ -222,11 +185,11 @@
 
 // configure.py dict(definitions) Boolean string macros:
 // (these options have the latter (false) option as defaults, unless noted otherwise)
-// make use of FFT? (FFT or NO_FFT)
-#define @FFT_OPTION@
-
 // MPI parallelization (MPI_PARALLEL or NOT_MPI_PARALLEL)
 #define @MPI_OPTION@
+
+// Disable persistent MPI requests (MPI_NO_PERSIST or NO_MPI_NO_PERSIST)
+#define @MPI_NO_PERSIST_OPTION@
 
 // OpenMP parallelization (OPENMP_PARALLEL or NOT_OPENMP_PARALLEL)
 #define @OPENMP_OPTION@
@@ -289,13 +252,14 @@
 #define SQRT2 1.4142135623730951
 #define SQRT3 1.7320508075688773
 #define SQRT_PI 1.77245385090551603
+#define SQRT_4PI 3.5449077018110318
 #define ONE_OVER_SQRT2 0.70710678118654752
 #define ONE_3RD 0.33333333333333333
 #define TWO_3RD 0.66666666666666667
 #define ONE_6TH 0.16666666666666666
 #define TINY_NUMBER 1.0e-20
 #define HUGE_NUMBER 1.0e+36
-#define OO(x) 1.0 / (x)
+#define OO(x) ( 1.0 / (x) )
 #define SQR(x) ( (x)*(x) )
 #define POW2(x) ( (x)*(x) )
 #define POW3(x) ( (x)*(x)*(x) )

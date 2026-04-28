@@ -14,8 +14,8 @@
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../bvals/bvals.hpp"
 #include "../coordinates/coordinates.hpp"
+#include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "field.hpp"
 
@@ -67,11 +67,11 @@ void Field::CT(const Real wght, FaceField &b_out) {
   for (int k=ks; k<=ke; ++k) {
     // reset loop limits for polar boundary
     int jl=js; int ju=je+1;
-    if (pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar
-        || pmb->pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::polar_wedge)
+    if (pmb->nc().boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar
+        || pmb->nc().boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::polar_wedge)
       jl=js+1;
-    if (pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::polar
-        || pmb->pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::polar_wedge)
+    if (pmb->nc().boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar
+        || pmb->nc().boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::polar_wedge)
       ju=je;
     for (int j=jl; j<=ju; ++j) {
       pmb->pcoord->Face2Area(k,j,is,ie,area);

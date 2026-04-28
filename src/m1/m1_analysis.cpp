@@ -42,7 +42,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
   pm1->SetVarAliasesLab(pm1->storage.u, U);
 
   // geometric quantities
-  const AT_C_sca & sc_alpha = pm1->geom.sc_alpha;
+  // const AT_C_sca & sc_alpha = pm1->geom.sc_alpha;
 
   // required fiducial quantities
   AT_C_sca & sc_W = pm1->fidu.sc_W;
@@ -99,7 +99,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
       {
         dotFv += sp_F_d(a,k,j,i) * pm1->fidu.sp_v_u(a,k,j,i);
       }
-      const Real W = pm1->fidu.sc_W(k,j,i);
+      const Real W = sc_W(k,j,i);
       sc_avg_nrg(k,j,i) = W / sc_nG(k,j,i) * (sc_E(k,j,i) - dotFv);
 
       // Alternatively could use fiducial frame form:
@@ -112,7 +112,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
 
 void CalcRadFlux(MeshBlock *pmb)
 {
-  // ...
+  // placeholder
 }
 
 void CalcNeutrinoDiagnostics(MeshBlock *pmb)
@@ -173,16 +173,16 @@ void CalcNeutrinoDiagnostics(MeshBlock *pmb)
     }
 
     // normalize energies by total
-    for (int ix_g=0; ix_g < pm1->N_GRPS; ++ix_g)
-    for (int ix_s=0; ix_s < pm1->N_SPCS; ++ix_s)
-    {
-      AT_C_sca & sc_z = pm1->rdiag.sc_z(ix_g, ix_s);
+    // for (int ix_g=0; ix_g < pm1->N_GRPS; ++ix_g)
+    // for (int ix_s=0; ix_s < pm1->N_SPCS; ++ix_s)
+    // {
+    //   AT_C_sca & sc_z = pm1->rdiag.sc_z(ix_g, ix_s);
 
-      M1_ILOOP3(k, j, i)
-      {
-        sc_z(k,j,i) = sc_z(k,j,i); // / sc_z_sum(k,j,i);
-      }
-    }
+    //   M1_ILOOP3(k, j, i)
+    //   {
+    //     sc_z(k,j,i) = sc_z(k,j,i); // / sc_z_sum(k,j,i);
+    //   }
+    // }
 
   }
 #endif // FLUID_ENABLED

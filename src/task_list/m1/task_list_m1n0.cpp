@@ -7,16 +7,22 @@
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
 
+// OpenMP header
+#ifdef OPENMP_PARALLEL
+#include <omp.h>
+#endif
+
 // Athena++ headers
 #include "../../athena.hpp"
-#include "../../bvals/bvals.hpp"
+#include "../../comm/comm_registry.hpp"
 #include "../../eos/eos.hpp"
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
-#include "../../scalars/scalars.hpp"
 #include "../../m1/m1.hpp"
-#include "../../z4c/z4c.hpp"
+#include "../../mesh/mesh.hpp"
+#include "../../scalars/scalars.hpp"
 #include "../../trackers/extrema_tracker.hpp"
+#include "../../z4c/z4c.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
 
@@ -29,9 +35,13 @@ using namespace gra::triggers;
 typedef Triggers::TriggerVariant TriggerVariant;
 // ----------------------------------------------------------------------------
 
-M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
-  : LowStorage(pin, pm),
-    trgs(trgs)
+M1N0::M1N0(ParameterInput* pin,
+           Mesh* pm,
+           Triggers& trgs,
+           bool embed_mhd_rescatter)
+    : LowStorage(pin, pm),
+      trgs(trgs),
+      embed_mhd_rescatter_(embed_mhd_rescatter)
 {
   // Fix the number of stages based on internal M1+N0 method
   nstages = 2;
@@ -41,15 +51,10 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
   const bool multilevel = pm->multilevel;  // for SMR or AMR logic
   const bool adaptive   = pm->adaptive;    // AMR
 
-#ifdef USE_COMM_DEPENDENCY
-  // Accumulate MPI communication tasks:
-  TaskID COMM = NONE;
-#endif
-
   // Now assemble list of tasks for each stage of time integrator
   {
-    Add(UPDATE_BG,    NONE,      &M1N0::UpdateBackground);
-    Add(CALC_FIDU,    UPDATE_BG, &M1N0::CalcFiducialVelocity);
+    Add(UPDATE_BG, NONE, &M1N0::UpdateBackground);
+    Add(CALC_FIDU, UPDATE_BG, &M1N0::CalcFiducialVelocity);
     Add(CALC_CLOSURE, CALC_FIDU, &M1N0::CalcClosure);
 
     // Closure is not guaranteed to compute fiducial frame quantities;
@@ -58,24 +63,17 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(CALC_FIDU_FRAME, CALC_CLOSURE, &M1N0::CalcFiducialFrame);
     Add(CALC_OPAC, CALC_FIDU_FRAME, &M1N0::CalcOpacity);
 
+    Add(ADD_GRSRC, CALC_CLOSURE, &M1N0::AddGRSources);
+    Add(CALC_FLUX, (CALC_OPAC | ADD_GRSRC), &M1N0::CalcFlux);
 
-    Add(ADD_GRSRC,   CALC_CLOSURE, &M1N0::AddGRSources);
-    Add(CALC_FLUX, (CALC_OPAC|ADD_GRSRC), &M1N0::CalcFlux);
-
-    Add(ADD_FLX_DIV, CALC_FLUX,
-                     &M1N0::AddFluxDivergence);
+    Add(ADD_FLX_DIV, CALC_FLUX, &M1N0::AddFluxDivergence);
 
     if (multilevel)
     {
       Add(SEND_FLUX, CALC_FLUX, &M1N0::SendFluxCorrection);
-      Add(RECV_FLUX, CALC_FLUX, &M1N0::ReceiveAndCorrectFlux);
-#ifdef USE_COMM_DEPENDENCY
-      COMM = COMM | SEND_FLUX | RECV_FLUX;
-#endif
+      Add(RECV_FLUX, NONE, &M1N0::ReceiveAndCorrectFlux);
 
-      Add(CALC_UPDATE, (RECV_FLUX|ADD_FLX_DIV),
-                       &M1N0::CalcUpdate);
-
+      Add(CALC_UPDATE, (RECV_FLUX | ADD_FLX_DIV), &M1N0::CalcUpdate);
     }
     else
     {
@@ -83,10 +81,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     }
 
     Add(SEND, CALC_UPDATE, &M1N0::SendM1);
-    Add(RECV, CALC_UPDATE, &M1N0::ReceiveM1);
-#ifdef USE_COMM_DEPENDENCY
-    COMM = COMM | SEND | RECV;
-#endif
+    Add(RECV, NONE, &M1N0::ReceiveM1);
 
     Add(SETB, RECV, &M1N0::SetBoundaries);
 
@@ -94,7 +89,7 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
 
     if (multilevel)
     {
-      Add(PROLONG,  SETB,    &M1N0::Prolongation);
+      Add(PROLONG, (SEND | SETB), &M1N0::Prolongation);
       Add(PHY_BVAL, PROLONG, &M1N0::PhysicalBoundary);
     }
     else
@@ -105,36 +100,76 @@ M1N0::M1N0(ParameterInput *pin, Mesh *pm, Triggers &trgs)
     Add(ANALYSIS, PHY_BVAL, &M1N0::Analysis);
 
     Add(USERWORK, ANALYSIS, &M1N0::UserWork);
-    Add(NEW_DT,   USERWORK, &M1N0::NewBlockTimeStep);
+    Add(NEW_DT, USERWORK, &M1N0::NewBlockTimeStep);
 
-#ifdef USE_COMM_DEPENDENCY
-    if (adaptive)
-      Add(FLAG_AMR, USERWORK, &M1N0::CheckRefinement);
-
-    // We are done with MPI communication
-    Add(CLEAR_ALLBND, COMM, &M1N0::ClearAllBoundary);
-#else
     // We are done for the m1 phase
     if (adaptive)
     {
-      Add(FLAG_AMR,     USERWORK, &M1N0::CheckRefinement);
+      Add(FLAG_AMR, USERWORK, &M1N0::CheckRefinement);
       Add(CLEAR_ALLBND, FLAG_AMR, &M1N0::ClearAllBoundary);
     }
     else
     {
       Add(CLEAR_ALLBND, NEW_DT, &M1N0::ClearAllBoundary);
     }
+
+    // -----------------------------------------------------------------------
+    // MHD re-scatter tasks (monolithic GRMHD path only).
+    // After UpdateCoupling modifies ph->u and ps->s, we need to:
+    //  1. Recover primitives on the physical interior (CONS2PRIMP_HYD)
+    //  2. Communicate conserved variables to neighbors (SEND/RECV_HYD)
+    //  3. Unpack, prolongate, apply physical BCs (SETB/PROLONG/PHY_BVAL_HYD)
+    //  4. Recover primitives on ghost zones (CONS2PRIMG_HYD)
+    //  5. Recouple ADM matter sources from fresh primitives (UPDATE_SRC_HYD)
+    //  6. Clear MPI send state (CLEAR_MAININT)
+    //
+    // RECV_HYD fires from NONE so that receive polling overlaps with M1's
+    // ANALYSIS, USERWORK, and NEW_DT tasks.
+    // -----------------------------------------------------------------------
+#if Z4C_ENABLED && FLUID_ENABLED
+    if (embed_mhd_rescatter_)
+    {
+      Add(CONS2PRIMP_HYD, UPDATE_COUPLING, &M1N0::PrimitivesPhysicalHyd);
+
+      Add(SEND_HYD, CONS2PRIMP_HYD, &M1N0::SendHydro);
+      Add(RECV_HYD, NONE, &M1N0::ReceiveHydro);
+
+      Add(SETB_HYD, RECV_HYD, &M1N0::SetBoundariesHydro);
+
+      const TaskID BLOCK_SETB_HYD = SETB_HYD | SEND_HYD;
+
+      if (multilevel)
+      {
+        Add(PROLONG_HYD, BLOCK_SETB_HYD, &M1N0::ProlongationHyd);
+        Add(PHY_BVAL_HYD, PROLONG_HYD, &M1N0::PhysicalBoundaryHyd);
+      }
+      else
+      {
+        Add(PHY_BVAL_HYD, BLOCK_SETB_HYD, &M1N0::PhysicalBoundaryHyd);
+      }
+
+      // C2P on full domain (ghost zones) - needs both physical BCs filled
+      // and w1 set by CONS2PRIMP_HYD.
+      Add(CONS2PRIMG_HYD,
+          (PHY_BVAL_HYD | CONS2PRIMP_HYD),
+          &M1N0::PrimitivesGhostsHyd);
+
+      // Recouple ADM matter sources from fresh primitives.
+      Add(UPDATE_SRC_HYD, CONS2PRIMG_HYD, &M1N0::UpdateSourceHyd);
+
+      // Clear MainInt MPI sends.
+      Add(CLEAR_MAININT, PHY_BVAL_HYD, &M1N0::ClearMainInt);
+    }
 #endif
 
-
-  } // namespace
+  }  // namespace
 }
 
 // ----------------------------------------------------------------------------
 //! Initialize the task list
-void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
+void M1N0::StartupTaskList(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage == 1)
   {
@@ -147,26 +182,61 @@ void M1N0::StartupTaskList(MeshBlock *pmb, int stage)
 
   // Clear the RHS
   pm1->storage.u_rhs.ZeroClear();
-  pmb->pbval->StartReceiving(BoundaryCommSubset::m1);
+
+  // Post persistent receives for M1 ghost exchange.
+  pmb->pcomm->StartReceiving(comm::CommGroup::M1);
+
+  // Post persistent receives for M1-owned flux correction channel only.
+  // Per-channel startup avoids activating MHD's channels in the shared
+  // FluxCorr group, which would double MPI_Start requests already posted by
+  // the MHD phase.
+  if (pmb->pmy_mesh->multilevel)
+    pmb->pcomm->StartReceivingFluxCorrSingleChannel(pmb->pm1->comm_channel_id);
+
+  // When MHD re-scatter tasks are embedded in this DAG (monolithic path),
+  // post persistent receives for M1Rescatter channels (hydro + scalars only,
+  // excluding B-field which is unchanged by M1 source terms) on the last
+  // stage so that RECV_HYD can begin polling immediately.
+#if Z4C_ENABLED && FLUID_ENABLED
+  if (embed_mhd_rescatter_ && (stage == nstages))
+  {
+    pmb->pcomm->StartReceiving(comm::CommGroup::M1Rescatter);
+  }
+#endif
+
   return;
 }
 
 // ----------------------------------------------------------------------------
-//! Functions to end MPI communication
-TaskStatus M1N0::ClearAllBoundary(MeshBlock *pmb, int stage)
+// Non-blocking clear of M1 ghost exchange and flux correction sends, reset
+// channel flags.  Uses MPI_Test (wait=false) so that the per-block
+// work-stealing lock is released immediately when sends are still in flight,
+// preventing deadlocks where all threads block inside MPI_Wait simultaneously.
+TaskStatus M1N0::ClearAllBoundary(MeshBlock* pmb, int stage)
 {
-  Mesh * pm = pmb->pmy_mesh;
-  ::M1::M1 * pm1 = pmb->pm1;
+  Mesh* pm = pmb->pmy_mesh;
 
-  pmb->pbval->ClearBoundary(BoundaryCommSubset::m1);
-  return TaskStatus::success;
+  // Non-blocking clear of M1 ghost exchange sends and channel flags.
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::M1, comm::CommTarget::All, false))
+    return TaskStatus::fail;
+
+  // Non-blocking clear of M1-owned flux correction sends (if multilevel).
+  // Per-channel clear avoids touching MHD's channels in the shared FluxCorr
+  // group.
+  if (pm->multilevel)
+    if (!pmb->pcomm->ClearFluxCorrSingleChannel(pmb->pm1->comm_channel_id,
+                                                false))
+      return TaskStatus::fail;
+
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Update external background / dynamical field states
-TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
+TaskStatus M1N0::UpdateBackground(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
@@ -176,14 +246,14 @@ TaskStatus M1N0::UpdateBackground(MeshBlock *pmb, int stage)
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Function to Calculate Fiducial Velocity
-TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcFiducialVelocity(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   // Task-list is not interspersed with external field evolution -
   // only need to do this on the first step.
@@ -192,19 +262,19 @@ TaskStatus M1N0::CalcFiducialVelocity(MeshBlock *pmb, int stage)
     pm1->CalcFiducialVelocity();
   }
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Function to calculate Closure
-TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcClosure(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
     pm1->CalcClosure(pm1->storage.u);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
@@ -213,24 +283,25 @@ TaskStatus M1N0::CalcClosure(MeshBlock *pmb, int stage)
 // Map (closed) Eulerian fields (E, F_d, nG) to (J, H_d, n)
 // Needed on first step for weak-rates
 // Use frame in flux calculation
-TaskStatus M1N0::CalcFiducialFrame(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcFiducialFrame(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   // if (stage == 1)
   if (stage <= nstages)
   {
     pm1->CalcFiducialFrame(pm1->storage.u);
+    return TaskStatus::next;
   }
-  return TaskStatus::success;
+  return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
 // Function to calculate Opacities
-TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcOpacity(MeshBlock* pmb, int stage)
 {
-  Mesh * pm = pmb->pmy_mesh;
-  ::M1::M1 * pm1 = pmb->pm1;
+  Mesh* pm      = pmb->pmy_mesh;
+  ::M1::M1* pm1 = pmb->pm1;
 
   // opacities are kept fixed throughout the implicit time integration
   // if (stage <= nstages)
@@ -239,20 +310,20 @@ TaskStatus M1N0::CalcOpacity(MeshBlock *pmb, int stage)
     Real const dt = pm->dt;
     // Real const dt = pm->dt * dt_fac[stage - 1];
     pm1->CalcOpacity(dt, pm1->storage.u);
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   else if (stage <= nstages)
   {
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcFlux(MeshBlock* pmb, int stage)
 {
-  Mesh * pm = pmb->pmy_mesh;
-  ::M1::M1 * pm1 = pmb->pm1;
+  Mesh* pm      = pmb->pmy_mesh;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
@@ -278,7 +349,6 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
         pm1->PrepareEvolutionStrategy(dt);
       }
 
-
       // Zero property preservation mask
       // Do prior to evo. as mask is modified on pp enforcement.
       if ((stage == 1) || pm1->opt.flux_lo_fallback_mask_reset_all_stages)
@@ -292,23 +362,17 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
         return TaskStatus::next;
       }
 
-
-      const int KL = M1_IX_KL-M1_MSIZEK;
-      const int KU = M1_IX_KU+M1_MSIZEK;
-      const int JL = M1_IX_JL-M1_MSIZEJ;
-      const int JU = M1_IX_JU+M1_MSIZEJ;
-      const int IL = M1_IX_IL-M1_MSIZEI;
-      const int IU = M1_IX_IU+M1_MSIZEI;
-
-      // BD: TODO- calculation could be avoided if we computed candidate soln.
-      // first; but that would require another storage / a bit of refactoring.
-      pm1->CalcFluxes(pm1->storage.u, true);
+      const int KL = M1_IX_KL - M1_MSIZEK;
+      const int KU = M1_IX_KU + M1_MSIZEK;
+      const int JL = M1_IX_JL - M1_MSIZEJ;
+      const int JU = M1_IX_JU + M1_MSIZEJ;
+      const int IL = M1_IX_IL - M1_MSIZEI;
+      const int IU = M1_IX_IU + M1_MSIZEI;
 
       // construct candidate solution -----------------------------------------
       // need to add divF to inhomogeneity; subtract off after solution known
 
-      pm1->AddFluxDivergence(pm1->storage.u_rhs,
-                             KL, KU, JL, JU, IL, IU);
+      pm1->AddFluxDivergence(pm1->storage.u_rhs, KL, KU, JL, JU, IL, IU);
 
       // Construct candidate state
       const bool fallback_mode = true;
@@ -318,36 +382,40 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
                       pm1->storage.u,
                       pm1->storage.u_rhs,
                       pm1->storage.u_sources,
-                      KL, KU, JL, JU, IL, IU,
+                      KL,
+                      KU,
+                      JL,
+                      JU,
+                      IL,
+                      IU,
                       fallback_mode,
                       pm1->ev_strat.substep_shortcircuit);
 
       // Update status [physical only]
       int num_lo = 0;
-      for (int k=M1_IX_KL; k<=M1_IX_KU; ++k)
-      for (int j=M1_IX_JL; j<=M1_IX_JU; ++j)
-      for (int i=M1_IX_IL; i<=M1_IX_IU; ++i)
-      {
-
-        if (pm1->opt.flux_lo_fallback_species)
-        {
-          for (int ix_s=0; ix_s<pm1->N_SPCS; ++ix_s)
+      for (int k = M1_IX_KL; k <= M1_IX_KU; ++k)
+        for (int j = M1_IX_JL; j <= M1_IX_JU; ++j)
+          for (int i = M1_IX_IL; i <= M1_IX_IU; ++i)
           {
-            num_lo += pm1->ev_strat.masks.pp(ix_s, k, j, i) == 1.0;
+            if (pm1->opt.flux_lo_fallback_species)
+            {
+              for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
+              {
+                num_lo += pm1->ev_strat.masks.pp(ix_s, k, j, i) == 1.0;
+              }
+            }
+            else
+            {
+              num_lo += pm1->ev_strat.masks.pp(k, j, i) == 1.0;
+            }
           }
-        }
-        else
-        {
-          num_lo += pm1->ev_strat.masks.pp(k, j, i) == 1.0;
-        }
-      }
       pm1->ev_strat.status.num_lo_reversions += num_lo;
 
       // maybe we can short-circuit the block in future? ----------------------
-      pm1->ev_strat.substep_shortcircuit = (
-        (num_lo == 0) &&                  // no fb needed
-        pmb->NeighborBlocksSameLevel()    // no flux corr.
-      );
+      pm1->ev_strat.substep_shortcircuit =
+        ((num_lo == 0) &&                // no fb needed
+         pmb->NeighborBlocksSameLevel()  // no flux corr.
+        );
 
       if (pm1->ev_strat.substep_shortcircuit)
       {
@@ -361,34 +429,47 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
       const int os = !pmb->NeighborBlocksSameLevel();  // will need bnd layer
 
       // fallback may be split over different species
-      const int IX_MS = (pm1->opt.flux_lo_fallback_species)
-        ? pm1->N_SPCS
-        : 0;
+      const int IX_MS = (pm1->opt.flux_lo_fallback_species) ? pm1->N_SPCS : 0;
 
       // consider only interior of physical points
-      for (int ix_s=0; ix_s<IX_MS; ++ix_s)
-      for (int k=M1_IX_KL+os; k<=M1_IX_KU-os; ++k)
-      for (int j=M1_IX_JL+os; j<=M1_IX_JU-os; ++j)
-      for (int i=M1_IX_IL+os; i<=M1_IX_IU-os; ++i)
-      {
-        pm1->MaskSetHybridize(
-          pm1->ev_strat.masks.pp(ix_s,k,j,i) == 1.0,
-          ix_s, k, j, i
-        );
-      }
+      for (int ix_s = 0; ix_s < IX_MS; ++ix_s)
+        for (int k = M1_IX_KL + os; k <= M1_IX_KU - os; ++k)
+          for (int j = M1_IX_JL + os; j <= M1_IX_JU - os; ++j)
+            for (int i = M1_IX_IL + os; i <= M1_IX_IU - os; ++i)
+            {
+              pm1->MaskSetHybridize(
+                pm1->ev_strat.masks.pp(ix_s, k, j, i) == 1.0, ix_s, k, j, i);
+            }
       // ----------------------------------------------------------------------
 
       // Use the current flux and subtract off the candidate flux-div. --------
       // N.B. this needs to happen prior to the hybridization
-      pm1->SubFluxDivergence(pm1->storage.u_rhs,
-                             KL, KU, JL, JU, IL, IU);
+      pm1->SubFluxDivergence(pm1->storage.u_rhs, KL, KU, JL, JU, IL, IU);
 
-      // hybridize fluxes based on pp mask ------------------------------------
-      pm1->HybridizeLOFlux(pm1->ev_strat.masks.pp,
-                           pm1->fluxes,
-                           pm1->fluxes_lo);
+      // Compute LO fluxes and hybridize only when fallback is needed -------
+      // When num_lo == 0 (but not short-circuitable due to AMR neighbors),
+      // pp mask is all 0.0, so hybridization would be a no-op.
+      if (num_lo > 0)
+      {
+        // Bind fluxes_lo aliases to per-thread scratch
+        // (ThreadCache::m1_lo_flux) instead of per-MeshBlock storage, to
+        // reduce memory footprint.
+        {
+#ifdef OPENMP_PARALLEL
+          ThreadCache& cache = pm->thread_cache(omp_get_thread_num());
+#else
+          ThreadCache& cache = pm->thread_cache(0);
+#endif
+          pm1->SetVarAliasesFluxes(cache.m1_lo_flux, pm1->fluxes_lo);
+        }
+
+        pm1->CalcFluxes(pm1->storage.u, true);
+
+        // hybridize fluxes based on pp mask ----------------------------------
+        pm1->HybridizeLOFlux(
+          pm1->ev_strat.masks.pp, pm1->fluxes, pm1->fluxes_lo);
+      }
       // ----------------------------------------------------------------------
-
     }
 
     return TaskStatus::next;
@@ -398,13 +479,14 @@ TaskStatus M1N0::CalcFlux(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Communicate fluxes between MeshBlocks for flux correction with AMR
-TaskStatus M1N0::SendFluxCorrection(MeshBlock *pmb, int stage)
+TaskStatus M1N0::SendFluxCorrection(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
   if (stage <= nstages)
   {
-    pm1->ubvar.SendFluxCorrection();
+    // Per-channel send: M1 CC flux correction.
+    int mid = pmb->pm1->comm_channel_id;
+    if (mid >= 0)
+      pmb->pcomm->SendFluxCorrSingleChannel(mid);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
@@ -412,27 +494,31 @@ TaskStatus M1N0::SendFluxCorrection(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Receive fluxes between MeshBlocks
-TaskStatus M1N0::ReceiveAndCorrectFlux(MeshBlock *pmb, int stage)
+TaskStatus M1N0::ReceiveAndCorrectFlux(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
-
   if (stage <= nstages)
   {
-    if (pm1->ubvar.ReceiveFluxCorrection())
+    comm::CommRegistry* pcomm            = pmb->pcomm;
+    const comm::NeighborConnectivity& nc = pcomm->connectivity();
+
+    // Per-channel poll + unpack: M1 CC flux correction (OverwriteFromFiner).
+    int mid = pmb->pm1->comm_channel_id;
+    if (mid >= 0)
     {
-      return TaskStatus::next;
+      if (!pcomm->channel(mid).PollReceiveFluxCorr(nc))
+        return TaskStatus::fail;
+      pcomm->channel(mid).UnpackFluxCorr(nc);
     }
-    else {
-      return TaskStatus::fail;
-    }
+
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
+TaskStatus M1N0::AddFluxDivergence(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
@@ -443,18 +529,21 @@ TaskStatus M1N0::AddFluxDivergence(MeshBlock *pmb, int stage)
     }
 
     pm1->AddFluxDivergence(pm1->storage.u_rhs,
-                           M1_IX_KL, M1_IX_KU,
-                           M1_IX_JL, M1_IX_JU,
-                           M1_IX_IL, M1_IX_IU);
+                           M1_IX_KL,
+                           M1_IX_KU,
+                           M1_IX_JL,
+                           M1_IX_JU,
+                           M1_IX_IL,
+                           M1_IX_IU);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
+TaskStatus M1N0::AddGRSources(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
@@ -466,10 +555,10 @@ TaskStatus M1N0::AddGRSources(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Update the state vector
-TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CalcUpdate(MeshBlock* pmb, int stage)
 {
-  Mesh * pm = pmb->pmy_mesh;
-  ::M1::M1 * pm1 = pmb->pm1;
+  Mesh* pm      = pmb->pmy_mesh;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
@@ -482,19 +571,20 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 
     // Need lo on at least one point...
     const bool fallback_mode = false;
-    pm1->CalcUpdate(
-      stage,
-      dt,
-      pm1->storage.u1,
-      pm1->storage.u,
-      pm1->storage.u_rhs,
-      pm1->storage.u_sources,
-      M1_IX_KL, M1_IX_KU,
-      M1_IX_JL, M1_IX_JU,
-      M1_IX_IL, M1_IX_IU,
-      fallback_mode,
-      pm1->ev_strat.substep_shortcircuit
-    );
+    pm1->CalcUpdate(stage,
+                    dt,
+                    pm1->storage.u1,
+                    pm1->storage.u,
+                    pm1->storage.u_rhs,
+                    pm1->storage.u_sources,
+                    M1_IX_KL,
+                    M1_IX_KU,
+                    M1_IX_JL,
+                    M1_IX_JU,
+                    M1_IX_IL,
+                    M1_IX_IU,
+                    fallback_mode,
+                    pm1->ev_strat.substep_shortcircuit);
 
     return TaskStatus::next;
   }
@@ -504,9 +594,9 @@ TaskStatus M1N0::CalcUpdate(MeshBlock *pmb, int stage)
 
 // ----------------------------------------------------------------------------
 // Coupling to z4c_matter
-TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
+TaskStatus M1N0::UpdateCoupling(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage == nstages)
   {
@@ -524,7 +614,7 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
     if (pm1->opt.couple_sources_Y_e)
     {
       if (pm1->N_SPCS != 3)
-      #pragma omp critical
+#pragma omp critical
       {
         std::cout << "M1: couple_sources_Y_e supported for 3 species \n";
         std::exit(0);
@@ -542,125 +632,132 @@ TaskStatus M1N0::UpdateCoupling(MeshBlock *pmb, int stage)
     // Source coupling in e.g. `CoupleSourcesHydro` acts on physical nodes
     // therefore further communication is required for consistency.
     return TaskStatus::next;
-  } else {
+  }
+  else
+  {
+    return TaskStatus::next;
+  }
+}
+
+// ----------------------------------------------------------------------------
+TaskStatus M1N0::SendM1(MeshBlock* pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    // Group-level send handles M1 channel.  Restriction into coarse buffers
+    // (for cross-level neighbors) is embedded inside SendBoundaryBuffers.
+    pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::M1);
+  }
+  else
+  {
+    return TaskStatus::fail;
+  }
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+TaskStatus M1N0::ReceiveM1(MeshBlock* pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    // Poll all M1 channels.  Returns true when every channel has received
+    // all expected messages from same-level, coarser, and finer neighbors.
+    bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::M1);
+    if (done)
+      return TaskStatus::next;
+    return TaskStatus::fail;
+  }
+  return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+TaskStatus M1N0::SetBoundaries(MeshBlock* pmb, int stage)
+{
+  if (stage <= nstages)
+  {
+    // Unpack received data for the M1 channel into state arrays.
+    pmb->pcomm->SetBoundaries(comm::CommGroup::M1);
     return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::SendM1(MeshBlock *pmb, int stage)
+TaskStatus M1N0::Prolongation(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
   if (stage <= nstages)
   {
-    pm1->ubvar.SendBoundaryBuffers();
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-  return TaskStatus::success;
-}
+    Mesh* pm                  = pmb->pmy_mesh;
+    comm::CommRegistry* pcomm = pmb->pcomm;
 
-
-// ----------------------------------------------------------------------------
-TaskStatus M1N0::ReceiveM1(MeshBlock *pmb, int stage)
-{
-  ::M1::M1 * pm1 = pmb->pm1;
-
-  bool ret;
-  if (stage <= nstages)
-  {
-    ret = pm1->ubvar.ReceiveBoundaryBuffers();
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-
-  if (ret)
-  {
-    return TaskStatus::success;
-  }
-  else
-  {
-    return TaskStatus::fail;
-  }
-}
-
-// ----------------------------------------------------------------------------
-TaskStatus M1N0::SetBoundaries(MeshBlock *pmb, int stage)
-{
-  ::M1::M1 * pm1 = pmb->pm1;
-
-  if (stage <= nstages)
-  {
-    pm1->ubvar.SetBoundaries();
-    return TaskStatus::success;
-  }
-  return TaskStatus::fail;
-}
-
-// ----------------------------------------------------------------------------
-TaskStatus M1N0::Prolongation(MeshBlock *pmb, int stage)
-{
-  BoundaryValues *pbval = pmb->pbval;
-  Mesh * pm = pmb->pmy_mesh;
-
-  if (stage <= nstages) {
-    Real const dt = pm->dt * dt_fac[stage - 1];
+    Real const dt    = pm->dt * dt_fac[stage - 1];
     Real t_end_stage = pm->time + dt;
-    pbval->ProlongateBoundariesM1(t_end_stage, dt);
-    return TaskStatus::success;
+
+    // M1 is CC-only; uses standard MeshBlock coarse indices.
+    const int cis = pmb->cis, cie = pmb->cie;
+    const int cjs = pmb->cjs, cje = pmb->cje;
+    const int cks = pmb->cks, cke = pmb->cke;
+
+    // Apply coarse-level physical BCs then prolongate each M1 channel.
+    pcomm->ProlongateAndApplyPhysicalBCs(comm::CommGroup::M1,
+                                         t_end_stage,
+                                         dt,
+                                         cis,
+                                         cie,
+                                         cjs,
+                                         cje,
+                                         cks,
+                                         cke,
+                                         NGHOST);
+
+    return TaskStatus::next;
   }
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::PhysicalBoundary(MeshBlock *pmb, int stage)
+TaskStatus M1N0::PhysicalBoundary(MeshBlock* pmb, int stage)
 {
-  BoundaryValues *pbval = pmb->pbval;
   // Task-list vs M1 class (need :: prefix)
-  ::M1::M1 *pm1 = pmb->pm1;
-  Coordinates *pco = pmb->pcoord;
+  ::M1::M1* pm1 = pmb->pm1;
 
   if (stage <= nstages)
   {
-    Real const dt = pmb->pmy_mesh->dt * dt_fac[stage - 1];
+    Real const dt    = pmb->pmy_mesh->dt * dt_fac[stage - 1];
     Real t_end_stage = pmb->pmy_mesh->time + dt;
 
+    // The M1 user BC callback checks this flag to decide whether to apply.
+    // Bracket the physical BC calls so that user-enrolled M1 BCs fire.
     pm1->enable_user_bc = true;
 
-    pbval->ApplyPhysicalBoundaries(
-      t_end_stage, dt,
-      pbval->GetBvarsM1(),
-      pm1->mbi.il, pm1->mbi.iu,
-      pm1->mbi.jl, pm1->mbi.ju,
-      pm1->mbi.kl, pm1->mbi.ku,
-      pm1->mbi.ng);
+    comm::CommRegistry* pcomm = pmb->pcomm;
+
+    // Apply fine-level physical BCs for every M1 channel.
+    pcomm->ApplyPhysicalBCs(comm::CommGroup::M1, t_end_stage, dt);
 
     pm1->enable_user_bc = false;
-    return TaskStatus::success;
+    return TaskStatus::next;
   }
 
   return TaskStatus::fail;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::Analysis(MeshBlock *pmb, int stage)
+TaskStatus M1N0::Analysis(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->pm1->PerformAnalysis();
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
-TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
+TaskStatus M1N0::UserWork(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->M1UserWorkInLoop();
 
@@ -669,27 +766,271 @@ TaskStatus M1N0::UserWork(MeshBlock *pmb, int stage)
   pmb->ptracker_extrema_loc->TreatCentreIfLocalMember();
 #endif
 
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Determine the new timestep (used for the time adaptivity)
-TaskStatus M1N0::NewBlockTimeStep(MeshBlock *pmb, int stage)
+TaskStatus M1N0::NewBlockTimeStep(MeshBlock* pmb, int stage)
 {
-  ::M1::M1 * pm1 = pmb->pm1;
+  ::M1::M1* pm1 = pmb->pm1;
 
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pm1->NewBlockTimeStep();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
 
 // ----------------------------------------------------------------------------
 // Flag cells for MeshBlocks (de)refinement
-TaskStatus M1N0::CheckRefinement(MeshBlock *pmb, int stage)
+TaskStatus M1N0::CheckRefinement(MeshBlock* pmb, int stage)
 {
-  if (stage != nstages) return TaskStatus::success; // only do on last stage
+  if (stage != nstages)
+    return TaskStatus::next;  // only do on last stage
 
   pmb->pmr->CheckRefinementCondition();
-  return TaskStatus::success;
+  return TaskStatus::next;
 }
+
+// ============================================================================
+// MHD re-scatter tasks (embedded in M1N0 DAG for monolithic GRMHD path).
+//
+// These replicate the functionality of the split-phase MHD_com (stage=0) and
+// Finalize (stage=0) task lists.  All tasks gate on stage == nstages; on
+// earlier stages they immediately return next (the M1 DAG already has its
+// own useful work to do on those stages).
+//
+// Re-scatter timing: t_end = pmesh->time, dt_scaled = 0 (no time
+// interpolation - the conserved vars represent the end-of-step state after
+// M1 coupling has been applied).
+// ============================================================================
+
+#if Z4C_ENABLED && FLUID_ENABLED
+
+// ----------------------------------------------------------------------------
+// C2P on physical interior: recover primitives from conserved variables
+// that were modified by UpdateCoupling (M1 source terms applied to ph->u).
+TaskStatus M1N0::PrimitivesPhysicalHyd(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  Hydro* ph             = pmb->phydro;
+  Field* pf             = pmb->pfield;
+  PassiveScalars* ps    = pmb->pscalars;
+  EquationOfState* peos = pmb->peos;
+
+  int il = pmb->is, iu = pmb->ie;
+  int jl = pmb->js, ju = pmb->je;
+  int kl = pmb->ks, ku = pmb->ke;
+
+  // Recompute cell-centred B from the (already updated) face-centred field
+  // on the physical interior so that C2P sees a bcc consistent with the
+  // current stage.
+  if (MAGNETIC_FIELDS_ENABLED)
+  {
+    pf->CalculateCellCenteredField(
+      pf->b, pf->bcc, pmb->pcoord, il, iu, jl, ju, kl, ku);
+  }
+
+  static const int coarseflag = 0;
+  peos->ConservedToPrimitive(ph->u,
+                             ph->w1,
+                             ph->w,
+                             ps->s,
+                             ps->r,
+                             pf->bcc,
+                             pmb->pcoord,
+                             il,
+                             iu,
+                             jl,
+                             ju,
+                             kl,
+                             ku,
+                             coarseflag);
+
+  // Update w1 to have the state of w
+  ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Ghost-zone exchange: pack and send M1Rescatter channels (hydro + scalars).
+TaskStatus M1N0::SendHydro(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  pmb->pcomm->SendBoundaryBuffers(comm::CommGroup::M1Rescatter);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Ghost-zone exchange: poll for received data.
+TaskStatus M1N0::ReceiveHydro(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  bool done = pmb->pcomm->ReceiveBoundaryBuffers(comm::CommGroup::M1Rescatter);
+  if (done)
+    return TaskStatus::next;
+  return TaskStatus::fail;
+}
+
+// ----------------------------------------------------------------------------
+// Unpack received boundary data for M1Rescatter channels.
+TaskStatus M1N0::SetBoundariesHydro(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  pmb->pcomm->SetBoundaries(comm::CommGroup::M1Rescatter);
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Prolongation for multilevel (SMR/AMR).
+// Re-scatter timing: t_end = current time, dt_scaled = 0.
+TaskStatus M1N0::ProlongationHyd(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  comm::CommRegistry* pcomm = pmb->pcomm;
+
+  // Re-scatter: use current time and zero dt (no time interpolation).
+  const Real t_end     = pmb->pmy_mesh->time;
+  const Real dt_scaled = 0.0;
+
+  const int cis = pmb->cis, cie = pmb->cie;
+  const int cjs = pmb->cjs, cje = pmb->cje;
+  const int cks = pmb->cks, cke = pmb->cke;
+
+  pcomm->ProlongateAndApplyPhysicalBCs(comm::CommGroup::M1Rescatter,
+                                       t_end,
+                                       dt_scaled,
+                                       cis,
+                                       cie,
+                                       cjs,
+                                       cje,
+                                       cks,
+                                       cke,
+                                       NGHOST);
+
+  // B-field is not in M1Rescatter (unchanged by M1 source terms), so
+  // bcc recomputation on prolongated boundaries is unnecessary here.
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Fine-level physical boundary conditions for M1Rescatter channels.
+TaskStatus M1N0::PhysicalBoundaryHyd(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  comm::CommRegistry* pcomm = pmb->pcomm;
+
+  // Re-scatter: use current time and zero dt.
+  const Real t_end     = pmb->pmy_mesh->time;
+  const Real dt_scaled = 0.0;
+
+  pcomm->ApplyPhysicalBCs(comm::CommGroup::M1Rescatter, t_end, dt_scaled);
+
+  // B-field is not in M1Rescatter (unchanged by M1 source terms), so
+  // bcc recomputation is unnecessary here.
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// C2P on full domain (including ghost zones) after boundary exchange.
+TaskStatus M1N0::PrimitivesGhostsHyd(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  Hydro* ph             = pmb->phydro;
+  Field* pf             = pmb->pfield;
+  PassiveScalars* ps    = pmb->pscalars;
+  EquationOfState* peos = pmb->peos;
+
+  int il = 0, iu = pmb->ncells1 - 1;
+  int jl = 0, ju = pmb->ncells2 - 1;
+  int kl = 0, ku = pmb->ncells3 - 1;
+
+  static const int coarseflag     = 0;
+  static const bool skip_physical = true;
+  peos->ConservedToPrimitive(ph->u,
+                             ph->w1,
+                             ph->w,
+                             ps->s,
+                             ps->r,
+                             pf->bcc,
+                             pmb->pcoord,
+                             il,
+                             iu,
+                             jl,
+                             ju,
+                             kl,
+                             ku,
+                             coarseflag,
+                             skip_physical);
+
+  if (pmb->peos->smooth_temperature)
+  {
+    peos->SmoothTemperatureAndRecompute(ph->w,
+                                        ph->w1,
+                                        ph->derived_ms,
+                                        ps->r,
+                                        il,
+                                        iu,
+                                        jl,
+                                        ju,
+                                        kl,
+                                        ku,
+                                        pmb->precon->xorder_use_aux_cs2,
+                                        pmb->precon->xorder_use_aux_s);
+  }
+
+  // Update w1 to have the state of w
+  ph->RetainState(ph->w1, ph->w, il, iu, jl, ju, kl, ku);
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Recouple ADM matter sources from fresh primitives.
+TaskStatus M1N0::UpdateSourceHyd(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  Z4c* pz4c          = pmb->pz4c;
+  Hydro* ph          = pmb->phydro;
+  Field* pf          = pmb->pfield;
+  PassiveScalars* ps = pmb->pscalars;
+
+  pz4c->GetMatter(pz4c->storage.mat, pz4c->storage.adm, ph->w, ps->r, pf->bcc);
+
+  return TaskStatus::next;
+}
+
+// ----------------------------------------------------------------------------
+// Non-blocking clear of M1Rescatter sends and channel flag reset.
+// See ClearAllBoundary comment.
+TaskStatus M1N0::ClearMainInt(MeshBlock* pmb, int stage)
+{
+  if (stage != nstages)
+    return TaskStatus::next;
+
+  if (!pmb->pcomm->ClearBoundary(
+        comm::CommGroup::M1Rescatter, comm::CommTarget::All, false))
+    return TaskStatus::fail;
+  return TaskStatus::next;
+}
+
+#endif  // Z4C_ENABLED && FLUID_ENABLED

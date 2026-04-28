@@ -3,7 +3,6 @@
 // c++
 #include <limits>
 #include <map>
-#include <codecvt>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -151,7 +150,9 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
       { "semi_implicit_Hybrids",
         opt_integration_strategy::semi_implicit_Hybrids},
       { "semi_implicit_HybridsJ",
-        opt_integration_strategy::semi_implicit_HybridsJ}
+        opt_integration_strategy::semi_implicit_HybridsJ},
+      { "semi_implicit_custom_N",
+        opt_integration_strategy::semi_implicit_custom_N}
     };
 
     auto get_solver = [&](std::string name, std::string default_method)
@@ -191,8 +192,8 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
 
   }
 
-  opt_solver.eps_a_tol     = GoA_Real("eps_tol",     1e-10);
-  opt_solver.eps_r_tol     = GoA_Real("eps_tol",     1e-10);
+  opt_solver.eps_a_tol     = GoA_Real("eps_a_tol",   1e-10);
+  opt_solver.eps_r_tol     = GoA_Real("eps_r_tol",   1e-10);
   opt_solver.w_opt_ini   = GoA_Real("w_opt_init",  1.0);
   opt_solver.fac_err_amp = GoA_Real("fac_err_amp", 1.11);
 
@@ -242,6 +243,7 @@ void M1::PopulateOptionsSolver(ParameterInput *pin)
   opt_solver.tra_rho_min = GoA_Real(
     "tra_rho_min", opt_solver.eql_rho_min
   );
+  opt_solver.eql_t_min = GoA_Real("eql_t_min", 0.0);
 
   opt_solver.flux_lo_fallback_tau_min = GoA_Real(
     "flux_lo_fallback_tau_min", -1

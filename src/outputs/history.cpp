@@ -43,6 +43,11 @@
                        3 * (WAVE_ENABLED) + \
                        8 * (Z4C_ENABLED))
 
+// Index of the WAVE "err-max-pw" slot (a max, not a sum).
+// Only meaningful when WAVE_ENABLED=1.
+#define NHISTORY_WAVE_ABSMA_IDX (((NHYDRO) + 3) * (FLUID_ENABLED) + \
+                                 (NFIELD) + (NSCALARS) + 2)
+
 //----------------------------------------------------------------------------------------
 //! \fn void OutputType::HistoryFile()
 //  \brief Writes a history file
@@ -50,7 +55,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
 {
   MeshBlock *pmb = pm->pblock;
   Real real_max = std::numeric_limits<Real>::max();
-  Real real_min = std::numeric_limits<Real>::min();
+  Real real_lowest = std::numeric_limits<Real>::lowest();
   AthenaArray<Real> vol(pmb->ncells1);
 
   const int nuser_history_output_ = pm->user_history_func_.size();
@@ -66,7 +71,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
         hst_data[NHISTORY_VARS+n] = 0.0;
         break;
       case UserHistoryOperation::max:
-        hst_data[NHISTORY_VARS+n] = 0;
+        hst_data[NHISTORY_VARS+n] = real_lowest;
         break;
       case UserHistoryOperation::min:
         hst_data[NHISTORY_VARS+n] = real_max;
@@ -74,7 +79,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
     }
   }
 
-  int ix_cons_dens, ix_cons_scalar;
+  int ix_cons_dens = 0, ix_cons_scalar = 0;
 
   // Loop over MeshBlocks
   while (pmb != nullptr) {
@@ -117,8 +122,8 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             hst_data[isum++] += vol(i)*0.5*SQR(u_my)/u_d;
             hst_data[isum++] += vol(i)*0.5*SQR(u_mz)/u_d;
 
-            if (NON_BAROTROPIC_EOS) {
-              Real& u_e = phyd->u(IEN,k,j,i);;
+            {
+              Real& u_e = phyd->u(IEN,k,j,i);
               hst_data[isum++] += vol(i)*u_e;
             }
             // Cell-centered magnetic energy, partitioned by coordinate direction:
@@ -157,7 +162,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             abs_ma = (abs_ma < std::abs(wave_error)) ? std::abs(wave_error) : abs_ma;
             hst_data[isum++] += vol(i)*std::abs(wave_error);
             hst_data[isum++] += vol(i)*SQR(wave_error);
-            hst_data[isum++] = abs_ma;
+            isum++; // skip abs_ma slot (filled per-MeshBlock below)
           }
 
           // BD: TODO - compute the norm properly;
@@ -165,29 +170,48 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
           // det(\gamma) weighted - using conformal factor this is cheap to do
           if (Z4C_ENABLED)
           {
-            Real const H_err  = std::abs(pz4c->con.H(k,j,i));
-            Real const M2_err = std::abs(pz4c->con.M(k,j,i));
-            Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
-            Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
-            Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
-            Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
-            Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
-            Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+            const Real x1 = pmb->pcoord->x1v(i);
+            const Real x2 = pmb->pcoord->x2v(j);
+            const Real x3 = pmb->pcoord->x3v(k);
+            const Real R2 = SQR(x1) + SQR(x2) + SQR(x3);
+            const Real r2_max = SQR(pz4c->opt.r_max_con);
 
-            hst_data[isum++] += vol(i)*SQR(H_err);
-            hst_data[isum++] += vol(i)*M2_err; //M is already squared
-            hst_data[isum++] += vol(i)*SQR(Mx_err);
-            hst_data[isum++] += vol(i)*SQR(My_err);
-            hst_data[isum++] += vol(i)*SQR(Mz_err);
-            hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
-            hst_data[isum++] += vol(i)*SQR(theta);
-            hst_data[isum++] += vol(i)*C2_err; //C is already squared
+            if (R2 <= r2_max)
+            {
+              Real const H_err  = std::abs(pz4c->con.H(k,j,i));
+              Real const M2_err = std::abs(pz4c->con.M(k,j,i));
+              Real const Mx_err = std::abs(pz4c->con.M_d(0,k,j,i));
+              Real const My_err = std::abs(pz4c->con.M_d(1,k,j,i));
+              Real const Mz_err = std::abs(pz4c->con.M_d(2,k,j,i));
+              Real const Z2_err = std::abs(pz4c->con.Z(k,j,i));
+              Real const theta  = std::abs(pz4c->z4c.Theta(k,j,i));
+              Real const C2_err = std::abs(pz4c->con.C(k,j,i));
+
+              hst_data[isum++] += vol(i)*SQR(H_err);
+              hst_data[isum++] += vol(i)*M2_err; //M is already squared
+              hst_data[isum++] += vol(i)*SQR(Mx_err);
+              hst_data[isum++] += vol(i)*SQR(My_err);
+              hst_data[isum++] += vol(i)*SQR(Mz_err);
+              hst_data[isum++] += vol(i)*Z2_err; //Z is already squared
+              hst_data[isum++] += vol(i)*SQR(theta);
+              hst_data[isum++] += vol(i)*C2_err; //C is already squared
+            }
+            else
+            {
+              isum += 8;
+            }
           }
 
         }
       }
     }
 
+    // Update the WAVE abs_ma slot with the running max across MeshBlocks
+    // (this is a max-reduction quantity, not a sum)
+    if (WAVE_ENABLED) {
+      hst_data[NHISTORY_WAVE_ABSMA_IDX] =
+          std::max(abs_ma, hst_data[NHISTORY_WAVE_ABSMA_IDX]);
+    }
 
     for (int n=0; n<nuser_history_output_; ++n)
     {
@@ -212,6 +236,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
   }  // end loop over MeshBlocks
 
 #ifdef MPI_PARALLEL
+  // The WAVE abs_ma slot is a max-reduction, not a sum. Save it before
+  // the MPI_SUM reduction so we can reduce it separately with MPI_MAX.
+  Real wave_absma_local = 0.0;
+  if (WAVE_ENABLED) {
+    wave_absma_local = hst_data[NHISTORY_WAVE_ABSMA_IDX];
+  }
+
   // sum built-in/predefined hst_data[] over all ranks
   if (Globals::my_rank == 0) {
     MPI_Reduce(MPI_IN_PLACE, hst_data.get(), NHISTORY_VARS, MPI_ATHENA_REAL, MPI_SUM, 0,
@@ -220,29 +251,83 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
     MPI_Reduce(hst_data.get(), hst_data.get(), NHISTORY_VARS, MPI_ATHENA_REAL, MPI_SUM,
                0, MPI_COMM_WORLD);
   }
-  // apply separate chosen operations to each user-defined history output
-  for (int n=0; n<nuser_history_output_; n++)
-  {
-    Real *usr_hst_data = hst_data.get() + NHISTORY_VARS + n;
-    MPI_Op usr_op(MPI_SUM);
-    switch (pm->user_history_ops_[n]) {
-      case UserHistoryOperation::sum:
-        usr_op = MPI_SUM;
-        break;
-      case UserHistoryOperation::max:
-        usr_op = MPI_MAX;
-        break;
-      case UserHistoryOperation::min:
-        usr_op = MPI_MIN;
-        break;
-    }
+
+  // Correct the WAVE abs_ma slot: reduce with MPI_MAX instead of MPI_SUM
+  if (WAVE_ENABLED) {
     if (Globals::my_rank == 0) {
-      MPI_Reduce(MPI_IN_PLACE, usr_hst_data, 1, MPI_ATHENA_REAL, usr_op, 0,
+      MPI_Reduce(MPI_IN_PLACE, &wave_absma_local, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
                  MPI_COMM_WORLD);
+      hst_data[NHISTORY_WAVE_ABSMA_IDX] = wave_absma_local;
     } else {
-      MPI_Reduce(usr_hst_data, usr_hst_data, 1, MPI_ATHENA_REAL, usr_op, 0,
+      MPI_Reduce(&wave_absma_local, &wave_absma_local, 1, MPI_ATHENA_REAL, MPI_MAX, 0,
                  MPI_COMM_WORLD);
     }
+  }
+  // Batch user-defined history reductions: partition into SUM/MAX/MIN groups
+  // and issue at most 3 MPI_Reduce calls instead of N individual ones.
+  if (nuser_history_output_ > 0) {
+    // Count entries per operation type
+    int n_sum = 0, n_max = 0, n_min = 0;
+    for (int n = 0; n < nuser_history_output_; ++n) {
+      switch (pm->user_history_ops_[n]) {
+        case UserHistoryOperation::sum: ++n_sum; break;
+        case UserHistoryOperation::max: ++n_max; break;
+        case UserHistoryOperation::min: ++n_min; break;
+      }
+    }
+    // Stack buffers (user history outputs are typically few, <20)
+    constexpr int kMaxStack = 256;
+    Real buf_sum_s[kMaxStack], buf_max_s[kMaxStack], buf_min_s[kMaxStack];
+    int  idx_sum_s[kMaxStack], idx_max_s[kMaxStack], idx_min_s[kMaxStack];
+    // Use heap only if needed
+    std::unique_ptr<Real[]> buf_sum_h, buf_max_h, buf_min_h;
+    std::unique_ptr<int[]>  idx_sum_h, idx_max_h, idx_min_h;
+    Real *buf_sum, *buf_max, *buf_min;
+    int  *idx_sum, *idx_max, *idx_min;
+    if (n_sum <= kMaxStack) { buf_sum = buf_sum_s; idx_sum = idx_sum_s; }
+    else { buf_sum_h.reset(new Real[n_sum]); idx_sum_h.reset(new int[n_sum]);
+           buf_sum = buf_sum_h.get(); idx_sum = idx_sum_h.get(); }
+    if (n_max <= kMaxStack) { buf_max = buf_max_s; idx_max = idx_max_s; }
+    else { buf_max_h.reset(new Real[n_max]); idx_max_h.reset(new int[n_max]);
+           buf_max = buf_max_h.get(); idx_max = idx_max_h.get(); }
+    if (n_min <= kMaxStack) { buf_min = buf_min_s; idx_min = idx_min_s; }
+    else { buf_min_h.reset(new Real[n_min]); idx_min_h.reset(new int[n_min]);
+           buf_min = buf_min_h.get(); idx_min = idx_min_h.get(); }
+    // Gather values into per-op buffers and record original indices
+    int is = 0, ix = 0, in = 0;
+    for (int n = 0; n < nuser_history_output_; ++n) {
+      Real val = hst_data[NHISTORY_VARS + n];
+      switch (pm->user_history_ops_[n]) {
+        case UserHistoryOperation::sum:
+          idx_sum[is] = n; buf_sum[is] = val; ++is; break;
+        case UserHistoryOperation::max:
+          idx_max[ix] = n; buf_max[ix] = val; ++ix; break;
+        case UserHistoryOperation::min:
+          idx_min[in] = n; buf_min[in] = val; ++in; break;
+      }
+    }
+    // Issue at most 3 MPI_Reduce calls
+    auto batch_reduce = [](Real *buf, int count, MPI_Op op) {
+      if (count <= 0) return;
+      if (Globals::my_rank == 0) {
+        MPI_Reduce(MPI_IN_PLACE, buf, count, MPI_ATHENA_REAL, op, 0,
+                   MPI_COMM_WORLD);
+      } else {
+        MPI_Reduce(buf, buf, count, MPI_ATHENA_REAL, op, 0,
+                   MPI_COMM_WORLD);
+      }
+    };
+    batch_reduce(buf_sum, n_sum, MPI_SUM);
+    batch_reduce(buf_max, n_max, MPI_MAX);
+    batch_reduce(buf_min, n_min, MPI_MIN);
+    // Scatter results back to hst_data (only rank 0 needs correct values,
+    // but writing back on all ranks is harmless and keeps code simple)
+    for (int i = 0; i < n_sum; ++i)
+      hst_data[NHISTORY_VARS + idx_sum[i]] = buf_sum[i];
+    for (int i = 0; i < n_max; ++i)
+      hst_data[NHISTORY_VARS + idx_max[i]] = buf_max[i];
+    for (int i = 0; i < n_min; ++i)
+      hst_data[NHISTORY_VARS + idx_min[i]] = buf_min[i];
   }
 #endif
 
@@ -317,7 +402,7 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
         std::fprintf(pfile,"[%d]=1-KE ", iout++);
         std::fprintf(pfile,"[%d]=2-KE ", iout++);
         std::fprintf(pfile,"[%d]=3-KE ", iout++);
-        if (NON_BAROTROPIC_EOS) std::fprintf(pfile,"[%d]=tot-E ", iout++);
+        std::fprintf(pfile,"[%d]=tot-E ", iout++);
         if (MAGNETIC_FIELDS_ENABLED) {
           std::fprintf(pfile,"[%d]=1-ME ", iout++);
           std::fprintf(pfile,"[%d]=2-ME ", iout++);

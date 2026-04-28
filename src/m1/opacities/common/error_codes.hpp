@@ -1,0 +1,33 @@
+#ifndef M1_OPACITIES_COMMON_ERROR_CODES_HPP
+#define M1_OPACITIES_COMMON_ERROR_CODES_HPP
+
+// Unified error codes for opacity backends.
+// These should all be non-zero.
+
+#define WE_ND_NONFINITE 1
+
+#define WE_FAIL_INI_ASSIGN 2
+#define WE_FAIL_INI_ASSIGN_NRG 3
+#define WE_FAIL_INI_ASSIGN_Y_E 4
+#define WE_FAIL_NONFINITE 5
+
+#define RADMAT_INVALID 6
+#define OPAC_CORRECTION_ERROR 7
+
+#define OPAC_BNDS_ERR 8
+
+#define OPAC_ABS 9
+#define OPAC_SCA 10
+
+#define OPAC_ABS_NONFINITE 11
+#define OPAC_SCA_NONFINITE 12
+
+#define OPAC_NONFINITE 13
+
+#define WE_FAIL_JACOBIAN 15
+#define WE_FAIL_DET_SINGULAR 16
+#define WE_FAIL_KKT 17
+#define WE_FAIL_NEXT_STEP 18
+#define WE_FAIL_STAGNATED 19
+
+#endif  // M1_OPACITIES_COMMON_ERROR_CODES_HPP

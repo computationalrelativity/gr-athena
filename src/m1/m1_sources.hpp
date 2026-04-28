@@ -36,6 +36,31 @@ void PrepareMatterSource_E_F_d(
   Update::SourceMetaVector & S,
   const int k, const int j, const int i);
 
+// Cached overload: forwards DotProductCache to the underlying
+// sources_sc_E_sp_F_d cached variant, avoiding redundant dot-product
+// and Lorentz factor recomputation within the Newton iteration.
+inline void PrepareMatterSource_E_F_d(
+  M1 & pm1,
+  const Update::StateMetaVector & V,
+  Update::SourceMetaVector & S,
+  const Assemble::Frames::DotProductCache & cache,
+  const int k, const int j, const int i)
+{
+  Assemble::Frames::sources_sc_E_sp_F_d(
+    pm1,
+    S.sc_E,
+    S.sp_F_d,
+    V.sc_chi,
+    V.sc_E,
+    V.sp_F_d,
+    V.sc_eta,
+    V.sc_kap_a,
+    V.sc_kap_s,
+    cache,
+    k, j, i
+  );
+}
+
 // PrepareMatterSource_nG requires the following internal vectors:
 // V.{sc_eta_0, sc_kap_a_0}
 //
@@ -71,6 +96,25 @@ void PrepareMatterSourceJacobian_E_F_d(
   const Update::StateMetaVector & C,    // current step
   const int k, const int j, const int i
 );
+
+// Cached overload: forwards DotProductCache to the underlying
+// Jacobian_sc_E_sp_F_d cached variant.
+inline void PrepareMatterSourceJacobian_E_F_d(
+  M1 & pm1,
+  const Real dt,
+  AA & J,                               // Storage for Jacobian
+  const Update::StateMetaVector & C,    // current step
+  const Assemble::Frames::DotProductCache & cache,
+  const int k, const int j, const int i)
+{
+  Assemble::Frames::Jacobian_sc_E_sp_F_d(
+    pm1,
+    J,
+    C.sc_chi, C.sc_E, C.sp_F_d, C.sc_kap_a, C.sc_kap_s,
+    cache,
+    k, j, i
+  );
+}
 
 // ============================================================================
 } // namespace M1::Sources::Minerbo

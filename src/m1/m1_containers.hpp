@@ -29,26 +29,6 @@ typedef AthenaTensor<Real, TensorSymm::SYM2, D, 2> AT_D_sym;
 typedef AthenaTensor<Real, TensorSymm::NONE, N, 2> AT_N_bil;
 typedef AthenaTensor<Real, TensorSymm::NONE, D, 2> AT_D_bil;
 
-/*
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  0> TP_N_sca;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::NONE,
-  N,
-  1> TP_N_vec;
-
-typedef utils::tensor::TensorPointwise<
-  Real,
-  utils::tensor::Symmetries::SYM2,
-  N,
-  2> TP_N_sym;
-*/
-
 
 // Class ======================================================================
 
@@ -88,7 +68,7 @@ public:
     return data_[ix_map(ix_g,ix_s)];
   }
 
-  inline int ix_map(int const ix_g, int const ix_s)
+  inline int ix_map(int const ix_g, int const ix_s) const
   {
     return ix_s + N_SPCS * ix_g;
   }
@@ -135,7 +115,7 @@ public:
     return data_[ix_map(ix_g,ix_s,ix_f)];
   }
 
-  inline int ix_map(int const ix_g, int const ix_s, int const ix_f)
+  inline int ix_map(int const ix_g, int const ix_s, int const ix_f) const
   {
     return ix_f + M1_NDIM * (ix_s + N_SPCS * ix_g);
   }

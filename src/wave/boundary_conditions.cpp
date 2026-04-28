@@ -8,47 +8,46 @@
 void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
 {
   MeshBlock *pmb = pmy_block;
-  BoundaryValues *pbval = pmy_block->pbval;
   const int ndim = pmb->pmy_mesh->ndim;
 
   if (use_Dirichlet)
   {
-    if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::inner_x1) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.il, mbi.il,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
     }
-    if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::outer_x1) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.iu, mbi.iu,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
     }
-    if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.il, mbi.iu,
                              mbi.jl, mbi.jl,
                              mbi.kl, mbi.ku);
     }
-    if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.il, mbi.iu,
                              mbi.ju, mbi.ju,
                              mbi.kl, mbi.ku);
     }
-    if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::inner_x3) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.il, mbi.iu,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.kl);
     }
-    if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::gr_sommerfeld)
+    if(pmb->nc().boundary_flag(BoundaryFace::outer_x3) == BoundaryFlag::gr_sommerfeld)
     {
       WaveBoundaryDirichlet_(u,
                              mbi.il, mbi.iu,
@@ -62,42 +61,42 @@ void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
     {
       case 3:
       {
-        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                              mbi.il, mbi.il,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                              mbi.iu, mbi.iu,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                                  mbi.il, mbi.iu,
                                  mbi.jl, mbi.jl,
                                  mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                                  mbi.il, mbi.iu,
                                  mbi.ju, mbi.ju,
                                  mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::inner_x3] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x3) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                                  mbi.il, mbi.iu,
                                  mbi.jl, mbi.ju,
                                  mbi.kl, mbi.kl);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x3] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x3) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_3d_(u,
                                  mbi.il, mbi.iu,
@@ -109,28 +108,28 @@ void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
       }
       case 2:
       {
-        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_2d_(u,
                              mbi.il, mbi.il,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_2d_(u,
                              mbi.iu, mbi.iu,
                              mbi.jl, mbi.ju,
                              mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::inner_x2] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x2) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_2d_(u,
                              mbi.il, mbi.iu,
                              mbi.jl, mbi.jl,
                              mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x2] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x2) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_2d_(u,
                              mbi.il, mbi.iu,
@@ -141,14 +140,14 @@ void Wave::WaveBoundaryRHS(AthenaArray<Real> & u)
       }
       case 1:
       {
-        if(pbval->block_bcs[BoundaryFace::inner_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::inner_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_1d_L_(u,
                                mbi.il, mbi.il,
                                mbi.jl, mbi.ju,
                                mbi.kl, mbi.ku);
         }
-        if(pbval->block_bcs[BoundaryFace::outer_x1] == BoundaryFlag::gr_sommerfeld)
+        if(pmb->nc().boundary_flag(BoundaryFace::outer_x1) == BoundaryFlag::gr_sommerfeld)
         {
           WaveSommerfeld_1d_R_(u,
                                mbi.iu, mbi.iu,

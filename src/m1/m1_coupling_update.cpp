@@ -2,67 +2,68 @@
 // ...
 
 // Athena++ headers
+#include <cmath>
+
 #include "../coordinates/coordinates.hpp"
 #include "../hydro/hydro.hpp"
-#include "../z4c/z4c.hpp"
 #include "../utils/linear_algebra.hpp"
+#include "../z4c/z4c.hpp"
 #include "m1.hpp"
 #include "m1_containers.hpp"
 #include "m1_macro.hpp"
 #include "m1_utils.hpp"
-#include <cmath>
 
 // ============================================================================
-namespace M1 {
+namespace M1
+{
 // ============================================================================
 
 // Helper for M1::CoupleSourcesADM
 // Warning: This will throw the internal geom vector into different t states
-void Update_sqrt_det_g(M1 & pm1)
+void Update_sqrt_det_g(M1& pm1)
 {
   using namespace LinearAlgebra;
 
-  Z4c * pz4c = pm1.pmy_block->pz4c;
+  Z4c* pz4c = pm1.pmy_block->pz4c;
 
 #ifndef Z4C_CX_ENABLED
 
   AT_N_sym sl_g_dd(pz4c->storage.adm, Z4c::I_ADM_gxx);
 
   // scratch quantities
-  AT_N_sym g_dd_(    pm1.mbi.nn1);
+  AT_N_sym g_dd_(pm1.mbi.nn1);
   AT_C_sca detgamma_(pm1.mbi.nn1);  // spatial met det
 
-  ILOOP2(k,j)
+  ILOOP2(k, j)
   {
     pm1.pmy_coord->GetGeometricFieldCC(g_dd_, sl_g_dd, k, j);
 
-    for(int a = 0; a < NDIM; ++a)
-    for(int b = a; b < NDIM; ++b)
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = a; b < NDIM; ++b)
+        ILOOP1(i)
+        {
+          pm1.geom.sp_g_dd(a, b, k, j, i) = g_dd_(a, b, i);
+        }
+
+    Det3Metric(detgamma_, pm1.geom.sp_g_dd, k, j, pz4c->mbi.il, pz4c->mbi.iu);
+
     ILOOP1(i)
     {
-      pm1.geom.sp_g_dd(a,b,k,j,i) = g_dd_(a,b,i);
-    }
-
-    Det3Metric(detgamma_,pm1.geom.sp_g_dd,
-               k,j,pz4c->mbi.il, pz4c->mbi.iu);
-
-    ILOOP1(i)
-    {
-      pm1.geom.sc_sqrt_det_g(k,j,i) = std::sqrt(detgamma_(i));
-      pm1.geom.sc_oo_sqrt_det_g(k,j,i) = OO(pm1.geom.sc_sqrt_det_g(k,j,i));
+      pm1.geom.sc_sqrt_det_g(k, j, i)    = std::sqrt(detgamma_(i));
+      pm1.geom.sc_oo_sqrt_det_g(k, j, i) = OO(pm1.geom.sc_sqrt_det_g(k, j, i));
     }
   }
 #else
-  ILOOP3(k,j,i)
+  ILOOP3(k, j, i)
   {
-    pm1.geom.sc_oo_sqrt_det_g(k,j,i) = OO(pm1.geom.sc_sqrt_det_g(k,j,i));
+    pm1.geom.sc_oo_sqrt_det_g(k, j, i) = OO(pm1.geom.sc_sqrt_det_g(k, j, i));
   }
-#endif // Z4C_CX_ENABLED
+#endif  // Z4C_CX_ENABLED
 }
 
-void M1::CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd)
+void M1::CoupleSourcesADM(AT_C_sca& A_rho, AT_N_vec& A_S_d, AT_N_sym& A_S_dd)
 {
-  Z4c * pz4c = pmy_block->pz4c;
+  Z4c* pz4c = pmy_block->pz4c;
 
   // BD: TODO - best place to put this?
   //
@@ -72,245 +73,259 @@ void M1::CoupleSourcesADM(AT_C_sca &A_rho, AT_N_vec &A_S_d, AT_N_sym & A_S_dd)
   Update_sqrt_det_g(*this);
 
   // point to scratches -------------------------------------------------------
-  AT_N_sym & sp_P_dd_ = scratch.sp_P_dd_;
+  AT_N_sym& sp_P_dd_ = scratch.sp_P_dd_;
 
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    AT_C_sca & sc_E    = lab.sc_E(ix_g,ix_s);
-    AT_N_vec & sp_F_d  = lab.sp_F_d(ix_g,ix_s);
-    // AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
-    AT_C_sca & sc_chi  = lab_aux.sc_chi(ix_g,ix_s);
-
-    AT_C_sca & sc_oo_sqrt_det_g = geom.sc_oo_sqrt_det_g;
-
-    ILOOP2(k,j)
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        A_rho(k,j,i) += sc_E(k,j,i) * sc_oo_sqrt_det_g(k,j,i);
+      AT_C_sca& sc_E   = lab.sc_E(ix_g, ix_s);
+      AT_N_vec& sp_F_d = lab.sp_F_d(ix_g, ix_s);
+      // AT_N_sym & sp_P_dd = lab_aux.sp_P_dd(ix_g,ix_s);
+      AT_C_sca& sc_chi = lab_aux.sc_chi(ix_g, ix_s);
 
-        if (!std::isfinite(sc_E(k,j,i)))
+      AT_C_sca& sc_oo_sqrt_det_g = geom.sc_oo_sqrt_det_g;
+
+      ILOOP2(k, j)
+      {
+        NS_ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesADM [sc_E] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          A_rho(k, j, i) += sc_E(k, j, i) * sc_oo_sqrt_det_g(k, j, i);
+
+          if (!std::isfinite(sc_E(k, j, i)))
+          {
+            pm1->StatePrintPoint(
+              "CoupleSourcesADM [sc_E] non-finite", ix_g, ix_s, k, j, i, true);
+          }
+          if (!std::isfinite(sc_oo_sqrt_det_g(k, j, i)))
+          {
+            pm1->StatePrintPoint(
+              "CoupleSourcesADM [sc_oo_sqrt_det_g] non-finite",
+              ix_g,
+              ix_s,
+              k,
+              j,
+              i,
+              true);
+          }
         }
-        if (!std::isfinite(sc_oo_sqrt_det_g(k,j,i)))
+
+        for (int a = 0; a < N; ++a)
+          NS_ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesADM [sc_oo_sqrt_det_g] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          A_S_d(a, k, j, i) += sp_F_d(a, k, j, i) * sc_oo_sqrt_det_g(k, j, i);
+          if (!std::isfinite(sp_F_d(a, k, j, i)))
+          {
+            pm1->StatePrintPoint("CoupleSourcesADM [sp_F_d] non-finite",
+                                 ix_g,
+                                 ix_s,
+                                 k,
+                                 j,
+                                 i,
+                                 true);
+          }
         }
-      }
 
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        A_S_d(a,k,j,i) += sp_F_d(a,k,j,i) * sc_oo_sqrt_det_g(k,j,i);
-        if (!std::isfinite(sp_F_d(a,k,j,i)))
+        ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesADM [sp_F_d] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          Assemble::Frames::sp_P_dd_(
+            *this, sp_P_dd_, sc_chi, sc_E, sp_F_d, k, j, i, i);
         }
-      }
 
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        Assemble::Frames::sp_P_dd_(
-          *this, sp_P_dd_, sc_chi, sc_E, sp_F_d,
-          k, j, i, i
-        );
-      }
-
-      for (int a=0; a<N; ++a)
-      for (int b=a; b<N; ++b)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        A_S_dd(a,b,k,j,i) += sp_P_dd_(a,b,i) * sc_oo_sqrt_det_g(k,j,i);
-        if (!std::isfinite(sp_P_dd_(a,b,i)))
+        for (int a = 0; a < N; ++a)
+          for (int b = a; b < N; ++b)
+            NS_ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesADM [sp_P_dd_] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          A_S_dd(a, b, k, j, i) +=
+            sp_P_dd_(a, b, i) * sc_oo_sqrt_det_g(k, j, i);
+          if (!std::isfinite(sp_P_dd_(a, b, i)))
+          {
+            pm1->StatePrintPoint("CoupleSourcesADM [sp_P_dd_] non-finite",
+                                 ix_g,
+                                 ix_s,
+                                 k,
+                                 j,
+                                 i,
+                                 true);
+          }
         }
       }
     }
-  }
 };
 
 bool M1::AreSourcesFinite(const int k, const int j, const int i)
 {
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
-    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
-    AT_C_sca & S_sc_nG  = sources.sc_nG(ix_g,ix_s);
-
-    if (!std::isfinite(sources.sc_E(ix_g,ix_s)(k,j,i) ||
-        !std::isfinite(sources.sc_nG(ix_g,ix_s)(k,j,i))))
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      return false;
-    }
+      AT_C_sca& S_sc_E   = sources.sc_E(ix_g, ix_s);
+      AT_N_vec& S_sp_F_d = sources.sp_F_d(ix_g, ix_s);
+      AT_C_sca& S_sc_nG  = sources.sc_nG(ix_g, ix_s);
 
-    for (int a=0; a<N; ++a)
-    {
-      if (!std::isfinite(sources.sp_F_d(ix_g,ix_s)(a,k,j,i)))
+      if (!std::isfinite(sources.sc_E(ix_g, ix_s)(k, j, i)) ||
+          !std::isfinite(sources.sc_nG(ix_g, ix_s)(k, j, i)))
       {
         return false;
       }
+
+      for (int a = 0; a < N; ++a)
+      {
+        if (!std::isfinite(sources.sp_F_d(ix_g, ix_s)(a, k, j, i)))
+        {
+          return false;
+        }
+      }
     }
-  }
 
   return true;
 }
 
 void M1::SetZeroSources(const int k, const int j, const int i)
 {
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
-    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
-
-    S_sc_E(k,j,i) = 0.0;
-    for (int a=0; a<N; ++a)
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      S_sp_F_d(a,k,j,i) = 0.0;
-    }
+      AT_C_sca& S_sc_E   = sources.sc_E(ix_g, ix_s);
+      AT_N_vec& S_sp_F_d = sources.sp_F_d(ix_g, ix_s);
 
-    sources.sc_nG(ix_g,ix_s)(k,j,i) = 0;
-  }
+      S_sc_E(k, j, i) = 0.0;
+      for (int a = 0; a < N; ++a)
+      {
+        S_sp_F_d(a, k, j, i) = 0.0;
+      }
+
+      sources.sc_nG(ix_g, ix_s)(k, j, i) = 0;
+    }
 }
 
 void M1::EnforceSourcesFinite()
 {
-  M1_ILOOP3(k,j,i)
+  M1_NS_ILOOP3(k, j, i)
   if (MaskGet(k, j, i))
   {
     if (!AreSourcesFinite(k, j, i))
     {
-      SetZeroSources(k,j,i);
+      SetZeroSources(k, j, i);
     }
   }
-
 }
 
-void M1::CoupleSourcesHydro(AA & cons)
+void M1::CoupleSourcesHydro(AA& cons)
 {
-  Z4c * pz4c = pmy_block->pz4c;
+  Z4c* pz4c = pmy_block->pz4c;
 
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
-  for (int ix_s=0; ix_s<N_SPCS; ++ix_s)
-  {
-    AT_C_sca & S_sc_E   = sources.sc_E(ix_g,ix_s);
-    AT_N_vec & S_sp_F_d = sources.sp_F_d(ix_g,ix_s);
-
-    ILOOP2(k,j)
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < N_SPCS; ++ix_s)
     {
-      /*
-      // tau source -----------------------------------------------------------
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
-      }
+      AT_C_sca& S_sc_E   = sources.sc_E(ix_g, ix_s);
+      AT_N_vec& S_sp_F_d = sources.sp_F_d(ix_g, ix_s);
 
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
+      ILOOP2(k, j)
       {
-        // Sign here is correct
-        cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * S_sp_F_d(a,k,j,i);
-      }
-
-      // S_j source -----------------------------------------------------------
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        // cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * S_sp_F_d(a,k,j,i);
-        cons(IM1+a,k,j,i) += geom.sc_alpha(k,j,i) * S_sp_F_d(a,k,j,i);
-      }
-      */
-
-      // tau source -----------------------------------------------------------
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        if (!std::isfinite(S_sc_E(k,j,i)))
+        /*
+        // tau source
+        ----------------------------------------------------------- ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesHydro [S_sc_E] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          cons(IEN,k,j,i) -= S_sc_E(k,j,i);
         }
-        cons(IEN,k,j,i) -= S_sc_E(k,j,i);
-     }
 
-      // S_j source -----------------------------------------------------------
-      for (int a=0; a<N; ++a)
-      ILOOP1(i)
-      if (MaskGet(k, j, i))
-      {
-        if (!std::isfinite(S_sp_F_d(k,j,i)))
+        for (int a=0; a<N; ++a)
+        ILOOP1(i)
+        if (MaskGet(k, j, i))
         {
-          pm1->StatePrintPoint(
-            "CoupleSourcesHydro [S_sp_F_d] non-finite",
-            ix_g, ix_s,
-            k, j, i, true);
+          // Sign here is correct
+          cons(IEN,k,j,i) += geom.sp_beta_u(a,k,j,i) * S_sp_F_d(a,k,j,i);
         }
-        cons(IM1+a,k,j,i) -= S_sp_F_d(a,k,j,i);
+
+        // S_j source
+        ----------------------------------------------------------- for (int
+        a=0; a<N; ++a) ILOOP1(i) if (MaskGet(k, j, i))
+        {
+          // cons(IM1+a,k,j,i) -= geom.sc_alpha(k,j,i) * S_sp_F_d(a,k,j,i);
+          cons(IM1+a,k,j,i) += geom.sc_alpha(k,j,i) * S_sp_F_d(a,k,j,i);
+        }
+        */
+
+        // tau source
+        // -----------------------------------------------------------
+        NS_ILOOP1(i)
+        if (MaskGet(k, j, i))
+        {
+          if (!std::isfinite(S_sc_E(k, j, i)))
+          {
+            pm1->StatePrintPoint("CoupleSourcesHydro [S_sc_E] non-finite",
+                                 ix_g,
+                                 ix_s,
+                                 k,
+                                 j,
+                                 i,
+                                 true);
+          }
+          cons(IEN, k, j, i) -= S_sc_E(k, j, i);
+        }
+
+        // S_j source
+        // -----------------------------------------------------------
+        for (int a = 0; a < N; ++a)
+          NS_ILOOP1(i)
+        if (MaskGet(k, j, i))
+        {
+          if (!std::isfinite(S_sp_F_d(a, k, j, i)))
+          {
+            pm1->StatePrintPoint("CoupleSourcesHydro [S_sp_F_d] non-finite",
+                                 ix_g,
+                                 ix_s,
+                                 k,
+                                 j,
+                                 i,
+                                 true);
+          }
+          cons(IM1 + a, k, j, i) -= S_sp_F_d(a, k, j, i);
+        }
       }
     }
-  }
 }
 
 // This is specific to 3 species (nu, nu_bar, nu_x); note ordering!
-void  M1::CoupleSourcesYe(const Real mb, AA &ps)
+void M1::CoupleSourcesYe(const Real mb, AA& ps)
 {
-  Z4c * pz4c = pmy_block->pz4c;
+  Z4c* pz4c = pmy_block->pz4c;
 
-  for (int ix_g=0; ix_g<N_GRPS; ++ix_g)
+  for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
   {
-    AT_C_sca & S_sc_nG_nue = sources.sc_nG(ix_g,0);
-    AT_C_sca & S_sc_nG_nua = sources.sc_nG(ix_g,1);
+    AT_C_sca& S_sc_nG_nue = sources.sc_nG(ix_g, 0);
+    AT_C_sca& S_sc_nG_nua = sources.sc_nG(ix_g, 1);
 
     // sources of the form:
     // alpha * (
     //  sqrt(gamma) sc_eta_0 - kap_a_0 * n_tilde
     //)
 
-    ILOOP3(k,j,i)
+    NS_ILOOP3(k, j, i)
     if (MaskGet(k, j, i))
     {
-      ps(0,k,j,i) += mb * (
-        S_sc_nG_nua(k,j,i) - S_sc_nG_nue(k,j,i)
-      );
-      if (!std::isfinite(S_sc_nG_nue(k,j,i)) ||
-          !std::isfinite(S_sc_nG_nua(k,j,i)))
+      ps(0, k, j, i) += mb * (S_sc_nG_nua(k, j, i) - S_sc_nG_nue(k, j, i));
+      if (!std::isfinite(S_sc_nG_nue(k, j, i)) ||
+          !std::isfinite(S_sc_nG_nua(k, j, i)))
       {
-        pm1->StatePrintPoint(
-          "CoupleSourcesYe [S_sc_nG_nu(e/a)] non-finite",
-          ix_g, 0,
-          k, j, i, true);
+        pm1->StatePrintPoint("CoupleSourcesYe [S_sc_nG_nu(e/a)] non-finite",
+                             ix_g,
+                             0,
+                             k,
+                             j,
+                             i,
+                             true);
       }
     }
   }
 }
 
 // ============================================================================
-} // namespace M1
+}  // namespace M1
 // ============================================================================
 
 //

@@ -26,6 +26,7 @@ class ErrorPolicyInterface {
     bool fail_conserved_floor;
     bool fail_primitive_floor;
     bool adjust_conserved;
+    bool limit_momenta;
 };
 
 } // namespace

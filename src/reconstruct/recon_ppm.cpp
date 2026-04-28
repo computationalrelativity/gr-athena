@@ -18,10 +18,9 @@ void Reconstruction::ReconstructPPMX1(AthenaArray<Real> &z,
   // CS08 constant used in second derivative limiter, >1 , independent of h
   const Real C2 = 1.25;
 
-  // set work arrays used for primitive/characterstic cell-averages to scratch
-  AthenaArray<Real> &bx = scr01_i_, &wc = scr1_ni_, &q_im2 = scr2_ni_, &q_im1 = scr3_ni_,
-                     &q = scr4_ni_, &q_ip1 = scr5_ni_, &q_ip2 = scr6_ni_,
-                &qr_imh = scr7_ni_, &ql_iph = scr8_ni_;
+  // set work arrays used for cell-averages to scratch
+  AthenaArray<Real> &q_im2 = scr2_ni_, &q_im1 = scr3_ni_,
+                     &q = scr4_ni_, &q_ip1 = scr5_ni_, &q_ip2 = scr6_ni_;
 
   // set work PPM work arrays to shallow copies of scratch arrays:
   AthenaArray<Real> &dd = scr02_i_, &dd_im1 = scr03_i_, &dd_ip1 = scr04_i_,
@@ -36,7 +35,6 @@ void Reconstruction::ReconstructPPMX1(AthenaArray<Real> &z,
   // cache the x1-sliced primitive states for eigensystem calculation
 #pragma omp simd
     for (int i=il; i<=iu; ++i) {
-      wc(n_tar,i) = z(n_src,k,j,i);
       q    (n_tar,i) = z(n_src,k,j,i  );
       q_im2(n_tar,i) = z(n_src,k,j,i-2);
       q_im1(n_tar,i) = z(n_src,k,j,i-1);
@@ -194,25 +192,13 @@ void Reconstruction::ReconstructPPMX1(AthenaArray<Real> &z,
     }
   }
 
-  //--- Step 4b. ---------------------------------------------------------------------
-  // Nonuniform and/or curvilinear coordinate: apply Mignone limiters to parabolic
-  // interpolant. Note, the Mignone limiter does not check for cell-averaged extrema:
-
   //--- Step 5. ------------------------------------------------------------------------
   // Convert limited cell-centered values to interface-centered L/R Riemann states
   // both L/R values defined over [il,iu]
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    ql_iph(n,i ) = qplus(i);
-    qr_imh(n,i ) = qminus(i);
-    }
-
-
-  // compute ql_(i+1/2) and qr_(i-1/2)
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-    zl_(n,i+1) = ql_iph(n,i);
-    zr_(n,i  ) = qr_imh(n,i);
+    zl_(n,i+1) = qplus(i);
+    zr_(n,i  ) = qminus(i);
   }
 }
 
@@ -229,10 +215,9 @@ void Reconstruction::ReconstructPPMX2(AthenaArray<Real> &z,
   // CS08 constant used in second derivative limiter, >1 , independent of h
   const Real C2 = 1.25;
 
-  // set work arrays used for primitive/characterstic cell-averages to scratch
-  AthenaArray<Real> &bx = scr01_i_, &wc = scr1_ni_, &q_jm2 = scr2_ni_, &q_jm1 = scr3_ni_,
-                     &q = scr4_ni_, &q_jp1 = scr5_ni_, &q_jp2 = scr6_ni_,
-                &qr_jmh = scr7_ni_, &ql_jph = scr8_ni_;
+  // set work arrays used for cell-averages to scratch
+  AthenaArray<Real> &q_jm2 = scr2_ni_, &q_jm1 = scr3_ni_,
+                     &q = scr4_ni_, &q_jp1 = scr5_ni_, &q_jp2 = scr6_ni_;
 
   // set work PPM work arrays to shallow copies of scratch arrays:
   AthenaArray<Real> &dd = scr02_i_, &dd_jm1 = scr03_i_, &dd_jp1 = scr04_i_,
@@ -247,7 +232,6 @@ void Reconstruction::ReconstructPPMX2(AthenaArray<Real> &z,
   // cache the x1-sliced primitive states for eigensystem calculation
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    wc(n_tar,i) = z(n_src,k,j,i);
     q    (n_tar,i) = z(n_src,k,j  ,i);
     q_jm2(n_tar,i) = z(n_src,k,j-2,i);
     q_jm1(n_tar,i) = z(n_src,k,j-1,i);
@@ -333,9 +317,6 @@ void Reconstruction::ReconstructPPMX2(AthenaArray<Real> &z,
   }
 
   //--- Step 2b. -------------------------------------------------------------------
-  // Nonuniform and/or curvilinear coordinate: apply strict monotonicity constraints
-  // (Mignone eq 45)
-
   // Cache Riemann states for both non-/uniform limiters
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
@@ -411,16 +392,8 @@ void Reconstruction::ReconstructPPMX2(AthenaArray<Real> &z,
   // both L/R values defined over [il,iu]
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    ql_jph(n,i ) = qplus(i);
-    qr_jmh(n,i ) = qminus(i);
-  }
-
-
-  // compute ql_(j+1/2) and qr_(j-1/2)
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-    zl_(n,i) = ql_jph(n,i);
-    zr_(n,i) = qr_jmh(n,i);
+    zl_(n,i) = qplus(i);
+    zr_(n,i) = qminus(i);
   }
 
 }
@@ -438,10 +411,9 @@ void Reconstruction::ReconstructPPMX3(AthenaArray<Real> &z,
   // CS08 constant used in second derivative limiter, >1 , independent of h
   const Real C2 = 1.25;
 
-  // set work arrays used for primitive/characterstic cell-averages to scratch
-  AthenaArray<Real> &bx = scr01_i_, &wc = scr1_ni_, &q_km2 = scr2_ni_, &q_km1 = scr3_ni_,
-                     &q = scr4_ni_, &q_kp1 = scr5_ni_, &q_kp2 = scr6_ni_,
-                &qr_kmh = scr7_ni_, &ql_kph = scr8_ni_;
+  // set work arrays used for cell-averages to scratch
+  AthenaArray<Real> &q_km2 = scr2_ni_, &q_km1 = scr3_ni_,
+                     &q = scr4_ni_, &q_kp1 = scr5_ni_, &q_kp2 = scr6_ni_;
 
   // set work PPM work arrays to shallow copies of scratch arrays:
   AthenaArray<Real> &dd = scr02_i_, &dd_km1 = scr03_i_, &dd_kp1 = scr04_i_,
@@ -456,7 +428,6 @@ void Reconstruction::ReconstructPPMX3(AthenaArray<Real> &z,
   // cache the x1-sliced primitive states for eigensystem calculation
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    wc(n_tar,i) = z(n_src,k,j,i);
     q    (n_tar,i) = z(n_src,k  ,j,i);
     q_km2(n_tar,i) = z(n_src,k-2,j,i);
     q_km1(n_tar,i) = z(n_src,k-1,j,i);
@@ -542,9 +513,6 @@ void Reconstruction::ReconstructPPMX3(AthenaArray<Real> &z,
     d2qf(i) = 6.0*(dph(i) + dph_kp1(i) - 2.0*q(n,i)); // a6 coefficient * -2
   }
   //--- Step 2b. ---------------------------------------------------------------------
-  // Nonuniform coordinate spacing: apply strict monotonicity constraints
-  // (Mignone eq 45)OB
-
   // Cache Riemann states for both non-/uniform limiters
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
@@ -616,25 +584,13 @@ void Reconstruction::ReconstructPPMX3(AthenaArray<Real> &z,
       }
     }
   }
-  //--- Step 4b. ---------------------------------------------------------------------
-  // Nonuniform coordinate spacing: apply Mignone limiters to parabolic interpolant
-  // Note, the Mignone limiter does not check for cell-averaged extrema:
-
   //--- Step 5. --------------------------------------------------------------------
   // Convert limited cell-centered values to interface-centered L/R Riemann states
   // both L/R values defined over [il,iu]
 #pragma omp simd
   for (int i=il; i<=iu; ++i) {
-    ql_kph(n,i ) = qplus(i);
-    qr_kmh(n,i ) = qminus(i);
-  }
-
-
-  // compute ql_(k+1/2) and qr_(k-1/2)
-#pragma omp simd
-  for (int i=il; i<=iu; ++i) {
-    zl_(n,i) = ql_kph(n,i);
-    zr_(n,i) = qr_kmh(n,i);
+    zl_(n,i) = qplus(i);
+    zr_(n,i) = qminus(i);
   }
 
 }

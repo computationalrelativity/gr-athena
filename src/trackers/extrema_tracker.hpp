@@ -123,10 +123,6 @@ class ExtremaTrackerLocal
                                const Real f_1,
                                const Real f_2);
 
-    Real ExtremaFunctionQuadInterp(const Real f_0,
-                                   const Real f_1,
-                                   const Real f_2);
-
     void UpdateLocStepByControlFieldQuadInterp(const int n);
 
     inline int sign(Real val)
