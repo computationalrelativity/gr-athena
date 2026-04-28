@@ -23,6 +23,8 @@ namespace Primitive
 
 class EOSCompOSE : public EOSPolicyInterface
 {
+  friend class EOSTransition;
+
   public:
   enum TableVariables
   {
