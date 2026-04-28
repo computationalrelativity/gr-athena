@@ -92,6 +92,21 @@ void AHF::ReadOptions(ParameterInput* pin)
   opt.stagnation_warmup =
     pin->GetOrAddInteger("ahf", parkey("stagnation_warmup_"), 5);
 
+  // mode_ramp: continuation in lmax. Iteration starts on the truncated
+  // manifold modes l <= mode_ramp_lmin and progressively unlocks
+  // mode_ramp_modes_per_step modes every mode_ramp_iters_per_step iterations
+  // until lmax is reached.
+  // Set mode_ramp_lmin = -1 to disable.
+  opt.mode_ramp_lmin =
+    pin->GetOrAddInteger("ahf", parkey("mode_ramp_lmin_"), -1);
+  opt.mode_ramp_iters_per_step =
+    pin->GetOrAddInteger("ahf", parkey("mode_ramp_iters_per_step_"), 2);
+  opt.mode_ramp_modes_per_step =
+    pin->GetOrAddInteger("ahf", parkey("mode_ramp_modes_per_step_"), 2);
+
+  if (opt.mode_ramp_lmin == -1)
+    opt.mode_ramp_lmin = opt.lmax;
+
   // Auto-retry options. On failed Find(), retry with adjusted initial_radius
   // selected by exit-code (see ExitCode enum / Find() retry loop).
   opt.auto_retry   = pin->GetOrAddBoolean("ahf", parkey("auto_retry_"), true);
@@ -990,7 +1005,8 @@ void AHF::FastFlowLoop()
             " iter      area            mass         meanradius       "
             "minradius        hmean            hrms             Sx            "
             "  Sy             "
-            " Sz             S              spec_resid       alpha\n");
+            " Sz             S              spec_resid       alpha"
+            "         lmax_act\n");
   }
 
   // Adaptive step size: alpha can change between iterations (line search).
@@ -1032,9 +1048,43 @@ void AHF::FastFlowLoop()
   Real* cb_integrals = combined_buf.data();
   Real* cb_spec_buf  = combined_buf.data() + invar;
 
+  // mode_ramp: continuation in lmax.
+  if (opt.mode_ramp_lmin < opt.lmax)
+  {
+    for (int l = opt.mode_ramp_lmin + 1; l <= opt.lmax; ++l)
+      a0(l) = 0.0;
+    for (int l = opt.mode_ramp_lmin + 1; l <= opt.lmax; ++l)
+    {
+      for (int m = 1; m <= l; ++m)
+      {
+        const int l1 = ylm_.lmindex(l, m);
+        ac(l1)       = 0.0;
+        as(l1)       = 0.0;
+      }
+    }
+  }
+
+  auto lmax_active_at = [&](int k) -> int
+  {
+    const int steps = k / opt.mode_ramp_iters_per_step;
+    return std::min(opt.mode_ramp_lmin + steps * opt.mode_ramp_modes_per_step,
+                    opt.lmax);
+  };
+
+  int lmax_active      = lmax_active_at(0);
+  int lmax_active_prev = -1;
+
   for (int k = 0; k < opt.flow_iterations; k++)
   {
     fastflow_iter = k;
+
+    // Update mode_ramp state for this iteration
+    lmax_active_prev            = lmax_active;
+    lmax_active                 = lmax_active_at(k);
+    const bool ramp_in_progress = (lmax_active < opt.lmax);
+    const bool ramp_transition  = (k > 0 && lmax_active != lmax_active_prev);
+    const bool ramp_just_finished =
+      (lmax_active_prev < opt.lmax && lmax_active >= opt.lmax);
 
     // Compute radius r = a_lm Y_lm
     ylm_.Synthesize(
@@ -1089,6 +1139,22 @@ void AHF::FastFlowLoop()
     // Unpack reduced integrals
     std::memcpy(integrals, cb_integrals, invar * sizeof(Real));
 
+    // mode_ramp: zero gradient components for l > lmax_active.
+    if (lmax_active < opt.lmax)
+    {
+      for (int l = lmax_active + 1; l <= opt.lmax; ++l)
+        spec0[l] = 0.0;
+      for (int l = lmax_active + 1; l <= opt.lmax; ++l)
+      {
+        for (int m = 1; m <= l; ++m)
+        {
+          const int l1 = ylm_.lmindex(l, m);
+          specc[l1]    = 0.0;
+          specs[l1]    = 0.0;
+        }
+      }
+    }
+
     area  = integrals[iarea];
     hrms  = std::sqrt(integrals[ihrms] / area);
     hmean = integrals[ihmean];
@@ -1135,7 +1201,7 @@ void AHF::FastFlowLoop()
           alpha = std::max(alpha * opt.alpha_shrink, opt.alpha_min);
         RecomputeABfac(alpha, 0.5 * alpha, opt.lmax, ABfac);
       }
-      else if (need_bb_cache)
+      else if (need_bb_cache && !ramp_transition)
       {
         // Barzilai-Borwein step from (a_k - a_{k-1}) and (g_k - g_{k-1}).
         Real ss = 0.0, sy = 0.0, yy = 0.0;
@@ -1231,7 +1297,7 @@ void AHF::FastFlowLoop()
     {
       fprintf(pofile_verbose,
               "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e "
-              "%15.7e %15.7e %15.7e %15.7e\n",
+              "%15.7e %15.7e %15.7e %15.7e %15d\n",
               k,
               area,
               mass,
@@ -1244,7 +1310,8 @@ void AHF::FastFlowLoop()
               Sz,
               S,
               spec_resid,
-              alpha);
+              alpha,
+              lmax_active);
       fflush(pofile_verbose);
     }
 
@@ -1299,7 +1366,8 @@ void AHF::FastFlowLoop()
       (std::fabs(hrms - hrms_prev) < opt.hrms_rel_tol * hrms_prev);
 
     if ((k >= 1) && (std::fabs(mass_prev - mass) < opt.mass_tol) &&
-        hrms_abs_ok && hrms_rel_ok && (spec_resid < opt.spec_tol))
+        hrms_abs_ok && hrms_rel_ok && (spec_resid < opt.spec_tol) &&
+        (lmax_active >= opt.lmax))
     {
       ah_found  = true;
       last_exit = ExitCode::success;
@@ -1307,41 +1375,52 @@ void AHF::FastFlowLoop()
     }
 
     // Stagnation detection: hrms failing to improve over a window while still
-    // above the absolute hrms tolerate.
+    // above the absolute hrms tolerate. Suppressed while mode_ramp is active;
+    // reset stagnation tracking at the moment ramp completes so the window
+    // starts fresh in the final phase.
     {
-      const Real impr_thresh =
-        hrms_best * (1.0 - opt.stagnation_improvement_frac);
-      if (hrms < impr_thresh)
+      if (ramp_just_finished)
       {
-        hrms_best        = hrms;
+        hrms_best        = std::numeric_limits<Real>::infinity();
         iters_no_improve = 0;
       }
-      else
-      {
-        ++iters_no_improve;
-      }
 
-      const bool past_warmup = (k >= opt.stagnation_warmup);
-      const bool below_abs   = (hrms * mass < opt.hrms_tol);
-
-      if (opt.stagnation_detect && past_warmup && !below_abs &&
-          iters_no_improve >= opt.stagnation_window)
+      if (!ramp_in_progress)
       {
-        if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+        const Real impr_thresh =
+          hrms_best * (1.0 - opt.stagnation_improvement_frac);
+        if (hrms < impr_thresh)
         {
-          fprintf(pofile_verbose,
-                  "Stagnated, hrms %.3e (best %.3e) for %d iters; "
-                  "abs gate hrms*mass=%.3e >= hrms_tol=%.3e\n",
-                  hrms,
-                  hrms_best,
-                  iters_no_improve,
-                  hrms * mass,
-                  opt.hrms_tol);
-          fflush(pofile_verbose);
+          hrms_best        = hrms;
+          iters_no_improve = 0;
         }
-        last_exit = ExitCode::stagnated;
-        failed    = true;
-        break;
+        else
+        {
+          ++iters_no_improve;
+        }
+
+        const bool past_warmup = (k >= opt.stagnation_warmup);
+        const bool below_abs   = (hrms * mass < opt.hrms_tol);
+
+        if (opt.stagnation_detect && past_warmup && !below_abs &&
+            iters_no_improve >= opt.stagnation_window)
+        {
+          if (opt.verbose && (Globals::my_rank == opt.mpi_root))
+          {
+            fprintf(pofile_verbose,
+                    "Stagnated, hrms %.3e (best %.3e) for %d iters; "
+                    "abs gate hrms*mass=%.3e >= hrms_tol=%.3e\n",
+                    hrms,
+                    hrms_best,
+                    iters_no_improve,
+                    hrms * mass,
+                    opt.hrms_tol);
+            fflush(pofile_verbose);
+          }
+          last_exit = ExitCode::stagnated;
+          failed    = true;
+          break;
+        }
       }
     }
 

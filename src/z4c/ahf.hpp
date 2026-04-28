@@ -101,6 +101,9 @@ class AHF
     int stagnation_window;
     Real stagnation_improvement_frac;
     int stagnation_warmup;
+    int mode_ramp_lmin;
+    int mode_ramp_iters_per_step;
+    int mode_ramp_modes_per_step;
     bool auto_retry;
     int max_retries;
     Real retry_shrink;
