@@ -646,11 +646,12 @@ void Z4c::ADMPolarisedGowdy(AthenaArray<Real>& u_adm)
     adm.K_dd(2, 2, k, j, i) = sign_K / 2. * pow_t_p_1_4 * std::exp(-L / 4.) *
                               std::exp(-P) * (-1. + t * dt_P);
 
-    // psi4 [though this is inferred]
+    // psi4 = psi^4 = (det gamma)^{1/3}; AwA tests use diagonal g_dd,
+    // so det gamma = g_xx * g_yy * g_zz.
     adm.psi4(k, j, i) =
       std::pow(adm.g_dd(0, 0, k, j, i) * adm.g_dd(1, 1, k, j, i) *
                  adm.g_dd(2, 2, k, j, i),
-               -1. / 3.);
+               1. / 3.);
   }
 }
 

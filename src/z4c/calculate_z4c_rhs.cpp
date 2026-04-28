@@ -70,6 +70,11 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
 
   const Real oochi_psi_power = 1.0 / opt.chi_psi_power;
 
+  // DA_u (momentum-constraint chi coupling): coefficient is +6/p so that
+  // -coef * A^{ab} dchi_b/chi reproduces the standard +6 A^{ab} d_b phi term
+  // with phi = (1/p) ln(chi).
+  const Real chi_pow_DA_u = -6.0 / opt.chi_psi_power;
+
   ILOOP2(k, j)
   {
     // -----------------------------------------------------------------------------------
@@ -565,7 +570,7 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
       {
         ILOOP1(i)
         {
-          DA_u(a, i) -= (3. / 2.) * A_uu(a, b, i) * dchi_d(b, i) * oochi(i);
+          DA_u(a, i) -= chi_pow_DA_u * A_uu(a, b, i) * dchi_d(b, i) * oochi(i);
           DA_u(a, i) -=
             (1. / 3.) * g_uu(a, b, i) * (2. * dKhat_d(b, i) + dTheta_d(b, i));
         }
@@ -829,11 +834,19 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
       }
     }
 
+    // Generalize ETA_CONF (defined for chi=psi^{-4}) to chi=psi^p:
+    // sqrt(|dchi|^2 * chi^{-(2+4/p)}) * 4/|p| = 4 * |dpsi|/psi^3 invariantly,
+    // and chi^{-2 a/p} keeps shift_eta_a as the psi-exponent (BAM: psi^{-2a}).
+    const Real chi_pow_eta_grad  = -(2.0 + 4.0 / opt.chi_psi_power);
+    const Real chi_pow_eta_a_thr = -2.0 * opt.shift_eta_a / opt.chi_psi_power;
+    const Real eta_grad_norm     = 4.0 / std::abs(opt.chi_psi_power);
+
     ILOOP1(i)
     {
       eta_damp(i) =
-        opt.shift_eta_R_0 / 2. * SQRT(eta_damp(i) * oochi(i)) /
-        pow(1. - pow(chi_guarded(i), opt.shift_eta_a / 2.), opt.shift_eta_b);
+        opt.shift_eta_R_0 / 2. * eta_grad_norm *
+        SQRT(eta_damp(i) * pow(chi_guarded(i), chi_pow_eta_grad)) /
+        pow(1. - pow(chi_guarded(i), chi_pow_eta_a_thr), opt.shift_eta_b);
     }
 
     // mask and damp
