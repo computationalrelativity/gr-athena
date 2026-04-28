@@ -181,6 +181,8 @@ class AHF
     hSz,
     hS,
     hmass,
+    hmass_irr,
+    hchi,
     hmeanradius,
     hminradius,
     hnvar

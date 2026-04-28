@@ -350,9 +350,9 @@ void AHF::SetupIO()
     if (new_file)
     {
       fprintf(pofile_summary,
-              "# 1:iter 2:time 3:mass 4:Sx 5:Sy 6:Sz 7:S 8:area 9:hrms "
-              "10:hmean 11:meanradius 12:minradius 13:exit_code "
-              "14:num_iters 15:spec_resid\n");
+              "# 1:iter 2:time 3:mass 4:mass_irr 5:Sx 6:Sy 7:Sz 8:S 9:chi "
+              "10:area 11:hrms 12:hmean 13:meanradius 14:minradius "
+              "15:exit_code 16:num_iters 17:spec_resid\n");
       fflush(pofile_summary);
     }
 
@@ -400,12 +400,15 @@ void AHF::Write(int iter, Real time)
     // Summary file
     fprintf(pofile_summary, "%d %g ", iter, time);
     fprintf(pofile_summary,
-            "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e",
+            "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e "
+            "%.15e %.15e",
             ah_prop[hmass],
+            ah_prop[hmass_irr],
             ah_prop[hSx],
             ah_prop[hSy],
             ah_prop[hSz],
             ah_prop[hS],
+            ah_prop[hchi],
             ah_prop[harea],
             ah_prop[hhrms],
             ah_prop[hhmean],
@@ -1001,12 +1004,13 @@ void AHF::FastFlowLoop()
             center[1],
             center[2]);
     fprintf(pofile_verbose, "r_mean = %f\n", meanradius);
-    fprintf(pofile_verbose,
-            " iter      area            mass         meanradius       "
-            "minradius        hmean            hrms             Sx            "
-            "  Sy             "
-            " Sz             S              spec_resid       alpha"
-            "         lmax_act\n");
+    fprintf(
+      pofile_verbose,
+      " iter      area          mass_irr       meanradius       "
+      "minradius        hmean            hrms             Sx            "
+      "  Sy             "
+      " Sz             S              chi            spec_resid       alpha"
+      "         lmax_act\n");
   }
 
   // Adaptive step size: alpha can change between iterations (line search).
@@ -1295,9 +1299,12 @@ void AHF::FastFlowLoop()
 
     if (opt.verbose && (Globals::my_rank == opt.mpi_root))
     {
+      const Real mass_C_iter = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
+      const Real chi_iter =
+        (mass_C_iter > min_mass) ? S / SQR(mass_C_iter) : 0.0;
       fprintf(pofile_verbose,
               "%3d %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e %15.7e "
-              "%15.7e %15.7e %15.7e %15.7e %15d\n",
+              "%15.7e %15.7e %15.7e %15.7e %15.7e %15d\n",
               k,
               area,
               mass,
@@ -1309,6 +1316,7 @@ void AHF::FastFlowLoop()
               Sy,
               Sz,
               S,
+              chi_iter,
               spec_resid,
               alpha,
               lmax_active);
@@ -1473,7 +1481,10 @@ void AHF::FastFlowLoop()
     ah_prop[hSz]         = Sz;
     ah_prop[hS]          = S;
     // Christodoulou mass
-    ah_prop[hmass] = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
+    ah_prop[hmass]     = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
+    ah_prop[hmass_irr] = mass;
+    ah_prop[hchi] =
+      (ah_prop[hmass] > min_mass) ? S / SQR(ah_prop[hmass]) : 0.0;
   }
 
   if (opt.verbose && (Globals::my_rank == opt.mpi_root))
@@ -1481,6 +1492,7 @@ void AHF::FastFlowLoop()
     if (ah_found)
     {
       fprintf(pofile_verbose, "Found horizon %d\n", idx_ahf);
+      fprintf(pofile_verbose, " mass = %f\n", ah_prop[hmass]);
       fprintf(pofile_verbose, " mass_irr = %f\n", mass);
       fprintf(pofile_verbose, " meanradius = %f\n", meanradius);
       fprintf(pofile_verbose, " minradius = %f\n", rr_min);
@@ -1490,6 +1502,7 @@ void AHF::FastFlowLoop()
       fprintf(pofile_verbose, " Sy = %f\n", Sy);
       fprintf(pofile_verbose, " Sz = %f\n", Sz);
       fprintf(pofile_verbose, " S  = %f\n", S);
+      fprintf(pofile_verbose, " chi = %f\n", ah_prop[hchi]);
     }
     else if (!failed && !ah_found)
     {
