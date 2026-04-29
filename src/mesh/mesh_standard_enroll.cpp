@@ -278,7 +278,6 @@ Real Etau_kin(MeshBlock* pmb, int iout)
 void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
 {
 #if FLUID_ENABLED
-  <<<<<<< HEAD EnrollUserHistoryOutput(max_rho, "max_rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(max_T, "max_T", UserHistoryOperation::max);
   EnrollUserHistoryOutput(
     num_c2p_fail, "num_c2p_fail", UserHistoryOperation::max);
@@ -286,11 +285,6 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
   EnrollUserHistoryOutput(
     max_abs_Xsum_err, "max_abs_Xsum_err", UserHistoryOperation::max);
 #endif  // USE_TRANSITION_EOS
-  ======= EnrollUserHistoryOutput(max_rho, "max_rho", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(max_T, "max_T", UserHistoryOperation::max);
-  EnrollUserHistoryOutput(
-    num_c2p_fail, "num_c2p_fail", UserHistoryOperation::max);
->>>>>>> bugfix/zap
 
   // Enroll all average [windowed] quantities ---------------------------------
   InputBlock* pib = pin->pfirst_block;

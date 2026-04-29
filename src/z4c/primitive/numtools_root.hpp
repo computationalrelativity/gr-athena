@@ -23,7 +23,7 @@ class Root
   unsigned int iterations;
 
   /// Only used for benchmarking, not thread-safe.
-  int last_count;
+  // int last_count;
 
   Root() : iterations(30)
   {
@@ -55,12 +55,12 @@ class Root
                             Real& ub,
                             Real& x,
                             Real tol,
-                            Types... args)
+                            Types... args) const
   {
     int side = 0;
     Real ftest;
     unsigned int count = 0;
-    last_count         = 0;
+    // last_count         = 0;
     // Get our initial bracket.
     Real flb = f(lb, args...);
     Real fub = f(ub, args...);
@@ -134,7 +134,7 @@ class Root
         side = -1;
       }
     } while (count < iterations);
-    last_count = count;
+    // last_count = count;
 
     // Return success if we're below the tolerance, otherwise report failure.
     return std::fabs(x - xold) <= tol * (std::fabs(x) + tol) ||
@@ -170,7 +170,7 @@ class Root
                            Types... args)
   {
     unsigned int count = 0;
-    last_count         = 0;
+    // last_count         = 0;
     // Get our initial bracket.
     Real flb = f(lb, args...);
     Real fub = f(ub, args...);
@@ -247,7 +247,7 @@ class Root
         t = 0.5;
       }
     } while (count < iterations);
-    last_count = count;
+    // last_count = count;
 
     // Return success if we're below the tolerance, otherwise report failure.
     return std::fabs(x - x1) <= tol * (std::fabs(x) + tol) ||

@@ -13,6 +13,7 @@
 #include "eos_compose.hpp"
 #include "eos_helmholtz.hpp"
 #include "eos_policy_interface.hpp"
+#include "numtools_root.hpp"
 
 namespace Primitive
 {
@@ -52,11 +53,28 @@ class EOSTransition : public EOSPolicyInterface
   /// Calculate the enthalpy per baryon using.
   Real Enthalpy(Real n, Real T, Real* Y);
 
+  /// Fused temperature + pressure + enthalpy from energy: avoiding redundant
+  /// lookups
+  void TemperaturePressureAndEnthalpyFromE(Real n,
+                                           Real e,
+                                           Real* Y,
+                                           Real* T,
+                                           Real* P,
+                                           Real* h,
+                                           int* guess_it = nullptr);
+
+  void PressureAndEnthalpyFromE(Real n,
+                                Real e,
+                                Real* Y,
+                                Real* P,
+                                Real* h,
+                                int* guess_it = nullptr);
+
+  /// Fused pressure + enthalpy: single weight computation for both P and h.
+  void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
+
   /// Calculate the sound speed.
   Real SoundSpeed(Real n, Real T, Real* Y);
-
-  /// Calculate the average baryon number per nucleon.
-  Real Abar(Real n, Real T, Real* Y);
 
   /// Calculate the specific internal energy per unit mass
   Real SpecificInternalEnergy(Real n, Real T, Real* Y);
@@ -69,6 +87,9 @@ class EOSTransition : public EOSPolicyInterface
 
   /// Calculate the electron-lepton chemical potential
   Real ElectronLeptonChemicalPotential(Real n, Real T, Real* Y);
+
+  /// Calculate the interaction potential difference
+  Real InteractionPotentialDifference(Real n, Real T, Real* Y);
 
   /// Species fractions
   Real FrYn(Real n, Real T, Real* Y);
@@ -86,6 +107,12 @@ class EOSTransition : public EOSPolicyInterface
 
   /// Get the maximum pressure at a given density and composition
   Real MaximumPressure(Real n, Real* Y);
+
+  /// Get the minimum entropy per baryon at a given density and composition
+  Real MinimumEntropy(Real n, Real* Y);
+
+  /// Get the maximum entropy per baryon at a given density and composition
+  Real MaximumEntropy(Real n, Real* Y);
 
   /// Get the minimum specific internal energy at a given density and
   /// composition
@@ -200,6 +227,33 @@ class EOSTransition : public EOSPolicyInterface
 
   // helmholtz upper bounds
   Real m_helm_n_max, m_helm_T_max;
+
+  class RootFunctor
+  {
+    public:
+    Real operator()(Real wt,
+                    int iv,
+                    int it,
+                    Real v0,
+                    Real dv,
+                    Real lt0,
+                    Real dlt,
+                    Real n,
+                    Real* Y,
+                    Real var,
+                    const EOSTransition* peos) const
+    {
+      Real var_comp = v0 + wt * dv;
+      Real t        = exp(lt0 + wt * dlt);
+      Real var_helm = peos->helmholtz_eos->eval_at_nty(iv, n, t, Y);
+      Real f_trans  = peos->TransitionFactor(n, t);
+      Real var_pt   = var_comp * f_trans + var_helm * (1 - f_trans);
+      return (var - var_pt) / var;  // N.B error is expected to be relative
+    }
+  };
+
+  NumTools::Root root;
+  RootFunctor RootFunction;
 };
 }  // namespace Primitive
 

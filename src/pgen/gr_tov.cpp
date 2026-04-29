@@ -1169,6 +1169,7 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
   AT_N_vec sl_S_d(pz4c->storage.mat, Z4c::I_MAT_Sx);
   AT_N_sym sl_S_dd(pz4c->storage.mat, Z4c::I_MAT_Sxx);
 
+#if NSCALARS > 0
   Real Y_atm[MAX_SPECIES] = { 0.0 };
   for (int i = 0; i < NSCALARS; i++)
   {
@@ -1320,8 +1321,7 @@ void TOV_populate(MeshBlock* pmb, ParameterInput* pin)
           // Pressure from EOS
           w_p_(i) = ceos->GetPressure(w_rho_(i));
 #if NSCALARS > 0
-          < < < < < < < HEAD prim_scalar(0, i) =
-            ceos->GetY(w_rho_(i), 0);  // Ye
+          prim_scalar(0, i) = ceos->GetY(w_rho_(i), 0);  // Ye
 #endif
 #if defined(USE_TRANSITION_EOS)
           prim_scalar(SCXN, i) =

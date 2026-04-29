@@ -121,6 +121,38 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
+#elif defined(USE_TRANSITION_EOS)
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
+  std::string compose_table   = pin->GetString("hydro", "table");
+  std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+  Real baryon_mass =
+    pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
+  Real trans_n_start = pin->GetReal(
+    "hydro", "trans_n_start");  // upper density border of transition region
+  Real trans_n_end = pin->GetReal(
+    "hydro", "trans_n_end");  // lower density border of transition region
+  Real trans_T_start = pin->GetReal(
+    "hydro",
+    "trans_t_start");  // upper temperature border of transition region
+  Real trans_T_end = pin->GetReal(
+    "hydro", "trans_t_end");  // lower temperature border of transition region
+  Real helm_n_max = pin->GetOrAddReal(
+    "hydro", "helm_n_max", 0.0);  // always use compose above this density
+  Real helm_T_max = pin->GetOrAddReal(
+    "hydro", "helm_T_max", 0.0);  // always use compose above this temperature
+
+  eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
+  if (helm_n_max > 0.0)
+    eos.SetHelmholtzNMax(helm_n_max);
+  if (helm_T_max > 0.0)
+    eos.SetHelmholtzTMax(helm_T_max);
+  eos.InitializeTables(compose_table, helmholtz_table, baryon_mass);
+  Real mb = eos.GetBaryonMass();
+  // transfer eos boundaries to ResetFloorTransition
+  Real ld_n, hd_n, ld_t, hd_t;
+  eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
@@ -188,6 +220,15 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
 
   eos->ReadColdSliceFromFile(table, species_names);
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+
+#elif defined(USE_TRANSITION_EOS)
+  std::string table = pin->GetString("hydro", "table");
+
+  eos->ReadColdSliceFromFile(table);
+  eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+  Real baryon_mass =
+    pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
+  eos->UpdateBaryonMass(baryon_mass);
 
 #elif defined(USE_IDEAL_GAS)
   Real k_adi = pin->GetReal("hydro", "k_adi");

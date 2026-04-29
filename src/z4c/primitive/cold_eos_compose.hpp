@@ -31,7 +31,7 @@ class ColdEOSCompOSE
     ECLOGE  = 2,  //! log (total energy density / 1 MeV fm^-3)
     ECDPDN  = 3,  //! Derivative of pressure wrt. number density
     ECH     = 4,  //! enthapy per baryon [MeV]
-    ECYE    = 5,  //! Electron fraction
+    ECY     = 5,  //! Abundance of species
     ECNVARS = 5 + NSCALARS
   };
 
@@ -84,7 +84,8 @@ class ColdEOSCompOSE
 
   public:
   /// Reads the cold slice table from file.
-  void ReadColdSliceFromFile(std::string fname);
+  void ReadColdSliceFromFile(std::string fname,
+                             std::string species_names[NSCALARS]);
 
   /// Dumps the eos_akmalpr.d file that lorene routines expect
   void DumpLoreneEOSFile(std::string fname);

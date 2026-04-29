@@ -992,8 +992,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
           {
             Real SumX = m_table[index(ECYN, in, iy, it)] +
                         m_table[index(ECYP, in, iy, it)] +
-                        m_table[index(ECYA, in, iy, it)] +
-                        m_table[index(ECYH, in, iy, it)];
+                        m_table[index(ECXA, in, iy, it)] +
+                        m_table[index(ECXH, in, iy, it)];
             if ((abs(SumX - 1.0) > 1e-2) and (Globals::my_rank == 0))
             {
               printf(
@@ -1006,8 +1006,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
             }
             m_table[index(ECYN, in, iy, it)] /= SumX;
             m_table[index(ECYP, in, iy, it)] /= SumX;
-            m_table[index(ECYA, in, iy, it)] /= SumX;
-            m_table[index(ECYH, in, iy, it)] /= SumX;
+            m_table[index(ECXA, in, iy, it)] /= SumX;
+            m_table[index(ECXH, in, iy, it)] /= SumX;
           }
         }
       }

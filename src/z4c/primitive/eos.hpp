@@ -89,8 +89,8 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
 
+  using EOSPolicy::FrXa;
   using EOSPolicy::FrXh;
-  using EOSPolicy::FrYa;
   using EOSPolicy::FrYn;
   using EOSPolicy::FrYp;
 
@@ -426,9 +426,9 @@ class EOS : public EOSPolicy, public ErrorPolicy
     return FrYp(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
-  inline Real GetYa(Real n, Real T, Real* Y)
+  inline Real GetXa(Real n, Real T, Real* Y)
   {
-    return FrYa(n, T * code_units->TemperatureConversion(*eos_units), Y);
+    return FrXa(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.

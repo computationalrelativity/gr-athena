@@ -1,77 +1,94 @@
 //! \file coldeos_transition.cpp
 //  \brief Implementation of ColdColdEOSTransition
 
-#include <cassert>
-#include <cmath>
-#include <cstdio>
-#include <sstream>
-#include <fstream>
-#include <iomanip>
+#include "cold_eos_transition.hpp"
 
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+
 #include "unit_system.hpp"
-#include "cold_eos_transition.hpp"
 
 using namespace Primitive;
 using namespace std;
 
-#define MYH5CHECK(ierr) \
-  if(ierr < 0) { \
-    stringstream ss; \
+#define MYH5CHECK(ierr)                                               \
+  if (ierr < 0)                                                       \
+  {                                                                   \
+    stringstream ss;                                                  \
     ss << __FILE__ << ":" << __LINE__ << " error reading EOS table!"; \
-    throw runtime_error(ss.str().c_str()); \
+    throw runtime_error(ss.str().c_str());                            \
   }
 
-ColdEOSTransition::ColdEOSTransition():
-  m_np(0),
-  m_table(nullptr),
-  m_initialized(false) {
+ColdEOSTransition::ColdEOSTransition()
+    : m_np(0), m_table(nullptr), m_initialized(false)
+{
   n_species = 7;
   eos_units = &Nuclear;
 }
 
-ColdEOSTransition::~ColdEOSTransition() {
-  if (m_initialized) {
+ColdEOSTransition::~ColdEOSTransition()
+{
+  if (m_initialized)
+  {
     delete[] m_table;
   }
 }
 
-Real ColdEOSTransition::Pressure(Real n) {
-  assert (m_initialized);
+Real ColdEOSTransition::Pressure(Real n)
+{
+  assert(m_initialized);
   return exp(eval_at_n<0>(ECLOGP, n));
 }
 
-Real ColdEOSTransition::Energy(Real n) {
-  assert (m_initialized);
+Real ColdEOSTransition::Energy(Real n)
+{
+  assert(m_initialized);
   return exp(eval_at_n<0>(ECLOGE, n));
 }
 
-Real ColdEOSTransition::dPdn(Real n) {
-  assert (m_initialized);
+Real ColdEOSTransition::dPdn(Real n)
+{
+  assert(m_initialized);
   return eval_at_n<2>(ECDPDN, n);
 }
 
-Real ColdEOSTransition::SpecificInternalEnergy(Real n) {
-  return Energy(n)/(mb*n) - 1;
+Real ColdEOSTransition::SpecificInternalEnergy(Real n)
+{
+  return Energy(n) / (mb * n) - 1;
 }
 
-Real ColdEOSTransition::Y(Real n, int iy) {
-  assert (m_initialized);
-  if (iy+ECY < ECNVARS) return eval_at_n<0>(ECY+iy, n);
+Real ColdEOSTransition::Y(Real n, int iy)
+{
+  assert(m_initialized);
+  if (iy + ECY < ECNVARS)
+    return eval_at_n<0>(ECY + iy, n);
   throw std::out_of_range("ColdEOSTransition::Y species index out of range");
 }
 
-Real ColdEOSTransition::Enthalpy(Real n) {
-  return (Pressure(n) + Energy(n))/n;
+Real ColdEOSTransition::Enthalpy(Real n)
+{
+  return (Pressure(n) + Energy(n)) / n;
 }
 
-Real ColdEOSTransition::DensityFromPressure(Real P) {
+Real ColdEOSTransition::DensityFromPressure(Real P)
+{
   return eval_at_general(ECLOGP, ECLOGN, P);
 }
 
-void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
+Real ColdEOSTransition::DensityFromEnergy(Real E)
+{
+  return exp(eval_at_general(ECLOGE, ECLOGN, log(E)));
+}
+
+void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
+{
   herr_t ierr;
   hid_t file_id;
   hid_t grp_id;
@@ -80,49 +97,50 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   // Open input file
   // -------------------------------------------------------------------------
   file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-    MYH5CHECK(file_id);
+  MYH5CHECK(file_id);
 
   // Open the cold_slice group
   grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
-    MYH5CHECK(grp_id);
+  MYH5CHECK(grp_id);
 
   // Get dataset sizes
   // -------------------------------------------------------------------------
   ierr = H5LTget_dataset_info(grp_id, "nb", &snb, NULL, NULL);
-    MYH5CHECK(ierr);
+  MYH5CHECK(ierr);
   m_np = snb;
 
   // Allocate memory
   // -------------------------------------------------------------------------
-  m_table = new Real[ECNVARS*m_np];
-  double * scratch = new double[m_np];
+  m_table         = new Real[ECNVARS * m_np];
+  double* scratch = new double[m_np];
 
   // Read nb, t, yq
   // -------------------------------------------------------------------------
   ierr = H5LTread_dataset_double(grp_id, "nb", scratch);
-    MYH5CHECK(ierr);
+  MYH5CHECK(ierr);
   min_n = scratch[0];
-  max_n = scratch[m_np-1];
-  for (int in = 0; in < m_np; ++in) {
+  max_n = scratch[m_np - 1];
+  for (int in = 0; in < m_np; ++in)
+  {
     m_table[index(ECLOGN, in)] = log(scratch[in]);
   }
-  m_id_log_nb = 1.0/(m_table[index(ECLOGN, 1)] - m_table[index(ECLOGN, 0)]);
+  m_id_log_nb = 1.0 / (m_table[index(ECLOGN, 1)] - m_table[index(ECLOGN, 0)]);
 
   ierr = H5LTread_dataset_double(grp_id, "t", scratch);
-    MYH5CHECK(ierr);
+  MYH5CHECK(ierr);
   T = scratch[0];
   // the neutron mass is used as the baryon mass in
   ierr = H5LTread_dataset_double(grp_id, "mn", scratch);
-    MYH5CHECK(ierr);
+  MYH5CHECK(ierr);
   mb = scratch[0];
 
   // Read the density index to cut lorene table
-// #if !defined(DBG_PS_NO_LORENE_CUT)
-//   // ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
-//   //   MYH5CHECK(ierr);
-// #else
-//   i_lorene_cut = 0;
-// #endif
+  // #if !defined(DBG_PS_NO_LORENE_CUT)
+  //   // ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
+  //   //   MYH5CHECK(ierr);
+  // #else
+  //   i_lorene_cut = 0;
+  // #endif
 
   if (H5LTfind_dataset(grp_id, "lorene_cut"))
   {
@@ -141,103 +159,131 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
   ierr = H5LTread_dataset_double(grp_id, "Q1", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECLOGP, in)] =
-      log(scratch[in]) + m_table[index(ECLOGN, in)];
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECLOGP, in)] = log(scratch[in]) + m_table[index(ECLOGN, in)];
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Q7", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
     m_table[index(ECLOGE, in)] =
-      log(mb*(scratch[in] + 1)) + m_table[index(ECLOGN, in)];
+      log(mb * (scratch[in] + 1)) + m_table[index(ECLOGN, in)];
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[e]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCYE, in)] = scratch[in];
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECY + SCYE, in)] = scratch[in];
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[n]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCXN, in)] = max(0.0, min(scratch[in], 1.0));
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECY + SCXN, in)] = max(0.0, min(scratch[in], 1.0));
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[p]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCXP, in)] = max(0.0, min(scratch[in], 1.0));
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECY + SCXP, in)] = max(0.0, min(scratch[in], 1.0));
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[H2]", scratch);
-  if (ierr == 0) {
-    for (int in = 0; in < m_np; ++in) {
+  if (ierr == 0)
+  {
+    for (int in = 0; in < m_np; ++in)
+    {
       // convert from abundance to mass fraction
-      m_table[index(ECY+SCXP, in)] += max(0.0, min(scratch[in]*2.0, 1.0));
+      m_table[index(ECY + SCXP, in)] += max(0.0, min(scratch[in] * 2.0, 1.0));
     }
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[H3]", scratch);
-  if (ierr == 0) {
-    for (int in = 0; in < m_np; ++in) {
+  if (ierr == 0)
+  {
+    for (int in = 0; in < m_np; ++in)
+    {
       // convert from abundance to mass fraction
-      m_table[index(ECY+SCXP, in)] += max(0.0, min(scratch[in]*3.0, 1.0));
+      m_table[index(ECY + SCXP, in)] += max(0.0, min(scratch[in] * 3.0, 1.0));
     }
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[He4]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
     // convert from abundance to mass fraction
-    m_table[index(ECY+SCXA, in)] = max(0.0, min(scratch[in]*4.0, 1.0));
+    m_table[index(ECY + SCXA, in)] = max(0.0, min(scratch[in] * 4.0, 1.0));
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[He3]", scratch);
-  if (ierr == 0) {
-    for (int in = 0; in < m_np; ++in) {
+  if (ierr == 0)
+  {
+    for (int in = 0; in < m_np; ++in)
+    {
       // convert from abundance to mass fraction
-      m_table[index(ECY+SCXA, in)] += max(0.0, min(scratch[in]*3.0, 1.0));
+      m_table[index(ECY + SCXA, in)] += max(0.0, min(scratch[in] * 3.0, 1.0));
     }
   }
 
   ierr = H5LTread_dataset_double(grp_id, "A[N]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECY+SCAH, in)] = max(1.0, scratch[in]);
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECY + SCAH, in)] = max(1.0, scratch[in]);
   }
 
   ierr = H5LTread_dataset_double(grp_id, "Y[N]", scratch);
-    MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in) {
+  MYH5CHECK(ierr);
+  for (int in = 0; in < m_np; ++in)
+  {
     // convert from abundance to mass fraction
     Real Xh = scratch[in] * m_table[index(ECY + SCAH, in)];
     m_table[index(ECY + SCXH, in)] = max(0.0, min(Xh, 1.0));
   }
 
   //  fill enthalpy
-  for (int in = 0; in < m_np; ++in) {
-    m_table[index(ECH, in)] = (exp(m_table[index(ECLOGE, in)]) + exp(m_table[index(ECLOGP, in)]))/m_table[index(ECLOGN, in)];
+  for (int in = 0; in < m_np; ++in)
+  {
+    m_table[index(ECH, in)] =
+      (exp(m_table[index(ECLOGE, in)]) + exp(m_table[index(ECLOGP, in)])) /
+      m_table[index(ECLOGN, in)];
   }
 
   //  fill dPdn
-  D0_x_2(&m_table[index(ECLOGP, 0)], &m_table[index(ECLOGN, 0)], m_np, &m_table[index(ECDPDN, 0)]);
-  for (int in = 1; in < m_np; ++in) {
-    m_table[index(ECDPDN, in)] *= exp(m_table[index(ECLOGP, in)] - m_table[index(ECLOGN, in)]);
+  D0_x_2(&m_table[index(ECLOGP, 0)],
+         &m_table[index(ECLOGN, 0)],
+         m_np,
+         &m_table[index(ECDPDN, 0)]);
+  for (int in = 1; in < m_np; ++in)
+  {
+    m_table[index(ECDPDN, in)] *=
+      exp(m_table[index(ECLOGP, in)] - m_table[index(ECLOGN, in)]);
   }
 
   // normalize sum of mass fractions to 1
-  for (int in = 1; in < m_np; ++in) {
-    Real SumX = m_table[index(ECY+SCXN, in)] + m_table[index(ECY+SCXP, in)] + m_table[index(ECY+SCXA, in)] + m_table[index(ECY+SCXH, in)];
-    if ((abs(SumX - 1.0) > 1e-2) and (Globals::my_rank == 0)) {
-      printf("Warning: sum of mass fractions at index %d is %e, normalizing to 1\n", in, SumX);
+  for (int in = 1; in < m_np; ++in)
+  {
+    Real SumX =
+      m_table[index(ECY + SCXN, in)] + m_table[index(ECY + SCXP, in)] +
+      m_table[index(ECY + SCXA, in)] + m_table[index(ECY + SCXH, in)];
+    if ((abs(SumX - 1.0) > 1e-2) and (Globals::my_rank == 0))
+    {
+      printf(
+        "Warning: sum of mass fractions at index %d is %e, normalizing to 1\n",
+        in,
+        SumX);
     }
-    m_table[index(ECY+SCXN, in)] /= SumX;
-    m_table[index(ECY+SCXP, in)] /= SumX;
-    m_table[index(ECY+SCXA, in)] /= SumX;
-    m_table[index(ECY+SCXH, in)] /= SumX;
+    m_table[index(ECY + SCXN, in)] /= SumX;
+    m_table[index(ECY + SCXP, in)] /= SumX;
+    m_table[index(ECY + SCXA, in)] /= SumX;
+    m_table[index(ECY + SCXH, in)] /= SumX;
   }
 
   // Cleanup
@@ -248,11 +294,13 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname) {
   m_initialized = true;
 }
 
-void ColdEOSTransition::DumpLoreneEOSFile(std::string fname) {
+void ColdEOSTransition::DumpLoreneEOSFile(std::string fname)
+{
   // Dump the eos_akmalpr.d file that lorene routines expect
   // Lorene units are n [fm^-3], e [g/cm^3], p [erg/cm^3]
   Real n_conv = eos_units->DensityConversion(Nuclear);
-  Real e_conv = eos_units->DensityConversion(CGS) * eos_units->MassConversion(CGS);
+  Real e_conv =
+    eos_units->DensityConversion(CGS) * eos_units->MassConversion(CGS);
   Real p_conv = eos_units->PressureConversion(CGS);
 
   std::ofstream lorenefile(fname.c_str());
@@ -260,84 +308,96 @@ void ColdEOSTransition::DumpLoreneEOSFile(std::string fname) {
 
   lorenefile << "#\n#\n#\n#\n#\n" << m_np - i_lorene_cut << "\n#\n#\n#\n";
 
-  for (int i = i_lorene_cut; i < m_np; ++i) {
+  for (int i = i_lorene_cut; i < m_np; ++i)
+  {
     Real nb = n_conv * exp(m_table[index(ECLOGN, i)]);
-    Real e = e_conv * exp(m_table[index(ECLOGE, i)]);
-    Real p = p_conv * exp(m_table[index(ECLOGP, i)]);
-    lorenefile << i - i_lorene_cut + 1 << " " << nb << " " << e << " " << p << std::endl;
+    Real e  = e_conv * exp(m_table[index(ECLOGE, i)]);
+    Real p  = p_conv * exp(m_table[index(ECLOGP, i)]);
+    lorenefile << i - i_lorene_cut + 1 << " " << nb << " " << e << " " << p
+               << std::endl;
   }
 }
 
-template<int LIX_EXTRAPOLATE>
-void ColdEOSTransition::weight_idx_ln(Real *w0, Real *w1, int *in, Real log_n) const {
-
-  *in = (log_n - m_table[index(ECLOGN, 0)])*m_id_log_nb;
+template <int LIX_EXTRAPOLATE>
+void ColdEOSTransition::weight_idx_ln(Real* w0,
+                                      Real* w1,
+                                      int* in,
+                                      Real log_n) const
+{
+  *in = (log_n - m_table[index(ECLOGN, 0)]) * m_id_log_nb;
 
   // if outside table limits, linearly extrapolate
-  if (*in > m_np-2)
+  if (*in > m_np - 2)
   {
-    *in = m_np-2;
+    *in = m_np - 2;
   }
-  else if (*in < LIX_EXTRAPOLATE )
+  else if (*in < LIX_EXTRAPOLATE)
   {
     *in = LIX_EXTRAPOLATE;
   }
 
-  *w1 = (log_n - m_table[index(ECLOGN, *in)])*m_id_log_nb;
+  *w1 = (log_n - m_table[index(ECLOGN, *in)]) * m_id_log_nb;
   *w0 = 1.0 - (*w1);
 }
 
-template<int LIX_EXTRAPOLATE>
-Real ColdEOSTransition::eval_at_ln(int iv, Real log_n) const {
+template <int LIX_EXTRAPOLATE>
+Real ColdEOSTransition::eval_at_ln(int iv, Real log_n) const
+{
   int in;
   Real wn0, wn1;
 
   weight_idx_ln<LIX_EXTRAPOLATE>(&wn0, &wn1, &in, log_n);
 
-  const int ix1 = index(iv, in+0);
-  const int ix2 = index(iv, in+1);
+  const int ix1 = index(iv, in + 0);
+  const int ix2 = index(iv, in + 1);
   const Real m1 = m_table[ix1];
   const Real m2 = m_table[ix2];
   return wn0 * m1 + wn1 * m2;
 }
 
-template<int LIX_EXTRAPOLATE>
-Real ColdEOSTransition::eval_at_n(int iv, Real n) const {
+template <int LIX_EXTRAPOLATE>
+Real ColdEOSTransition::eval_at_n(int iv, Real n) const
+{
   return eval_at_ln<LIX_EXTRAPOLATE>(iv, log(n));
 }
 
-Real ColdEOSTransition::eval_at_general(int iv_in, int iv_out, Real v) const {
+Real ColdEOSTransition::eval_at_general(int iv_in, int iv_out, Real v) const
+{
   return linterp1d(v, &m_table[index(iv_in, 0)], &m_table[index(iv_out, 0)]);
 }
-
 
 //--------------------------------------------------------------------------------------
 //! \fn int D0_x_2(double *f, double *x, int n, double *df)
 // \brief 1st order centered stencil first derivative, nonuniform grids
-int ColdEOSTransition::D0_x_2(double *f, double *x, int n, double *df)
+int ColdEOSTransition::D0_x_2(double* f, double* x, int n, double* df)
 {
   int i;
-  for(i=1; i<n-1; i++) {
-    df[i] = (f[i+1]-f[i-1])/(x[i+1]-x[i-1]);
+  for (i = 1; i < n - 1; i++)
+  {
+    df[i] = (f[i + 1] - f[i - 1]) / (x[i + 1] - x[i - 1]);
   }
-  i = 0;
-  df[i] = (f[i]-f[i+1])/(x[i]-x[i+1]);
-  i = n-1;
-  df[i] = (f[i]-f[i-1])/(x[i]-x[i-1]);
+  i     = 0;
+  df[i] = (f[i] - f[i + 1]) / (x[i] - x[i + 1]);
+  i     = n - 1;
+  df[i] = (f[i] - f[i - 1]) / (x[i] - x[i - 1]);
   return 0;
 }
 
-Real ColdEOSTransition::linterp1d(Real x, Real *xp, Real *fp) const {
+Real ColdEOSTransition::linterp1d(Real x, Real* xp, Real* fp) const
+{
   int i;
-  for(i=1; i<m_np; i++) {
-    if (x < xp[i]) {
+  for (i = 1; i < m_np; i++)
+  {
+    if (x < xp[i])
+    {
       break;
     }
   }
-  if (i == m_np) {
-    i = m_np-1;
+  if (i == m_np)
+  {
+    i = m_np - 1;
   }
-  Real w1 = (x - xp[i-1])/(xp[i] - xp[i-1]);
+  Real w1 = (x - xp[i - 1]) / (xp[i] - xp[i - 1]);
   Real w0 = 1.0 - w1;
-  return w0*fp[i-1] + w1*fp[i];
+  return w0 * fp[i - 1] + w1 * fp[i];
 }

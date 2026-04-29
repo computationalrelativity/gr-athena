@@ -602,19 +602,6 @@ void EquationOfState::GeometryToSlicedCC(geom_sliced_cc& gsc,
   gsc.is_scratch_allocated = true;
 }
 
-void EquationOfState::SetEuclideanCC(geom_sliced_cc& gsc, const int i)
-{
-  for (int a = 0; a < N; ++a)
-    for (int b = a; b < N; ++b)
-    {
-      gsc.gamma_dd_(a, b, i) = (a == b);
-    }
-
-  gsc.sqrt_det_gamma_(i) = 1;
-  gsc.det_gamma_(i)      = 1;
-  gsc.oo_det_gamma_(i)   = 1;
-}
-
 #if defined(USE_TRANSITION_EOS)
 void EquationOfState::NuclearBinding(AA& prim,
                                      AA& prim_scalar,
@@ -667,9 +654,9 @@ void EquationOfState::NuclearBinding(AA& prim,
     const Real cur_eb            = GetEOS().GetNSEBindingEnergy(n, T, Y);
     prim_scalar(SCXN, k, j, i)   = GetEOS().GetYn(n, T, Y);
     prim_scalar(SCXP, k, j, i)   = GetEOS().GetYp(n, T, Y);
-    prim_scalar(SCXA, k, j, i)   = GetEOS().GetYa(n, T, Y);
+    prim_scalar(SCXA, k, j, i)   = GetEOS().GetXa(n, T, Y);
     prim_scalar(SCAH, k, j, i)   = GetEOS().GetAN(n, T, Y);
-    prim_scalar(SCXH, k, j, i)   = GetEOS().GetYh(n, T, Y);
+    prim_scalar(SCXH, k, j, i)   = GetEOS().GetXh(n, T, Y);
     prim_scalar(SCEB, k, j, i)   = cur_eb;
     hyd_der_ms(IX_HEAT, k, j, i) = 0.0;
     // update conserved scalars with new fractions

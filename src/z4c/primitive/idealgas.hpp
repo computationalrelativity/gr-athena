@@ -79,6 +79,10 @@ class IdealGas : public EOSPolicyInterface
   // Returns proton number fraction Y_p = n_p / n_b.
   [[noreturn]]
   Real FrYp(Real n, Real T, Real* Y);
+  // Returns alpha-particle mass fraction X_a = 4 * Y_a.
+  // This is a mass fraction, not a number fraction.
+  [[noreturn]]
+  Real FrXa(Real n, Real T, Real* Y);
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
   // This is a mass fraction, not a number fraction.
   [[noreturn]]

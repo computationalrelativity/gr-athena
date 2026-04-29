@@ -29,7 +29,7 @@ using namespace std;
 ColdEOSCompOSE::ColdEOSCompOSE()
     : m_np(0), m_table(nullptr), m_initialized(false)
 {
-  n_species = 1;  // TODO: add arbitrary number of species in the future
+  n_species = 1;
   eos_units = &Nuclear;
 }
 
@@ -67,14 +67,7 @@ Real ColdEOSCompOSE::SpecificInternalEnergy(Real n)
 Real ColdEOSCompOSE::Y(Real n, int iy)
 {
   assert(m_initialized);
-  if (iy != 0)
-  {
-    std::stringstream msg;
-    msg << "### ColdEOSCompOSE::Y only implemented for iy=0, got iy=" << iy
-        << std::endl;
-    throw std::runtime_error(msg.str());
-  }
-  return eval_at_n<0>(ECYE, n);
+  return eval_at_n<0>(ECY + iy, n);
 }
 
 Real ColdEOSCompOSE::Enthalpy(Real n)
@@ -92,7 +85,8 @@ Real ColdEOSCompOSE::DensityFromEnergy(Real E)
   return exp(eval_at_general(ECLOGE, ECLOGN, log(E)));
 }
 
-void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname)
+void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname,
+                                           std::string species_names[NSCALARS])
 {
   herr_t ierr;
   hid_t file_id;
@@ -178,12 +172,16 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname)
       log(mb * (scratch[in] + 1)) + m_table[index(ECLOGN, in)];
   }
 
-  std::stringstream ss;
-  ierr = H5LTread_dataset_double(grp_id, "Y[e]", scratch);
-  MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in)
+  for (int iy = 0; iy < n_species; ++iy)
   {
-    m_table[index(ECYE, in)] = scratch[in];
+    std::stringstream ss;
+    ss << "Y[" << species_names[iy] << "]";
+    ierr = H5LTread_dataset_double(grp_id, ss.str().c_str(), scratch);
+    MYH5CHECK(ierr);
+    for (int in = 0; in < m_np; ++in)
+    {
+      m_table[index(ECY + iy, in)] = scratch[in];
+    }
   }
 
   //  fill enthalpy (per baryon): (e + p) / n

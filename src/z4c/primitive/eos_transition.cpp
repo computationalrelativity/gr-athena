@@ -52,6 +52,7 @@ EOSTransition::EOSTransition()
   m_helm_n_max     = numeric_limits<Real>::quiet_NaN();
   m_helm_T_max     = numeric_limits<Real>::quiet_NaN();
   m_initialized    = false;
+  root.iterations  = 100;
 }
 
 bool EOSTransition::s_printed_parameters = false;
@@ -215,21 +216,6 @@ Real EOSTransition::Entropy(Real n, Real T, Real* Y)
   return v_helmholtz * (1 - w) + v_compose * w;
 }
 
-Real EOSTransition::Abar(Real n, Real T, Real* Y)
-{
-  assert(m_initialized);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
-  Real w = TransitionFactor(n, T);
-  if (w == 1.0)
-    return compose_eos->Abar(n, T, Y_norm);
-  if (w == 0.0)
-    return helmholtz_eos->Abar(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->Abar(n, T, Y_norm);
-  Real v_compose   = compose_eos->Abar(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
-}
-
 Real EOSTransition::Enthalpy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
@@ -314,6 +300,15 @@ Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
   return v_helmholtz * (1 - w) + v_compose * w;
 }
 
+Real EOSTransition::InteractionPotentialDifference(Real n, Real T, Real* Y)
+{
+  Real w = TransitionFactor(n, T);
+  if (w == 0.0)
+    return 0.0;
+  Real dU = compose_eos->InteractionPotentialDifference(n, T, Y);
+  return w * dU;
+}
+
 Real EOSTransition::FrYn(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
@@ -390,6 +385,24 @@ Real EOSTransition::MaximumPressure(Real n, Real* Y)
     return Pressure(n, m_helm_T_max, Y);
   }
   return Pressure(n, max_T, Y);
+}
+
+Real EOSTransition::MinimumEntropy(Real n, Real* Y)
+{
+  if (n > exp(trans_ln_end))
+  {
+    return Entropy(n, compose_eos->min_T, Y);
+  }
+  return Entropy(n, min_T, Y);
+}
+
+Real EOSTransition::MaximumEntropy(Real n, Real* Y)
+{
+  if (n < exp(trans_ln_start))
+  {
+    return Entropy(n, m_helm_T_max, Y);
+  }
+  return Entropy(n, max_T, Y);
 }
 
 Real EOSTransition::MinimumSpecificInternalEnergy(Real n, Real* Y)
@@ -564,6 +577,44 @@ void EOSTransition::update_bounds()
     1;
 }
 
+/// Fused temperature + pressure + enthalpy from energy: avoiding redundant
+/// lookups
+void EOSTransition::TemperaturePressureAndEnthalpyFromE(Real n,
+                                                        Real e,
+                                                        Real* Y,
+                                                        Real* T,
+                                                        Real* P,
+                                                        Real* h,
+                                                        int* guess_it)
+{
+  // get T
+  *T = TemperatureFromE(n, e, Y);
+  PressureAndEnthalpy(n, *T, Y, P, h);
+}
+
+void EOSTransition::PressureAndEnthalpyFromE(Real n,
+                                             Real e,
+                                             Real* Y,
+                                             Real* P,
+                                             Real* h,
+                                             int* guess_it)
+{
+  // get T
+  Real T = TemperatureFromE(n, e, Y);
+  PressureAndEnthalpy(n, T, Y, P, h);
+}
+
+/// Fused pressure + enthalpy: single weight computation for both P and h.
+void EOSTransition::PressureAndEnthalpy(Real n,
+                                        Real T,
+                                        Real* Y,
+                                        Real* P,
+                                        Real* h)
+{
+  *P = Pressure(n, T, Y);
+  *h = Enthalpy(n, T, Y);
+}
+
 Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
 {
   if (n > helmholtz_eos->max_n or T > helmholtz_eos->max_T)
@@ -580,8 +631,8 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
     Y_NSE[SCYE] = Y[SCYE];
     Y_NSE[SCXN] = compose_eos->FrYn(n, T, Y);
     Y_NSE[SCXP] = compose_eos->FrYp(n, T, Y);
-    Y_NSE[SCXA] = compose_eos->FrYa(n, T, Y);
-    Y_NSE[SCXH] = compose_eos->FrYh(n, T, Y);
+    Y_NSE[SCXA] = compose_eos->FrXa(n, T, Y);
+    Y_NSE[SCXH] = compose_eos->FrXh(n, T, Y);
     Y_NSE[SCAH] = compose_eos->AN(n, T, Y);
     Y_NSE[SCEB] = 0.0;
 
@@ -752,6 +803,57 @@ Real EOSTransition::temperature_from_var_trans(int iv,
     return exp(lthi);
   }
 
-  Real lt = compose_eos->m_log_t[ilo] - flo * (lthi - ltlo) / (fhi - flo);
+  // Pre-compute the four base offsets; it and it+1 are contiguous.
+  ptrdiff_t const b00 = compose_eos->index(iv, in, iy, ilo);
+  ptrdiff_t const b01 = compose_eos->index(iv, in, iy + 1, ilo);
+  ptrdiff_t const b10 = compose_eos->index(iv, in + 1, iy, ilo);
+  ptrdiff_t const b11 = compose_eos->index(iv, in + 1, iy + 1, ilo);
+
+  Real* m_table = compose_eos->m_table;
+  Real v0       = (wn0 * (wy0 * m_table[b00] + wy1 * m_table[b01]) +
+             wn1 * (wy0 * m_table[b10] + wy1 * m_table[b11]));
+  Real v1       = (wn0 * (wy0 * m_table[b00 + 1] + wy1 * m_table[b01 + 1]) +
+             wn1 * (wy0 * m_table[b10 + 1] + wy1 * m_table[b11 + 1]));
+  Real dv       = v1 - v0;
+
+  Real lt0 = compose_eos->m_log_t[ilo];
+  Real dlt = compose_eos->m_log_t[ihi] - compose_eos->m_log_t[ilo];
+
+  // Real operator()(Real wt,
+  //                 int iv,
+  //                 int it,
+  //                 Real v0,
+  //                 Real v1,
+  //                 Real t0,
+  //                 Real t1,
+  //                 Real n,
+  //                 Real* Y,
+  //                 Real var,
+  //                 EOSTransition* peos) const
+
+  Real wt;
+  Real lb     = 0.0;
+  Real ub     = 1.0;
+  bool result = root.FalsePosition(RootFunction,
+                                   lb,
+                                   ub,
+                                   wt,
+                                   1e-15,
+                                   iv,
+                                   ilo,
+                                   v0,
+                                   dv,
+                                   lt0,
+                                   dlt,
+                                   n,
+                                   Y,
+                                   var,
+                                   this);
+  if (!result)
+  {
+    printf("Root not converged in FalsePosition: nb=%e, Y[0]=%e\n", n, Y[0]);
+  }
+
+  Real lt = lt0 + wt * dlt;
   return exp(lt);
 }
