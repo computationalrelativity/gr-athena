@@ -76,7 +76,7 @@ struct BNSNuRatesParams
   bool use_NN_medium_corr;
   bool neglect_blocking;
   bool use_decay;
-  bool use_BRT_brem;
+  BremImpl brem_implementation;
 
   // no. of quadrature points in bns_nurates
   int quad_nx_1;  // beta_nucleon_scat
@@ -121,8 +121,8 @@ class BNSNuRatesWrapper
     params.neglect_blocking =
       pin->GetOrAddBoolean("bns_nurates", "neglect_blocking", false);
     params.use_decay = pin->GetOrAddBoolean("bns_nurates", "use_decay", false);
-    params.use_BRT_brem =
-      pin->GetOrAddBoolean("bns_nurates", "use_BRT_brem", true);
+    params.brem_implementation =
+      pin->GetOrAddBoolean("bns_nurates", "brem_implementation", BREM_BRT06);
 
     params.use_dU = pin->GetOrAddBoolean("bns_nurates", "use_dU", false);
     //params.dU     = pin->GetOrAddReal("bns_nurates", "dU", 0.0);  // must be read from eos
@@ -257,14 +257,14 @@ class BNSNuRatesWrapper
       params.use_inelastic_scatt;
 
     // other flags
-    grey_op_params.opacity_pars.use_WM_ab          = params.use_WM_ab;
-    grey_op_params.opacity_pars.use_WM_sc          = params.use_WM_sc;
-    grey_op_params.opacity_pars.use_dU             = params.use_dU;
-    grey_op_params.opacity_pars.use_dm_eff         = params.use_dm_eff;
-    grey_op_params.opacity_pars.use_NN_medium_corr = params.use_NN_medium_corr;
-    grey_op_params.opacity_pars.neglect_blocking   = params.neglect_blocking;
-    grey_op_params.opacity_pars.use_decay          = params.use_decay;
-    grey_op_params.opacity_pars.use_BRT_brem       = params.use_BRT_brem;
+    grey_op_params.opacity_pars.use_WM_ab           = params.use_WM_ab;
+    grey_op_params.opacity_pars.use_WM_sc           = params.use_WM_sc;
+    grey_op_params.opacity_pars.use_dU              = params.use_dU;
+    grey_op_params.opacity_pars.use_dm_eff          = params.use_dm_eff;
+    grey_op_params.opacity_pars.use_NN_medium_corr  = params.use_NN_medium_corr;
+    grey_op_params.opacity_pars.neglect_blocking    = params.neglect_blocking;
+    grey_op_params.opacity_pars.use_decay           = params.use_decay;
+    grey_op_params.opacity_pars.brem_implementation = params.brem_implementation;
 
     // EOS quantities in nurates_units (NGS)
     grey_op_params.eos_pars.nb   = nb * unit_num_dens;  // [nm^-3]
