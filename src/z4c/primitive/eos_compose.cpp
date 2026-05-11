@@ -892,6 +892,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
 
       // Compute minimum enthalpy
       // -------------------------------------------------------------------------
+      int in_min, iy_min, it_min;
       for (int in = 0; in < m_nn; ++in)
       {
         Real const nb = exp(m_log_nb[in]);
@@ -900,7 +901,13 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
           Real const t = exp(m_log_t[it]);
           for (int iy = 0; iy < m_ny; ++iy)
           {
-            m_min_h = min(m_min_h, Enthalpy(nb, t, &m_yq[iy]));
+            Real h_test = Enthalpy(nb, t, &m_yq[iy]);
+            if (h_test < m_min_h) {
+              m_min_h = h_test;
+              in_min = in;
+              iy_min = iy;
+              it_min = it;
+            }
           }
         }
       }
@@ -917,16 +924,16 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
       Real loge_left = loge;
       Real logp_left = logp;
       if (in_min > 0) {
-        loge_left = table[index(ECLOGE, in_min-1, iy_min, it_min)];
-        logp_left = table[index(ECLOGP, in_min-1, iy_min, it_min)];
+        loge_left = m_table[index(ECLOGE, in_min-1, iy_min, it_min)];
+        logp_left = m_table[index(ECLOGP, in_min-1, iy_min, it_min)];
       }
       Real dhdn = fabs(((loge - loge_left)*m_id_log_nb - 1.0)*e +
                        ((logp - logp_left)*m_id_log_nb - 1.0)*p)/nb;
       Real loge_right = loge;
       Real logp_right = logp;
       if (in_min < m_nn-1) {
-        loge_right = table[index(ECLOGE, in_min+1, iy_min, it_min)];
-        logp_right = table[index(ECLOGP, in_min+1, iy_min, it_min)];
+        loge_right = m_table[index(ECLOGE, in_min+1, iy_min, it_min)];
+        logp_right = m_table[index(ECLOGP, in_min+1, iy_min, it_min)];
       }
       dhdn = fmax(fabs(((loge_right - loge)*m_id_log_nb - 1.0)*e +
                        ((logp_right - logp)*m_id_log_nb - 1.0)*p)/nb, dhdn);
