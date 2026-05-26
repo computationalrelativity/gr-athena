@@ -604,6 +604,21 @@ parser.add_argument(
 # --sgrid_path argument
 parser.add_argument("--sgrid_path", default="", help="path to SGRID libraries")
 
+# -kadath argument
+parser.add_argument(
+  "-kadath",
+  action="store_true",
+  default=False,
+  help="enable Kadath/FUKa library",
+)
+
+# --kadath_path argument
+parser.add_argument(
+  "--kadath_path",
+  default="",
+  help="path to Kadath/FUKa libraries",
+)
+
 # -ccache argument
 parser.add_argument(
   "-ccache",
@@ -1786,6 +1801,44 @@ if "Sgrid" in args["prob"]:
         name=args["prob"]
       )
     )
+
+if args["kadath"]:
+  definitions["KADATH_OPTION"] = "KADATH"
+
+  # Kadath depends on GSL, FFTW3, and LAPACK/BLAS
+  makefile_options["LIBRARY_FLAGS"] += " -lkadath -lfftw3 -llapack -lblas -lgsl -lgslcblas"
+
+  if args["kadath_path"] != "":
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/include".format(
+      args["kadath_path"]
+    )
+    makefile_options["PREPROCESSOR_FLAGS"] += " -I{}/include/Kadath_point_h".format(
+      args["kadath_path"]
+    )
+    makefile_options["LINKER_FLAGS"] += " -L{}/lib".format(args["kadath_path"])
+    if args["rpath"]:
+      makefile_options["LINKER_FLAGS"] += " -Wl,-rpath {}/lib".format(
+        args["kadath_path"]
+      )
+
+else:
+  definitions["KADATH_OPTION"] = "NO_KADATH"
+
+if "kadath" in args["prob"]:
+  if not args["f"] or not args["g"] or not args["z"]:
+    msg = (
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags -f -g -z.'.format(
+        name=args["prob"]
+      )
+    )
+    raise SystemExit(msg)
+
+  if not args["kadath"]:
+    msg = (
+      '### CONFIGURE ERROR: The pgen "{name}" requires flags '
+      "-kadath.".format(name=args["prob"])
+    )
+    raise SystemExit(msg)
 
 
 # --cflag=[string] argument
