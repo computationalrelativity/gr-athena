@@ -16,7 +16,7 @@
 // indices.
 
 // C++ headers
-// #include <string>
+#include <string>
 
 // Athena++ classes headers
 #include "../athena_aliases.hpp"
@@ -428,6 +428,13 @@ class Z4c
 
     // Impose global regularization on conf / alpha
     bool force_regularization;
+
+    // Drift control
+    bool dc_enabled;
+    std::string dc_tracker_type;
+    int dc_tracker_index;
+    Real dc_fixed_x, dc_fixed_y, dc_fixed_z;
+    Real dc_damping_time, dc_damping_scale, dc_damping_coeff;
   } opt;
 
   AA empty_flux[3];

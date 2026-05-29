@@ -67,6 +67,9 @@ class WaveExtractLocal;
 class PunctureTracker;
 class ExtremaTracker;
 class ExtremaTrackerLocal;
+#if Z4C_ENABLED
+class DriftControl;
+#endif
 namespace gra::mesh::surfaces
 {
 class Surfaces;
@@ -548,6 +551,9 @@ class Mesh
 #endif
   std::vector<PunctureTracker*> pz4c_tracker;
   ExtremaTracker* ptracker_extrema;
+#if Z4C_ENABLED
+  DriftControl* pdrift_control;
+#endif
 
   std::vector<gra::mesh::surfaces::Surfaces*> psurfs;
 

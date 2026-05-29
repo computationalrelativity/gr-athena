@@ -41,6 +41,7 @@
 #include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "../z4c/ahf.hpp"
+#include "../z4c/drift_control.hpp"
 #include "../z4c/puncture_tracker.hpp"
 #include "../z4c/wave_extract.hpp"
 #include "../z4c/wave_extract_rwz.hpp"
@@ -460,6 +461,14 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
 
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 0);
+
+#if Z4C_ENABLED
+  if (pin->GetOrAddBoolean("z4c", "dc_enabled", false)) {
+    pdrift_control = new DriftControl(this, pin);
+  } else {
+    pdrift_control = nullptr;
+  }
+#endif
 
   if (Z4C_ENABLED)
   {
@@ -1069,6 +1078,14 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
   // Last entry says if it is restart run or not
   ptracker_extrema = new ExtremaTracker(this, pin, 1);
 
+#if Z4C_ENABLED
+  if (pin->GetOrAddBoolean("z4c", "dc_enabled", false)) {
+    pdrift_control = new DriftControl(this, pin);
+  } else {
+    pdrift_control = nullptr;
+  }
+#endif
+
   if (Z4C_ENABLED)
   {
     // BD: By default do not add any horizon searching
@@ -1491,6 +1508,10 @@ Mesh::~Mesh()
   }
 
   delete ptracker_extrema;
+
+#if Z4C_ENABLED
+  delete pdrift_control;
+#endif
 
   for (auto surf : psurfs)
   {

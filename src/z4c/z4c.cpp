@@ -471,6 +471,18 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   opt.tf_force_regularization =
     pin->GetOrAddBoolean("z4c", "tf_force_regularization", true);
 
+  // DriftControl parameters
+  opt.dc_enabled = pin->GetOrAddBoolean("z4c", "dc_enabled", false);
+  opt.dc_tracker_type =
+    pin->GetOrAddString("z4c", "dc_tracker_type", "puncture");
+  opt.dc_tracker_index = pin->GetOrAddInteger("z4c", "dc_tracker_index", 0);
+  opt.dc_fixed_x       = pin->GetOrAddReal("z4c", "dc_fixed_x", 0.0);
+  opt.dc_fixed_y       = pin->GetOrAddReal("z4c", "dc_fixed_y", 0.0);
+  opt.dc_fixed_z       = pin->GetOrAddReal("z4c", "dc_fixed_z", 0.0);
+  opt.dc_damping_time  = pin->GetOrAddReal("z4c", "dc_damping_time", 0.5);
+  opt.dc_damping_scale = pin->GetOrAddReal("z4c", "dc_damping_scale", 10.0);
+  opt.dc_damping_coeff = pin->GetOrAddReal("z4c", "dc_damping_coeff", 1.0);
+
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);

@@ -20,6 +20,7 @@
 #endif
 
 #include "puncture_tracker.hpp"
+#include "drift_control.hpp"
 
 //----------------------------------------------------------------------------------------
 // \!fn void Z4c::Z4cRHS(AA & u, AA & u_mat, AA & u_rhs)
@@ -900,6 +901,35 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
       }
     }
 #endif  // Z4C_ETA_CONF, Z4C_ETA_TRACK_TP
+  }
+
+  // Drift control correction
+  if (opt.dc_enabled) {
+    DriftControl *pdc = pmy_mesh->pdrift_control;
+    Real const tau  = opt.dc_damping_time;
+    Real const zeta = opt.dc_damping_coeff;
+    Real const inv_tau2 = 1.0 / SQR(tau);
+    Real const inv_s2  = 1.0 / SQR(opt.dc_damping_scale);
+    Real const fx = opt.dc_fixed_x;
+    Real const fy = opt.dc_fixed_y;
+    Real const fz = opt.dc_fixed_z;
+    Real x_ddot[3];
+    Real const dc_fixed[3] = {fx, fy, fz};
+    for (int a = 0; a < NDIM; ++a) {
+      x_ddot[a] =
+          -(2.0 * tau * zeta * pdc->GetVel(a)
+            + (pdc->GetPos(a) - dc_fixed[a])) * inv_tau2;
+    }
+    ILOOP2(k, j) {
+      Real const r2_yz_common =
+          SQR(mbi.x3(k) - fz) + SQR(mbi.x2(j) - fy);
+      for (int a = 0; a < NDIM; ++a) {
+        ILOOP1(i) {
+          Real r2 = SQR(mbi.x1(i) - fx) + r2_yz_common;
+          rhs.beta_u(a, k, j, i) -= x_ddot[a] * exp(-r2 * inv_s2);
+        }
+      }
+    }
   }
 
   // ===================================================================================
