@@ -28,6 +28,7 @@ namespace
 // Smoothness indicator coefficients (Jiang & Shu '96)
 static constexpr Real kThreeHalves = 3.0 / 2.0;
 static constexpr Real kOneQuarter  = 1.0 / 4.0;
+static constexpr Real kThirteenTwelfths = 13.0 / 12.0;
 
 // Stencil polynomial coefficients
 static constexpr Real kOneSixth = 1.0 / 6.0;
@@ -521,11 +522,11 @@ inline void rec1d_p_JS_smoothness(Real& b_0,
                                   const Real uipt)
 {
   // Smoothness coefficients, Jiang & Shu '96
-  b_0 = kThreeHalves * SQR((uimt - 2.0 * uimo + ui)) +
+  b_0 = kThirteenTwelfths * SQR((uimt - 2.0 * uimo + ui)) +
         kOneQuarter * SQR((uimt - 4.0 * uimo + 3.0 * ui));
-  b_1 = kThreeHalves * SQR((uimo - 2.0 * ui + uipo)) +
+  b_1 = kThirteenTwelfths * SQR((uimo - 2.0 * ui + uipo)) +
         kOneQuarter * SQR((uimo - uipo));
-  b_2 = kThreeHalves * SQR((ui - 2.0 * uipo + uipt)) +
+  b_2 = kThirteenTwelfths * SQR((ui - 2.0 * uipo + uipt)) +
         kOneQuarter * SQR((3.0 * ui - 4.0 * uipo + uipt));
 }
 
