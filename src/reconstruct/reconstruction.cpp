@@ -201,6 +201,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
     ATHENA_ERROR(msg);
   }
 
+  xorder_flux_correction =
+    pin->GetOrAddBoolean("time", "xorder_flux_correction", false);
+
   xorder_limit_fluxes =
     pin->GetOrAddBoolean("time", "xorder_limit_fluxes", false);
 

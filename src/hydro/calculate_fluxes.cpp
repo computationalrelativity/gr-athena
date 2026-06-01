@@ -546,6 +546,9 @@ void Hydro::CalculateFluxesCombined(AA& w,
                     lambda_rescaling);
 
 #endif
+    if (pr->xorder_flux_correction) {
+        CorrectFluxX1(x1flux, w, derived_ms, r, s_x1flux, k, j, il, iu);
+    }
     }
   //---------------------------------------------------------------------------
 
@@ -686,6 +689,9 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
+    if (pr->xorder_flux_correction) {
+        CorrectFluxX2(x2flux, w, derived_ms, r, s_x2flux, k, j, il, iu);
+    }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
@@ -831,6 +837,9 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
+    if (pr->xorder_flux_correction) {
+        CorrectFluxX3(x3flux, w, derived_ms, r, s_x3flux, k, j, il, iu);
+    }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);

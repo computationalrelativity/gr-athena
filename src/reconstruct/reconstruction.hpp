@@ -90,6 +90,8 @@ class Reconstruction
   bool enforce_limits_integration = false;
   bool enforce_limits_flux_div    = false;
 
+  bool xorder_flux_correction   = false;
+
   bool uniform[3];
 
   // x1-sliced arrays of interpolation coefficients and limiter parameters:

@@ -310,6 +310,17 @@ class Hydro
 
   void EnforceFloorsLimits(AA& u, AA& s, const int num_enlarge_layer);
 
+  // FD-WENO flux correction
+  void CorrectFluxX1(AA& hflux, AA& w, AA& derived_ms,
+                     AA& r_scalar, AA& sflux,
+                     int k, int j, int il, int iu);
+  void CorrectFluxX2(AA& hflux, AA& w, AA& derived_ms,
+                     AA& r_scalar, AA& sflux,
+                     int k, int j, int il, int iu);
+  void CorrectFluxX3(AA& hflux, AA& w, AA& derived_ms,
+                     AA& r_scalar, AA& sflux,
+                     int k, int j, int il, int iu);
+
   // BD: TODO- To remove
   void CalculateFluxes_FluxReconstruction(AA& w,
                                           FaceField& b,
