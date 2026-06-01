@@ -36,6 +36,12 @@ static constexpr Real kOneSixth = 1.0 / 6.0;
 static constexpr Real optimw[3] = { 1. / 10., 3. / 5., 3. / 10. };
 static constexpr Real EPSL      = 1e-40;  // 1e-6
 
+// WENO5-ZC+ centering coefficients
+static constexpr Real c_zcp[3] = { 9. / 8., 9. / 4., 9. / 8. };
+
+// WENO5-ZC+-PW: pointwise optimal weights (cell-average uses {1/10,3/5,3/10})
+static constexpr Real optimw_pw[3] = { 1. / 16., 5. / 8., 5. / 16. };
+
 // See:
 // A novel and robust scale-invariant WENO scheme for hyperbolic conservation
 // laws; 2022, Don et. al.
@@ -87,6 +93,16 @@ inline void rec1d_p_weno5stencils(Real& u_0,
                                   const Real uipo,
                                   const Real uipt);
 
+#pragma omp declare simd
+inline void rec1d_p_weno5stencils_pw(Real& u_0,
+                                     Real& u_1,
+                                     Real& u_2,
+                                     const Real uimt,
+                                     const Real uimo,
+                                     const Real ui,
+                                     const Real uipo,
+                                     const Real uipt);
+
 // Single-directional functions (kept for reference / standalone use)
 #pragma omp declare simd
 Real rec1d_p_weno5(const Real uimt,
@@ -130,6 +146,24 @@ inline void rec1d_p_weno5z_LR(const Real uimt,
 
 #pragma omp declare simd
 inline void rec1d_p_weno5d_si_LR(const Real uimt,
+                                 const Real uimo,
+                                 const Real ui,
+                                 const Real uipo,
+                                 const Real uipt,
+                                 Real& uL,
+                                 Real& uR);
+
+#pragma omp declare simd
+inline void rec1d_p_weno5zcplus_LR(const Real uimt,
+                                   const Real uimo,
+                                   const Real ui,
+                                   const Real uipo,
+                                   const Real uipt,
+                                   Real& uL,
+                                   Real& uR);
+
+#pragma omp declare simd
+inline void rec1d_p_weno5z_pw_LR(const Real uimt,
                                  const Real uimo,
                                  const Real ui,
                                  const Real uipo,
@@ -386,6 +420,88 @@ void Reconstruction::ReconstructWeno5dsiX3(AthenaArray<Real>& z,
   }
 }
 
+// ----------------------------------------------------------------------------
+// WENO5-ZC+ (Barreto et al.)
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructWeno5zcplusX1(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusX2(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusX3(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
 // impl -----------------------------------------------------------------------
 namespace
 {
@@ -631,6 +747,39 @@ inline void rec1d_p_weno5z_LR(const Real uimt,
 }
 
 #pragma omp declare simd
+inline void rec1d_p_weno5z_pw_LR(const Real uimt,
+                                 const Real uimo,
+                                 const Real ui,
+                                 const Real uipo,
+                                 const Real uipt,
+                                 Real& uL,
+                                 Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const Real db = std::abs(b[0] - b[2]);
+
+  const Real aL_0 = optimw_pw[0] * (1.0 + db / (EPSL + b[0]));
+  const Real aL_1 = optimw_pw[1] * (1.0 + db / (EPSL + b[1]));
+  const Real aL_2 = optimw_pw[2] * (1.0 + db / (EPSL + b[2]));
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 = optimw_pw[0] * (1.0 + db / (EPSL + b[2]));
+  const Real aR_1 = optimw_pw[1] * (1.0 + db / (EPSL + b[1]));
+  const Real aR_2 = optimw_pw[2] * (1.0 + db / (EPSL + b[0]));
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
+
+#pragma omp declare simd
 inline void rec1d_p_weno5d_si_LR(const Real uimt,
                                  const Real uimo,
                                  const Real ui,
@@ -688,8 +837,293 @@ inline void rec1d_p_weno5d_si_LR(const Real uimt,
   uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
 }
 
+#pragma omp declare simd
+inline void rec1d_p_weno5zcplus_LR(const Real uimt,
+                                   const Real uimo,
+                                   const Real ui,
+                                   const Real uipo,
+                                   const Real uipt,
+                                   Real& uL,
+                                   Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const Real tau        = std::abs(b[0] - b[2]);
+  const Real bbar       = (b[0] + b[1] + b[2]) * (1.0 / 3.0);
+  const Real d_plus     = tau + bbar + EPSL;
+  const Real tau_factor = tau / d_plus;
+
+  // --- Left state: weights from (b[0], b[1], b[2]) ---
+  const Real aL_0 =
+    optimw[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real aL_1 =
+    optimw[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aL_2 =
+    optimw[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  // --- Right state: weights from (b[2], b[1], b[0]) (symmetry) ---
+  const Real aR_0 =
+    optimw[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real aR_1 =
+    optimw[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aR_2 =
+    optimw[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
+
+// ---------------------------------------------------------------------------
+// WENO5-ZC+-PW: pointwise variant
+//
+// Uses pointwise Lagrange interpolation stencils (not cell-average
+// reconstruction).  At x = i+1/2, the candidate stencils are:
+//   S0 = ( 3u_{i-2} - 10u_{i-1} + 15u_i   ) / 8    (d0 = 1/16)
+//   S1 = (-1u_{i-1} +  6u_i     +  3u_{i+1}) / 8    (d1 = 5/8)
+//   S2 = ( 3u_i     +  6u_{i+1} -  1u_{i+2}) / 8    (d2 = 5/16)
+// Optimal weights differ from the cell-average case {1/10,3/5,3/10} but
+// the ZC+ machinery (c_zcp, tau_factor, d_plus) is identical.
+// ---------------------------------------------------------------------------
+
+#pragma omp declare simd
+inline void rec1d_p_weno5stencils_pw(Real& u_0,
+                                     Real& u_1,
+                                     Real& u_2,
+                                     const Real uimt,
+                                     const Real uimo,
+                                     const Real ui,
+                                     const Real uipo,
+                                     const Real uipt)
+{
+  u_0 = (3.0 * uimt - 10.0 * uimo + 15.0 * ui) * (1.0 / 8.0);
+  u_1 = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+  u_2 = (3.0 * ui + 6.0 * uipo - uipt) * (1.0 / 8.0);
+}
+
+#pragma omp declare simd
+inline void rec1d_p_weno5zcplus_pw_LR(const Real uimt,
+                                      const Real uimo,
+                                      const Real ui,
+                                      const Real uipo,
+                                      const Real uipt,
+                                      Real& uL,
+                                      Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const Real tau        = std::abs(b[0] - b[2]);
+  const Real bbar       = (b[0] + b[1] + b[2]) * (1.0 / 3.0);
+  const Real d_plus     = tau + bbar + EPSL;
+  const Real tau_factor = tau / d_plus;
+
+  const Real aL_0 =
+    optimw_pw[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real aL_1 =
+    optimw_pw[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aL_2 =
+    optimw_pw[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 =
+    optimw_pw[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real aR_1 =
+    optimw_pw[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aR_2 =
+    optimw_pw[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
+
 }  // namespace
 // ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// WENO5-ZC+-PW direction functions
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructWeno5zcplusPwX1(AthenaArray<Real>& z,
+                                                AthenaArray<Real>& zl_,
+                                                AthenaArray<Real>& zr_,
+                                                const int n_tar,
+                                                const int n_src,
+                                                const int k,
+                                                const int j,
+                                                const int il,
+                                                const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusPwX2(AthenaArray<Real>& z,
+                                                AthenaArray<Real>& zl_,
+                                                AthenaArray<Real>& zr_,
+                                                const int n_tar,
+                                                const int n_src,
+                                                const int k,
+                                                const int j,
+                                                const int il,
+                                                const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusPwX3(AthenaArray<Real>& z,
+                                                AthenaArray<Real>& zl_,
+                                                AthenaArray<Real>& zr_,
+                                                const int n_tar,
+                                                const int n_src,
+                                                const int k,
+                                                const int j,
+                                                const int il,
+                                                const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    rec1d_p_weno5zcplus_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5ZPWX1(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    rec1d_p_weno5z_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5ZPWX2(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    rec1d_p_weno5z_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5ZPWX3(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    rec1d_p_weno5z_pw_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
 
 //
 // :D

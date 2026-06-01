@@ -91,9 +91,33 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::weno5d_si;
   }
+  else if (str_xorder_style == "weno5zcplus")
+  {
+    xorder_style = ReconVar::weno5zcplus;
+  }
+  else if (str_xorder_style == "weno5zcplus_pw")
+  {
+    xorder_style = ReconVar::weno5zcplus_pw;
+  }
+  else if (str_xorder_style == "weno5z_pw")
+  {
+    xorder_style = ReconVar::weno5z_pw;
+  }
   else if (str_xorder_style == "lag6")
   {
     xorder_style = ReconVar::lag6;
+  }
+  else if (str_xorder_style == "teno5")
+  {
+    xorder_style = ReconVar::teno5;
+  }
+  else if (str_xorder_style == "teno5_mc2")
+  {
+    xorder_style = ReconVar::teno5_mc2;
+  }
+  else if (str_xorder_style == "teno5_koren")
+  {
+    xorder_style = ReconVar::teno5_koren;
   }
   else
   {
@@ -459,6 +483,21 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructWeno5ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5z_pw):
+    {
+      ReconstructWeno5ZPWX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5zcplus_pw):
+    {
+      ReconstructWeno5zcplusPwX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -487,6 +526,21 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
     case (ReconVar::lag6):
     {
       ReconstructLag6X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+    {
+      ReconstructTeno5korenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:
@@ -551,6 +605,21 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructWeno5ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5zcplus_pw):
+    {
+      ReconstructWeno5zcplusPwX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_pw):
+    {
+      ReconstructWeno5ZPWX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -579,6 +648,21 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
     case (ReconVar::lag6):
     {
       ReconstructLag6X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+    {
+      ReconstructTeno5korenX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:
@@ -643,6 +727,21 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
       ReconstructWeno5ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5zcplus_pw):
+    {
+      ReconstructWeno5zcplusPwX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_pw):
+    {
+      ReconstructWeno5ZPWX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -671,6 +770,21 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
     case (ReconVar::lag6):
     {
       ReconstructLag6X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+    {
+      ReconstructTeno5korenX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:

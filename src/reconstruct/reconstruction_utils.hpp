@@ -29,6 +29,16 @@ inline Real MC2(const Real x, const Real y)
   return( 0.5*(s1+s2) * std::min( min, (0.5*std::abs(x+y)) ) );
 }
 
+inline Real Superbee(const Real x, const Real y)
+{
+  const Real s1 = sign(1, x);
+  const Real s2 = sign(1, y);
+  const Real ax = std::abs(x);
+  const Real ay = std::abs(y);
+  return (0.5 * (s1 + s2) *
+          std::max(std::min(2.0 * ax, ay), std::min(ax, 2.0 * ay)));
+}
+
 inline Real min(const Real a, const Real b, const Real c)
 {
   return std::min(std::min(a, b), c);
