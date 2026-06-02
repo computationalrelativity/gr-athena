@@ -104,36 +104,6 @@ inline void teno5_cutoff(const Real b0,
 }
 
 // ---------------------------------------------------------------------------
-// Standalone left-biased TENO5  (for reference)
-// ---------------------------------------------------------------------------
-
-#pragma omp declare simd
-Real rec1d_p_teno5(const Real uimt,
-                   const Real uimo,
-                   const Real ui,
-                   const Real uipo,
-                   const Real uipt)
-{
-  const Real b0 = teno_B0(uimo, ui, uipo);  // central
-  const Real b1 = teno_B1(ui, uipo, uipt);  // forward
-  const Real b2 = teno_B2(uimt, uimo, ui);  // backward
-
-  Real delta[3];
-  teno5_cutoff(b0, b1, b2, delta[0], delta[1], delta[2]);
-
-  const Real denom =
-    dteno[0] * delta[0] + dteno[1] * delta[1] + dteno[2] * delta[2];
-  const Real inv_denom = 1.0 / std::max(denom, EPSL);
-
-  const Real uk0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
-  const Real uk1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
-  const Real uk2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
-
-  return inv_denom * (dteno[0] * delta[0] * uk0 + dteno[1] * delta[1] * uk1 +
-                      dteno[2] * delta[2] * uk2);
-}
-
-// ---------------------------------------------------------------------------
 // Paired L+R reconstruction
 //
 // B0 is symmetric: B0(a,b,c) = B0(c,b,a): computed once, shared by L and R.
@@ -664,7 +634,7 @@ void Reconstruction::ReconstructTeno5korenX3(AthenaArray<Real>& z,
       rec1d_p_teno5_koren_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
     else
       rec1d_p_teno5_koren_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
-    zl_(n_tar, i) = uL;
-    zr_(n_tar, i) = uR;
-  }
-}
+     zl_(n_tar, i) = uL;
+     zr_(n_tar, i) = uR;
+   }
+ }

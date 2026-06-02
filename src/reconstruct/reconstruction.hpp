@@ -40,6 +40,7 @@ class Reconstruction
     lin_vl,
     lin_mc2,
     ppm,
+    ppmx,
     ceno3,
     ceno5,
     mp3,
@@ -356,8 +357,38 @@ class Reconstruction
                         const int n_src,
                         const int k,
                         const int j,
-                        const int il,
-                        const int iu);
+                         const int il,
+                         const int iu);
+
+  void ReconstructPPMXX1(AthenaArray<Real>& z,
+                         AthenaArray<Real>& zl_,
+                         AthenaArray<Real>& zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il,
+                         const int iu);
+
+  void ReconstructPPMXX2(AthenaArray<Real>& z,
+                         AthenaArray<Real>& zl_,
+                         AthenaArray<Real>& zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il,
+                         const int iu);
+
+  void ReconstructPPMXX3(AthenaArray<Real>& z,
+                         AthenaArray<Real>& zl_,
+                         AthenaArray<Real>& zr_,
+                         const int n_tar,
+                         const int n_src,
+                         const int k,
+                         const int j,
+                         const int il,
+                         const int iu);
 
   void ReconstructCeno3X1(AthenaArray<Real>& z,
                           AthenaArray<Real>& zl_,
@@ -926,8 +957,8 @@ class Reconstruction
                                 const int n_src,
                                 const int k,
                                 const int j,
-                                const int il,
-                                const int iu);
+                                 const int il,
+                                 const int iu);
 
   private:
   MeshBlock* pmy_block_;  // ptr to MeshBlock containing this Reconstruction

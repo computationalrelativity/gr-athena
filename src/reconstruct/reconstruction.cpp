@@ -55,6 +55,10 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::ppm;
   }
+  else if (str_xorder_style == "ppmx")
+  {
+    xorder_style = ReconVar::ppmx;
+  }
   else if (str_xorder_style == "ceno3")
   {
     xorder_style = ReconVar::ceno3;
@@ -481,6 +485,11 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructPPMX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ceno3):
     {
       ReconstructCeno3X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -572,10 +581,10 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       break;
     }
     case (ReconVar::teno5_koren):
-    {
-      ReconstructTeno5korenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
+     {
+       ReconstructTeno5korenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+       break;
+     }
     default:
     {
       assert(false);
@@ -616,6 +625,11 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
     case (ReconVar::ppm):
     {
       ReconstructPPMX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ceno3):
@@ -753,6 +767,11 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
     case (ReconVar::ppm):
     {
       ReconstructPPMX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ceno3):
