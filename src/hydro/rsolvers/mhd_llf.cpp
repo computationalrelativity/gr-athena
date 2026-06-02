@@ -544,7 +544,7 @@ void Hydro::RiemannSolver(const int ivx,
   }
 
   // Set fluxes ---------------------------------------------------------------
-  const bool use_hlle = (rsolver_method_ == RSolverMethod::hlle);
+  const bool use_hlle = (solver_method_ == SolverMethod::hlle);
 
   // probably cleaner to condense into single block, but verbose also works
 

@@ -268,7 +268,11 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
       tc.AllocateFCGeom(nc1, nc2, nc3);
       if (FLUID_ENABLED &&
           pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+      {
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+        if (pin->GetOrAddString("hydro", "rsolver", "llf") == "split_llf")
+          tc.AllocateSplitFluxCache(nc1, nc2, nc3);
+      }
       if (M1_ENABLED)
       {
         bool m1_fb_E = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E", false);
@@ -934,7 +938,11 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
       tc.AllocateFCGeom(nc1, nc2, nc3);
       if (FLUID_ENABLED &&
           pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+      {
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+        if (pin->GetOrAddString("hydro", "rsolver", "llf") == "split_llf")
+          tc.AllocateSplitFluxCache(nc1, nc2, nc3);
+      }
       if (M1_ENABLED)
       {
         bool m1_fb_E = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E", false);

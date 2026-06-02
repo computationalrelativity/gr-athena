@@ -100,13 +100,13 @@ void InterpolateGeometry(MeshBlock* pmb,
     const Real detgamma_i    = SQR(sqrt_detgamma_(i));
     const Real oo_detgamma_i = OO(detgamma_i);
     gamma_uu_(d, d, i)       = Inv3MetricDiag(oo_detgamma_i,
-                                        gamma_dd_(0, 0, i),
-                                        gamma_dd_(0, 1, i),
-                                        gamma_dd_(0, 2, i),
-                                        gamma_dd_(1, 1, i),
-                                        gamma_dd_(1, 2, i),
-                                        gamma_dd_(2, 2, i),
-                                        d);
+                                              gamma_dd_(0, 0, i),
+                                              gamma_dd_(0, 1, i),
+                                              gamma_dd_(0, 2, i),
+                                              gamma_dd_(1, 1, i),
+                                              gamma_dd_(1, 2, i),
+                                              gamma_dd_(2, 2, i),
+                                              d);
   }
 }
 
@@ -115,15 +115,15 @@ void ReconstructFields(MeshBlock* pmb,
                        Reconstruction::ReconstructionVariant rv_a,
                        Reconstruction::ReconstructionVariant rv_b,
                        AA& wl_,
-                       AA& wr_,  // rec. primitive hydro
+                       AA& wr_,
                        AA& rl_,
-                       AA& rr_,  // rec. passive scalars
+                       AA& rr_,
                        AA& al_,
-                       AA& ar_,  // rec. auxiliary quantities
-                       AA& w,    // CC: primitive hydro
-                       AA& r,    // CC: passive scalars
-                       AA& bcc,  // CC: magnetic fields
-                       AA& aux,  // CC: auxiliary quantities
+                       AA& ar_,
+                       AA& w,
+                       AA& r,
+                       AA& bcc,
+                       AA& aux,
                        const int ivx,
                        const int k,
                        const int j,
@@ -135,108 +135,64 @@ void ReconstructFields(MeshBlock* pmb,
   PassiveScalars* ps    = pmb->pscalars;
   EquationOfState* peos = pmb->peos;
 
-  const int os_il = (ivx == 1) ? 1 : 0;  // l_ populated at i+1 on Recon. call
+  const int os_il = (ivx == 1) ? 1 : 0;
 
-  // hydro primitives -------------------------------------
   for (int n = 0; n < NHYDRO; ++n)
-  {
     pr->ReconstructFieldXd(rv_w, w, wl_, wr_, ivx, n, n, k, j, il - os_il, iu);
-  }
 
-  // magnetic fields --------------------------------------
   if (MAGNETIC_FIELDS_ENABLED)
   {
     int ISA, ISB;
-
     switch (ivx)
     {
       case 1:
-      {
         ISA = IB2;
         ISB = IB3;
         break;
-      }
       case 2:
-      {
         ISA = IB3;
         ISB = IB1;
         break;
-      }
       case 3:
-      {
         ISA = IB1;
         ISB = IB2;
         break;
-      }
     }
-
     pr->ReconstructFieldXd(
       rv_b, bcc, wl_, wr_, ivx, IBY, ISA, k, j, il - os_il, iu);
     pr->ReconstructFieldXd(
       rv_b, bcc, wl_, wr_, ivx, IBZ, ISB, k, j, il - os_il, iu);
   }
 
-  // passive scalars --------------------------------------
   for (int n = 0; n < NSCALARS; ++n)
-  {
     pr->ReconstructFieldXd(rv_w, r, rl_, rr_, ivx, n, n, k, j, il - os_il, iu);
-  }
 
-  // auxiliary quantities ---------------------------------
   if (pr->xorder_use_auxiliaries)
-  {
     for (int n = 0; n < NDRV_HYDRO; ++n)
-    {
       if (((n == IX_T) && pr->xorder_use_aux_T) ||
           (n == IX_ETH && pr->xorder_use_aux_h) ||
           (n == IX_LOR && pr->xorder_use_aux_W) ||
           (n == IX_CS2 && pr->xorder_use_aux_cs2) ||
           (n == IX_SPB && pr->xorder_use_aux_s))
-      {
         pr->ReconstructFieldXd(
           rv_a, aux, al_, ar_, ivx, n, n, k, j, il - os_il, iu);
-      }
-    }
-  }
-
-  // impose whatever limits are required --------------------------------------
-  // Only supporting PrimitiveSolver, proceed as follows:
-  //
-  // - Impose density limits
-  // - Limit species first if they exist
-  // - If we reconstructed T:
-  //   - Limit
-  //   - Recompute from P
-  // - Apply primitive floors
-  // - Limit W, h, cs2 if they are also reconstructed
-  //
-  // Note: When xorder_use_aux_T is set, T is reconstructed to faces and
-  // pressure recomputed for consistency.
-  //
-  // The reconstructed T is needed by ApplyPrimitiveFloor below.
 
 #if !FLUID_ENABLED
-  // only support operation with PrimitiveSolver
   assert(false);
 #endif
 
-  Real mb = peos->GetEOS().GetBaryonMass();
-
-  const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
-
+  Real mb                = peos->GetEOS().GetBaryonMass();
+  const Real min_ETH     = peos->GetEOS().GetMinimumEnthalpy();
   Real Yl__[MAX_SPECIES] = { 0.0 };
   Real Yr__[MAX_SPECIES] = { 0.0 };
-
-  Real Wvul__[NDIM] = { 0.0 };
-  Real Wvur__[NDIM] = { 0.0 };
-
+  Real Wvul__[NDIM]      = { 0.0 };
+  Real Wvur__[NDIM]      = { 0.0 };
   Real nl__, nr__;
 
   for (int i = il - os_il; i <= iu; ++i)
   {
     nl__ = wl_(IDN, i) / mb;
     nr__ = wr_(IDN, i) / mb;
-
     peos->GetEOS().ApplyDensityLimits(nl__);
     peos->GetEOS().ApplyDensityLimits(nr__);
 
@@ -245,39 +201,30 @@ void ReconstructFields(MeshBlock* pmb,
       Wvul__[n] = wl_(IVX + n, i);
       Wvur__[n] = wr_(IVX + n, i);
     }
-
     for (int n = 0; n < NSCALARS; ++n)
     {
       Yl__[n] = rl_(n, i);
       Yr__[n] = rr_(n, i);
     }
-
     if (NSCALARS > 0)
     {
-      const bool ll__ = peos->GetEOS().ApplySpeciesLimits(Yl__);
-      const bool lr__ = peos->GetEOS().ApplySpeciesLimits(Yr__);
+      peos->GetEOS().ApplySpeciesLimits(Yl__);
+      peos->GetEOS().ApplySpeciesLimits(Yr__);
     }
 
     if (pr->xorder_use_aux_s)
     {
-      // Clamp reconstructed entropy per baryon to the EOS-supported range
       peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
       peos->GetEOS().ApplyEntropyLimits(ar_(IX_SPB, i), nr__, Yr__);
-      // Invert entropy -> temperature
       al_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nl__, al_(IX_SPB, i), Yl__);
       ar_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nr__, ar_(IX_SPB, i), Yr__);
-      // Recompute pressure from (n,T,Y) for thermodynamic consistency
-      // (must happen before ApplyPrimitiveFloor, which enforces joint
-      // consistency of (n,Wvu,p,T,Y)).
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
     else if (pr->xorder_use_aux_T)
     {
-      // Recompute pressure from (n,T,Y) so p and T are mutually consistent
-      // before ApplyPrimitiveFloor.
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
@@ -289,21 +236,16 @@ void ReconstructFields(MeshBlock* pmb,
         peos->GetEOS().GetTemperatureFromP(nr__, wr_(IPR, i), Yr__);
     }
 
-    // now depending on settings unpack limited / floored
     if (pr->xorder_floor_primitives)
     {
       peos->GetEOS().ApplyTemperatureLimits(al_(IX_T, i));
       peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T, i));
-
-      const bool fll__ = peos->GetEOS().ApplyPrimitiveFloor(
+      peos->GetEOS().ApplyPrimitiveFloor(
         nl__, Wvul__, wl_(IPR, i), al_(IX_T, i), Yl__);
-      const bool flr__ = peos->GetEOS().ApplyPrimitiveFloor(
+      peos->GetEOS().ApplyPrimitiveFloor(
         nr__, Wvur__, wr_(IPR, i), ar_(IX_T, i), Yr__);
-
-      // propagate floored density and velocity back
       wl_(IDN, i) = mb * nl__;
       wr_(IDN, i) = mb * nr__;
-
       for (int n = 0; n < NDIM; ++n)
       {
         wl_(IVX + n, i) = Wvul__[n];
@@ -318,13 +260,11 @@ void ReconstructFields(MeshBlock* pmb,
     }
 
     if (pr->xorder_limit_species)
-    {
       for (int n = 0; n < NSCALARS; ++n)
       {
         rl_(n, i) = Yl__[n];
         rr_(n, i) = Yr__[n];
       }
-    }
 
     if (pr->xorder_floor_primitives)
     {
@@ -347,6 +287,15 @@ void ReconstructFields(MeshBlock* pmb,
   }
 }
 
+// forward declaration (defined below; called by Hydro member functions)
+void ReconstructSwap(MeshBlock* pmb,
+                     AA& wl_,
+                     AA& wlb_,
+                     AA& rl_,
+                     AA& rlb_,
+                     AA& al_,
+                     AA& alb_);
+
 void ReconstructSwap(MeshBlock* pmb,
                      AA& wl_,
                      AA& wlb_,
@@ -355,12 +304,10 @@ void ReconstructSwap(MeshBlock* pmb,
                      AA& al_,
                      AA& alb_)
 {
-  Reconstruction* pr = pmb->precon;
   wl_.SwapAthenaArray(wlb_);
-
-  if (NSCALARS > 0)
-    rl_.SwapAthenaArray(rlb_);
-
+#if NSCALARS > 0
+  rl_.SwapAthenaArray(rlb_);
+#endif
   al_.SwapAthenaArray(alb_);
 }
 
@@ -378,11 +325,10 @@ void Hydro::CalculateFluxes(AA& w,
                             const int num_enlarge_layer,
                             ThreadCache* cache)
 {
-  if (flux_reconstruction)
+  if (solver_method_ == SolverMethod::split_llf)
   {
-    // Unsupported
-    assert(false);
-    // CalculateFluxes_FluxReconstruction(w, b, bcc, order);
+    CalculateFluxesSplit(
+      w, r, b, bcc, hflux, sflux, rv, num_enlarge_layer, cache);
     return;
   }
 
@@ -546,9 +492,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                     lambda_rescaling);
 
 #endif
-    if (pr->xorder_flux_correction) {
+      if (pr->xorder_flux_correction)
+      {
         CorrectFluxX1(x1flux, w, derived_ms, r, s_x1flux, k, j, il, iu);
-    }
+      }
     }
   //---------------------------------------------------------------------------
 
@@ -689,9 +636,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
-    if (pr->xorder_flux_correction) {
-        CorrectFluxX2(x2flux, w, derived_ms, r, s_x2flux, k, j, il, iu);
-    }
+        if (pr->xorder_flux_correction)
+        {
+          CorrectFluxX2(x2flux, w, derived_ms, r, s_x2flux, k, j, il, iu);
+        }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
@@ -837,9 +785,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
-    if (pr->xorder_flux_correction) {
-        CorrectFluxX3(x3flux, w, derived_ms, r, s_x3flux, k, j, il, iu);
-    }
+        if (pr->xorder_flux_correction)
+        {
+          CorrectFluxX3(x3flux, w, derived_ms, r, s_x3flux, k, j, il, iu);
+        }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
@@ -868,6 +817,13 @@ void Hydro::CalculateFluxesCachedGeometry(
   ThreadCache& cache,
   const AA_B& mask)
 {
+  if (solver_method_ == SolverMethod::split_llf)
+  {
+    CalculateFluxesSplitCached(
+      w, r, b, bcc, hflux, sflux, rv, num_enlarge_layer, cache, mask);
+    return;
+  }
+
   MeshBlock* pmb = pmy_block;
 
   Reconstruction* pr = pmb->precon;
@@ -1344,220 +1300,4 @@ void Hydro::CalculateFluxesCachedGeometry(
   }
 
   return;
-}
-
-void Hydro::CalculateFluxes_FluxReconstruction(AA& w,
-                                               FaceField& b,
-                                               AA& bcc,
-                                               const int order)
-{
-  using namespace fluxes;
-  using namespace fluxes::grhd;
-  using namespace characteristic::grhd;
-
-  MeshBlock* pmb     = pmy_block;
-  Reconstruction* pr = pmb->precon;
-  typedef Reconstruction::ReconstructionVariant ReconstructionVariant;
-  ReconstructionVariant rv = pr->xorder_style;
-
-  ReconstructionVariant r_rv = ReconstructionVariant::lin_vl;
-
-  int il, iu, jl, ju, kl, ku;
-
-  AA f(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-  AA sf_m(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-  AA sf_p(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-  // AA lam_( pmb->ncells1);
-
-  // Shu convention
-  AA fl_(NHYDRO, pmb->nverts1);
-  AA flb_(NHYDRO, pmb->nverts1);
-  AA fr_(NHYDRO, pmb->nverts1);
-
-  AA eig_v(NHYDRO, pmb->ncells3, pmb->ncells2, pmb->ncells1);
-
-  flux[X1DIR].ZeroClear();
-  flux[X2DIR].ZeroClear();
-  flux[X3DIR].ZeroClear();
-
-  int ivx;
-
-  //---------------------------------------------------------------------------
-  // i-direction
-  {
-    ivx = 1;
-
-    for (int k = 0; k < pmb->ncells3; ++k)
-      for (int j = 0; j < pmb->ncells2; ++j)
-      {
-        AssembleFluxes(pmb, k, j, 0, pmb->ncells1 - 1, ivx, f, w, u);
-        AssembleEigenvalues(pmb, k, j, 0, pmb->ncells1 - 1, ivx, eig_v, w, u);
-        SplitFluxLLFMax(
-          pmb, k, j, 0, pmb->ncells1 - 1, ivx, u, f, eig_v, sf_m, sf_p);
-      }
-
-    AA& x1flux = flux[X1DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
-
-    for (int k = kl; k <= ku; ++k)
-      for (int j = jl; j <= ju; ++j)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX1(rv, sf_p, fl_, fr_, n, n, k, j, il - 1, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x1flux(n, k, j, i) += fl_(n, i);
-          }
-
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX1(rv, sf_m, fl_, fr_, n, n, k, j, il - 1, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x1flux(n, k, j, i) += fr_(n, i);
-          }
-      }
-  }
-
-  //---------------------------------------------------------------------------
-  // j-direction
-  if (pmb->pmy_mesh->f2)
-  {
-    ivx = 2;
-
-    for (int k = 0; k < pmb->ncells3; ++k)
-      for (int j = 0; j < pmb->ncells2; ++j)
-      {
-        AssembleFluxes(pmb, k, j, 0, pmb->ncells1 - 1, ivx, f, w, u);
-        AssembleEigenvalues(pmb, k, j, 0, pmb->ncells1 - 1, ivx, eig_v, w, u);
-        SplitFluxLLFMax(
-          pmb, k, j, 0, pmb->ncells1 - 1, ivx, u, f, eig_v, sf_m, sf_p);
-      }
-
-    AA& x2flux = flux[X2DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
-
-    for (int k = kl; k <= ku; ++k)
-    {
-      for (int n = 0; n < NHYDRO; ++n)
-      {
-        pr->ReconstructFieldX2(rv, sf_p, fl_, fr_, n, n, k, jl - 1, il, iu);
-      }
-
-      for (int j = jl; j <= ju; ++j)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX2(rv, sf_p, flb_, fr_, n, n, k, j, il, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x2flux(n, k, j, i) += fl_(n, i);
-          }
-
-        // swap the arrays for the next step
-        fl_.SwapAthenaArray(flb_);
-      }
-
-      for (int n = 0; n < NHYDRO; ++n)
-      {
-        pr->ReconstructFieldX2(rv, sf_m, fl_, fr_, n, n, k, jl - 1, il, iu);
-      }
-
-      for (int j = jl; j <= ju; ++j)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX2(rv, sf_m, flb_, fr_, n, n, k, j, il, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x2flux(n, k, j, i) += fr_(n, i);
-          }
-
-        // swap the arrays for the next step
-        fl_.SwapAthenaArray(flb_);
-      }
-    }
-  }
-
-  //---------------------------------------------------------------------------
-  // k-direction
-  if (pmb->pmy_mesh->f3)
-  {
-    ivx = 3;
-
-    for (int k = 0; k < pmb->ncells3; ++k)
-      for (int j = 0; j < pmb->ncells2; ++j)
-      {
-        AssembleFluxes(pmb, k, j, 0, pmb->ncells1 - 1, ivx, f, w, u);
-        AssembleEigenvalues(pmb, k, j, 0, pmb->ncells1 - 1, ivx, eig_v, w, u);
-        SplitFluxLLFMax(
-          pmb, k, j, 0, pmb->ncells1 - 1, ivx, u, f, eig_v, sf_m, sf_p);
-      }
-
-    AA& x3flux = flux[X3DIR];
-    pr->SetIndicialLimitsCalculateFluxes(ivx, il, iu, jl, ju, kl, ku, 0);
-
-    for (int j = jl; j <= ju; ++j)
-    {  // this loop ordering is intentional
-
-      for (int n = 0; n < NHYDRO; ++n)
-      {
-        pr->ReconstructFieldX3(rv, sf_p, fl_, fr_, n, n, kl - 1, j, il, iu);
-      }
-
-      for (int k = kl; k <= ku; ++k)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX3(rv, sf_p, flb_, fr_, n, n, k, j, il, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x3flux(n, k, j, i) += fl_(n, i);
-          }
-
-        // swap the arrays for the next step
-        fl_.SwapAthenaArray(flb_);
-      }
-
-      for (int n = 0; n < NHYDRO; ++n)
-      {
-        pr->ReconstructFieldX3(rv, sf_m, fl_, fr_, n, n, kl - 1, j, il, iu);
-      }
-
-      for (int k = kl; k <= ku; ++k)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-        {
-          pr->ReconstructFieldX3(rv, sf_m, flb_, fr_, n, n, k, j, il, iu);
-        }
-
-        for (int n = 0; n < NHYDRO; ++n)
-          for (int i = il; i <= iu; ++i)
-          {
-            x3flux(n, k, j, i) += fr_(n, i);
-          }
-
-        // swap the arrays for the next step
-        fl_.SwapAthenaArray(flb_);
-      }
-    }
-  }
 }

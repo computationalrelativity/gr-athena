@@ -65,26 +65,20 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh* pm = pmy_block->pmy_mesh;
 
-  flux_reconstruction =
-    pin->GetOrAddBoolean("hydro", "flux_reconstruction", false);
-
-  // Riemann solver method (runtime selection)
   {
-    std::string rsolver_str = pin->GetOrAddString("hydro", "rsolver", "llf");
-    if (rsolver_str == "llf")
-    {
-      rsolver_method_ = RSolverMethod::llf;
-    }
-    else if (rsolver_str == "hlle")
-    {
-      rsolver_method_ = RSolverMethod::hlle;
-    }
-    else
-    {
+    std::string rsolver_str =
+        pin->GetOrAddString("hydro", "rsolver", "llf");
+    if (rsolver_str == "llf") {
+      solver_method_ = SolverMethod::llf;
+    } else if (rsolver_str == "hlle") {
+      solver_method_ = SolverMethod::hlle;
+    } else if (rsolver_str == "split_llf") {
+      solver_method_ = SolverMethod::split_llf;
+    } else {
       std::stringstream msg;
       msg << "### FATAL ERROR in Hydro constructor" << std::endl
           << "[hydro] rsolver=" << rsolver_str
-          << " not a valid choice (llf, hlle)" << std::endl;
+          << " not a valid choice (llf, hlle, split_llf)" << std::endl;
       ATHENA_ERROR(msg);
     }
   }

@@ -26,11 +26,12 @@ struct ThreadCache;
 
 using namespace gra::aliases;
 
-// Riemann solver method selection (runtime)
-enum class RSolverMethod
+// Solver method selection (runtime)
+enum class SolverMethod
 {
   llf,
-  hlle
+  hlle,
+  split_llf
 };
 
 //! \class Hydro
@@ -67,8 +68,8 @@ class Hydro
     -1
   };  // CommRegistry channel index (assigned at registration)
 
-  // Riemann solver method (runtime selection)
-  RSolverMethod rsolver_method_;
+  // Solver method (runtime selection)
+  SolverMethod solver_method_;
 
   Real hlle_eps_abs{
     1.0e-12
@@ -76,8 +77,6 @@ class Hydro
   Real hlle_eps_rel{
     1.0e-6
   };  // relative tolerance for HLLE denominator guard
-
-  bool flux_reconstruction = false;
 
   struct
   {
@@ -321,11 +320,15 @@ class Hydro
                      AA& r_scalar, AA& sflux,
                      int k, int j, int il, int iu);
 
-  // BD: TODO- To remove
-  void CalculateFluxes_FluxReconstruction(AA& w,
-                                          FaceField& b,
-                                          AA& bcc,
-                                          const int order);
+  void CalculateFluxesSplit(AA& w,
+                             AA& r,
+                             FaceField& b,
+                             AA& bcc,
+                             AA (&hflux)[3],
+                             AA (&sflux)[3],
+                             Reconstruction::ReconstructionVariant rv,
+                             const int num_enlarge_layer = 0,
+                             ThreadCache* cache          = nullptr);
 
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
   void RiemannSolver(const int ivx,
@@ -393,6 +396,15 @@ class Hydro
 
   private:
   AA dt1_, dt2_, dt3_;  // scratch arrays used in NewTimeStep
+
+  void CalculateFluxesSplitCached(
+      AA& w, AA& r, FaceField& b, AA& bcc,
+      AA (&lo_hflux)[3], AA (&lo_sflux)[3],
+      Reconstruction::ReconstructionVariant rv_lo,
+      const int num_enlarge_layer,
+      ThreadCache& cache,
+      const AA_B& mask);
+
   // scratch space used to compute fluxes
   AA dxw_;
   // 2D
@@ -413,57 +425,5 @@ class Hydro
     return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
   }
 };
-
-namespace fluxes
-{
-
-// Split flux based on local eigenvalues
-//
-// Takes max over all lambda cpts & directional (ivx-aligned) faces
-void SplitFluxLLFMax(MeshBlock* pmb,
-                     const int k,
-                     const int j,
-                     const int il,
-                     const int iu,
-                     const int ivx,
-                     AA& u,
-                     AA& flux,
-                     AA& lambda,
-                     AA& flux_m,
-                     AA& flux_p);
-
-}  // namespace fluxes
-
-namespace fluxes::grhd
-{
-
-// Dense assembly of fluxes
-void AssembleFluxes(MeshBlock* pmb,
-                    const int k,
-                    const int j,
-                    const int il,
-                    const int iu,
-                    const int ivx,
-                    AA& f,
-                    AA& w,
-                    AA& u);
-
-}  // namespace fluxes::grhd
-
-namespace characteristic::grhd
-{
-
-// Dense assembly of lambda
-void AssembleEigenvalues(MeshBlock* pmb,
-                         const int k,
-                         const int j,
-                         const int il,
-                         const int iu,
-                         const int ivx,
-                         AA& lambda,
-                         AA& w,
-                         AA& u);
-
-}  // namespace characteristic::grhd
 
 #endif  // HYDRO_HYDRO_HPP_

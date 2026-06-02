@@ -87,6 +87,22 @@ struct ThreadCache
   // etc.
   AthenaArray<Real> m1_lo_flux[3];
 
+  // Cell-centred split-flux cache (for split_llf hybridization).
+  // Stores the raw (un-corrected) LLF-split fluxes per direction so the low-order
+  // fallback pass can reconstruct directly from the same cell-centred data
+  // without recomputing the physical flux / eigenvalues / split.
+  // Left default-constructed (empty) unless AllocateSplitFluxCache() is called.
+  AthenaArray<Real>
+    split_sf_p_[3];  // (NHYDRO, ncells3, ncells2, ncells1) per direction
+  AthenaArray<Real>
+    split_sf_m_[3];  // (NHYDRO, ncells3, ncells2, ncells1) per direction
+#if NSCALARS > 0
+  AthenaArray<Real>
+    split_sf_s_p_[3];  // (NSCALARS, ncells3, ncells2, ncells1)
+  AthenaArray<Real>
+    split_sf_s_m_[3];  // (NSCALARS, ncells3, ncells2, ncells1)
+#endif
+
   //--------------------------------------------------------------------------------------
   //! \fn void AllocateFCGeom(int ncells1, int ncells2, int ncells3)
   //  \brief Allocate the FC geometry cache.  ncells include ghost cells.
@@ -153,6 +169,23 @@ struct ThreadCache
     m1_lo_flux[0].NewAthenaArray(ngs, ncells3, ncells2, ncells1 + 1);
     m1_lo_flux[1].NewAthenaArray(ngs, ncells3, ncells2 + 1, ncells1);
     m1_lo_flux[2].NewAthenaArray(ngs, ncells3 + 1, ncells2, ncells1);
+  }
+
+  //--------------------------------------------------------------------------------------
+  //! \fn void AllocateSplitFluxCache(...)
+  //  \brief Allocate the cell-centred split-flux cache for split_llf hybridization.
+  //
+  //  ncells1/2/3 include ghost cells.
+  void AllocateSplitFluxCache(int ncells1, int ncells2, int ncells3)
+  {
+    for (int d = 0; d < 3; ++d) {
+      split_sf_p_[d].NewAthenaArray(NHYDRO, ncells3, ncells2, ncells1);
+      split_sf_m_[d].NewAthenaArray(NHYDRO, ncells3, ncells2, ncells1);
+#if NSCALARS > 0
+      split_sf_s_p_[d].NewAthenaArray(NSCALARS, ncells3, ncells2, ncells1);
+      split_sf_s_m_[d].NewAthenaArray(NSCALARS, ncells3, ncells2, ncells1);
+#endif
+    }
   }
 
   //--------------------------------------------------------------------------------------
