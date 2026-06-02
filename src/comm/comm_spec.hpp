@@ -127,6 +127,11 @@ struct CommSpec
   // Non-empty = describes how consecutive component runs transform
   // geometrically.
 
+  // custom per-component sign tables for contexts GeomType can't handle
+  // index = int(FlipContext): ReflectX1=0, ReflectX2=1, ReflectX3=2, Polar=3
+  // non-empty entry overrides component_groups for that context only
+  std::vector<Real> custom_signs[4];
+
   // --- convenience defaults ---
   CommSpec()
       : label("unnamed"),
@@ -160,6 +165,15 @@ struct CommSpec
   {
     for (int f = 0; f < 6; ++f)
       if (physical_bc[f] != PhysicalBC::None)
+        return true;
+    return false;
+  }
+  bool NeedsParitySigns() const
+  {
+    if (!component_groups.empty())
+      return true;
+    for (int i = 0; i < 4; ++i)
+      if (!custom_signs[i].empty())
         return true;
     return false;
   }

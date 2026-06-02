@@ -24,6 +24,7 @@
 #include "../utils/linear_algebra.hpp"
 #include "z4c.hpp"
 #include "z4c_amr.hpp"
+#include "z4c_aux_parity.hpp"
 #include "z4c_macro.hpp"
 
 // ----------------------------------------------------------------------------
@@ -451,8 +452,7 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
       spec.prolong_op  = prol;
       spec.restrict_op = rest;
       comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
-      // TODO: parity specification for N_AUX (30 derivative components).
-      // For now all even parity - sign flips are TBD.
+      PopulateAuxParitySigns(spec.custom_signs);
       pmb->pcomm->Register(spec);
     }
   }

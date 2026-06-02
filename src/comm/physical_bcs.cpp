@@ -424,7 +424,7 @@ void ApplyPhysicalBCFace(AthenaArray<Real>& var,
     {
       ReflectBC(var, nvar, face, il, iu, jl, ju, kl, ku, ngh);
       // Apply parity sign flips: vector normals and tensor off-diagonals.
-      if (!spec.component_groups.empty())
+      if (spec.NeedsParitySigns())
       {
         std::vector<Real> signs = ComputeSignArray(spec, ReflectContext(face));
         int si, ei, sj, ej, sk, ek;
@@ -457,7 +457,7 @@ void ApplyPhysicalBCFace(AthenaArray<Real>& var,
       PolarWedgeBC(var, nvar, face, il, iu, jl, ju, kl, ku, ngh);
       // Apply polar parity sign flips: theta/phi vector components and mixed
       // tensors.
-      if (!spec.component_groups.empty())
+      if (spec.NeedsParitySigns())
       {
         std::vector<Real> signs = ComputeSignArray(spec, FlipContext::Polar);
         int si, ei, sj, ej, sk, ek;

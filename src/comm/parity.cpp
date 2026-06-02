@@ -58,13 +58,15 @@ static const Real kSymTensorSigns[4][6] = {
 
 std::vector<Real> ComputeSignArray(const CommSpec &spec, FlipContext ctx) {
   const int nvar = spec.nvar;
+  const int ictx = static_cast<int>(ctx);
   std::vector<Real> signs(nvar, 1.0);
 
-  // Empty component_groups = all scalar-like, no flips.
+  if (!spec.custom_signs[ictx].empty())
+    return spec.custom_signs[ictx];
+
   if (spec.component_groups.empty())
     return signs;
 
-  const int ictx = static_cast<int>(ctx);
   int offset = 0;
 
   for (const auto &grp : spec.component_groups) {
