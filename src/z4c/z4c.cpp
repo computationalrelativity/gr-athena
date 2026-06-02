@@ -482,6 +482,17 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   opt.dc_damping_time  = pin->GetOrAddReal("z4c", "dc_damping_time", 0.5);
   opt.dc_damping_scale = pin->GetOrAddReal("z4c", "dc_damping_scale", 10.0);
   opt.dc_damping_coeff = pin->GetOrAddReal("z4c", "dc_damping_coeff", 1.0);
+  opt.dc_variety = pin->GetOrAddString("z4c", "dc_variety", "oscillator");
+  opt.dc_Kp      = pin->GetOrAddReal("z4c", "dc_Kp", 1.0);
+  opt.dc_Ki      = pin->GetOrAddReal("z4c", "dc_Ki", 0.01);
+  opt.dc_Kd      = pin->GetOrAddReal("z4c", "dc_Kd", 2.0);
+  opt.dc_relaxation_time =
+    pin->GetOrAddReal("z4c", "dc_relaxation_time", 1.0);
+  opt.dc_kappa    = pin->GetOrAddReal("z4c", "dc_kappa", 1.0);
+  opt.dc_gamma_suppress =
+    pin->GetOrAddReal("z4c", "dc_gamma_suppress", 0.0);
+  opt.dc_gaussian_center =
+    pin->GetOrAddString("z4c", "dc_gaussian_center", "fixed");
 
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);

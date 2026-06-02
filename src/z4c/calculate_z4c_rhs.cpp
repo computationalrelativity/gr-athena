@@ -906,27 +906,78 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
   // Drift control correction
   if (opt.dc_enabled) {
     DriftControl *pdc = pmy_mesh->pdrift_control;
-    Real const tau  = opt.dc_damping_time;
-    Real const zeta = opt.dc_damping_coeff;
-    Real const inv_tau2 = 1.0 / SQR(tau);
     Real const inv_s2  = 1.0 / SQR(opt.dc_damping_scale);
     Real const fx = opt.dc_fixed_x;
     Real const fy = opt.dc_fixed_y;
     Real const fz = opt.dc_fixed_z;
-    Real x_ddot[3];
     Real const dc_fixed[3] = {fx, fy, fz};
-    for (int a = 0; a < NDIM; ++a) {
-      x_ddot[a] =
-          -(2.0 * tau * zeta * pdc->GetVel(a)
-            + (pdc->GetPos(a) - dc_fixed[a])) * inv_tau2;
-    }
-    ILOOP2(k, j) {
-      Real const r2_yz_common =
-          SQR(mbi.x3(k) - fz) + SQR(mbi.x2(j) - fy);
-      for (int a = 0; a < NDIM; ++a) {
-        ILOOP1(i) {
-          Real r2 = SQR(mbi.x1(i) - fx) + r2_yz_common;
-          rhs.beta_u(a, k, j, i) -= x_ddot[a] * exp(-r2 * inv_s2);
+
+    if (opt.dc_variety == "relaxation") {
+      Real const inv_tau = 1.0 / opt.dc_relaxation_time;
+      Real const kappa   = opt.dc_kappa;
+      Real cx, cy, cz;
+      if (opt.dc_gaussian_center == "tracker") {
+        cx = pdc->GetPos(0); cy = pdc->GetPos(1); cz = pdc->GetPos(2);
+      } else {
+        cx = fx; cy = fy; cz = fz;
+      }
+      Real target[3];
+      for (int a = 0; a < NDIM; ++a)
+        target[a] = kappa * (pdc->GetPos(a) - dc_fixed[a]);
+      ILOOP2(k, j) {
+        Real const r2_yz =
+            SQR(mbi.x3(k) - cz) + SQR(mbi.x2(j) - cy);
+        for (int a = 0; a < NDIM; ++a) {
+          ILOOP1(i) {
+            Real r2 = SQR(mbi.x1(i) - cx) + r2_yz;
+            Real const g = exp(-r2 * inv_s2);
+            rhs.beta_u(a, k, j, i) -=
+                inv_tau * (z4c.beta_u(a, k, j, i) - target[a]) * g;
+            if (opt.dc_gamma_suppress > 0.0) {
+              Real const relax_mag =
+                std::fabs(inv_tau * (z4c.beta_u(a, k, j, i) - target[a]));
+              Real const sc =
+                1.0 / (1.0 + opt.dc_gamma_suppress * relax_mag);
+              rhs.beta_u(a, k, j, i) -=
+                  opt.shift_Gamma * z4c.Gam_u(a, k, j, i)
+                  * (1.0 - sc) * g;
+            }
+          }
+        }
+      }
+    } else {
+      Real correction[3];
+      if (opt.dc_variety == "pid") {
+        for (int a = 0; a < NDIM; ++a) {
+          Real const e  = pdc->GetPos(a) - dc_fixed[a];
+          Real const ie = pdc->GetIntegral(a);
+          Real const de = pdc->GetVel(a);
+          correction[a] = -(opt.dc_Kp * e + opt.dc_Ki * ie + opt.dc_Kd * de);
+        }
+      } else {
+        Real const tau  = opt.dc_damping_time;
+        Real const zeta = opt.dc_damping_coeff;
+        Real const inv_tau2 = 1.0 / SQR(tau);
+        for (int a = 0; a < NDIM; ++a) {
+          correction[a] =
+              -(2.0 * tau * zeta * pdc->GetVel(a)
+                + (pdc->GetPos(a) - dc_fixed[a])) * inv_tau2;
+        }
+      }
+      Real cx, cy, cz;
+      if (opt.dc_gaussian_center == "tracker") {
+        cx = pdc->GetPos(0); cy = pdc->GetPos(1); cz = pdc->GetPos(2);
+      } else {
+        cx = fx; cy = fy; cz = fz;
+      }
+      ILOOP2(k, j) {
+        Real const r2_yz_common =
+            SQR(mbi.x3(k) - cz) + SQR(mbi.x2(j) - cy);
+        for (int a = 0; a < NDIM; ++a) {
+          ILOOP1(i) {
+            Real r2 = SQR(mbi.x1(i) - cx) + r2_yz_common;
+            rhs.beta_u(a, k, j, i) -= correction[a] * exp(-r2 * inv_s2);
+          }
         }
       }
     }

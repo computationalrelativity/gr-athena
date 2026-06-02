@@ -29,6 +29,7 @@ class ExtremaTracker;
 class DriftControl {
  public:
   enum class TrackerType { Puncture, Extrema };
+  enum class Variety { Oscillator, PID, Relaxation };
 
   DriftControl(Mesh *pmesh, ParameterInput *pin);
   ~DriftControl() = default;
@@ -37,16 +38,24 @@ class DriftControl {
 
   Real GetPos(int a) const { return dc_pos[a]; }
   Real GetVel(int a) const { return dc_vel[a]; }
+  Real GetIntegral(int a) const { return dc_integral[a]; }
+  Variety GetVariety() const { return dc_variety; }
 
  private:
   Mesh const *pmesh;
   TrackerType dc_tracker_type;
+  Variety dc_variety;
   int dc_tracker_index;
+  Real dc_fixed[NDIM];
   Real dc_pos[NDIM];
   Real dc_pos_old[NDIM];
   Real dc_vel[NDIM];
+  Real dc_integral[NDIM];
+  Real dc_prev_error[NDIM];
   bool dc_first_step;
   Real dc_vel_cap;
+  Real dc_integral_cap;
+  Real dc_integral_decay;
 };
 
 #endif

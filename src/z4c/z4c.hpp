@@ -432,9 +432,14 @@ class Z4c
     // Drift control
     bool dc_enabled;
     std::string dc_tracker_type;
+    std::string dc_variety;
     int dc_tracker_index;
     Real dc_fixed_x, dc_fixed_y, dc_fixed_z;
     Real dc_damping_time, dc_damping_scale, dc_damping_coeff;
+    Real dc_Kp, dc_Ki, dc_Kd;
+    Real dc_relaxation_time, dc_kappa;
+    Real dc_gamma_suppress;
+    std::string dc_gaussian_center;
   } opt;
 
   AA empty_flux[3];

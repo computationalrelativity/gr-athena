@@ -36,14 +36,39 @@ DriftControl::DriftControl(Mesh* pmesh, ParameterInput* pin)
     throw std::runtime_error(msg.str());
   }
 
+  std::string const variety_str =
+      pin->GetOrAddString("z4c", "dc_variety", "oscillator");
+
+  if (variety_str == "pid") {
+    dc_variety = Variety::PID;
+  } else if (variety_str == "relaxation") {
+    dc_variety = Variety::Relaxation;
+  } else if (variety_str == "oscillator") {
+    dc_variety = Variety::Oscillator;
+  } else {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in DriftControl constructor" << std::endl
+        << "Unknown dc_variety '" << variety_str
+        << "'. Valid options: 'oscillator', 'pid', 'relaxation'.";
+    throw std::runtime_error(msg.str());
+  }
+
   dc_tracker_index = pin->GetOrAddInteger("z4c", "dc_tracker_index", 0);
   dc_first_step    = true;
   dc_vel_cap       = pin->GetOrAddReal("z4c", "dc_vel_cap", 1.0);
+  dc_integral_cap  = pin->GetOrAddReal("z4c", "dc_integral_cap", 1.0);
+  dc_integral_decay= pin->GetOrAddReal("z4c", "dc_integral_decay", 0.01);
+
+  dc_fixed[0]      = pin->GetOrAddReal("z4c", "dc_fixed_x", 0.0);
+  dc_fixed[1]      = pin->GetOrAddReal("z4c", "dc_fixed_y", 0.0);
+  dc_fixed[2]      = pin->GetOrAddReal("z4c", "dc_fixed_z", 0.0);
 
   for (int a = 0; a < NDIM; ++a) {
-    dc_pos[a]     = 0.0;
-    dc_pos_old[a] = 0.0;
-    dc_vel[a]     = 0.0;
+    dc_pos[a]       = 0.0;
+    dc_pos_old[a]   = 0.0;
+    dc_vel[a]       = 0.0;
+    dc_integral[a]  = 0.0;
+    dc_prev_error[a]= 0.0;
   }
 }
 
@@ -85,9 +110,24 @@ void DriftControl::Evolve()
     dc_pos_old[a] = dc_pos[a];
     dc_pos[a]     = tracker_pos[a];
   }
+
   if (dc_first_step) {
-    for (int a = 0; a < NDIM; ++a) dc_vel[a] = 0.0;
+    for (int a = 0; a < NDIM; ++a) {
+      dc_vel[a]      = 0.0;
+      dc_integral[a] = 0.0;
+      dc_prev_error[a] = dc_pos[a] - dc_fixed[a];
+    }
     dc_first_step = false;
+  } else if (dc_variety == Variety::PID) {
+    for (int a = 0; a < NDIM; ++a) {
+      Real const e = dc_pos[a] - dc_fixed[a];
+      dc_integral[a] += e * pmesh->dt;
+      dc_integral[a] = std::clamp(dc_integral[a],
+                                  -dc_integral_cap, dc_integral_cap);
+      Real const vel_raw = (e - dc_prev_error[a]) / pmesh->dt;
+      dc_vel[a] = std::clamp(vel_raw, -dc_vel_cap, dc_vel_cap);
+      dc_prev_error[a] = e;
+    }
   } else {
     for (int a = 0; a < NDIM; ++a) {
       Real const vel_raw = (dc_pos[a] - dc_pos_old[a]) / pmesh->dt;
