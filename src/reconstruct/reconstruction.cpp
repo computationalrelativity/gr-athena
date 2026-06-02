@@ -95,13 +95,9 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::weno5zcplus;
   }
-  else if (str_xorder_style == "weno5zcplus_pw")
+  else if (str_xorder_style == "weno5z_ns")
   {
-    xorder_style = ReconVar::weno5zcplus_pw;
-  }
-  else if (str_xorder_style == "weno5z_pw")
-  {
-    xorder_style = ReconVar::weno5z_pw;
+    xorder_style = ReconVar::weno5z_ns;
   }
   else if (str_xorder_style == "lag6")
   {
@@ -138,6 +134,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   GetVariant(pmb, pin, "xorder", "xorder_eps", xorder_style, xorder_eps);
 
   xorder_use_fb = pin->GetOrAddBoolean("time", "xorder_use_fb", false);
+
+  xorder_pointwise =
+    pin->GetOrAddBoolean("time", "xorder_pointwise", false);
 
   if (xorder_use_fb)
   {
@@ -486,24 +485,19 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructWeno5ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
-    case (ReconVar::weno5z_pw):
-    {
-      ReconstructWeno5ZPWX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
     case (ReconVar::weno5zcplus):
     {
       ReconstructWeno5zcplusX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
-    case (ReconVar::weno5zcplus_pw):
-    {
-      ReconstructWeno5zcplusPwX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):
@@ -613,19 +607,14 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructWeno5zcplusX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
-    case (ReconVar::weno5zcplus_pw):
-    {
-      ReconstructWeno5zcplusPwX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
-    case (ReconVar::weno5z_pw):
-    {
-      ReconstructWeno5ZPWX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):
@@ -735,19 +724,14 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
       ReconstructWeno5zcplusX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
-    case (ReconVar::weno5zcplus_pw):
-    {
-      ReconstructWeno5zcplusPwX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
-    case (ReconVar::weno5z_pw):
-    {
-      ReconstructWeno5ZPWX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
-      break;
-    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):

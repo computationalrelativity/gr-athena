@@ -38,8 +38,9 @@ static constexpr Real kOneSixth   = 1.0 / 6.0;
 static constexpr Real kOneQuarter = 1.0 / 4.0;
 static constexpr Real k13Over12   = 13.0 / 12.0;
 
-static constexpr Real dteno[3] = { 6.0 / 10.0, 3.0 / 10.0, 1.0 / 10.0 };
-static constexpr Real EPSL     = 1e-40;
+static constexpr Real dteno[3]    = { 6.0 / 10.0, 3.0 / 10.0, 1.0 / 10.0 };
+static constexpr Real dteno_pw[3] = { 5.0 / 8.0, 5.0 / 16.0, 1.0 / 16.0 };
+static constexpr Real EPSL        = 1e-40;
 static constexpr Real C_T      = 1e-5;
 static constexpr Real q_teno   = 6.0;
 
@@ -140,6 +141,7 @@ Real rec1d_p_teno5(const Real uimt,
 // ---------------------------------------------------------------------------
 
 #pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_teno5_LR(const Real uimt,
                              const Real uimo,
                              const Real ui,
@@ -148,43 +150,52 @@ inline void rec1d_p_teno5_LR(const Real uimt,
                              Real& uL,
                              Real& uR)
 {
-  // --- Left-biased: forward stencil {i-2,i-1,i,i+1,i+2} ---
-  const Real b0_L = teno_B0(uimo, ui, uipo);  // central
-  const Real b1_L = teno_B1(ui, uipo, uipt);  // forward
-  const Real b2_L = teno_B2(uimt, uimo, ui);  // backward
+  const auto& dt = pw ? dteno_pw : dteno;
+
+  const Real b0_L = teno_B0(uimo, ui, uipo);
+  const Real b1_L = teno_B1(ui, uipo, uipt);
+  const Real b2_L = teno_B2(uimt, uimo, ui);
 
   Real dL[3];
   teno5_cutoff(b0_L, b1_L, b2_L, dL[0], dL[1], dL[2]);
 
-  const Real denom_L = dteno[0] * dL[0] + dteno[1] * dL[1] + dteno[2] * dL[2];
+  const Real denom_L = dt[0] * dL[0] + dt[1] * dL[1] + dt[2] * dL[2];
   const Real inv_denom_L = 1.0 / std::max(denom_L, EPSL);
 
-  const Real ukL0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
-  const Real ukL1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
-  const Real ukL2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
+  Real ukL0, ukL1, ukL2;
+  if constexpr (pw) {
+    ukL0 = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+    ukL1 = (3.0 * ui + 6.0 * uipo - uipt) * (1.0 / 8.0);
+    ukL2 = (3.0 * uimt - 10.0 * uimo + 15.0 * ui) * (1.0 / 8.0);
+  } else {
+    ukL0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
+    ukL1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
+    ukL2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
+  }
+  uL = inv_denom_L *
+       (dt[0] * dL[0] * ukL0 + dt[1] * dL[1] * ukL1 + dt[2] * dL[2] * ukL2);
 
-  uL = inv_denom_L * (dteno[0] * dL[0] * ukL0 + dteno[1] * dL[1] * ukL1 +
-                      dteno[2] * dL[2] * ukL2);
-
-  // --- Right-biased: reversed stencil {i+2,i+1,i,i-1,i-2} ---
-  // b0 is symmetric and reused
-  const Real b1_R =
-    teno_B1(ui, uimo, uimt);  // forward (R perspective): {i, i-1, i-2}
-  const Real b2_R =
-    teno_B2(uipt, uipo, ui);  // backward (R perspective): {i+2, i+1, i}
+  const Real b1_R = teno_B1(ui, uimo, uimt);
+  const Real b2_R = teno_B2(uipt, uipo, ui);
 
   Real dR[3];
   teno5_cutoff(b0_L, b1_R, b2_R, dR[0], dR[1], dR[2]);
 
-  const Real denom_R = dteno[0] * dR[0] + dteno[1] * dR[1] + dteno[2] * dR[2];
+  const Real denom_R = dt[0] * dR[0] + dt[1] * dR[1] + dt[2] * dR[2];
   const Real inv_denom_R = 1.0 / std::max(denom_R, EPSL);
 
-  const Real ukR0 = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
-  const Real ukR1 = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
-  const Real ukR2 = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
-
-  uR = inv_denom_R * (dteno[0] * dR[0] * ukR0 + dteno[1] * dR[1] * ukR1 +
-                      dteno[2] * dR[2] * ukR2);
+  Real ukR0, ukR1, ukR2;
+  if constexpr (pw) {
+    ukR0 = (-uipo + 6.0 * ui + 3.0 * uimo) * (1.0 / 8.0);
+    ukR1 = (3.0 * ui + 6.0 * uimo - uimt) * (1.0 / 8.0);
+    ukR2 = (3.0 * uipt - 10.0 * uipo + 15.0 * ui) * (1.0 / 8.0);
+  } else {
+    ukR0 = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
+    ukR1 = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
+    ukR2 = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
+  }
+  uR = inv_denom_R *
+       (dt[0] * dR[0] * ukR0 + dt[1] * dR[1] * ukR1 + dt[2] * dR[2] * ukR2);
 }
 
 #pragma omp declare simd
@@ -212,6 +223,7 @@ inline void rec1d_mc2_LR(const Real a,
 }
 
 #pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_teno5_mc2_LR(const Real uimt,
                                  const Real uimo,
                                  const Real ui,
@@ -220,7 +232,8 @@ inline void rec1d_p_teno5_mc2_LR(const Real uimt,
                                  Real& uL,
                                  Real& uR)
 {
-  // --- Left-biased: forward stencil ---
+  const auto& dt = pw ? dteno_pw : dteno;
+
   const Real b0_L = teno_B0(uimo, ui, uipo);
   const Real b1_L = teno_B1(ui, uipo, uipt);
   const Real b2_L = teno_B2(uimt, uimo, ui);
@@ -230,23 +243,27 @@ inline void rec1d_p_teno5_mc2_LR(const Real uimt,
 
   if (dL[0] > 0.0 && dL[1] > 0.0 && dL[2] > 0.0)
   {
-    const Real denom_L =
-      dteno[0] * dL[0] + dteno[1] * dL[1] + dteno[2] * dL[2];
+    const Real denom_L = dt[0] * dL[0] + dt[1] * dL[1] + dt[2] * dL[2];
     const Real inv_denom_L = 1.0 / std::max(denom_L, EPSL);
 
-    const Real ukL0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
-    const Real ukL1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
-    const Real ukL2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
-
-    uL = inv_denom_L * (dteno[0] * dL[0] * ukL0 + dteno[1] * dL[1] * ukL1 +
-                        dteno[2] * dL[2] * ukL2);
+    Real ukL0, ukL1, ukL2;
+    if constexpr (pw) {
+      ukL0 = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+      ukL1 = (3.0 * ui + 6.0 * uipo - uipt) * (1.0 / 8.0);
+      ukL2 = (3.0 * uimt - 10.0 * uimo + 15.0 * ui) * (1.0 / 8.0);
+    } else {
+      ukL0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
+      ukL1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
+      ukL2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
+    }
+    uL = inv_denom_L *
+         (dt[0] * dL[0] * ukL0 + dt[1] * dL[1] * ukL1 + dt[2] * dL[2] * ukL2);
   }
   else
   {
     rec1d_mc2_LR(uimo, ui, uipo, uL, uR);
   }
 
-  // --- Right-biased: reversed stencil ---
   const Real b1_R = teno_B1(ui, uimo, uimt);
   const Real b2_R = teno_B2(uipt, uipo, ui);
 
@@ -255,16 +272,21 @@ inline void rec1d_p_teno5_mc2_LR(const Real uimt,
 
   if (dR[0] > 0.0 && dR[1] > 0.0 && dR[2] > 0.0)
   {
-    const Real denom_R =
-      dteno[0] * dR[0] + dteno[1] * dR[1] + dteno[2] * dR[2];
+    const Real denom_R = dt[0] * dR[0] + dt[1] * dR[1] + dt[2] * dR[2];
     const Real inv_denom_R = 1.0 / std::max(denom_R, EPSL);
 
-    const Real ukR0 = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
-    const Real ukR1 = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
-    const Real ukR2 = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
-
-    uR = inv_denom_R * (dteno[0] * dR[0] * ukR0 + dteno[1] * dR[1] * ukR1 +
-                        dteno[2] * dR[2] * ukR2);
+    Real ukR0, ukR1, ukR2;
+    if constexpr (pw) {
+      ukR0 = (-uipo + 6.0 * ui + 3.0 * uimo) * (1.0 / 8.0);
+      ukR1 = (3.0 * ui + 6.0 * uimo - uimt) * (1.0 / 8.0);
+      ukR2 = (3.0 * uipt - 10.0 * uipo + 15.0 * ui) * (1.0 / 8.0);
+    } else {
+      ukR0 = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
+      ukR1 = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
+      ukR2 = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
+    }
+    uR = inv_denom_R *
+         (dt[0] * dR[0] * ukR0 + dt[1] * dR[1] * ukR1 + dt[2] * dR[2] * ukR2);
   }
   else
   {
@@ -307,6 +329,7 @@ inline void rec1d_koren_LR(const Real a,
 }
 
 #pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_teno5_koren_LR(const Real uimt,
                                    const Real uimo,
                                    const Real ui,
@@ -315,6 +338,8 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
                                    Real& uL,
                                    Real& uR)
 {
+  const auto& dt = pw ? dteno_pw : dteno;
+
   const Real b0_L = teno_B0(uimo, ui, uipo);
   const Real b1_L = teno_B1(ui, uipo, uipt);
   const Real b2_L = teno_B2(uimt, uimo, ui);
@@ -324,14 +349,21 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
 
   if (dL[0] > 0.0 && dL[1] > 0.0 && dL[2] > 0.0)
   {
-    const Real denom_L =
-      dteno[0] * dL[0] + dteno[1] * dL[1] + dteno[2] * dL[2];
+    const Real denom_L = dt[0] * dL[0] + dt[1] * dL[1] + dt[2] * dL[2];
     const Real inv_denom_L = 1.0 / std::max(denom_L, EPSL);
-    const Real ukL0        = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
-    const Real ukL1        = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
-    const Real ukL2        = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
-    uL = inv_denom_L * (dteno[0] * dL[0] * ukL0 + dteno[1] * dL[1] * ukL1 +
-                        dteno[2] * dL[2] * ukL2);
+
+    Real ukL0, ukL1, ukL2;
+    if constexpr (pw) {
+      ukL0 = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+      ukL1 = (3.0 * ui + 6.0 * uipo - uipt) * (1.0 / 8.0);
+      ukL2 = (3.0 * uimt - 10.0 * uimo + 15.0 * ui) * (1.0 / 8.0);
+    } else {
+      ukL0 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
+      ukL1 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
+      ukL2 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
+    }
+    uL = inv_denom_L *
+         (dt[0] * dL[0] * ukL0 + dt[1] * dL[1] * ukL1 + dt[2] * dL[2] * ukL2);
   }
   else
   {
@@ -346,14 +378,21 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
 
   if (dR[0] > 0.0 && dR[1] > 0.0 && dR[2] > 0.0)
   {
-    const Real denom_R =
-      dteno[0] * dR[0] + dteno[1] * dR[1] + dteno[2] * dR[2];
+    const Real denom_R = dt[0] * dR[0] + dt[1] * dR[1] + dt[2] * dR[2];
     const Real inv_denom_R = 1.0 / std::max(denom_R, EPSL);
-    const Real ukR0        = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
-    const Real ukR1        = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
-    const Real ukR2        = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
-    uR = inv_denom_R * (dteno[0] * dR[0] * ukR0 + dteno[1] * dR[1] * ukR1 +
-                        dteno[2] * dR[2] * ukR2);
+
+    Real ukR0, ukR1, ukR2;
+    if constexpr (pw) {
+      ukR0 = (-uipo + 6.0 * ui + 3.0 * uimo) * (1.0 / 8.0);
+      ukR1 = (3.0 * ui + 6.0 * uimo - uimt) * (1.0 / 8.0);
+      ukR2 = (3.0 * uipt - 10.0 * uipo + 15.0 * ui) * (1.0 / 8.0);
+    } else {
+      ukR0 = kOneSixth * (-uipo + 5.0 * ui + 2.0 * uimo);
+      ukR1 = kOneSixth * (2.0 * ui + 5.0 * uimo - uimt);
+      ukR2 = kOneSixth * (2.0 * uipt - 7.0 * uipo + 11.0 * ui);
+    }
+    uR = inv_denom_R *
+         (dt[0] * dR[0] * ukR0 + dt[1] * dR[1] * ukR1 + dt[2] * dR[2] * ukR2);
   }
   else
   {
@@ -389,15 +428,14 @@ void Reconstruction::ReconstructTeno5X1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_teno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
 }
-
-// ----------------------------------------------------------------------------
-// X2-direction
-// ----------------------------------------------------------------------------
 
 void Reconstruction::ReconstructTeno5X2(AthenaArray<Real>& z,
                                         AthenaArray<Real>& zl_,
@@ -419,15 +457,14 @@ void Reconstruction::ReconstructTeno5X2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_teno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
 }
-
-// ----------------------------------------------------------------------------
-// X3-direction
-// ----------------------------------------------------------------------------
 
 void Reconstruction::ReconstructTeno5X3(AthenaArray<Real>& z,
                                         AthenaArray<Real>& zl_,
@@ -449,15 +486,14 @@ void Reconstruction::ReconstructTeno5X3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_teno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
 }
-
-// ----------------------------------------------------------------------------
-// TENO5 + MC2  Hybrid (TENO5 smooth, MC2 non-smooth)
-// ----------------------------------------------------------------------------
 
 void Reconstruction::ReconstructTeno5mc2X1(AthenaArray<Real>& z,
                                            AthenaArray<Real>& zl_,
@@ -479,7 +515,10 @@ void Reconstruction::ReconstructTeno5mc2X1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_teno5_mc2_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_mc2_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_mc2_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -505,7 +544,10 @@ void Reconstruction::ReconstructTeno5mc2X2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_teno5_mc2_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_mc2_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_mc2_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -531,15 +573,14 @@ void Reconstruction::ReconstructTeno5mc2X3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_teno5_mc2_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_mc2_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_mc2_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
 }
-
-// ----------------------------------------------------------------------------
-// TENO5 + Koren  Hybrid (TENO5 smooth, Koren non-smooth)
-// ----------------------------------------------------------------------------
 
 void Reconstruction::ReconstructTeno5korenX1(AthenaArray<Real>& z,
                                              AthenaArray<Real>& zl_,
@@ -561,7 +602,10 @@ void Reconstruction::ReconstructTeno5korenX1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_teno5_koren_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_koren_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_koren_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -587,7 +631,10 @@ void Reconstruction::ReconstructTeno5korenX2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_teno5_koren_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_koren_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_koren_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -613,7 +660,10 @@ void Reconstruction::ReconstructTeno5korenX3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_teno5_koren_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_teno5_koren_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_teno5_koren_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }

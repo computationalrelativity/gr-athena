@@ -48,10 +48,9 @@ class Reconstruction
     mp5_R,
     weno5,
     weno5z,
-    weno5z_pw,
     weno5d_si,
     weno5zcplus,
-    weno5zcplus_pw,
+    weno5z_ns,
     lag6,
     teno5,
     teno5_mc2,
@@ -62,6 +61,8 @@ class Reconstruction
 
   Real xorder_eps;     // epsilon control parameters
   bool xorder_use_fb;  // try order reduction
+  bool xorder_pointwise =
+    false;  // use pointwise stencils for WENO5/TENO5 methods
   bool xorder_floor_primitives =
     false;                            // apply floors to reconstructed states?
   bool xorder_limit_species = false;  // limit reconstructed species?
@@ -444,6 +445,36 @@ class Reconstruction
                          const int il,
                          const int iu);
 
+  void ReconstructWeno5zNsX1(AthenaArray<Real>& z,
+                             AthenaArray<Real>& zl_,
+                             AthenaArray<Real>& zr_,
+                             const int n_tar,
+                             const int n_src,
+                             const int k,
+                             const int j,
+                             const int il,
+                             const int iu);
+
+  void ReconstructWeno5zNsX2(AthenaArray<Real>& z,
+                             AthenaArray<Real>& zl_,
+                             AthenaArray<Real>& zr_,
+                             const int n_tar,
+                             const int n_src,
+                             const int k,
+                             const int j,
+                             const int il,
+                             const int iu);
+
+  void ReconstructWeno5zNsX3(AthenaArray<Real>& z,
+                             AthenaArray<Real>& zl_,
+                             AthenaArray<Real>& zr_,
+                             const int n_tar,
+                             const int n_src,
+                             const int k,
+                             const int j,
+                             const int il,
+                             const int iu);
+
   void ReconstructWeno5ZX1(AthenaArray<Real>& z,
                            AthenaArray<Real>& zl_,
                            AthenaArray<Real>& zr_,
@@ -563,66 +594,6 @@ class Reconstruction
                                 const int j,
                                 const int il,
                                 const int iu);
-
-  void ReconstructWeno5zcplusPwX1(AthenaArray<Real>& z,
-                                  AthenaArray<Real>& zl_,
-                                  AthenaArray<Real>& zr_,
-                                  const int n_tar,
-                                  const int n_src,
-                                  const int k,
-                                  const int j,
-                                  const int il,
-                                  const int iu);
-
-  void ReconstructWeno5zcplusPwX2(AthenaArray<Real>& z,
-                                  AthenaArray<Real>& zl_,
-                                  AthenaArray<Real>& zr_,
-                                  const int n_tar,
-                                  const int n_src,
-                                  const int k,
-                                  const int j,
-                                  const int il,
-                                  const int iu);
-
-  void ReconstructWeno5zcplusPwX3(AthenaArray<Real>& z,
-                                  AthenaArray<Real>& zl_,
-                                  AthenaArray<Real>& zr_,
-                                  const int n_tar,
-                                  const int n_src,
-                                  const int k,
-                                  const int j,
-                                  const int il,
-                                  const int iu);
-
-  void ReconstructWeno5ZPWX1(AthenaArray<Real>& z,
-                             AthenaArray<Real>& zl_,
-                             AthenaArray<Real>& zr_,
-                             const int n_tar,
-                             const int n_src,
-                             const int k,
-                             const int j,
-                             const int il,
-                             const int iu);
-
-  void ReconstructWeno5ZPWX2(AthenaArray<Real>& z,
-                             AthenaArray<Real>& zl_,
-                             AthenaArray<Real>& zr_,
-                             const int n_tar,
-                             const int n_src,
-                             const int k,
-                             const int j,
-                             const int il,
-                             const int iu);
-
-  void ReconstructWeno5ZPWX3(AthenaArray<Real>& z,
-                             AthenaArray<Real>& zl_,
-                             AthenaArray<Real>& zr_,
-                             const int n_tar,
-                             const int n_src,
-                             const int k,
-                             const int j,
-                             const int il,
-                             const int iu);
 
   void ReconstructMP3X1(AthenaArray<Real>& z,
                         AthenaArray<Real>& zl_,
