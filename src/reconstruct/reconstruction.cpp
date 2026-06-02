@@ -79,6 +79,22 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::mp5_R;
   }
+  else if (str_xorder_style == "weno3")
+  {
+    xorder_style = ReconVar::weno3;
+  }
+  else if (str_xorder_style == "weno3z")
+  {
+    xorder_style = ReconVar::weno3z;
+  }
+  else if (str_xorder_style == "weno7")
+  {
+    xorder_style = ReconVar::weno7;
+  }
+  else if (str_xorder_style == "weno7z")
+  {
+    xorder_style = ReconVar::weno7z;
+  }
   else if (str_xorder_style == "weno5")
   {
     xorder_style = ReconVar::weno5;
@@ -475,6 +491,26 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructCeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5):
     {
       ReconstructWeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -592,6 +628,26 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructCeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5):
     {
       ReconstructWeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -707,6 +763,26 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
     case (ReconVar::ceno5):
     {
       ReconstructCeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::weno5):
