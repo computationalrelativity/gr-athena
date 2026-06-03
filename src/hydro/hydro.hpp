@@ -31,6 +31,7 @@ enum class SolverMethod
 {
   llf,
   hlle,
+  hllc,
   split_llf
 };
 
@@ -77,6 +78,13 @@ class Hydro
   Real hlle_eps_rel{
     1.0e-6
   };  // relative tolerance for HLLE denominator guard
+
+  uint64_t hllc_ncells_{ 0 };
+  uint64_t hllc_nhit_{ 0 };
+  uint64_t hllc_nfallback_{ 0 };
+  uint64_t hllc_nlambda_c_oor_{ 0 };
+  int hllc_print_interval_{ 0 };
+  int hllc_last_print_cycle_{ -1 };
 
   struct
   {
@@ -206,6 +214,35 @@ class Hydro
 
   AT_H_vec flux_l_;
   AT_H_vec flux_r_;
+
+  // --- HLLC tetrad-frame scratch arrays ---
+  AT_N_vec v_tet_l_;
+  AT_N_vec v_tet_r_;
+
+  AT_H_vec q_tet_l_;
+  AT_H_vec q_tet_r_;
+
+  AT_H_vec f_tet_l_;
+  AT_H_vec f_tet_r_;
+
+  AT_C_sca lam_p_tet_l, lam_m_tet_l;
+  AT_C_sca lam_p_tet_r, lam_m_tet_r;
+
+  AT_C_sca cs2_tet_l_;
+  AT_C_sca cs2_tet_r_;
+
+  AT_H_vec q_hll;
+  AT_H_vec f_hll;
+
+  AT_C_sca hllc_wave_side_;
+
+  AT_C_sca lambda_c;
+  AT_C_sca P_c;
+
+  AT_H_vec q_c_l;
+  AT_H_vec q_c_r;
+  AT_H_vec f_c_l;
+  AT_H_vec f_c_r;
 
   // Particular to magnetic fields --------------------------------------------
   AT_C_sca oo_W_l_;
@@ -350,6 +387,46 @@ class Hydro
                      AA& s_flux,
                      const AA& dxw_,
                      const Real lambda_rescaling);
+
+  void RiemannSolverLLF(const int ivx,
+                        const int k,
+                        const int j,
+                        const int il,
+                        const int iu,
+                        AA& prim_l_,
+                        AA& prim_r_,
+                        AA& pscalars_l_,
+                        AA& pscalars_r_,
+                        AA& aux_l_,
+                        AA& aux_r_,
+                        AT_N_sca& alpha_,
+                        AT_N_vec& beta_u_,
+                        AT_N_sym& gamma_dd_,
+                        AT_N_sca& sqrt_detgamma_,
+                        AA& flux,
+                        AA& s_flux,
+                        const AA& dxw_,
+                        const Real lambda_rescaling);
+
+  void RiemannSolverHLLC(const int ivx,
+                         const int k,
+                         const int j,
+                         const int il,
+                         const int iu,
+                         AA& prim_l_,
+                         AA& prim_r_,
+                         AA& pscalars_l_,
+                         AA& pscalars_r_,
+                         AA& aux_l_,
+                         AA& aux_r_,
+                         AT_N_sca& alpha_,
+                         AT_N_vec& beta_u_,
+                         AT_N_sym& gamma_dd_,
+                         AT_N_sca& sqrt_detgamma_,
+                         AA& flux,
+                         AA& s_flux,
+                         const AA& dxw_,
+                         const Real lambda_rescaling);
 #else  // MHD:
   void RiemannSolver(const int ivx,
                      const int k,
@@ -374,6 +451,30 @@ class Hydro
                      AA& wct,
                      const AA& dxw_,
                      const Real lambda_rescaling);
+
+  void RiemannSolverLLF(const int ivx,
+                        const int k,
+                        const int j,
+                        const int il,
+                        const int iu,
+                        const AA& B,
+                        AA& prim_l_,
+                        AA& prim_r_,
+                        AA& pscalars_l_,
+                        AA& pscalars_r_,
+                        AA& aux_l_,
+                        AA& aux_r_,
+                        AT_N_sca& alpha_,
+                        AT_N_vec& beta_u_,
+                        AT_N_sym& gamma_dd_,
+                        AT_N_sca& sqrt_detgamma_,
+                        AA& flux,
+                        AA& s_flux,
+                        AA& ey,
+                        AA& ez,
+                        AA& wct,
+                        const AA& dxw_,
+                        const Real lambda_rescaling);
 #endif
 
   inline void RetainState(AA& w1,

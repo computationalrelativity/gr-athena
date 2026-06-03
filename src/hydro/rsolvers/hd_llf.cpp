@@ -48,7 +48,7 @@ using namespace gra::aliases;
 // compare with modification to add_flux_divergence_dyn, where factors of face
 // area, cell volume etc are missing since they are included here.
 
-void Hydro::RiemannSolver(const int ivx,
+void Hydro::RiemannSolverLLF(const int ivx,
                           const int k,
                           const int j,
                           const int il,
@@ -562,5 +562,38 @@ void Hydro::RiemannSolver(const int ivx,
           s_flux(n, k, j, i) = mass_flx * pscalars_r_(n, i);
         }
       }
+  }
+}
+
+void Hydro::RiemannSolver(const int ivx,
+                          const int k,
+                          const int j,
+                          const int il,
+                          const int iu,
+                          AA& prim_l_,
+                          AA& prim_r_,
+                          AA& pscalars_l_,
+                          AA& pscalars_r_,
+                          AA& aux_l_,
+                          AA& aux_r_,
+                          AT_N_sca& alpha_,
+                          AT_N_vec& beta_u_,
+                          AT_N_sym& gamma_dd_,
+                          AT_N_sca& sqrt_detgamma_,
+                          AA& flux,
+                          AA& s_flux,
+                          const AA& dxw_,
+                          const Real lambda_rescaling)
+{
+  if (solver_method_ == SolverMethod::hllc) {
+    RiemannSolverHLLC(ivx, k, j, il, iu, prim_l_, prim_r_,
+                      pscalars_l_, pscalars_r_, aux_l_, aux_r_,
+                      alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+                      flux, s_flux, dxw_, lambda_rescaling);
+  } else {
+    RiemannSolverLLF(ivx, k, j, il, iu, prim_l_, prim_r_,
+                     pscalars_l_, pscalars_r_, aux_l_, aux_r_,
+                     alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+                     flux, s_flux, dxw_, lambda_rescaling);
   }
 }

@@ -11,6 +11,7 @@
 
 // C++ headers
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -74,6 +75,8 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
       solver_method_ = SolverMethod::hlle;
     } else if (rsolver_str == "split_llf") {
       solver_method_ = SolverMethod::split_llf;
+    } else if (rsolver_str == "hllc") {
+      solver_method_ = SolverMethod::hllc;
     } else {
       std::stringstream msg;
       msg << "### FATAL ERROR in Hydro constructor" << std::endl
@@ -86,6 +89,19 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   // HLLE safety tolerances (fallback to LLF when lam_r - lam_l is too small)
   hlle_eps_abs = pin->GetOrAddReal("hydro", "hlle_eps_abs", 1.0e-12);
   hlle_eps_rel = pin->GetOrAddReal("hydro", "hlle_eps_rel", 1.0e-6);
+
+  if (solver_method_ == SolverMethod::hllc) {
+    if (Globals::my_rank == 0) {
+      std::cout << "[HLLC] Riemann solver activated" << std::endl;
+    }
+    hllc_ncells_           = 0;
+    hllc_nhit_             = 0;
+    hllc_nfallback_        = 0;
+    hllc_nlambda_c_oor_    = 0;
+    hllc_last_print_cycle_ = -1;
+    hllc_print_interval_   =
+        pin->GetOrAddInteger("hydro", "hllc_stats_interval", 0);
+  }
 
   opt_excision.alpha_threshold =
     pin->GetOrAddReal("excision", "alpha_threshold", -1.0);
@@ -297,5 +313,36 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   bi_d_l_.NewAthenaTensor(nn1);
   bi_d_r_.NewAthenaTensor(nn1);
 #endif  // MAGNETIC_FIELDS_ENABLED
-#endif
+
+  // HLLC tetrad-frame scratch
+  v_tet_l_.NewAthenaTensor(nn1);
+  v_tet_r_.NewAthenaTensor(nn1);
+
+  q_tet_l_.NewAthenaTensor(nn1);
+  q_tet_r_.NewAthenaTensor(nn1);
+
+  f_tet_l_.NewAthenaTensor(nn1);
+  f_tet_r_.NewAthenaTensor(nn1);
+
+  lam_p_tet_l.NewAthenaTensor(nn1);
+  lam_m_tet_l.NewAthenaTensor(nn1);
+  lam_p_tet_r.NewAthenaTensor(nn1);
+  lam_m_tet_r.NewAthenaTensor(nn1);
+
+  cs2_tet_l_.NewAthenaTensor(nn1);
+  cs2_tet_r_.NewAthenaTensor(nn1);
+
+  q_hll.NewAthenaTensor(nn1);
+  f_hll.NewAthenaTensor(nn1);
+
+  hllc_wave_side_.NewAthenaTensor(nn1);
+
+  lambda_c.NewAthenaTensor(nn1);
+  P_c.NewAthenaTensor(nn1);
+
+  q_c_l.NewAthenaTensor(nn1);
+  q_c_r.NewAthenaTensor(nn1);
+  f_c_l.NewAthenaTensor(nn1);
+  f_c_r.NewAthenaTensor(nn1);
+#endif  // Z4C_ENABLED
 }
