@@ -989,8 +989,11 @@ class OpacityUtils
           kap_a_0 = cf * kap_a_0;
           kap_a   = cf * kap_a;
 
-          eta_0 = kap_a_0 * n;
-          eta   = kap_a * J;
+          // Only override the directly-computed emissivity when abs is
+          // non-zero (i.e. n > THRESHOLD_N). Below threshold, kappa_0_a
+          // is undefined and Kirchhoff would silently zero out eta_0_.
+          eta_0 = (kap_a_0 > 0) ? kap_a_0 * n : eta_0;
+          eta = (kap_a > 0) ? kap_a * J : eta;
         }
         else
         {
@@ -1018,8 +1021,11 @@ class OpacityUtils
         kap_a_0 = (!std::isfinite(kap_a_0) || kap_a_0 < 0) ? 0.0 : kap_a_0;
         kap_a   = (!std::isfinite(kap_a) || kap_a < 0) ? 0.0 : kap_a;
 
-        eta_0 = kap_a_0 * n;
-        eta   = kap_a * J;
+        // Only override the directly-computed emissivity when abs is
+        // non-zero (i.e. n > THRESHOLD_N). Below threshold, kappa_0_a
+        // is undefined and Kirchhoff would silently zero out eta_0_.
+        eta_0 = (kap_a_0 > 0) ? kap_a_0 * n : eta_0;
+        eta = (kap_a > 0) ? kap_a * J : eta;
       }
     }
   }
