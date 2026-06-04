@@ -104,6 +104,67 @@ inline void teno5_cutoff(const Real b0,
 }
 
 // ---------------------------------------------------------------------------
+// MC2 / Koren TVD fallback functions (used by TENO5 templates below)
+// ---------------------------------------------------------------------------
+
+#pragma omp declare simd
+inline void rec1d_mc2_LR(const Real a,
+                         const Real b,
+                         const Real c,
+                         Real& uL,
+                         Real& uR)
+{
+  const Real dl = c - b;
+  const Real dr = b - a;
+  if (dl * dr <= 0.0)
+  {
+    uL = b;
+    uR = b;
+    return;
+  }
+  const Real sgn = (dl > 0.0) ? 1.0 : -1.0;
+  const Real adl = std::fabs(dl);
+  const Real adr = std::fabs(dr);
+  const Real adc = 0.5 * std::fabs(c - a);
+  const Real du  = sgn * std::fmin(2.0 * adl, std::fmin(2.0 * adr, adc));
+  uL             = b + 0.5 * du;
+  uR             = b - 0.5 * du;
+}
+
+#pragma omp declare simd
+inline void rec1d_koren_LR(const Real a,
+                           const Real b,
+                           const Real c,
+                           Real& uL,
+                           Real& uR)
+{
+  const Real dl = c - b;
+  const Real dr = b - a;
+  if (dl * dr <= 0.0)
+  {
+    uL = b;
+    uR = b;
+    return;
+  }
+  const Real r_fwd   = dl / (dr + EPSL);
+  const Real r_bwd   = dr / (dl + EPSL);
+  const Real phi_fwd = std::fmax(
+    Real(0.0),
+    std::fmin(
+      Real(2.0) * r_fwd,
+      std::fmin((Real(1.0) + Real(2.0) * r_fwd) / Real(3.0), Real(2.0))));
+  const Real phi_bwd = std::fmax(
+    Real(0.0),
+    std::fmin(
+      Real(2.0) * r_bwd,
+      std::fmin((Real(1.0) + Real(2.0) * r_bwd) / Real(3.0), Real(2.0))));
+  const Real slope = std::copysign(
+    std::fmin(phi_fwd * std::fabs(dr), phi_bwd * std::fabs(dl)), dl);
+  uL = b + 0.5 * slope;
+  uR = b - 0.5 * slope;
+}
+
+// ---------------------------------------------------------------------------
 // Paired L+R reconstruction
 //
 // B0 is symmetric: B0(a,b,c) = B0(c,b,a): computed once, shared by L and R.
@@ -129,6 +190,12 @@ inline void rec1d_p_teno5_LR(const Real uimt,
   Real dL[3];
   teno5_cutoff(b0_L, b1_L, b2_L, dL[0], dL[1], dL[2]);
 
+  if (dL[0] == 0.0 && dL[1] == 0.0 && dL[2] == 0.0)
+  {
+    rec1d_mc2_LR(uimo, ui, uipo, uL, uR);
+    return;
+  }
+
   const Real denom_L = dt[0] * dL[0] + dt[1] * dL[1] + dt[2] * dL[2];
   const Real inv_denom_L = 1.0 / std::max(denom_L, EPSL);
 
@@ -151,6 +218,13 @@ inline void rec1d_p_teno5_LR(const Real uimt,
   Real dR[3];
   teno5_cutoff(b0_L, b1_R, b2_R, dR[0], dR[1], dR[2]);
 
+  if (dR[0] == 0.0 && dR[1] == 0.0 && dR[2] == 0.0)
+  {
+    Real uL_tmp;
+    rec1d_mc2_LR(uimo, ui, uipo, uL_tmp, uR);
+    return;
+  }
+
   const Real denom_R = dt[0] * dR[0] + dt[1] * dR[1] + dt[2] * dR[2];
   const Real inv_denom_R = 1.0 / std::max(denom_R, EPSL);
 
@@ -166,30 +240,6 @@ inline void rec1d_p_teno5_LR(const Real uimt,
   }
   uR = inv_denom_R *
        (dt[0] * dR[0] * ukR0 + dt[1] * dR[1] * ukR1 + dt[2] * dR[2] * ukR2);
-}
-
-#pragma omp declare simd
-inline void rec1d_mc2_LR(const Real a,
-                         const Real b,
-                         const Real c,
-                         Real& uL,
-                         Real& uR)
-{
-  const Real dl = c - b;
-  const Real dr = b - a;
-  if (dl * dr <= 0.0)
-  {
-    uL = b;
-    uR = b;
-    return;
-  }
-  const Real sgn = (dl > 0.0) ? 1.0 : -1.0;
-  const Real adl = std::fabs(dl);
-  const Real adr = std::fabs(dr);
-  const Real adc = 0.5 * std::fabs(c - a);
-  const Real du  = sgn * std::fmin(2.0 * adl, std::fmin(2.0 * adr, adc));
-  uL             = b + 0.5 * du;
-  uR             = b - 0.5 * du;
 }
 
 #pragma omp declare simd
@@ -261,41 +311,8 @@ inline void rec1d_p_teno5_mc2_LR(const Real uimt,
   else
   {
     Real uR_dummy;
-    rec1d_mc2_LR(uipo, ui, uimo, uR, uR_dummy);
+    rec1d_mc2_LR(uimo, ui, uipo, uR_dummy, uR);
   }
-}
-
-#pragma omp declare simd
-inline void rec1d_koren_LR(const Real a,
-                           const Real b,
-                           const Real c,
-                           Real& uL,
-                           Real& uR)
-{
-  const Real dl = c - b;
-  const Real dr = b - a;
-  if (dl * dr <= 0.0)
-  {
-    uL = b;
-    uR = b;
-    return;
-  }
-  const Real r_fwd   = dl / (dr + EPSL);
-  const Real r_bwd   = dr / (dl + EPSL);
-  const Real phi_fwd = std::fmax(
-    Real(0.0),
-    std::fmin(
-      Real(2.0) * r_fwd,
-      std::fmin((Real(1.0) + Real(2.0) * r_fwd) / Real(3.0), Real(2.0))));
-  const Real phi_bwd = std::fmax(
-    Real(0.0),
-    std::fmin(
-      Real(2.0) * r_bwd,
-      std::fmin((Real(1.0) + Real(2.0) * r_bwd) / Real(3.0), Real(2.0))));
-  const Real slope = std::copysign(
-    std::fmin(phi_fwd * std::fabs(dr), phi_bwd * std::fabs(dl)), dl);
-  uL = b + 0.5 * slope;
-  uR = b - 0.5 * slope;
 }
 
 #pragma omp declare simd
@@ -367,7 +384,7 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
   else
   {
     Real uR_dummy;
-    rec1d_koren_LR(uipo, ui, uimo, uR, uR_dummy);
+    rec1d_koren_LR(uimo, ui, uipo, uR_dummy, uR);
   }
 }
 

@@ -166,9 +166,11 @@ inline void rec1d_p_weno5_LR(const Real uimt,
   Real b[3];
   rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
 
-  const Real aL_0 = optimw[0] / SQR((EPSL + b[0]));
-  const Real aL_1 = optimw[1] / SQR((EPSL + b[1]));
-  const Real aL_2 = optimw[2] / SQR((EPSL + b[2]));
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  const Real aL_0 = ow[0] / SQR((EPSL + b[0]));
+  const Real aL_1 = ow[1] / SQR((EPSL + b[1]));
+  const Real aL_2 = ow[2] / SQR((EPSL + b[2]));
   const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
 
   Real ukL[3];
@@ -178,9 +180,9 @@ inline void rec1d_p_weno5_LR(const Real uimt,
     rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
   uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
 
-  const Real aR_0 = optimw[0] / SQR((EPSL + b[2]));
-  const Real aR_1 = optimw[1] / SQR((EPSL + b[1]));
-  const Real aR_2 = optimw[2] / SQR((EPSL + b[0]));
+  const Real aR_0 = ow[0] / SQR((EPSL + b[2]));
+  const Real aR_1 = ow[1] / SQR((EPSL + b[1]));
+  const Real aR_2 = ow[2] / SQR((EPSL + b[0]));
   const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
 
   Real ukR[3];
@@ -258,12 +260,14 @@ inline void rec1d_p_weno5d_si_LR(const Real uimt,
   const Real Phi = std::min(1., phi / mu);
   const Real eps_mu2 = W5D_SI_EPSL * mu2;
 
+  const auto& ow = pw ? optimw_pw : optimw;
+
   const Real ZL_0 = ipow<W5D_SI_p>(tau / (b[0] + eps_mu2));
   const Real ZL_1 = ipow<W5D_SI_p>(tau / (b[1] + eps_mu2));
   const Real ZL_2 = ipow<W5D_SI_p>(tau / (b[2] + eps_mu2));
-  const Real aL_0 = optimw[0] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
-  const Real aL_1 = optimw[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
-  const Real aL_2 = optimw[2] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
+  const Real aL_0 = ow[0] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
+  const Real aL_1 = ow[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
+  const Real aL_2 = ow[2] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
   const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
 
   Real ukL[3];
@@ -273,9 +277,9 @@ inline void rec1d_p_weno5d_si_LR(const Real uimt,
     rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
   uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
 
-  const Real aR_0 = optimw[0] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
-  const Real aR_1 = optimw[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
-  const Real aR_2 = optimw[2] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
+  const Real aR_0 = ow[0] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
+  const Real aR_1 = ow[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
+  const Real aR_2 = ow[2] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
   const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
 
   Real ukR[3];
@@ -358,15 +362,17 @@ inline void rec1d_p_weno5z_ns_LR(const Real uimt,
   rec1d_p_NS_smoothness(bL[0], bL[1], bL[2], uimt, uimo, ui, uipo, uipt);
   const Real L11 = uipo - ui;
 
+  const auto& ow = pw ? optimw_pw : optimw;
+
   {
     const Real db    = bL[0] - bL[2];
     const Real L113  = SQR(L11) * L11;
     const Real g     = L113 / (1.0 + L113);
     const Real zetaL = 0.5 * (SQR(db) + SQR(g));
 
-    const Real aL_0 = optimw[0] * (1.0 + zetaL / SQR(EPSL + bL[0]));
-    const Real aL_1 = optimw[1] * (1.0 + zetaL / SQR(EPSL + bL[1]));
-    const Real aL_2 = optimw[2] * (1.0 + zetaL / SQR(EPSL + bL[2]));
+    const Real aL_0 = ow[0] * (1.0 + zetaL / SQR(EPSL + bL[0]));
+    const Real aL_1 = ow[1] * (1.0 + zetaL / SQR(EPSL + bL[1]));
+    const Real aL_2 = ow[2] * (1.0 + zetaL / SQR(EPSL + bL[2]));
     const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
 
     Real ukL[3];
@@ -385,9 +391,9 @@ inline void rec1d_p_weno5z_ns_LR(const Real uimt,
     const Real g     = L113 / (1.0 + L113);
     const Real zetaR = 0.5 * (SQR(db) + SQR(g));
 
-    const Real aR_0 = optimw[0] * (1.0 + zetaR / SQR(EPSL + bR[0]));
-    const Real aR_1 = optimw[1] * (1.0 + zetaR / SQR(EPSL + bR[1]));
-    const Real aR_2 = optimw[2] * (1.0 + zetaR / SQR(EPSL + bR[2]));
+    const Real aR_0 = ow[0] * (1.0 + zetaR / SQR(EPSL + bR[0]));
+    const Real aR_1 = ow[1] * (1.0 + zetaR / SQR(EPSL + bR[1]));
+    const Real aR_2 = ow[2] * (1.0 + zetaR / SQR(EPSL + bR[2]));
     const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
 
     Real ukR[3];

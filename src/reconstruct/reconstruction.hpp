@@ -67,7 +67,7 @@ class Reconstruction
   Real xorder_eps;     // epsilon control parameters
   bool xorder_use_fb;  // try order reduction
   bool xorder_pointwise =
-    false;  // use pointwise stencils for WENO5/TENO5 methods
+    false;  // use pointwise stencils for WENO/TENO/MP/CENO methods
   bool xorder_floor_primitives =
     false;                            // apply floors to reconstructed states?
   bool xorder_limit_species = false;  // limit reconstructed species?

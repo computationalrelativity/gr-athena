@@ -7,12 +7,16 @@
 // ============================================================================
 // LAG6 -- 6th-order Lagrange interpolation (unlimited, pointwise)
 //
-// 6-point stencil {i-2, i-1, i, i+1, i+2, i+3} symmetric about x_{i+1/2}.
-// Coefficients (palindromic, denominator 256):
-//   { 3, -25, 150, 150, -25, 3 }
+// 6-point stencil symmetric about the evaluation face.  Coefficients
+// (palindromic, denominator 256):  { 3, -25, 150, 150, -25, 3 }
 //
-// Since the stencil is symmetric about the evaluation point, the left and
-// right reconstructed states are identical:  uL = uR = u_{i+1/2}.
+// uL = value at face i+1/2 (right face of cell i) from {i-2..i+3}
+// uR = value at face i-1/2 (left  face of cell i) from {i-3..i+2}
+//
+// For X2/X3, the swap-buffer pattern in calculate_fluxes.cpp uses
+// zl(i) from iteration j-1 as L at face j-1/2, and zr(i) from the
+// current iteration j as R at face j-1/2.  Both must produce the
+// respective cell's face value at j-1/2.
 //
 // Requires NGHOST >= 4.
 // ============================================================================
@@ -34,6 +38,7 @@ void Reconstruction::ReconstructLag6X1(AthenaArray<Real>& z,
 #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i = il; i <= iu; ++i)
   {
+    const Real zim3 = z(n_src, k, j, i - 3);
     const Real zim2 = z(n_src, k, j, i - 2);
     const Real zim1 = z(n_src, k, j, i - 1);
     const Real zi   = z(n_src, k, j, i);
@@ -41,12 +46,16 @@ void Reconstruction::ReconstructLag6X1(AthenaArray<Real>& z,
     const Real zip2 = z(n_src, k, j, i + 2);
     const Real zip3 = z(n_src, k, j, i + 3);
 
-    const Real uface =
+    const Real uL =
       (3.0 * (zim2 + zip3) - 25.0 * (zim1 + zip2) + 150.0 * (zi + zip1)) *
       oo256;
 
-    zl_(n_tar, i + 1) = uface;
-    zr_(n_tar, i)     = uface;
+    const Real uR =
+      (3.0 * (zim3 + zip2) - 25.0 * (zim2 + zip1) + 150.0 * (zim1 + zi)) *
+      oo256;
+
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
   }
 }
 
@@ -65,6 +74,7 @@ void Reconstruction::ReconstructLag6X2(AthenaArray<Real>& z,
 #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i = il; i <= iu; ++i)
   {
+    const Real zim3 = z(n_src, k, j - 3, i);
     const Real zim2 = z(n_src, k, j - 2, i);
     const Real zim1 = z(n_src, k, j - 1, i);
     const Real zi   = z(n_src, k, j, i);
@@ -72,12 +82,16 @@ void Reconstruction::ReconstructLag6X2(AthenaArray<Real>& z,
     const Real zip2 = z(n_src, k, j + 2, i);
     const Real zip3 = z(n_src, k, j + 3, i);
 
-    const Real uface =
+    const Real uL =
       (3.0 * (zim2 + zip3) - 25.0 * (zim1 + zip2) + 150.0 * (zi + zip1)) *
       oo256;
 
-    zl_(n_tar, i) = uface;
-    zr_(n_tar, i) = uface;
+    const Real uR =
+      (3.0 * (zim3 + zip2) - 25.0 * (zim2 + zip1) + 150.0 * (zim1 + zi)) *
+      oo256;
+
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
   }
 }
 
@@ -96,6 +110,7 @@ void Reconstruction::ReconstructLag6X3(AthenaArray<Real>& z,
 #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i = il; i <= iu; ++i)
   {
+    const Real zim3 = z(n_src, k - 3, j, i);
     const Real zim2 = z(n_src, k - 2, j, i);
     const Real zim1 = z(n_src, k - 1, j, i);
     const Real zi   = z(n_src, k, j, i);
@@ -103,12 +118,16 @@ void Reconstruction::ReconstructLag6X3(AthenaArray<Real>& z,
     const Real zip2 = z(n_src, k + 2, j, i);
     const Real zip3 = z(n_src, k + 3, j, i);
 
-    const Real uface =
+    const Real uL =
       (3.0 * (zim2 + zip3) - 25.0 * (zim1 + zip2) + 150.0 * (zi + zip1)) *
       oo256;
 
-    zl_(n_tar, i) = uface;
-    zr_(n_tar, i) = uface;
+    const Real uR =
+      (3.0 * (zim3 + zip2) - 25.0 * (zim2 + zip1) + 150.0 * (zim1 + zi)) *
+      oo256;
+
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
   }
 }
 

@@ -62,14 +62,14 @@ inline void rec1d_p_weno3_LR(const Real fm1,
   const Real uk1_L = (f0 + fp1) * 0.5;
   uL              = dsaL * (a0_L * uk0_L + a1_L * uk1_L);
 
-  const Real b0_R = SQR(fp2 - fp1);
+  const Real b0_R = b0_L;
   const Real b1_R = b1_L;
 
   const Real a0_R  = dw[0] / SQR(EPSL + b0_R);
   const Real a1_R  = dw[1] / SQR(EPSL + b1_R);
   const Real dsaR  = 1.0 / (a0_R + a1_R);
-  const Real uk0_R = (-fp1 + 3.0 * fp2) * 0.5;
-  const Real uk1_R = (f0 + fp1) * 0.5;
+  const Real uk0_R = (fm1 + f0) * 0.5;
+  const Real uk1_R = (3.0 * f0 - fp1) * 0.5;
   uR              = dsaR * (a0_R * uk0_R + a1_R * uk1_R);
 }
 
@@ -99,14 +99,14 @@ inline void rec1d_p_weno3z_LR(const Real fm1,
   const Real uk1_L = (f0 + fp1) * 0.5;
   uL              = dsaL * (a0_L * uk0_L + a1_L * uk1_L);
 
-  const Real b0_R = SQR(fp2 - fp1);
+  const Real b0_R = b0_L;
   const Real b1_R = b1_L;
 
   const Real a0_R  = dw[0] * (1.0 + tau / (EPSL + b0_R));
   const Real a1_R  = dw[1] * (1.0 + tau / (EPSL + b1_R));
   const Real dsaR  = 1.0 / (a0_R + a1_R);
-  const Real uk0_R = (-fp1 + 3.0 * fp2) * 0.5;
-  const Real uk1_R = (f0 + fp1) * 0.5;
+  const Real uk0_R = (fm1 + f0) * 0.5;
+  const Real uk1_R = (3.0 * f0 - fp1) * 0.5;
   uR              = dsaR * (a0_R * uk0_R + a1_R * uk1_R);
 }
 

@@ -211,6 +211,8 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
 
   xorder_use_aux_s = pin->GetOrAddBoolean("time", "xorder_use_aux_s", false);
 
+  xorder_log_p = pin->GetOrAddBoolean("time", "xorder_log_p", false);
+
   if (xorder_use_aux_s && xorder_use_aux_T)
   {
     std::stringstream msg;

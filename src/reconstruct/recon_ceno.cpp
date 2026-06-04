@@ -9,107 +9,9 @@
 namespace
 {
 
-/*
-// BAM conventions (e.g.):
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_m_weno5(zimt,zimo,zi,zipo,zipt);
-//
-// or- flip the arguments and write one function
-//
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_p_weno5(zipt,zipo,zi,zimo,zimt);
-*/
-
-static const Real alpha = 0.7;  // CENO3 coef
+static constexpr Real alpha = 0.7;  // CENO3 bias
 
 #pragma omp declare simd
-Real rec1d_p_ceno3(const Real uimt,
-                   const Real uimo,
-                   const Real ui,
-                   const Real uipo,
-                   const Real uipt);
-
-}  // namespace
-// ----------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------
-
-void Reconstruction::ReconstructCeno3X1(AthenaArray<Real>& z,
-                                        AthenaArray<Real>& zl_,
-                                        AthenaArray<Real>& zr_,
-                                        const int n_tar,
-                                        const int n_src,
-                                        const int k,
-                                        const int j,
-                                        const int il,
-                                        const int iu)
-{
-#pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    const Real zimt = z(n_src, k, j, i - 2);
-    const Real zimo = z(n_src, k, j, i - 1);
-    const Real zi   = z(n_src, k, j, i);
-    const Real zipo = z(n_src, k, j, i + 1);
-    const Real zipt = z(n_src, k, j, i + 2);
-
-    zl_(n_tar, i + 1) = rec1d_p_ceno3(zimt, zimo, zi, zipo, zipt);
-    zr_(n_tar, i)     = rec1d_p_ceno3(zipt, zipo, zi, zimo, zimt);
-  }
-}
-
-void Reconstruction::ReconstructCeno3X2(AthenaArray<Real>& z,
-                                        AthenaArray<Real>& zl_,
-                                        AthenaArray<Real>& zr_,
-                                        const int n_tar,
-                                        const int n_src,
-                                        const int k,
-                                        const int j,
-                                        const int il,
-                                        const int iu)
-{
-#pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    const Real zimt = z(n_src, k, j - 2, i);
-    const Real zimo = z(n_src, k, j - 1, i);
-    const Real zi   = z(n_src, k, j, i);
-    const Real zipo = z(n_src, k, j + 1, i);
-    const Real zipt = z(n_src, k, j + 2, i);
-
-    zl_(n_tar, i) = rec1d_p_ceno3(zimt, zimo, zi, zipo, zipt);
-    zr_(n_tar, i) = rec1d_p_ceno3(zipt, zipo, zi, zimo, zimt);
-  }
-}
-
-void Reconstruction::ReconstructCeno3X3(AthenaArray<Real>& z,
-                                        AthenaArray<Real>& zl_,
-                                        AthenaArray<Real>& zr_,
-                                        const int n_tar,
-                                        const int n_src,
-                                        const int k,
-                                        const int j,
-                                        const int il,
-                                        const int iu)
-{
-#pragma omp simd
-  for (int i = il; i <= iu; ++i)
-  {
-    const Real zimt = z(n_src, k - 2, j, i);
-    const Real zimo = z(n_src, k - 1, j, i);
-    const Real zi   = z(n_src, k, j, i);
-    const Real zipo = z(n_src, k + 1, j, i);
-    const Real zipt = z(n_src, k + 2, j, i);
-
-    zl_(n_tar, i) = rec1d_p_ceno3(zimt, zimo, zi, zipo, zipt);
-    zr_(n_tar, i) = rec1d_p_ceno3(zipt, zipo, zi, zimo, zimt);
-  }
-}
-
-// impl -----------------------------------------------------------------------
-namespace
-{
-
 Real ceno3lim(Real d[3])
 {
   Real o3term = 0.0;
@@ -135,47 +37,158 @@ Real ceno3lim(Real d[3])
   return (o3term);
 }
 
+// ---------------------------------------------------------------------------
+// CENO3 -- Central ENO 3rd order reconstruction
+//
+// Paired L+R kernel: computes both left and right states in a single call,
+// sharing the MC2 slope computation.
+//
+// pw = false : FV cell-average stencil coefficients (denom 6)
+// pw = true  : PW pointwise stencil coefficients (denom 8)
+// ---------------------------------------------------------------------------
+
 #pragma omp declare simd
-Real rec1d_p_ceno3(const Real uimt,
-                   const Real uimo,
-                   const Real ui,
-                   const Real uipo,
-                   const Real uipt)
+template <bool pw>
+inline void rec1d_p_ceno3_LR(const Real uimt,
+                              const Real uimo,
+                              const Real ui,
+                              const Real uipo,
+                              const Real uipt,
+                              Real& uL,
+                              Real& uR)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uipt = u[i+2];
-  Real uipo = u[i+1];
-  Real ui   = u[i];
-  Real uimo = u[i-1];
-  Real uimt = u[i-2];
-  */
   using namespace reconstruction::utils;
 
-  static const Real oocc2 = 1.0 / 2.0;
-  static const Real oocc8 = 1.0 / 8.0;
+  const Real slope = 0.5 * MC2((ui - uimo), (uipo - ui));
 
-  static const Real cc2  = 2.0;
-  static const Real cc3  = 3.0;
-  static const Real cc6  = 6.0;
-  static const Real cc10 = 10.0;
-  static const Real cc15 = 15.0;
+  const Real baseL = ui + slope;
+  Real dL[3];
+  if constexpr (pw)
+  {
+    constexpr Real oo8 = 1.0 / 8.0;
+    dL[0] = ( 3.0 * uimt - 10.0 * uimo + 15.0 * ui) * oo8 - baseL;
+    dL[1] = (           -uimo +  6.0 * ui +  3.0 * uipo) * oo8 - baseL;
+    dL[2] = (           3.0 * ui +  6.0 * uipo -       uipt) * oo8 - baseL;
+  }
+  else
+  {
+    constexpr Real oo6 = 1.0 / 6.0;
+    dL[0] = ( 2.0 * uimt -  7.0 * uimo + 11.0 * ui) * oo6 - baseL;
+    dL[1] = (           -uimo +  5.0 * ui +  2.0 * uipo) * oo6 - baseL;
+    dL[2] = (           2.0 * ui +  5.0 * uipo -       uipt) * oo6 - baseL;
+  }
+  uL = baseL + ceno3lim(dL);
 
-  const Real slope = oocc2 * MC2((ui - uimo), (uipo - ui));
-
-  Real tmpL;
-  Real tmpd[3];  // these are d^k_i with k = -1,0,1
-
-  tmpL    = ui + slope;
-  tmpd[0] = (cc3 * uimt - cc10 * uimo + cc15 * ui) * oocc8 - tmpL;
-  tmpd[1] = (-uimo + cc6 * ui + cc3 * uipo) * oocc8 - tmpL;
-  tmpd[2] = (cc3 * ui + cc6 * uipo - uipt) * oocc8 - tmpL;
-
-  return tmpL + ceno3lim(tmpd);
+  const Real baseR = ui - slope;
+  Real dR[3];
+  if constexpr (pw)
+  {
+    constexpr Real oo8 = 1.0 / 8.0;
+    dR[0] = ( 3.0 * uipt - 10.0 * uipo + 15.0 * ui) * oo8 - baseR;
+    dR[1] = (           -uipo +  6.0 * ui +  3.0 * uimo) * oo8 - baseR;
+    dR[2] = (           3.0 * ui +  6.0 * uimo -       uimt) * oo8 - baseR;
+  }
+  else
+  {
+    constexpr Real oo6 = 1.0 / 6.0;
+    dR[0] = ( 2.0 * uipt -  7.0 * uipo + 11.0 * ui) * oo6 - baseR;
+    dR[1] = (           -uipo +  5.0 * ui +  2.0 * uimo) * oo6 - baseR;
+    dR[2] = (           2.0 * ui +  5.0 * uimo -       uimt) * oo6 - baseR;
+  }
+  uR = baseR + ceno3lim(dR);
 }
 
 }  // namespace
 // ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructCeno3X1(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_ceno3_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_ceno3_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructCeno3X2(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_ceno3_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_ceno3_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructCeno3X3(AthenaArray<Real>& z,
+                                        AthenaArray<Real>& zl_,
+                                        AthenaArray<Real>& zr_,
+                                        const int n_tar,
+                                        const int n_src,
+                                        const int k,
+                                        const int j,
+                                        const int il,
+                                        const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_ceno3_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_ceno3_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
 
 //
 // :D
@@ -184,77 +197,74 @@ Real rec1d_p_ceno3(const Real uimt,
 // ============================================================================
 // CENO5 -- Central ENO 5th order reconstruction
 //
-// Same philosophy as CENO3 but uses three quartic (5-point) sub-stencils
-// from a 7-point stencil {i-3,...,i+3}.  Achieves 5th order in smooth
-// regions; falls back to 2nd-order TVD near discontinuities.
+// Three quartic (5-point) sub-stencils from a 7-point stencil {i-3,...,i+3}.
+// Achieves 5th order in smooth regions; falls back to 2nd-order TVD near
+// discontinuities.
 //
-// Sub-stencil coefficients (Lagrange interpolation at x_{i+1/2}),
-// denominator 128:
-//   k=-1  {i-3..i+1}:  -5,  28, -70, 140, 35
-//   k= 0  {i-2..i+2}:   3, -20,  90,  60, -5
-//   k=+1  {i-1..i+3}:  -5,  60,  90, -20,  3
+// pw = false : FV cell-average stencil coefficients (denom 60)
+// pw = true  : PW pointwise stencil coefficients (denom 128)
 //
-// Requires NGHOST >= 4 (same as MP7).
+// Requires NGHOST >= 4.
 // ============================================================================
 
 // ----------------------------------------------------------------------------
 namespace
 {
 
-// CENO5 uses the same limiter structure as CENO3 (3 candidates, same-sign
-// check, alpha-weighted central bias, select minimum magnitude).  Reuse
-// ceno3lim directly -- it already does exactly what we need.
-
 // Paired L+R kernel: computes both left and right states in a single call,
 // sharing the MC2 slope computation.
+#pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_ceno5_LR(const Real uim3,
-                             const Real uim2,
-                             const Real uim1,
-                             const Real ui,
-                             const Real uip1,
-                             const Real uip2,
-                             const Real uip3,
-                             Real& uL,
-                             Real& uR)
+                              const Real uim2,
+                              const Real uim1,
+                              const Real ui,
+                              const Real uip1,
+                              const Real uip2,
+                              const Real uip3,
+                              Real& uL,
+                              Real& uR)
 {
   using namespace reconstruction::utils;
 
-  static constexpr Real oo2   = 1.0 / 2.0;
-  static constexpr Real oo128 = 1.0 / 128.0;
-
-  // MC2 slope -- shared between L and R (R just flips sign)
-  const Real slope = oo2 * MC2((ui - uim1), (uip1 - ui));
+  const Real slope = 0.5 * MC2((ui - uim1), (uip1 - ui));
 
   // --- Left state (forward stencil) ---
   const Real baseL = ui + slope;
   Real dL[3];
-  dL[0] =
-    (-5.0 * uim3 + 28.0 * uim2 - 70.0 * uim1 + 140.0 * ui + 35.0 * uip1) *
-      oo128 -
-    baseL;
-  dL[1] =
-    (3.0 * uim2 - 20.0 * uim1 + 90.0 * ui + 60.0 * uip1 - 5.0 * uip2) * oo128 -
-    baseL;
-  dL[2] = (-5.0 * uim1 + 60.0 * ui + 90.0 * uip1 - 20.0 * uip2 + 3.0 * uip3) *
-            oo128 -
-          baseL;
+  if constexpr (pw)
+  {
+    constexpr Real oo128 = 1.0 / 128.0;
+    dL[0] = (-5.0*uim3 +  28.0*uim2 -  70.0*uim1 + 140.0*ui +  35.0*uip1) * oo128 - baseL;
+    dL[1] = ( 3.0*uim2 -  20.0*uim1 +  90.0*ui   +  60.0*uip1 -  5.0*uip2) * oo128 - baseL;
+    dL[2] = (-5.0*uim1 +  60.0*ui   +  90.0*uip1 -  20.0*uip2 +  3.0*uip3) * oo128 - baseL;
+  }
+  else
+  {
+    constexpr Real oo60 = 1.0 / 60.0;
+    dL[0] = (-3.0*uim3 +  17.0*uim2 -  43.0*uim1 +  77.0*ui +  12.0*uip1) * oo60 - baseL;
+    dL[1] = ( 2.0*uim2 -  13.0*uim1 +  47.0*ui   +  27.0*uip1 -  3.0*uip2) * oo60 - baseL;
+    dL[2] = (-3.0*uim1 +  27.0*ui   +  47.0*uip1 -  13.0*uip2 +  2.0*uip3) * oo60 - baseL;
+  }
   uL = baseL + ceno3lim(dL);
 
   // --- Right state (reversed stencil) ---
-  // Under argument reversal: uim3<->uip3, uim2<->uip2, uim1<->uip1
-  // slope flips sign -> baseR = ui - slope
   const Real baseR = ui - slope;
   Real dR[3];
-  dR[0] =
-    (-5.0 * uip3 + 28.0 * uip2 - 70.0 * uip1 + 140.0 * ui + 35.0 * uim1) *
-      oo128 -
-    baseR;
-  dR[1] =
-    (3.0 * uip2 - 20.0 * uip1 + 90.0 * ui + 60.0 * uim1 - 5.0 * uim2) * oo128 -
-    baseR;
-  dR[2] = (-5.0 * uip1 + 60.0 * ui + 90.0 * uim1 - 20.0 * uim2 + 3.0 * uim3) *
-            oo128 -
-          baseR;
+  if constexpr (pw)
+  {
+    constexpr Real oo128 = 1.0 / 128.0;
+    dR[0] = (-5.0*uip3 +  28.0*uip2 -  70.0*uip1 + 140.0*ui +  35.0*uim1) * oo128 - baseR;
+    dR[1] = ( 3.0*uip2 -  20.0*uip1 +  90.0*ui   +  60.0*uim1 -  5.0*uim2) * oo128 - baseR;
+    dR[2] = (-5.0*uip1 +  60.0*ui   +  90.0*uim1 -  20.0*uim2 +  3.0*uim3) * oo128 - baseR;
+  }
+  else
+  {
+    constexpr Real oo60 = 1.0 / 60.0;
+    dR[0] = (-3.0*uip3 +  17.0*uip2 -  43.0*uip1 +  77.0*ui +  12.0*uim1) * oo60 - baseR;
+    dR[1] = ( 2.0*uip2 -  13.0*uip1 +  47.0*ui   +  27.0*uim1 -  3.0*uim2) * oo60 - baseR;
+    dR[2] = (-3.0*uip1 +  27.0*ui   +  47.0*uim1 -  13.0*uim2 +  2.0*uim3) * oo60 - baseR;
+  }
   uR = baseR + ceno3lim(dR);
 }
 
@@ -285,7 +295,10 @@ void Reconstruction::ReconstructCeno5X1(AthenaArray<Real>& z,
     const Real zip3 = z(n_src, k, j, i + 3);
 
     Real uL, uR;
-    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_ceno5_LR<true>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    else
+      rec1d_p_ceno5_LR<false>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -313,7 +326,10 @@ void Reconstruction::ReconstructCeno5X2(AthenaArray<Real>& z,
     const Real zip3 = z(n_src, k, j + 3, i);
 
     Real uL, uR;
-    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_ceno5_LR<true>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    else
+      rec1d_p_ceno5_LR<false>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -341,7 +357,10 @@ void Reconstruction::ReconstructCeno5X3(AthenaArray<Real>& z,
     const Real zip3 = z(n_src, k + 3, j, i);
 
     Real uL, uR;
-    rec1d_p_ceno5_LR(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_ceno5_LR<true>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
+    else
+      rec1d_p_ceno5_LR<false>(zim3, zim2, zim1, zi, zip1, zip2, zip3, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
