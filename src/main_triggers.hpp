@@ -49,7 +49,7 @@ struct Trigger
       // catch the last point(s) reducing trigger dt
       if (((pm->ncycle >= pm->nlim) && (pm->nlim > 0)) || (t_next > pm->tlim))
       {
-        dt = pm->dt;
+        dt = 0;
         return true;
       }
 
