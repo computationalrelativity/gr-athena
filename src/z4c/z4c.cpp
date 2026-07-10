@@ -471,6 +471,29 @@ Z4c::Z4c(MeshBlock* pmb, ParameterInput* pin)
   opt.tf_force_regularization =
     pin->GetOrAddBoolean("z4c", "tf_force_regularization", true);
 
+  // DriftControl parameters
+  opt.dc_enabled = pin->GetOrAddBoolean("z4c", "dc_enabled", false);
+  opt.dc_tracker_type =
+    pin->GetOrAddString("z4c", "dc_tracker_type", "puncture");
+  opt.dc_tracker_index = pin->GetOrAddInteger("z4c", "dc_tracker_index", 0);
+  opt.dc_fixed_x       = pin->GetOrAddReal("z4c", "dc_fixed_x", 0.0);
+  opt.dc_fixed_y       = pin->GetOrAddReal("z4c", "dc_fixed_y", 0.0);
+  opt.dc_fixed_z       = pin->GetOrAddReal("z4c", "dc_fixed_z", 0.0);
+  opt.dc_damping_time  = pin->GetOrAddReal("z4c", "dc_damping_time", 0.5);
+  opt.dc_damping_scale = pin->GetOrAddReal("z4c", "dc_damping_scale", 10.0);
+  opt.dc_damping_coeff = pin->GetOrAddReal("z4c", "dc_damping_coeff", 1.0);
+  opt.dc_variety = pin->GetOrAddString("z4c", "dc_variety", "oscillator");
+  opt.dc_Kp      = pin->GetOrAddReal("z4c", "dc_Kp", 1.0);
+  opt.dc_Ki      = pin->GetOrAddReal("z4c", "dc_Ki", 0.1);
+  opt.dc_Kd      = pin->GetOrAddReal("z4c", "dc_Kd", 2.0);
+  opt.dc_relaxation_time =
+    pin->GetOrAddReal("z4c", "dc_relaxation_time", 1.0);
+  opt.dc_kappa    = pin->GetOrAddReal("z4c", "dc_kappa", 1.0);
+  opt.dc_gamma_suppress =
+    pin->GetOrAddReal("z4c", "dc_gamma_suppress", 0.0);
+  opt.dc_gaussian_center =
+    pin->GetOrAddString("z4c", "dc_gaussian_center", "fixed");
+
   // Allocate memory for aux 1D vars
   r.NewAthenaTensor(mbi.nn1);
   detg.NewAthenaTensor(mbi.nn1);

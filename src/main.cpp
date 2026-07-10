@@ -39,6 +39,9 @@
 #include "defs.hpp"
 #include "globals.hpp"
 #include "main.hpp"
+#if Z4C_ENABLED
+#include "z4c/drift_control.hpp"
+#endif
 #include "main_triggers.hpp"
 
 //-----------------------------------------------------------------------------
@@ -221,6 +224,11 @@ int main(int argc, char* argv[])
     if (Z4C_ENABLED)
     {
       gra::evolve::Z4c_DerivedQuantities(ptlc, trgs, pmesh, pouts);
+#if Z4C_ENABLED
+      if (pmesh->pdrift_control) {
+        pmesh->pdrift_control->Evolve();
+      }
+#endif
     }
 
     // Evaluate fields at tracker positions and write output (post-derived)
