@@ -1451,6 +1451,9 @@ class OpacityUtils
     RecomputeOpacFn recompute_opac = NoOpRecompute{})
   {
     // Guard: below density/temperature floor -> zero equilibrium densities
+    // N.B. The follow short-circuit will break Kirchoff; leaving as comment
+    //      for future reference.
+    /*
     if (rho < opt.eql_rho_min || T < opt.eql_t_min)
     {
       const int ix_g           = 0;
@@ -1462,6 +1465,7 @@ class OpacityUtils
       }
       return 0;
     }
+    */
 
     int ierr_we = 0;
     int ierr_nd = 0;
