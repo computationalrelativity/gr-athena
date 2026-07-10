@@ -55,7 +55,6 @@ class DriftControl {
   bool dc_first_step;
   Real dc_vel_cap;
   Real dc_integral_cap;
-  Real dc_integral_decay;
 };
 
 #endif

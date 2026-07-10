@@ -56,8 +56,7 @@ DriftControl::DriftControl(Mesh* pmesh, ParameterInput* pin)
   dc_tracker_index = pin->GetOrAddInteger("z4c", "dc_tracker_index", 0);
   dc_first_step    = true;
   dc_vel_cap       = pin->GetOrAddReal("z4c", "dc_vel_cap", 1.0);
-  dc_integral_cap  = pin->GetOrAddReal("z4c", "dc_integral_cap", 1.0);
-  dc_integral_decay= pin->GetOrAddReal("z4c", "dc_integral_decay", 0.01);
+  dc_integral_cap  = pin->GetOrAddReal("z4c", "dc_integral_cap", 5.0);
 
   dc_fixed[0]      = pin->GetOrAddReal("z4c", "dc_fixed_x", 0.0);
   dc_fixed[1]      = pin->GetOrAddReal("z4c", "dc_fixed_y", 0.0);

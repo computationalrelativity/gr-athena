@@ -934,10 +934,9 @@ void Z4c::Z4cRHS(AA& u, AA& u_mat, AA& u_rhs)
             rhs.beta_u(a, k, j, i) -=
                 inv_tau * (z4c.beta_u(a, k, j, i) - target[a]) * g;
             if (opt.dc_gamma_suppress > 0.0) {
-              Real const relax_mag =
-                std::fabs(inv_tau * (z4c.beta_u(a, k, j, i) - target[a]));
-              Real const sc =
-                1.0 / (1.0 + opt.dc_gamma_suppress * relax_mag);
+              Real const e = pdc->GetPos(a) - dc_fixed[a];
+              Real const sc = 1.0 / (1.0 + opt.dc_gamma_suppress
+                                     * std::fabs(e) / opt.dc_damping_scale);
               rhs.beta_u(a, k, j, i) -=
                   opt.shift_Gamma * z4c.Gam_u(a, k, j, i)
                   * (1.0 - sc) * g;
