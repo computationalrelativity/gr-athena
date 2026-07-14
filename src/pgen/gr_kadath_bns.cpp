@@ -103,6 +103,7 @@ Kadath::Vector* g_vel_kad        = NULL;
 bool g_use_cold_table  = false;
 bool g_use_cold_pwpoly = false;
 double g_com_offset     = 0.0;
+double g_fuka_rho_rescale = 1.0;
 
 // --------------------------------------------------------------------------
 // Unit conversion constants
@@ -181,6 +182,23 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
 
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
+
+  // FUKA (Margherita) defines the rest-mass density as rho = nb*m_amu using the
+  // atomic mass unit (Margherita_constants::mnuc_MeV), whereas the CompOSE tables
+  // define rho = nb*mn using the neutron mass (ColdEOS::mb). Recovering nb from
+  // FUKA's density via rho/mn undershoots nb by m_amu/mn (~0.86%), which the
+  // con2prim inversion absorbs as a spurious ~15 MeV initial temperature.
+  // When <problem>/rescale_fuka_density is enabled, multiply FUKA's density by
+  // mn/m_amu so nb is recovered consistently with the evolution table.
+  const bool rescale_fuka_density =
+      pin->GetOrAddBoolean("problem", "rescale_fuka_density", false);
+  if (rescale_fuka_density) {
+    g_fuka_rho_rescale = ceos->mb / Margherita_constants::mnuc_MeV;
+    if (Globals::my_rank == 0) {
+      std::printf("FUKA density rescaling enabled: factor = %.6f\n",
+                  g_fuka_rho_rescale);
+    }
+  }
 
   std::string fname = pin->GetOrAddString("problem", "initial_data_file", "bns.info");
 
@@ -465,6 +483,14 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   }
 #endif
 
+  if (Globals::my_rank == 0) {
+    std::printf("NS star centres from FUKA data (grid coordinates):\n");
+    std::printf("  NS1 (x < 0): x = %.6f\n", centre_m);
+    std::printf("  NS2 (x > 0): x = %.6f\n", centre_p);
+    std::printf("Set bh_0_x = %.6f, bh_1_x = %.6f in input file.\n",
+                centre_m, centre_p);
+  }
+
   return;
 }
 
@@ -642,6 +668,10 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
               w_p   = 0.0;
             }
           }
+
+          // Reconcile FUKA's atomic-mass-unit density with the table's
+          // neutron-mass convention. No-op (factor 1) when disabled.
+          w_rho *= g_fuka_rho_rescale;
 
           const double psi4 = qv[PSI] * qv[PSI] * qv[PSI] * qv[PSI];
 
