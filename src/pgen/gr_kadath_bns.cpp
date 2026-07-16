@@ -11,11 +11,13 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
 #include <streambuf>
+#include <vector>
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
@@ -78,8 +80,6 @@ using export_utils::NUM_QUANTS;
 namespace
 {
 // Global variables
-ColdEOS<COLDEOS_POLICY>* ceos = NULL;
-
 Real sep;
 Real pgasmax_1;
 Real pgasmax_2;
@@ -103,7 +103,38 @@ Kadath::Vector* g_vel_kad        = NULL;
 bool g_use_cold_table  = false;
 bool g_use_cold_pwpoly = false;
 double g_com_offset     = 0.0;
+
+// Cold slice from lorene file: Ye(nb) with nb in Nuclear [fm^-3].
+// Stored in native lorene units; conversion to simulation units (rho -> nb)
+// happens at lookup time via peos->GetEOS().GetBaryonMass().
+std::vector<double> g_cold_lognb;  // log(nb [fm^-3]) for binary search
+std::vector<double> g_cold_ye;     // electron fraction
+int g_cold_np = 0;
+
+// Whether rescale_fuka_density was requested (factor computed at ProblemGenerator
+// time from peos->GetEOS() to avoid hardcoding the baryon mass).
+bool g_rescale_enabled = false;
+// The actual rescale factor, set once by the first MeshBlock to run ProblemGenerator.
 double g_fuka_rho_rescale = 1.0;
+bool g_rescale_initialized = false;
+
+// --------------------------------------------------------------------------
+// Ye lookup from pre-loaded cold slice. rho must be in GeometricSolar
+// (neutron-mass convention, matching post-rescale w(IDN)). baryon_mass
+// should be peos->GetEOS().GetBaryonMass(). Returns 0.0 if no cold slice
+// is loaded.
+Real get_ye_from_cold_slice(Real rho, Real baryon_mass)
+{
+  if (g_cold_np == 0) return 0.0;
+  Real log_n = std::log(rho / baryon_mass);
+  auto it = std::lower_bound(g_cold_lognb.begin(), g_cold_lognb.end(), log_n);
+  int i = static_cast<int>(std::distance(g_cold_lognb.begin(), it));
+  if (i == 0) return g_cold_ye[0];
+  if (i >= g_cold_np) return g_cold_ye[g_cold_np - 1];
+  Real w = (log_n - g_cold_lognb[i - 1])
+         / (g_cold_lognb[i] - g_cold_lognb[i - 1]);
+  return g_cold_ye[i - 1] * (1.0 - w) + g_cold_ye[i] * w;
+}
 
 // --------------------------------------------------------------------------
 // Unit conversion constants
@@ -180,25 +211,17 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   if (resume_flag)
     return;
 
-  ceos = new ColdEOS<COLDEOS_POLICY>();
-  InitColdEOS(ceos, pin);
-
   // FUKA (Margherita) defines the rest-mass density as rho = nb*m_amu using the
-  // atomic mass unit (Margherita_constants::mnuc_MeV), whereas the CompOSE tables
-  // define rho = nb*mn using the neutron mass (ColdEOS::mb). Recovering nb from
-  // FUKA's density via rho/mn undershoots nb by m_amu/mn (~0.86%), which the
-  // con2prim inversion absorbs as a spurious ~15 MeV initial temperature.
-  // When <problem>/rescale_fuka_density is enabled, multiply FUKA's density by
-  // mn/m_amu so nb is recovered consistently with the evolution table.
-  const bool rescale_fuka_density =
+  // atomic mass unit (Margherita_constants::mnuc_MeV ~ 931.5 MeV), whereas the
+  // CompOSE tables define rho = nb*mn using the neutron mass from the table.
+  // Recovering nb from FUKA's density via rho/mn undershoots nb by m_amu/mn
+  // (~0.86%), which the con2prim inversion absorbs as a spurious ~15 MeV
+  // initial temperature. When <problem>/rescale_fuka_density is enabled,
+  // multiply FUKA's density by mn/m_amu so nb is recovered consistently
+  // with the evolution table. The factor is computed in ProblemGenerator
+  // from peos->GetEOS().
+  g_rescale_enabled =
       pin->GetOrAddBoolean("problem", "rescale_fuka_density", false);
-  if (rescale_fuka_density) {
-    g_fuka_rho_rescale = ceos->mb / Margherita_constants::mnuc_MeV;
-    if (Globals::my_rank == 0) {
-      std::printf("FUKA density rescaling enabled: factor = %.6f\n",
-                  g_fuka_rho_rescale);
-    }
-  }
 
   std::string fname = pin->GetOrAddString("problem", "initial_data_file", "bns.info");
 
@@ -393,6 +416,46 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   }
 
   // --------------------------------------------------------------------------
+  // Read cold slice (Ye vs nb) from lorene-format file.
+  // nb is stored in Nuclear [fm^-3]; conversion to simulation units
+  // happens at lookup time via peos->GetEOS().GetBaryonMass().
+  {
+    std::string cold_slice_file =
+        pin->GetOrAddString("problem", "cold_slice_file", "");
+    if (!cold_slice_file.empty()) {
+      std::ifstream cfile(cold_slice_file);
+      if (!cfile.is_open()) {
+        std::stringstream msg;
+        msg << "### FATAL ERROR: cold_slice_file " << cold_slice_file
+            << " could not be opened.";
+        ATHENA_ERROR(msg);
+      }
+
+      std::string line;
+      // Skip 10 header lines
+      for (int i = 0; i < 10; ++i) std::getline(cfile, line);
+
+      int idx;
+      double nb, rho_cgs, p_cgs, ye, cs, dpdrho;
+      while (cfile >> idx >> nb >> rho_cgs >> p_cgs >> ye >> cs >> dpdrho) {
+        g_cold_lognb.push_back(std::log(nb));
+        g_cold_ye.push_back(ye);
+      }
+      g_cold_np = static_cast<int>(g_cold_lognb.size());
+
+      if (Globals::my_rank == 0) {
+        std::printf("Cold slice loaded: %d points from %s\n",
+                    g_cold_np, cold_slice_file.c_str());
+        std::printf("  nb range: [%.2e, %.2e] fm^-3\n",
+                    std::exp(g_cold_lognb.front()),
+                    std::exp(g_cold_lognb.back()));
+        std::printf("  Ye range: [%.4f, %.4f]\n",
+                    g_cold_ye.front(), g_cold_ye.back());
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Determine star centres and peak densities (for B-field seeding)
   Real dx_interp = pin->GetOrAddReal("problem", "dx_interp_maximum", 0.01);
   int npt_interp = static_cast<int>(std::round(sep / dx_interp));
@@ -531,6 +594,22 @@ void MeshBlock::UserWorkAfterOutput(ParameterInput* pin)
 void MeshBlock::ProblemGenerator(ParameterInput* pin)
 {
   using namespace LinearAlgebra;
+
+  // One-time rescale factor computation from the PrimitiveSolver EOS.
+  // peos is a MeshBlock member not available during InitUserMeshData.
+  if (g_rescale_enabled && !g_rescale_initialized) {
+    // CompOSE baryon mass in GeometricSolar mass units:
+    Real mb_geo = peos->GetEOS().GetRawBaryonMass();
+    // Same for the atomic mass unit (Kadath convention):
+    Real mamu_geo = Margherita_constants::mnuc_MeV
+                  * Primitive::Nuclear.MassConversion(Primitive::GeometricSolar);
+    g_fuka_rho_rescale = mb_geo / mamu_geo;
+    g_rescale_initialized = true;
+    if (Globals::my_rank == 0) {
+      std::printf("FUKA density rescaling enabled: factor = %.6f\n",
+                  g_fuka_rho_rescale);
+    }
+  }
 
   Real const tol_det_zero =
     pin->GetOrAddReal("problem", "tolerance_det_zero", 1e-10);
@@ -701,7 +780,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   }
 
   // --------------------------------------------------------------------------
-  // Post-processing: populate composition scalars from ColdEOS.
+  // Post-processing: populate composition scalars from cold slice.
   // Kadath EOS already set (rho, P) directly; only atmosphere points need reset.
   {
     AthenaArray<Real>& w = phydro->w;
@@ -721,7 +800,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           {
 #if NSCALARS > 0
             for (int iy = 0; iy < NSCALARS; ++iy)
-              r_scalar(iy, k, j, i) = ceos->GetY(w(IDN, k, j, i), iy);
+              r_scalar(iy, k, j, i) = get_ye_from_cold_slice(
+                  w(IDN, k, j, i), peos->GetEOS().GetBaryonMass());
 #endif
           }
           else
@@ -808,9 +888,6 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
 void Mesh::DeleteTemporaryUserMeshData()
 {
-  delete ceos;
-  ceos = NULL;
-
   if (g_quants)
   {
     delete g_vel_kad;
