@@ -10,6 +10,7 @@
 //  Kastaun et al., Phys. Rev. D 103, 023018 (2021).
 
 #include <cmath>
+#include <limits>
 // FIXME: Debug only!
 #include <algorithm>
 #include <iostream>
@@ -345,6 +346,33 @@ class PrimitiveSolver
                      Real g3d[NSPMETRIC],
                      SolverResult& solver_result)
   {
+    // Seed the response with the cell's baryon content: D and D*Y are valid
+    // conserved transport even when only the energy/momentum inversion
+    // failed. A policy may keep them (with v = 0 => W = 1 => rho = D, so
+    // PrimToCon reproduces cons[IDN] exactly and conserves baryons) instead
+    // of discarding the cell to the atmosphere. The seed n = D/mb is the
+    // W = 1 value on purpose: it is correct ONLY paired with the velocity
+    // reset -- retaining W > 1 with this seed would inflate D to D*W and
+    // inject baryons. A non-finite or out-of-EOS-range D is flagged with a
+    // NaN seed; policies treat that as a full atmosphere reset. Policies
+    // that ignore prim on entry (e.g. DoNothing, which returns false) are
+    // unaffected: the seed lives in the local prim scratch and is discarded.
+    const Real n_seed = cons[IDN] / peos->GetBaryonMass();
+    if (std::isfinite(n_seed) && n_seed > peos->GetMinimumDensity() &&
+        n_seed < peos->GetMaximumDensity())
+    {
+      prim[IDN] = n_seed;
+      for (int s = 0; s < peos->GetNSpecies(); s++)
+      {
+        const Real y  = cons[IYD + s] / cons[IDN];
+        prim[IYF + s] = std::isfinite(y) ? y : 0.0;
+      }
+    }
+    else
+    {
+      prim[IDN] = std::numeric_limits<Real>::quiet_NaN();
+    }
+
     bool result = peos->DoFailureResponse(prim);
     if (result)
     {

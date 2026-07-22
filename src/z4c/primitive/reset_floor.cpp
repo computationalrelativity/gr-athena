@@ -156,18 +156,27 @@ bool ResetFloor::SpeciesLimits(Real* Y,
 }
 
 /// Perform failure response.
-/// In this case, we simply floor everything.
+/// Mass-conserving reset: the solver seeds prim[IDN]/prim[IYF+i] with the
+/// conserved D and Y (HandleFailure), which stay valid when only the
+/// energy/momentum inversion failed. Keep them and discard only the
+/// ambiguous part (velocity, temperature). Zeroing the velocity forces
+/// W = 1, so the seed n = D/mb reproduces the conserved D exactly and no
+/// baryons are added. A NaN seed marks an unusable conserved state (D
+/// non-finite or out of EOS range): full atmosphere reset.
 bool ResetFloor::FailureResponse(Real prim[NPRIM], int n_species)
 {
-  prim[IDN] = n_atm;
+  if (!std::isfinite(prim[IDN]))
+  {
+    prim[IDN] = n_atm;
+    for (int i = 0; i < n_species; i++)
+    {
+      prim[IYF + i] = Y_atm[i];
+    }
+  }
   prim[IVX] = 0.0;
   prim[IVY] = 0.0;
   prim[IVZ] = 0.0;
   prim[ITM] = T_atm;
-  for (int i = 0; i < n_species; i++)
-  {
-    prim[IYF + i] = Y_atm[i];
-  }
   return true;
 }
 
