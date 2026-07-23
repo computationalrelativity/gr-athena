@@ -215,7 +215,13 @@ parser.add_argument(
 parser.add_argument(
   "--errorpolicy",
   default="do_nothing",
-  choices=["do_nothing", "reset_floor", "reset_floor_no_adjust_conserved"],
+  choices=[
+    "do_nothing",
+    "reset_floor",
+    "reset_floor_no_adjust_conserved",
+    "retain_state",
+    "retain_state_tau",
+  ],
   help="select error policy for PrimitiveSolver framework",
 )
 
@@ -861,6 +867,12 @@ if args["eos"] == "eostaudyn_ps":
     definitions["PRIMITIVE_SOLVER_ADJUST_CONSERVED"] = (
       "NO_PRIMITIVE_SOLVER_ADJUST_CONSERVED"
     )
+  elif args["errorpolicy"] == "retain_state":
+    definitions["ERROR_POLICY"] = "RetainState"
+    definitions["ERROR_POLICY_CODE"] = "2"
+  elif args["errorpolicy"] == "retain_state_tau":
+    definitions["ERROR_POLICY"] = "RetainStateTau"
+    definitions["ERROR_POLICY_CODE"] = "3"
   else:
     definitions["ERROR_POLICY"] = ""
 
@@ -1968,9 +1980,14 @@ if args["eos"] == "none":
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
 
 # Add PrimitiveSolver EOS files
+error_policy_files = [args["errorpolicy"]]
+if args["errorpolicy"] == "retain_state":
+  error_policy_files.insert(0, "reset_floor")
+elif args["errorpolicy"] == "retain_state_tau":
+  error_policy_files = ["reset_floor", "retain_state", "retain_state_tau"]
 files = [
   args["eospolicy"],
-  args["errorpolicy"],
+  *error_policy_files,
   "ps_error",
   f"cold_{args['eospolicy']}",
 ]

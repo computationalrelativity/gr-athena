@@ -52,6 +52,7 @@
 #include <limits>
 
 #include "../../athena.hpp"
+#include "error_policy_interface.hpp"
 #include "unit_system.hpp"
 
 namespace Primitive
@@ -60,8 +61,14 @@ namespace Primitive
 enum class Error;
 
 template <typename EOSPolicy, typename ErrorPolicy>
+class PrimitiveSolver;
+
+template <typename EOSPolicy, typename ErrorPolicy>
 class EOS : public EOSPolicy, public ErrorPolicy
 {
+  template <typename, typename>
+  friend class PrimitiveSolver;
+
   private:
   // EOSPolicy member functions
   using EOSPolicy::BaryonChemicalPotential;
@@ -126,6 +133,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using ErrorPolicy::MomentumLimits;
   using ErrorPolicy::PressureLimits;
   using ErrorPolicy::PrimitiveFloor;
+  using ErrorPolicy::RetainedFailureResponse;
   using ErrorPolicy::SpeciesLimits;
   using ErrorPolicy::TemperatureLimits;
 
@@ -137,6 +145,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using ErrorPolicy::max_bsq;
   using ErrorPolicy::n_atm;
   using ErrorPolicy::n_threshold;
+  using ErrorPolicy::retained_failure_mode;
   using ErrorPolicy::T_atm;
   using ErrorPolicy::v_max;
   using ErrorPolicy::Y_atm;
@@ -868,6 +877,122 @@ class EOS : public EOSPolicy, public ErrorPolicy
     return result;
   }
 
+  private:
+  //! \brief Return the compile-time retained-failure mode.
+  static constexpr RetainedFailureMode GetRetainedFailureMode()
+  {
+    return retained_failure_mode;
+  }
+
+  //! \brief Construct the cold retained thermodynamic state.
+  inline RetainedThermalState GetColdRetainedThermalState(Real n, Real* Y)
+  {
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    RetainedThermalState state{
+      nan, nan, nan, RetainedThermalMode::invalid
+    };
+    const Real T = GetTemperatureFloor();
+    const Real T_eos =
+      T * code_units->TemperatureConversion(*eos_units);
+    if (!std::isfinite(n) || !std::isfinite(T) || !std::isfinite(T_eos) ||
+        n < min_n || n > max_n || T_eos < min_T || T_eos > max_T)
+    {
+      return state;
+    }
+    for (int s = 0; s < n_species; ++s)
+    {
+      if (!std::isfinite(Y[s]) || Y[s] < min_Y[s] || Y[s] > max_Y[s])
+      {
+        return state;
+      }
+    }
+
+    state.T = T;
+    state.e = GetEnergy(n, T, Y);
+    state.P = GetPressure(n, T, Y);
+    if (std::isfinite(state.e) && std::isfinite(state.P))
+    {
+      state.mode = RetainedThermalMode::cold_fallback;
+    }
+    return state;
+  }
+
+  //! \brief Project a retained energy onto the EOS-supported interval.
+  inline RetainedThermalState GetRetainedThermalState(Real n,
+                                                       Real e_target,
+                                                       Real* Y)
+  {
+    RetainedThermalState cold = GetColdRetainedThermalState(n, Y);
+    if constexpr (retained_failure_mode != RetainedFailureMode::state_tau)
+    {
+      return cold;
+    }
+    if (!std::isfinite(e_target) ||
+        cold.mode == RetainedThermalMode::invalid)
+    {
+      return cold;
+    }
+
+    const Real e_hi_eos = MaximumEnergy(n, Y);
+    const Real e_hi =
+      (e_hi_eos == std::numeric_limits<Real>::max())
+        ? e_hi_eos
+        : e_hi_eos * eos_units->PressureConversion(*code_units);
+    if (!std::isfinite(e_hi) || cold.e > e_hi)
+    {
+      return cold;
+    }
+    if (e_target <= cold.e)
+    {
+      cold.mode = (e_target == cold.e) ? RetainedThermalMode::preserved
+                                        : RetainedThermalMode::projected;
+      return cold;
+    }
+    if (e_hi == cold.e)
+    {
+      cold.mode = RetainedThermalMode::projected;
+      return cold;
+    }
+
+    const Real e_used = std::min(e_hi, e_target);
+    RetainedThermalState state{
+      GetTemperatureFromE(n, e_used, Y),
+      e_used,
+      std::numeric_limits<Real>::quiet_NaN(),
+      (e_used == e_target) ? RetainedThermalMode::preserved
+                           : RetainedThermalMode::projected
+    };
+    const Real T_eos =
+      state.T * code_units->TemperatureConversion(*eos_units);
+    if (!std::isfinite(state.T) || !std::isfinite(T_eos) ||
+        T_eos < min_T || T_eos > max_T)
+    {
+      return cold;
+    }
+    state.P = GetPressure(n, state.T, Y);
+    if (!std::isfinite(state.P))
+    {
+      return cold;
+    }
+    return state;
+  }
+
+  //! \brief Install a prepared retained-failure primitive state.
+  inline bool DoRetainedFailureResponse(Real prim[NPRIM],
+                                        Real n,
+                                        const RetainedThermalState& state,
+                                        const Real* Y)
+  {
+    const bool result =
+      RetainedFailureResponse(prim, n, state.T, Y, n_species);
+    if (result)
+    {
+      prim[IPR] = state.P;
+    }
+    return result;
+  }
+
+  public:
   //! \brief Respond to a failed solve.
   inline bool DoFailureResponse(Real prim[NPRIM])
   {
