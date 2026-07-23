@@ -40,6 +40,12 @@
 #elif ERROR_POLICY_CODE == 1
   //#pragma message("ERROR_POLICY is ResetFloor")
   #include "../z4c/primitive/reset_floor.hpp"
+#elif ERROR_POLICY_CODE == 2
+  //#pragma message("ERROR_POLICY is RetainState")
+  #include "../z4c/primitive/retain_state.hpp"
+#elif ERROR_POLICY_CODE == 3
+  //#pragma message("ERROR_POLICY is RetainStateTau")
+  #include "../z4c/primitive/retain_state_tau.hpp"
 #else
   #error ERROR_POLICY_CODE not recognized.
 #endif
