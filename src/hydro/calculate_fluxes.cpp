@@ -232,6 +232,28 @@ void ReconstructFields(MeshBlock* pmb,
 
   Real nl__, nr__;
 
+  if (os_il == 1)
+  {
+    // The reconstruction kernels populate the left states from il upward
+    // (l_ at i+1), so the slot at il-1 is never written; on each block's
+    // first sweep it holds the zero-initialized allocation and the limits
+    // below would process an all-zero state (spurious
+    // SanitizeMassFractions warnings). Seed it with the adjacent right
+    // state so the loop always acts on valid data.
+    for (int n = 0; n < wl_.GetDim2(); ++n)
+    {
+      wl_(n, il - 1) = wr_(n, il - 1);
+    }
+    for (int n = 0; n < rl_.GetDim2(); ++n)
+    {
+      rl_(n, il - 1) = rr_(n, il - 1);
+    }
+    for (int n = 0; n < al_.GetDim2(); ++n)
+    {
+      al_(n, il - 1) = ar_(n, il - 1);
+    }
+  }
+
   for (int i = il - os_il; i <= iu; ++i)
   {
     nl__ = wl_(IDN, i) / mb;
@@ -256,6 +278,10 @@ void ReconstructFields(MeshBlock* pmb,
     {
       const bool ll__ = peos->GetEOS().ApplySpeciesLimits(Yl__);
       const bool lr__ = peos->GetEOS().ApplySpeciesLimits(Yr__);
+#if defined(USE_TRANSITION_EOS)
+      peos->GetEOS().SanitizeMassFractions(Yl__, Yl__);
+      peos->GetEOS().SanitizeMassFractions(Yr__, Yr__);
+#endif // USE_TRANSITION_EOS
     }
 
     if (pr->xorder_use_aux_s)
