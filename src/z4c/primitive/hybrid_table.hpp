@@ -144,6 +144,20 @@ class HybridTable : public EOSPolicyInterface
   [[noreturn]]
   Real MaximumEntropy(Real n, Real* Y);
 
+  /// Get the minimum specific internal energy at a given density and
+  /// composition
+  Real MinimumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MinimumEnergy(n, Y) / (mb * n) - 1.0;
+  }
+
+  /// Get the maximum specific internal energy at a given density and
+  /// composition
+  Real MaximumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MaximumEnergy(n, Y) / (mb * n) - 1.0;
+  }
+
   public:
   /// Reads the table file.
   void ReadTableFromFile(std::string fname);
