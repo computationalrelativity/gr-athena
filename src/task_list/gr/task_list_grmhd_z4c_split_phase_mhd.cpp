@@ -492,6 +492,10 @@ TaskStatus GRMHD_Z4c_Phase_MHD::AddSourceTermsHydro(MeshBlock* pmb, int stage)
     //     }
     // #endif
 
+#if defined(USE_TRANSITION_EOS)
+    pmb->peos->TransitionNetworkApply(dt_scaled, stage);
+#endif
+
     return TaskStatus::next;
   }
 

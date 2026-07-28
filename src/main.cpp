@@ -218,6 +218,12 @@ int main(int argc, char* argv[])
       gra::evolve::M1N0(ptlc, pmesh);
     }
 
+#if FLUID_ENABLED
+    // Step-cadence transition-EOS physics: NSE composition/mass-excess
+    // reset and RHINE rate diagnostics (no-op for other EOS policies)
+    pmesh->CalculateTransitionNetwork();
+#endif
+
     // Evolve tracker positions before derived quantities (fresh for AHF)
     gra::evolve::TrackerExtremaStep(pmesh);
 
