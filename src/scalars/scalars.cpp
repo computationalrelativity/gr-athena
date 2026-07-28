@@ -11,6 +11,7 @@
 
 // C++ headers
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -121,3 +122,41 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
   // Allocate memory for scratch arrays
   dflx_.NewAthenaArray(NSCALARS, nc1);
 }
+
+#if EOS_POLICY_CODE == 4  // transition EOS
+void PassiveScalars::EnforceSpeciesSum(const AthenaArray<Real>& u,
+                                       int il, int iu, int jl, int ju,
+                                       int kl, int ku)
+{
+  // Minmod-limited prolongation is nonlinear, so the sum of prolonged
+  // species need not equal the prolonged density; rescale as in the
+  // Riemann-solver flux correction.
+  for (int k = kl; k <= ku; ++k)
+  for (int j = jl; j <= ju; ++j)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real D    = u(IDN, k, j, i);
+    const Real Ssum = s(SCXN, k, j, i) + s(SCXP, k, j, i) +
+                      s(SCXA, k, j, i) + s(SCXH, k, j, i);
+    constexpr Real eps = 1e-30;
+    if (std::abs(Ssum) > eps)
+    {
+      const Real ratio = D / Ssum;
+      s(SCXN, k, j, i) *= ratio;
+      s(SCXP, k, j, i) *= ratio;
+      s(SCXA, k, j, i) *= ratio;
+      s(SCXH, k, j, i) *= ratio;
+    }
+    else if (std::abs(D) > eps)
+    {
+      // degenerate landing: free-nucleon split by Ye, as in
+      // EOSTransition::SanitizeMassFractions
+      const Real sYe = std::min(std::max(s(SCYE, k, j, i), 0.0), D);
+      s(SCXP, k, j, i) = sYe;
+      s(SCXN, k, j, i) = D - sYe;
+      s(SCXA, k, j, i) = 0.0;
+      s(SCXH, k, j, i) = 0.0;
+    }
+  }
+}
+#endif  // EOS_POLICY_CODE == 4

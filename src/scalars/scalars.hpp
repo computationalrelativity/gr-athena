@@ -62,6 +62,14 @@ class PassiveScalars
   // public functions:
   void AddFluxDivergence(const Real wght, AthenaArray<Real>& s_out);
 
+#if EOS_POLICY_CODE == 4  // transition EOS
+  // Rescale {SCXN,SCXP,SCXA,SCXH} so sum_l s_l = u(IDN) exactly, restoring the
+  // mass-fraction sum after transport, ghost prolongation and AMR regrid (Ye
+  // is excluded: it has no sum constraint).
+  void EnforceSpeciesSum(const AthenaArray<Real>& u,
+                         int il, int iu, int jl, int ju, int kl, int ku);
+#endif
+
   public:
   MeshBlock* pmy_block;
   // scratch space used to compute fluxes
