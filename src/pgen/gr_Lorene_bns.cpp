@@ -236,7 +236,8 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   ceos = new ColdEOS<COLDEOS_POLICY>();
   InitColdEOS(ceos, pin);
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS) || \
+  defined(USE_TRANSITION_EOS)
   // Dump Lorene eos file
   if (Globals::my_rank == 0)
   {
@@ -445,7 +446,8 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   pgasmax_2 = ceos->GetPressure(rho_2);
 
   // sanity check if the internal energy matches the eos
-#if defined(USE_COMPOSE_EOS) || defined(USE_TABULATED_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_TABULATED_EOS) || \
+  defined(USE_TRANSITION_EOS)
   eps_1 = m_u_mev / ceos->mb * (eps_1 + 1) - 1;  // convert eos baryon mass
 #endif
 
@@ -796,7 +798,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
           }
           else
           {
-#if defined(USE_COMPOSE_EOS) || defined(USE_TABULATED_EOS)
+#if defined(USE_COMPOSE_EOS) || defined(USE_TABULATED_EOS) || \
+  defined(USE_TRANSITION_EOS)
             // Lorene is using the atomic mass unit as reference mass so the
             // density has to be converted
             Real nb = bns->nbar[I] / m_u_si * 1e-45;  // kg/m^3 -> fm^-3
@@ -886,8 +889,45 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
             w(IPR, k, j, i) = ceos->GetPressure(w(IDN, k, j, i));
 
 #if NSCALARS > 0
+#if defined(USE_TRANSITION_EOS)
+            const Real rho_ijk = w(IDN, k, j, i);
+            r(0, k, j, i)      = ceos->GetY(rho_ijk, 0);  // Ye
+            r(SCXN, k, j, i) =
+              ceos->GetY(rho_ijk, SCXN);  // free neutron fraction
+            r(SCXP, k, j, i) =
+              ceos->GetY(rho_ijk, SCXP);  // free proton fraction
+            r(SCXA, k, j, i) = ceos->GetY(rho_ijk, SCXA);  // alpha fraction
+            r(SCXH, k, j, i) =
+              ceos->GetY(rho_ijk, SCXH);  // heavy nuclei fraction
+            r(SCAH, k, j, i) =
+              ceos->GetY(rho_ijk, SCAH);  // average heavy nuclei mass number
+            r(SCEB, k, j, i) = 0.0;  // binding energy per baryon relative to
+                                     // Fe56; set by eos during runtime
+
+            Real sumX = r(SCXN, k, j, i) + r(SCXP, k, j, i) +
+                        r(SCXA, k, j, i) + r(SCXH, k, j, i);
+            if (std::abs(sumX - 1.0) > 1e-2)
+            {
+              printf("Warning: composition in bns pgen does not add to 1\n");
+              printf("  X_n + X_p + X_a + X_h = %e at rho=%e\n",
+                     sumX,
+                     rho_ijk);
+              printf("  X_n=%e X_p=%e X_a=%e X_h=%e A_h=%e\n",
+                     r(SCXN, k, j, i),
+                     r(SCXP, k, j, i),
+                     r(SCXA, k, j, i),
+                     r(SCXH, k, j, i),
+                     r(SCAH, k, j, i));
+            }
+            // renormalize to 1.0
+            r(SCXN, k, j, i) /= sumX;
+            r(SCXP, k, j, i) /= sumX;
+            r(SCXA, k, j, i) /= sumX;
+            r(SCXH, k, j, i) /= sumX;
+#else
             for (int iy = 0; iy < NSCALARS; ++iy)
               r(iy, k, j, i) = ceos->GetY(w(IDN, k, j, i), iy);
+#endif
 #endif
           }
           else
