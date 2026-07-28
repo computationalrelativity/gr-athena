@@ -77,7 +77,7 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
     amr.nvar        = NSCALARS;
     amr.sampling    = comm::Sampling::CC;
     amr.group       = comm::AMRGroup::Main;
-    amr.prolong_op  = comm::ProlongOp::MinmodLinear;
+    amr.prolong_op  = pmb->pmy_mesh->hydro_prolong_op;
     amr.restrict_op = comm::RestrictOp::VolumeWeighted;
     pmb->pamr->Register(amr);
   }
@@ -93,7 +93,7 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
     spec.sampling    = comm::Sampling::CC;
     spec.targets     = comm::CommTarget::All;
     spec.group       = comm::CommGroup::MainInt;
-    spec.prolong_op  = comm::ProlongOp::MinmodLinear;
+    spec.prolong_op  = pmb->pmy_mesh->hydro_prolong_op;
     spec.restrict_op = comm::RestrictOp::VolumeWeighted;
     comm::SetPhysicalBCFromBlockBCs(spec, pmb->nc());
     // component_groups left empty - all scalars, no sign flips

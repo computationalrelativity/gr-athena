@@ -116,6 +116,16 @@ class MeshRefinement
                                     int ej,
                                     int sk,
                                     int ek);
+  void ProlongateCellCenteredWenoZValues(const AthenaArray<Real>& coarse,
+                                         AthenaArray<Real>& fine,
+                                         int sn,
+                                         int en,
+                                         int si,
+                                         int ei,
+                                         int sj,
+                                         int ej,
+                                         int sk,
+                                         int ek);
   void ProlongateSharedFieldX1(const AthenaArray<Real>& coarse,
                                AthenaArray<Real>& fine,
                                int si,
