@@ -2377,6 +2377,7 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
         (init_style == initialize_style::regrid) ||
         (init_style == initialize_style::restart))
     {
+      CalculateTransitionNetwork();
       CalculateHydroFieldDerived();
     }
 #endif  // FLUID_ENABLED
@@ -3026,6 +3027,57 @@ void Mesh::CalculateHydroFieldDerived()
   }
 
 #endif
+}
+
+void Mesh::CalculateTransitionNetwork()
+{
+#if FLUID_ENABLED && Z4C_ENABLED && defined(USE_TRANSITION_EOS)
+
+  int nthreads = GetNumMeshThreads();
+  (void)nthreads;
+  const auto& pmb_array = GetMeshBlocksCached();
+  const int nmb         = pmb_array.size();
+
+#pragma omp parallel num_threads(nthreads)
+  {
+#pragma omp for
+    for (int nix = 0; nix < nmb; ++nix)
+    {
+      MeshBlock* pmb        = pmb_array[nix];
+      Hydro* ph             = pmb->phydro;
+      PassiveScalars* ps    = pmb->pscalars;
+      EquationOfState* peos = pmb->peos;
+
+      // Once-per-step NSE table resync (post-RK, C2P complete). Kept out
+      // of the per-substep network path: a mid-step resync overwrites
+      // registers between RK stage combinations and invalidates the
+      // frozen r0 reference the network's endpoint positivity is
+      // certified against.
+      peos->TransitionNSEResync();
+
+      EquationOfState::geom_sliced_cc gsc;
+
+      const bool coarse_flag = false;
+      for (int k = pmb->ks; k <= pmb->ke; ++k)
+        for (int j = pmb->js; j <= pmb->je; ++j)
+        {
+          peos->GeometryToSlicedCC(
+            gsc, k, j, pmb->is, pmb->ie, coarse_flag, pmb->pcoord);
+          peos->TransitionNetworkStep(ph->w,
+                                      ps->r,
+                                      ph->u,
+                                      ps->s,
+                                      ph->derived_ms,
+                                      ph->derived_int,
+                                      gsc,
+                                      pmb->pcoord,
+                                      k,
+                                      j);
+        }
+    }
+  }
+
+#endif  // FLUID_ENABLED && Z4C_ENABLED && USE_TRANSITION_EOS
 }
 
 void Mesh::CalculateZ4cInitDiagnostics()

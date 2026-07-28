@@ -705,6 +705,11 @@ class Mesh
   // compute all hydro/field derived quantities
   void CalculateHydroFieldDerived();
 
+  // step-cadence transition-EOS physics on physical cells: NSE
+  // composition/mass-excess reset and RHINE rate diagnostics
+  // (no-op unless compiled with the transition EOS)
+  void CalculateTransitionNetwork();
+
   // compute initial z4c diagnostics
   void CalculateZ4cInitDiagnostics();
 

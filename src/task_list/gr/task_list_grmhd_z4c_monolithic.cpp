@@ -642,6 +642,10 @@ TaskStatus GRMHD_Z4c_Monolithic::AddSourceTermsHydro(MeshBlock* pmb, int stage)
 
     pc->AddCoordTermsDivergence(dt_scaled, ph->w, ps->r, pf->bcc, ph->u);
 
+#if defined(USE_TRANSITION_EOS)
+    pmb->peos->TransitionNetworkApply(dt_scaled, stage);
+#endif
+
     return TaskStatus::next;
   }
   return TaskStatus::fail;
