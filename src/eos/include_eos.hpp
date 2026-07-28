@@ -30,6 +30,13 @@
   #define USE_HYBRID_EOS
   #include "../z4c/primitive/hybrid_table.hpp"
   #include "../z4c/primitive/cold_hybrid_table.hpp"
+#elif EOS_POLICY_CODE == 4
+  #ifndef HDF5OUTPUT
+    #error "HDF5 must be enabled to use transition eos"
+  #endif
+  #define USE_TRANSITION_EOS
+  #include "../z4c/primitive/eos_transition.hpp"
+  #include "../z4c/primitive/cold_eos_transition.hpp"
 #else
   #error EOS_POLICY_CODE not recognized.
 #endif
@@ -40,6 +47,9 @@
 #elif ERROR_POLICY_CODE == 1
   //#pragma message("ERROR_POLICY is ResetFloor")
   #include "../z4c/primitive/reset_floor.hpp"
+#elif ERROR_POLICY_CODE == 2
+  //#pragma message("ERROR_POLICY is ResetFloorTransition")
+  #include "../z4c/primitive/reset_floor_transition.hpp"
 #else
   #error ERROR_POLICY_CODE not recognized.
 #endif

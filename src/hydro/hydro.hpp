@@ -150,6 +150,21 @@ class Hydro
       "hydro.aux.h",          "hydro.aux.s",    "hydro.aux.e",
       "hydro.aux.u_t",        "hydro.aux.hu_t", "hydro.aux.cs2",
       "hydro.aux.Omega",
+#if EOS_POLICY_CODE == 4
+      "hydro.aux.heating_rate",
+      "hydro.aux.transition_w",
+      "hydro.aux.X_err",
+      "hydro.aux.fnu",
+      "hydro.aux.qdot_code",
+      "hydro.aux.fnu_lum",
+      "hydro.aux.rhine_dye",
+      "hydro.aux.rhine_dyn",
+      "hydro.aux.rhine_dyp",
+      "hydro.aux.rhine_dya",
+      "hydro.aux.rhine_dyh",
+      "hydro.aux.rhine_dah",
+      "hydro.aux.rhine_dma",
+#endif
     };
   };
 

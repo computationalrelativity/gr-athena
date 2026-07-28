@@ -341,6 +341,63 @@ class EquationOfState
   );
 
 #if FLUID_ENABLED
+#if defined(USE_TRANSITION_EOS)
+  // Reference baryon mass [MeV]: m_u minus the largest binding energy per
+  // baryon the RHINE mass model can produce (model_1 output range minimum,
+  // -0.939160168170929 MeV/baryon). SCEB = 0 then corresponds exactly to
+  // the network's most bound state, so network evolution keeps SCEB (and
+  // the specific internal energy) non-negative.
+  static constexpr Real transition_baryon_mass_MeV =
+    931.4939509082333 - 0.939160168170929;  // = 930.5547907400624
+
+  // One-time setup of the RHINE nuclear-network emulator (model files,
+  // pmode, unit conversions). Called from every EquationOfState
+  // constructor; only the first call loads the models. An empty
+  // rhine_models_path disables RHINE (rates stay zero).
+  static void InitTransitionNetwork(ParameterInput* pin);
+
+  // Transition physics on one (k, j) row of PHYSICAL cells: NSE
+  // composition/binding reset (w == 1) and RHINE rate evaluation (w < 1),
+  // writing IX_TRANS / IX_HEAT / IX_FNU. With dt_apply_code <= 0 the rates
+  // are diagnostic only (pass 1); with dt_apply_code > 0 (the RK substep
+  // beta*dt) they are additionally applied as explicit sources to
+  // cons_scalar and the tau neutrino sink, with the '0' reference
+  // composition frozen at full-step start (pscalars->r0).
+  void TransitionNetworkStep(AA& prim,
+                             AA& prim_scalar,
+                             AA& cons,
+                             AA& cons_scalar,
+                             AA& hyd_der_ms,
+                             AA& hyd_der_int,
+                             geom_sliced_cc& gsc,
+                             Coordinates* pco,
+                             int k,
+                             int j,
+                             const Real dt_apply_code = 0.0);
+
+  // Per-RK-substep RHINE source application over this EOS's MeshBlock
+  // (pass 2). No-op unless hydro/rhine_apply = true and models are loaded.
+  // At stage 1 snapshots pscalars->r into pscalars->r0.
+  void TransitionNetworkApply(const Real dt_scaled, const int stage);
+
+  // Re-synchronize the advected composition of NSE cells (w == 1) with
+  // the table. Called once per time step, AFTER the final RK stage's C2P:
+  // resyncing mid-step would overwrite registers between stage
+  // combinations and invalidate the frozen r0 reference the network's
+  // endpoint positivity is certified against (the Xp < 0 events at the
+  // NSE-surface strip). Post-step, the next step's r0 snapshot picks up
+  // the resynced state -- reference consistent by construction.
+  void TransitionNSEResync();
+
+  // Output-cadence diagnostics only (IX_TRANS, IX_XERR); the physics
+  // lives in TransitionNetworkStep.
+  void TransitionDiagnostics(AA& prim,
+                             AA& prim_scalar,
+                             AA& hyd_der_ms,
+                             int k,
+                             int j,
+                             int i);
+#endif
   inline Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>&
   GetEOS()
   {

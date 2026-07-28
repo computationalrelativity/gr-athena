@@ -186,6 +186,19 @@ enum MagneticIndex
 
 // array indices for 1D primitives: velocity, transverse components of field
 #if FLUID_ENABLED
+#if EOS_POLICY_CODE == 4
+enum ScalarVariables
+{
+  SCYE   = 0,  //! electron fraction
+  SCXN   = 1,  //! mass fraction of free neutrons
+  SCXP   = 2,  //! mass fraction of free protons
+  SCXA   = 3,  //! mass fraction of alpha particles
+  SCXH   = 4,  //! mass fraction of heavy nuclei
+  SCAH   = 5,  //! average atomic mass of heavy nuclei
+  SCEB   = 6,  //! binding energy per baryon relative to baryon mass factor
+  SCNVAR = 7   //! number of scalar variables
+};
+#endif
 enum PrimIndex
 {
   IVX   = 1,
@@ -252,8 +265,26 @@ enum HydroDerivedIndex
   IX_CS2    = 8,  // cs^2
   IX_OM     = 9,  // Omega = (- y (alpha v^x -beta^x) + x (alpha v^y - beta^y))
                   // /(x^2 + y^2) angular velocity
+#if EOS_POLICY_CODE == 4
+  IX_HEAT    = 10,  // heating rate per unit volume (erg/cm^3/s)
+  IX_TRANS   = 11,  // eos transition factor
+  IX_XERR    = 12,  // mass fraction error (sum of mass fractions - 1)
+  IX_FNU     = 13,  // neutrino loss fraction of the nuclear energy release
+  IX_QDOT    = 14,  // densitized heating rate, code energy / code time / vol
+  IX_LNU     = 15,  // densitized fnu neutrino loss rate, code units
+  IX_DYE     = 16,  // RHINE rate dYe/dt [1/s, comoving]
+  IX_DYN     = 17,  // RHINE rate dYn/dt [1/s]
+  IX_DYP     = 18,  // RHINE rate dYp/dt [1/s]
+  IX_DYA     = 19,  // RHINE rate dYalpha/dt [1/s]
+  IX_DYH     = 20,  // RHINE rate dYh/dt [1/s]
+  IX_DAH     = 21,  // RHINE rate dAh/dt [1/s]
+  IX_DMA     = 22,  // RHINE rate dma/dt [MeV/baryon/s]
+  NDRV_HYDRO = 23
+};
+#else
   NDRV_HYDRO = 10
 };
+#endif
 
 // Hydro-derived quantities for internal use
 enum HydroInternalDerivedIndex

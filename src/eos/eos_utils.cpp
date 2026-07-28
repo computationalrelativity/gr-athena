@@ -1,4 +1,5 @@
 // C++ standard headers
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -7,14 +8,23 @@
 #include "../athena_aliases.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
+#include "../globals.hpp"
 #include "../hydro/hydro.hpp"
+#include "../parameter_input.hpp"
+#include "../scalars/scalars.hpp"
 #include "../utils/linear_algebra.hpp"  // Det. & friends
 #include "../z4c/ahf.hpp"
 #include "../z4c/z4c.hpp"
 #include "eos.hpp"
 
 // External libraries
-// ...
+#if defined(USE_TRANSITION_EOS)
+// RHINE nuclear-network emulator (header-only). Requires the rhinehpp
+// sources on the include path: --include=<...>/rhinehpp/src at configure.
+#include <rhine_optim.hpp>
+
+#include <string>
+#endif
 
 // ----------------------------------------------------------------------------
 void EquationOfState::StatePrintPoint(const std::string& tag,
@@ -602,6 +612,493 @@ void EquationOfState::GeometryToSlicedCC(geom_sliced_cc& gsc,
   gsc.is_scratch_allocated = true;
 }
 
+#if defined(USE_TRANSITION_EOS)
+
+namespace
+{
+// Shared RHINE model (~2.2 MB of network weights, one instance per
+// process). RHINE::Model::run() is const and thread-safe; initialization
+// is serialized in InitTransitionNetwork.
+RHINE::Model g_rhine;
+bool g_rhine_init  = false;
+bool g_rhine_ready = false;
+bool g_rhine_apply = false;
+bool g_rhine_verbose = false;
+int g_rhine_pmode  = 1;
+Real g_time_s      = 1.0;       // seconds per code time unit
+
+constexpr Real g_mb_MeV =
+  EquationOfState::transition_baryon_mass_MeV;       // reference baryon mass
+constexpr Real m_u_MeV = 931.4939509082333;  // atomic mass unit [MeV]
+constexpr Real amu_g   = 1.66053906660e-24;  // atomic mass unit [g]
+constexpr Real MeV_erg = 1.602176634e-6;
+}  // namespace
+
+void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
+{
+#pragma omp critical(EquationOfState_InitTransitionNetwork)
+  {
+    if (!g_rhine_init)
+    {
+      g_rhine_init   = true;
+      g_rhine_pmode  = pin->GetOrAddInteger("hydro", "rhine_pmode", 1);
+      g_rhine_apply  = pin->GetOrAddBoolean("hydro", "rhine_apply", false);
+      g_rhine_verbose = pin->GetOrAddBoolean("hydro", "rhine_verbose", false);
+      g_time_s = Primitive::GeometricSolar.TimeConversion(Primitive::CGS);
+      std::string path =
+        pin->GetOrAddString("hydro", "rhine_models_path", "");
+      if (!path.empty())
+      {
+        g_rhine.loadModels(path);
+        g_rhine_ready = true;
+      }
+      if (Globals::my_rank == 0)
+      {
+        printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s)\n",
+               g_rhine_ready ? path.c_str()
+                             : "disabled (no rhine_models_path)",
+               g_rhine_pmode,
+               g_rhine_apply ? "true" : "false",
+               g_rhine_verbose ? "true" : "false");
+      }
+    }
+  }
+}
+
+void EquationOfState::TransitionNetworkStep(AA& prim,
+                                            AA& prim_scalar,
+                                            AA& cons,
+                                            AA& cons_scalar,
+                                            AA& hyd_der_ms,
+                                            AA& hyd_der_int,
+                                            geom_sliced_cc& gsc,
+                                            Coordinates* pco,
+                                            int k,
+                                            int j,
+                                            const Real dt_apply_code)
+{
+  MeshBlock* pmb      = pmy_block_;
+  const bool apply    = dt_apply_code > 0.0;
+  const Real oo_mb    = OO(GetEOS().GetBaryonMass());
+  const Real dt_code  = pmb->pmy_mesh->dt;
+  const bool f2       = pmb->ncells2 > 1;
+  const bool f3       = pmb->ncells3 > 1;
+  // RHINE's QSE relaxation rates are finite differences over dt; skip the
+  // network before the first time step is known (initialization).
+  const bool rhine_on = g_rhine_ready && (dt_code > 0.0);
+  Real Y[MAX_SPECIES] = { 0.0 };
+
+  for (int i = pmb->is; i <= pmb->ie; ++i)
+  {
+    for (int l = 0; l < NSCALARS; ++l)
+    {
+      Y[l] = prim_scalar(l, k, j, i);
+    }
+    const Real n = prim(IDN, k, j, i) * oo_mb;  // fm^-3
+    const Real T = hyd_der_ms(IX_T, k, j, i);   // MeV, fresh from c2p
+    const Real w = GetEOS().TransitionFactor(n, T);
+    hyd_der_ms(IX_TRANS, k, j, i) = w;
+
+    if (w == 1.0)
+    {
+      // NSE cell: no network sources. The table resync of the advected
+      // composition happens once per step, after the final RK stage
+      // (TransitionNSEResync) -- doing it here, mid-step, would overwrite
+      // registers between stage combinations and invalidate the frozen
+      // r0 reference the network's endpoint positivity is certified
+      // against.
+      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      {
+        if (l == IX_TRANS || l == IX_XERR) continue;
+        hyd_der_ms(l, k, j, i) = 0.0;
+      }
+      continue;
+    }
+
+    if (!rhine_on || !(T > 0.0))
+    {
+      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      {
+        if (l == IX_TRANS || l == IX_XERR) continue;
+        hyd_der_ms(l, k, j, i) = 0.0;
+      }
+      continue;
+    }
+
+    // Diagnostic only (cell still runs the network): a fully collapsed
+    // advected composition reaches the sanitize fallback (free nucleons,
+    // floored Ah) -- a state the removed network gate used to skip.
+    // grep -c 'collapsed composition' gives the frequency.
+    if (Y[SCXN] + Y[SCXP] + Y[SCXA] + Y[SCXH] <= 0.0)
+    {
+      printf("RHINE: collapsed composition fed to network at "
+             "n=%.3e T=%.3e\n", n, T);
+    }
+
+    // Lagrangian expansion rate: d ln(rho)/dt = -div(v) along the flow
+    // (Just et al. Eq. 18), from the stored transport velocities
+    // alpha*v - beta; converted to fluid proper time and 1/s. The 0.3/s
+    // clamp is applied inside RHINE.
+    Real divv = (hyd_der_int(IX_TR_V1, k, j, i + 1) -
+                 hyd_der_int(IX_TR_V1, k, j, i - 1)) /
+                (pco->x1v(i + 1) - pco->x1v(i - 1));
+    if (f2)
+    {
+      divv += (hyd_der_int(IX_TR_V2, k, j + 1, i) -
+               hyd_der_int(IX_TR_V2, k, j - 1, i)) /
+              (pco->x2v(j + 1) - pco->x2v(j - 1));
+    }
+    if (f3)
+    {
+      divv += (hyd_der_int(IX_TR_V3, k + 1, j, i) -
+               hyd_der_int(IX_TR_V3, k - 1, j, i)) /
+              (pco->x3v(k + 1) - pco->x3v(k - 1));
+    }
+    const Real W     = hyd_der_ms(IX_LOR, k, j, i);
+    const Real alpha = gsc.alpha_(i);
+    const Real lam   = -(W / alpha) * divv / g_time_s;      // 1/s
+    const Real dt_s  = dt_code * (alpha / W) * g_time_s;    // proper time
+
+    // RHINE inputs: rho = m_u * n_B [g/cm^3] (atomic-mass convention of
+    // the paper), abundances per baryon, and the advected mass excess
+    // m-tilde = mb*(1 + SCEB) - m_u [MeV/baryon] as mass0.
+    // RHINE takes log10 of the abundances and of the internally derived
+    // free-proton fraction yp = 1 - yn - 4*ya - Ah*yh; advected fractions
+    // that drifted negative or sum above 1 turn those into log10 of a
+    // negative number (NaN). Sanitize, then rescale away the rounding.
+    Real Y_s[MAX_SPECIES];
+    GetEOS().SanitizeMassFractions(Y, Y_s);
+    const Real rho_cgs = n * 1e39 * amu_g;
+    const Real ye      = Y_s[SCYE];
+    const Real ah      = Y_s[SCAH];
+    Real yn            = Y_s[SCXN];
+    Real ya            = 0.25 * Y_s[SCXA];
+    Real yh            = (ah > 0.0) ? Y_s[SCXH] / ah : 0.0;
+    // Rescale with headroom: an exact rescale to sum 1 leaves the internal
+    // yp = 1 - yn - 4 ya - Ah yh at +-1 ulp, and RHINE's log10(yp + 1e-25)
+    // turns a -1e-16 into NaN (getMa).
+    const Real s_max   = 1.0 - 1e-12;
+    const Real s_b     = yn + 4.0 * ya + ah * yh;
+    if (s_b > s_max)
+    {
+      const Real f = s_max / s_b;
+      yn *= f;
+      ya *= f;
+      yh *= f;
+    }
+    // '0' reference set: in apply mode the composition frozen at full-step
+    // start (Just et al. higher-order convention, RHINE.f90:202-204),
+    // sanitized through the same path as the current state; in diagnostic
+    // mode the current state itself (pass-1 behavior).
+    Real ye0 = ye, yn0 = yn, ya0 = ya, yh0 = yh, ah0 = ah;
+    Real mass0 = g_mb_MeV * (1.0 + Y_s[SCEB]) - m_u_MeV;
+    if (apply)
+    {
+      AA& r0 = pmb->pscalars->r0;
+      Real Y0[MAX_SPECIES] = { 0.0 };
+      Real Y0_s[MAX_SPECIES];
+      for (int l = 0; l < NSCALARS; ++l)
+      {
+        Y0[l] = r0(l, k, j, i);
+      }
+      GetEOS().SanitizeMassFractions(Y0, Y0_s);
+      // A cell that was floored atmosphere at step start carries the reset
+      // defaults (Ye=0.5, Ah=1, SCEB=0) in r0 -- far outside the network's
+      // domain (Ah in [4,300]) and unrelated to the matter that has since
+      // flowed in. Keep the current-state '0' reference (first order, the
+      // pass-1 convention) for such cells.
+      if (Y0_s[SCAH] >= 4.0)
+      {
+        ye0 = Y0_s[SCYE];
+        ah0 = Y0_s[SCAH];
+        yn0 = Y0_s[SCXN];
+        ya0 = 0.25 * Y0_s[SCXA];
+        yh0 = (ah0 > 0.0) ? Y0_s[SCXH] / ah0 : 0.0;
+        const Real s_b0 = yn0 + 4.0 * ya0 + ah0 * yh0;
+        if (s_b0 > s_max)
+        {
+          const Real f0 = s_max / s_b0;
+          yn0 *= f0;
+          ya0 *= f0;
+          yh0 *= f0;
+        }
+        mass0 = g_mb_MeV * (1.0 + Y0_s[SCEB]) - m_u_MeV;
+      }
+    }
+
+    double dye, dyn, dyp, dya, dyh, dah, dma, fnu;
+    g_rhine.run(rho_cgs, T, ye, yn, ya, yh, ah, lam, dt_s,
+                ye0, yn0, ya0, yh0, ah0, mass0,
+                dye, dyn, dyp, dya, dyh, dah, dma, fnu, g_rhine_pmode);
+
+    // Safety net: a non-finite rate would poison the conserved state (and
+    // the hst integrals) permanently; report and drop the cell's sources.
+    if (!(std::isfinite(dye) && std::isfinite(dyn) && std::isfinite(dyp) &&
+          std::isfinite(dya) && std::isfinite(dyh) && std::isfinite(dah) &&
+          std::isfinite(dma) && std::isfinite(fnu)))
+    {
+      printf("RHINE: non-finite rates dropped at "
+             "rho=%.6e T=%.6e ye=%.6e yn=%.6e ya=%.6e yh=%.6e ah=%.6e "
+             "ah0=%.6e mass0=%.6e (apply=%d)\n",
+             rho_cgs, T, ye, yn, ya, yh, ah, ah0, mass0, (int)apply);
+      dye = dyn = dyp = dya = dyh = dah = dma = fnu = 0.0;
+    }
+    // fnu (model 8) is only valid while the composition releases energy
+    // (Eq. 27); the gate is the host's responsibility.
+    if (!(dma < 0.0))
+    {
+      fnu = 0.0;
+    }
+
+    // Diagnostic: comoving heating rate per unit volume, (1 - fnu) of the
+    // rest-mass energy release, in erg/cm^3/s.
+    hyd_der_ms(IX_HEAT, k, j, i) =
+      -(1.0 - fnu) * dma * MeV_erg * (n * 1e39);
+    hyd_der_ms(IX_FNU, k, j, i) = fnu;
+
+    // Raw comoving network rates (per second of fluid proper time).
+    hyd_der_ms(IX_DYE, k, j, i) = dye;
+    hyd_der_ms(IX_DYN, k, j, i) = dyn;
+    hyd_der_ms(IX_DYP, k, j, i) = dyp;
+    hyd_der_ms(IX_DYA, k, j, i) = dya;
+    hyd_der_ms(IX_DYH, k, j, i) = dyh;
+    hyd_der_ms(IX_DAH, k, j, i) = dah;
+    hyd_der_ms(IX_DMA, k, j, i) = dma;
+
+    // Densitized code-unit rates for hst volume integrals: for a comoving
+    // energy exchange rate q the four-force is G^mu = q u^mu, and the tau
+    // source is alpha^2 sqrt(gamma) G^t = alpha * D * q/(rho) -- no 1/W
+    // (unlike the per-baryon scalar sources below). Sum(slot * coord. cell
+    // volume) is the total luminosity in code energy per code time.
+    {
+      const Real rate = cons(IDN, k, j, i) * (-dma / g_mb_MeV) *
+                        alpha * g_time_s;
+      hyd_der_ms(IX_QDOT, k, j, i) = (1.0 - fnu) * rate;
+      hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
+    }
+
+    if (apply)
+    {
+      // Explicit source, substep proper time [s]; RHINE's dt_s stays the
+      // FULL-step proper time so the finite-difference rates keep their
+      // step-start reference.
+      const Real dt_ap = dt_apply_code * (alpha / W) * g_time_s;
+      const Real D     = cons(IDN, k, j, i);
+      // (Xh1 - Xh0)/dt_s = dah*yh0 + ah0*dyh + dt_s*dah*dyh, cf. rhinehpp
+      // normalization() where rates are endpoint differences w.r.t. the
+      // '0' reference. Must use yh0/ah0 (not the current values): RHINE's
+      // baryon-number identity dyn + dyp + 4 dya + (Xh1 - Xh0)/dt_s = 0
+      // holds against the reference state only.
+      const Real dxh = dah * yh0 + ah0 * dyh + dt_s * dah * dyh;
+
+      // With the correct dxh cross term the composition increments sum to
+      // zero algebraically, so plain application conserves sum X = 1 up to
+      // per-species clamping in C2P (monitored via max_abs_Xsum_err).
+      cons_scalar(SCXN, k, j, i) += D * dyn * dt_ap;
+      cons_scalar(SCXP, k, j, i) += D * dyp * dt_ap;
+      cons_scalar(SCXA, k, j, i) += D * 4.0 * dya * dt_ap;
+      cons_scalar(SCXH, k, j, i) += D * dxh * dt_ap;
+
+      // Advection between substeps shifts the state away from the frozen
+      // '0' reference the endpoint positivity is certified against, so a
+      // tiny species can land slightly negative (X_new = y1 + dX_adv,
+      // ~1e-4 at the transition strip). The sum is conserved regardless
+      // (both endpoint sets sum to 1), so the repair is a conservative
+      // transfer: zero the negative species, take the deficit from the
+      // largest one -- sum s = D untouched, unlike a per-species clamp
+      // which discards the deficit. Printed only under hydro/rhine_verbose
+      // and a significant deficit (X < -1e-5): in BNS ejecta the dilute
+      // out-of-NSE strip lands at -1e-5..-1e-2 every substep (~1e3
+      // prints/cycle) and flooded the log; the hst norms track the
+      // conservation budget regardless. A sum drift
+      // cannot come from this scheme; reported against an absolute
+      // threshold well above the AMR prolongation residue (~1e-13 in
+      // cons units) so a hit means a genuine leak.
+      {
+        const int sp[4] = { SCXN, SCXP, SCXA, SCXH };
+        Real Xs[4];
+        int lmax = 0;
+        bool neg = false;
+        for (int l = 0; l < 4; ++l)
+        {
+          Xs[l] = cons_scalar(sp[l], k, j, i);
+          if (Xs[l] < 0.0) neg = true;
+          if (Xs[l] > Xs[lmax]) lmax = l;
+        }
+        if (neg)
+        {
+          Real xmin = 0.0;
+          for (int l = 0; l < 4; ++l)
+          {
+            xmin = std::min(xmin, Xs[l] / D);
+          }
+          if (g_rhine_verbose && xmin < -1e-5)
+          {
+            printf("RHINE: negative landing repaired at n=%.3e T=%.3e: "
+                   "X = %.3e %.3e %.3e %.3e\n",
+                   n, T, Xs[0] / D, Xs[1] / D, Xs[2] / D, Xs[3] / D);
+          }
+          for (int l = 0; l < 4; ++l)
+          {
+            if (Xs[l] < 0.0)
+            {
+              Xs[lmax] += Xs[l];
+              Xs[l] = 0.0;
+            }
+          }
+          for (int l = 0; l < 4; ++l)
+          {
+            cons_scalar(sp[l], k, j, i) = Xs[l];
+          }
+        }
+        const Real sX = Xs[0] + Xs[1] + Xs[2] + Xs[3];
+        if (std::abs(sX - D) > 1e-10)
+        {
+          printf("RHINE: sum drift at n=%.3e T=%.3e: sumX-1 = %.3e, "
+                 "sX-D = %.3e\n", n, T, sX / D - 1.0, sX - D);
+        }
+      }
+      cons_scalar(SCYE, k, j, i) += D * dye * dt_ap;
+      cons_scalar(SCAH, k, j, i) += D * dah * dt_ap;
+      // Heating enters implicitly: SCEB feeds eps through c2p; no explicit
+      // tau heating term (Just et al. Eq. 6).
+      cons_scalar(SCEB, k, j, i) += D * (dma / g_mb_MeV) * dt_ap;
+      // Neutrino energy sink (Just et al. Eq. 28); fnu = 0 unless dma < 0.
+      // Divisor g_mb_MeV (not m_u): D is densitized with mb per baryon and
+      // SCEB enters eps in units of mb, so mb keeps the (1-fnu)/fnu split
+      // of dma exact between the SCEB channel and this sink.
+      // No 1/W here: the tau source of the four-force G^mu = q u^mu is
+      // alpha^2 sqrt(gamma) G^t = alpha * D * (fnu dma/mb), whereas the
+      // per-baryon scalar sources above carry the proper-time factor
+      // alpha/W (Eq. 28 likewise: R_{beta,tau} = D fnu mdot/m_u).
+      cons(IEN, k, j, i) +=
+        D * fnu * (dma / g_mb_MeV) * dt_apply_code * alpha * g_time_s;
+      // Momentum projection of the same four-force (radiation drag): the
+      // escaping neutrinos carry momentum q u_a; unlike tau this source
+      // uses the per-proper-time factor dt_ap since alpha sqrt(g) G_a =
+      // D q u_a (alpha/W). Keeps the removed four-momentum parallel to
+      // u^mu (Just et al. Eq. 28 drops this term; zero for v = 0).
+      const Real snu = D * fnu * (dma / g_mb_MeV) * dt_ap;
+      for (int a = 0; a < 3; ++a)
+      {
+        Real u_d_a = 0.0;
+        for (int b = 0; b < 3; ++b)
+        {
+          u_d_a += gsc.gamma_dd_(a, b, i) * prim(IVX + b, k, j, i);
+        }
+        cons(IM1 + a, k, j, i) += snu * u_d_a;
+      }
+    }
+  }
+}
+
+void EquationOfState::TransitionNetworkApply(const Real dt_scaled,
+                                             const int stage)
+{
+  if (!g_rhine_apply || !g_rhine_ready)
+  {
+    return;
+  }
+
+  MeshBlock* pmb     = pmy_block_;
+  Hydro* ph          = pmb->phydro;
+  PassiveScalars* ps = pmb->pscalars;
+
+  if (stage == 1)
+  {
+    // Freeze the full-step-start composition as the RHINE '0' reference;
+    // at stage 1 ps->r is the end-of-previous-step C2P state.
+    for (int l = 0; l < NSCALARS; ++l)
+    for (int k = pmb->ks; k <= pmb->ke; ++k)
+    for (int j = pmb->js; j <= pmb->je; ++j)
+    for (int i = pmb->is; i <= pmb->ie; ++i)
+    {
+      ps->r0(l, k, j, i) = ps->r(l, k, j, i);
+    }
+  }
+
+  geom_sliced_cc gsc;
+  for (int k = pmb->ks; k <= pmb->ke; ++k)
+  for (int j = pmb->js; j <= pmb->je; ++j)
+  {
+    GeometryToSlicedCC(gsc, k, j, pmb->is, pmb->ie, false, pmb->pcoord);
+    TransitionNetworkStep(ph->w, ps->r, ph->u, ps->s,
+                          ph->derived_ms, ph->derived_int,
+                          gsc, pmb->pcoord, k, j, dt_scaled);
+  }
+}
+
+void EquationOfState::TransitionNSEResync()
+{
+  MeshBlock* pmb     = pmy_block_;
+  Hydro* ph          = pmb->phydro;
+  PassiveScalars* ps = pmb->pscalars;
+  AA& prim_scalar    = ps->r;
+  AA& cons_scalar    = ps->s;
+  AA& hyd_der_ms     = ph->derived_ms;
+  Real Y[MAX_SPECIES] = { 0.0 };
+
+  const Real oo_mb = OO(GetEOS().GetBaryonMass());
+  // Full block INCLUDING ghosts: this runs after the step's last ghost
+  // exchange, so an interior-only resync leaves ghost s stale relative to
+  // the neighbor's resynced interior. The xorder fallback mask
+  // (CheckStateWithFluxDivergence) reads those ghosts at stage 1 of the
+  // next step; a stale ghost flips the hybridization decision on one side
+  // of a shared face only, giving unequal fluxes across the face -- a mass
+  // leak. Resyncing ghosts from the (synced, C2P-fresh via
+  // PrimitivesGhosts) local data reproduces the neighbor's interior result
+  // bitwise on same-level faces.
+  for (int k = 0; k <= pmb->ncells3 - 1; ++k)
+  for (int j = 0; j <= pmb->ncells2 - 1; ++j)
+  for (int i = 0; i <= pmb->ncells1 - 1; ++i)
+  {
+    const Real n = ph->w(IDN, k, j, i) * oo_mb;  // fm^-3
+    const Real T = hyd_der_ms(IX_T, k, j, i);    // MeV, fresh from c2p
+    if (GetEOS().TransitionFactor(n, T) < 1.0)
+      continue;
+    for (int l = 0; l < NSCALARS; ++l)
+    {
+      Y[l] = prim_scalar(l, k, j, i);
+    }
+    // NSE: re-synchronize the advected composition and mass-excess
+    // scalar with the table (cf. Just et al. 2026, the m-tilde reset
+    // above the NSE dropout).
+    prim_scalar(SCXN, k, j, i) = GetEOS().GetYn(n, T, Y);
+    prim_scalar(SCXP, k, j, i) = GetEOS().GetYp(n, T, Y);
+    prim_scalar(SCXA, k, j, i) = GetEOS().GetXa(n, T, Y);
+    prim_scalar(SCAH, k, j, i) = GetEOS().GetAN(n, T, Y);
+    prim_scalar(SCXH, k, j, i) = GetEOS().GetXh(n, T, Y);
+    prim_scalar(SCEB, k, j, i) = GetEOS().GetNSEBindingEnergy(n, T, Y);
+    for (int l : { SCXN, SCXP, SCXA, SCAH, SCXH, SCEB })
+    {
+      cons_scalar(l, k, j, i) =
+        prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
+    }
+  }
+}
+
+void EquationOfState::TransitionDiagnostics(AA& prim,
+                                            AA& prim_scalar,
+                                            AA& hyd_der_ms,
+                                            int k,
+                                            int j,
+                                            int i)
+{
+  Real Y[MAX_SPECIES] = { 0.0 };
+  for (int l = 0; l < NSCALARS; ++l)
+  {
+    Y[l] = prim_scalar(l, k, j, i);
+  }
+  const Real n = prim(IDN, k, j, i) / GetEOS().GetBaryonMass();
+  const Real T = hyd_der_ms(IX_T, k, j, i);
+
+  hyd_der_ms(IX_TRANS, k, j, i) = GetEOS().TransitionFactor(n, T);
+  hyd_der_ms(IX_XERR, k, j, i) =
+    prim_scalar(SCXN, k, j, i) + prim_scalar(SCXP, k, j, i) +
+    prim_scalar(SCXA, k, j, i) + prim_scalar(SCXH, k, j, i) - 1;
+}
+#endif  // USE_TRANSITION_EOS
+
 void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
                                         AA& hyd_der_int,
                                         AA& fld_der_ms,
@@ -695,6 +1192,10 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
     Real Vx                    = hyd_der_int(IX_TR_V1, k, j, i);
     Real Vy                    = hyd_der_int(IX_TR_V2, k, j, i);
     hyd_der_ms(IX_OM, k, j, i) = (x * Vy - y * Vx) / (SQR(x) + SQR(y));
+
+#if defined(USE_TRANSITION_EOS)
+    TransitionDiagnostics(prim, prim_scalar, hyd_der_ms, k, j, i);
+#endif  // USE_TRANSITION_EOS
 
 #if MAGNETIC_FIELDS_ENABLED
     fld_der_ms(IX_B2, k, j, i) = LinearAlgebra::InnerProductVecSlicedMetric(

@@ -40,6 +40,20 @@
 
 // ----------------------------------------------------------------------------
 
+// Mass-conservation audit of the c2p driver: cumulative (since launch/restart)
+// baryon mass added/removed on interior cells by (a) the c2p write-back
+// (floors, limits, failure response) and (b) the admissibility atmosphere
+// reset. Per-rank totals, reported through user hst channels
+// (mesh_standard_enroll.cpp) which emit them once per rank (lid == 0).
+namespace EOSDiag
+{
+double c2p_dM_plus  = 0.0;
+double c2p_dM_minus = 0.0;
+double adm_dM       = 0.0;
+// Regrid-transfer audit, accumulated in amr_loadbalance.cpp (rank 0 only).
+double amr_dM = 0.0;
+}
+
 namespace
 {
 
@@ -121,6 +135,52 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
 
+#elif defined(USE_TRANSITION_EOS)
+  eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
+  std::string compose_table   = pin->GetString("hydro", "table");
+  std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+  Real baryon_mass =
+    pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
+  // Transition strips: optional; if omitted the EOS defaults are used
+  // (T strip 0.5 -> 0.6 MeV per the RHINE NSE-dropout condition, density
+  // strip one decade above the compose table edge).
+  Real trans_n_start = pin->GetOrAddReal(
+    "hydro",
+    "trans_n_start",
+    0.0);  // upper density border of transition region
+  Real trans_n_end = pin->GetOrAddReal(
+    "hydro", "trans_n_end", 0.0);  // lower density border of transition region
+  Real trans_T_start = pin->GetOrAddReal(
+    "hydro",
+    "trans_t_start",
+    0.0);  // upper temperature border of transition region
+  Real trans_T_end = pin->GetOrAddReal(
+    "hydro",
+    "trans_t_end",
+    0.0);  // lower temperature border of transition region
+  Real helm_n_max = pin->GetOrAddReal(
+    "hydro", "helm_n_max", 0.0);  // always use compose above this density
+  Real helm_T_max = pin->GetOrAddReal(
+    "hydro", "helm_T_max", 0.0);  // always use compose above this temperature
+
+  if (trans_n_start > 0.0 || trans_n_end > 0.0 || trans_T_start > 0.0 ||
+      trans_T_end > 0.0)
+  {
+    eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
+  }
+  if (helm_n_max > 0.0)
+    eos.SetHelmholtzNMax(helm_n_max);
+  if (helm_T_max > 0.0)
+    eos.SetHelmholtzTMax(helm_T_max);
+  eos.InitializeTables(compose_table, helmholtz_table, baryon_mass);
+  Real mb = eos.GetBaryonMass();
+  // transfer eos boundaries to ResetFloorTransition
+  Real ld_n, hd_n, ld_t, hd_t;
+  eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  // RHINE nuclear-network emulator (pass 1: diagnostic rates only)
+  InitTransitionNetwork(pin);
+
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
   Real mb = pin->GetOrAddReal("hydro", "bmass", 1.0);
@@ -188,6 +248,15 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
 
   eos->ReadColdSliceFromFile(table, species_names);
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+
+#elif defined(USE_TRANSITION_EOS)
+  std::string table = pin->GetString("hydro", "table");
+
+  eos->ReadColdSliceFromFile(table);
+  eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
+  Real baryon_mass =
+    pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
+  eos->UpdateBaryonMass(baryon_mass);
 
 #elif defined(USE_IDEAL_GAS)
   Real k_adi = pin->GetReal("hydro", "k_adi");
@@ -291,13 +360,16 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
   int KU = ku;
   SanitizeLoopLimits(IL, IU, JL, JU, KL, KU, coarse_flag, pco);
 
+  // Mass-conservation audit (see EOSDiag): accumulate per-call, flush once.
+  Real diag_dm_p = 0.0, diag_dm_m = 0.0, diag_dm_adm = 0.0;
+
   for (int k = KL; k <= KU; ++k)
     for (int j = JL; j <= JU; ++j)
     {
       GeometryToSlicedCC(gsc, k, j, IL, IU, coarse_flag, pco);
 
 // do actual variable conversion ------------------------------------------
-#pragma omp simd
+#pragma omp simd reduction(+ : diag_dm_p, diag_dm_m, diag_dm_adm)
       for (int i = IL; i <= IU; ++i)
       {
         if (skip_physical && (pmb->is <= i) && (i <= pmb->ie) &&
@@ -333,8 +405,15 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           }
         }
 
+        const bool diag_interior =
+          (!coarse_flag) && (pmb->is <= i) && (i <= pmb->ie) &&
+          (pmb->js <= j) && (j <= pmb->je) && (pmb->ks <= k) && (k <= pmb->ke);
+        const Real diag_vol =
+          diag_interior ? pco->dx1f(i) * pco->dx2f(j) * pco->dx3f(k) : 0.0;
+
         if (!is_admissible)
         {
+          const Real diag_Dg_old = cons(IDN, k, j, i);
           PrimHelper::SetPrimAtmo(
             eos, prim, prim_scalar, k, j, i, &temperature);
           // SetEuclideanCC(gsc, i);
@@ -351,6 +430,9 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
                                      j,
                                      i,
                                      ps);
+
+          if (diag_interior && std::isfinite(diag_Dg_old))
+            diag_dm_adm += (cons(IDN, k, j, i) - diag_Dg_old) * diag_vol;
 
           if (c2p_status(k, j, i) == 0)
             c2p_status(k, j, i) = static_cast<int>(Primitive::Error::EXCISED);
@@ -442,6 +524,16 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           // Write back conserved variables only if they were modified.
           if (result.cons_adjusted)
           {
+            if (diag_interior && std::isfinite(cons_old_pt[IDN]) &&
+                std::isfinite(cons_pt[IDN]))
+            {
+              const Real diag_dD = (cons_pt[IDN] - cons_old_pt[IDN]) *
+                                   sqrt_detgamma * diag_vol;
+              if (diag_dD > 0.0)
+                diag_dm_p += diag_dD;
+              else
+                diag_dm_m += diag_dD;
+            }
             PrimHelper::ScatterConsHydro(
               cons_pt, cons, k, j, i, sqrt_detgamma);
           }
@@ -512,6 +604,14 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         }
       }
     }
+
+  // Flush the mass-conservation audit (MeshBlocks may run concurrently).
+#pragma omp atomic
+  EOSDiag::c2p_dM_plus += diag_dm_p;
+#pragma omp atomic
+  EOSDiag::c2p_dM_minus += diag_dm_m;
+#pragma omp atomic
+  EOSDiag::adm_dM += diag_dm_adm;
 }
 
 //----------------------------------------------------------------------------------------

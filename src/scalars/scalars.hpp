@@ -46,6 +46,12 @@ class PassiveScalars
   // each species
   AthenaArray<Real> r;          // , r1;
   AthenaArray<Real> s_flux[3];  // face-averaged flux vector
+#if EOS_POLICY_CODE == 4  // transition EOS
+  // full-step-start snapshot of r: the frozen '0' reference composition for
+  // the per-substep RHINE source (Just et al. higher-order convention);
+  // refilled at RK stage 1 each cycle, so AMR needs no remap
+  AthenaArray<Real> r0;
+#endif
 
   // storage for SMR/AMR
   AthenaArray<Real> coarse_s_;
