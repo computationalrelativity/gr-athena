@@ -14,6 +14,7 @@
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
+#include "../../globals.hpp"
 #include "eos_compose.hpp"
 #include "numtools_root.hpp"
 #include "unit_system.hpp"
@@ -78,6 +79,9 @@ int EOSCompOSE::sm_nt = 0;
 int EOSCompOSE::sm_ny = 0;
 
 Real EOSCompOSE::sm_min_h = numeric_limits<Real>::max();
+Real EOSCompOSE::sm_active_min_h = numeric_limits<Real>::max();
+Real EOSCompOSE::sm_active_max_n = numeric_limits<Real>::quiet_NaN();
+Real EOSCompOSE::sm_active_max_T = numeric_limits<Real>::quiet_NaN();
 
 Real EOSCompOSE::s_mb                 = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSE::s_max_n              = numeric_limits<Real>::quiet_NaN();
@@ -89,6 +93,93 @@ Real EOSCompOSE::s_min_Y[MAX_SPECIES] = { 0 };
 
 Real EOSCompOSE::s_mn = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSE::s_mp = numeric_limits<Real>::quiet_NaN();
+
+void EOSCompOSE::SetMaximumDensity(Real n_max)
+{
+  SetMaximumDomain(n_max, max_T);
+}
+
+void EOSCompOSE::SetMaximumTemperature(Real T_max)
+{
+  SetMaximumDomain(max_n, T_max);
+}
+
+void EOSCompOSE::SetMaximumDomain(Real n_max, Real T_max)
+{
+  max_n = n_max;
+  max_T = T_max;
+  if (m_initialized)
+  {
+    RefreshMinimumEnthalpyBound();
+  }
+}
+
+Real EOSCompOSE::ComputeMinimumEnthalpyBound() const
+{
+  assert(m_initialized);
+  Real const log_n_max = log(max_n);
+  Real const log_T_max = log(max_T);
+  assert(log_n_max >= m_log_nb[0]);
+  assert(log_T_max >= m_log_t[0]);
+
+  Real h_min = numeric_limits<Real>::max();
+  for (int in = 0; in < m_nn; ++in)
+  {
+    Real const log_n_lo = m_log_nb[in];
+    Real const log_n_hi =
+      in < m_nn - 1 ? min(m_log_nb[in + 1], log_n_max) : log_n_max;
+    if (log_n_hi <= log_n_lo)
+      continue;
+
+    for (int it = 0; it < m_nt; ++it)
+    {
+      Real const log_T_lo = m_log_t[it];
+      Real const log_T_hi =
+        it < m_nt - 1 ? min(m_log_t[it + 1], log_T_max) : log_T_max;
+      if (log_T_hi <= log_T_lo)
+        continue;
+
+      for (int iy = 0; iy < m_ny - 1; ++iy)
+      {
+        Real log_e_over_n_min = numeric_limits<Real>::max();
+        Real log_p_over_n_min = numeric_limits<Real>::max();
+        for (int in_corner = 0; in_corner < 2; ++in_corner)
+        {
+          Real const log_n = in_corner == 0 ? log_n_lo : log_n_hi;
+          for (int it_corner = 0; it_corner < 2; ++it_corner)
+          {
+            Real const log_T = it_corner == 0 ? log_T_lo : log_T_hi;
+            for (int iy_corner = 0; iy_corner < 2; ++iy_corner)
+            {
+              Real const Yq = m_yq[iy + iy_corner];
+              log_e_over_n_min =
+                min(log_e_over_n_min, eval_at_lnty(ECLOGE, log_n, log_T, Yq) - log_n);
+              log_p_over_n_min =
+                min(log_p_over_n_min, eval_at_lnty(ECLOGP, log_n, log_T, Yq) - log_n);
+            }
+          }
+        }
+        h_min = min(h_min, exp(log_e_over_n_min) + exp(log_p_over_n_min));
+      }
+    }
+  }
+  assert(h_min < numeric_limits<Real>::max());
+  return nextafter(h_min, 0.0);
+}
+
+void EOSCompOSE::RefreshMinimumEnthalpyBound()
+{
+#pragma omp critical(EOSCompOSE_MinimumEnthalpy)
+  {
+    if (max_n != sm_active_max_n || max_T != sm_active_max_T)
+    {
+      sm_active_min_h = ComputeMinimumEnthalpyBound();
+      sm_active_max_n = max_n;
+      sm_active_max_T = max_T;
+    }
+    m_min_h = sm_active_min_h;
+  }
+}
 
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
 {
@@ -890,8 +981,9 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
       delete[] scratch;
       H5Fclose(file_id);
 
-      // Compute minimum enthalpy
+      // Compute the original table-vertex minimum for comparison
       // -------------------------------------------------------------------------
+      Real h_min_vertex = numeric_limits<Real>::max();
       for (int in = 0; in < m_nn; ++in)
       {
         Real const nb = exp(m_log_nb[in]);
@@ -900,9 +992,21 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
           Real const t = exp(m_log_t[it]);
           for (int iy = 0; iy < m_ny; ++iy)
           {
-            m_min_h = min(m_min_h, Enthalpy(nb, t, &m_yq[iy]));
+            h_min_vertex = min(h_min_vertex, Enthalpy(nb, t, &m_yq[iy]));
           }
         }
+      }
+
+      // Compute the lower enthalpy bound over the table domain
+      // -------------------------------------------------------------------------
+      m_min_h = ComputeMinimumEnthalpyBound();
+      sm_active_min_h = m_min_h;
+      sm_active_max_n = max_n;
+      sm_active_max_T = max_T;
+      if (Globals::my_rank == 0)
+      {
+        cout << "[EOSCompOSE] h_min table vertices=" << h_min_vertex
+             << " cell lower bound=" << m_min_h << endl;
       }
 
       // Now that we have read everything locally, we must populate

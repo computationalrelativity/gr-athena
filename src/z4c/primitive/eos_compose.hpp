@@ -181,17 +181,14 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Set the maxium density.
   /// Values higher than the max of the table will lead to extrapolation
-  void SetMaximumDensity(Real n_max)
-  {
-    max_n = n_max;
-  }
+  void SetMaximumDensity(Real n_max);
 
   /// Set the maxium termperature.
   /// Values higher than the max of the table will lead to extrapolation
-  void SetMaximumTemperature(Real T_max)
-  {
-    max_T = T_max;
-  }
+  void SetMaximumTemperature(Real T_max);
+
+  /// Set both maximum thermodynamic coordinates.
+  void SetMaximumDomain(Real n_max, Real T_max);
 
   // N.B. non-converted
   Real GetTableProtonMass()
@@ -222,6 +219,11 @@ class EOSCompOSE : public EOSPolicyInterface
   Real eval_at_nty(int vi, Real n, Real T, Real Yq) const;
   /// Low level evaluation function, not intended for outside use
   Real eval_at_lnty(int vi, Real ln, Real lT, Real Yq) const;
+
+  /// Compute a lower enthalpy bound over the active EOS domain.
+  Real ComputeMinimumEnthalpyBound() const;
+  /// Refresh the shared bound for the active EOS domain.
+  void RefreshMinimumEnthalpyBound();
 
   /// Evaluate interpolation weight for density
   void weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const;
@@ -279,7 +281,7 @@ class EOSCompOSE : public EOSPolicyInterface
   Real m_id_log_nb, m_id_log_t, m_id_yq;
   // Table size
   int m_nn, m_nt, m_ny;
-  // Minimum enthalpy per baryon
+  // Lower enthalpy bound per baryon
   Real m_min_h;
 
   // Table storage, care should be made to store these data on the GPU later
@@ -303,6 +305,7 @@ class EOSCompOSE : public EOSPolicyInterface
   static Real sm_id_log_nb, sm_id_log_t, sm_id_yq;
   static int sm_nn, sm_nt, sm_ny;
   static Real sm_min_h;
+  static Real sm_active_min_h, sm_active_max_n, sm_active_max_T;
 
   // variables from EOSPolicy
   static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES],
