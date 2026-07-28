@@ -66,6 +66,10 @@ PassiveScalars::PassiveScalars(MeshBlock* pmb, ParameterInput* pin)
     // future extension may add "int nregister" to Hydro class
     s2.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
 
+#if EOS_POLICY_CODE == 4  // transition EOS
+  r0.NewAthenaArray(NSCALARS, nc3, nc2, nc1);
+#endif
+
   // Register with AMR redistribution system (new comm layer).
   // Needed unconditionally: LB redistribution can occur on single-level
   // meshes.
