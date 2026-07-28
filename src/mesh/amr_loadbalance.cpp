@@ -24,6 +24,7 @@
 #include "../athena_arrays.hpp"
 #include "../comm/amr_registry.hpp"
 #include "../comm/amr_transfer.hpp"
+#include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
@@ -37,6 +38,46 @@
 #ifdef MPI_PARALLEL
 #include <mpi.h>
 #endif
+
+#if EOS_POLICY_CODE == 4 && FLUID_ENABLED
+// Mass-conservation audit of the AMR regrid transfer (see EOSDiag in
+// eostaudyn_ps_gr.cpp and the hst channels in mesh_standard_enroll.cpp).
+namespace EOSDiag
+{
+extern double amr_dM;
+}
+
+namespace
+{
+// Interior baryon mass on this rank: sum u(IDN) dV (u is densitized, so this
+// matches the hst mass integral).
+Real InteriorMassLocal(MeshBlock* pblock)
+{
+  Real sum = 0.0;
+  for (MeshBlock* pb = pblock; pb != nullptr; pb = pb->next)
+  {
+    AthenaArray<Real>& u = pb->phydro->u;
+    for (int k = pb->ks; k <= pb->ke; ++k)
+      for (int j = pb->js; j <= pb->je; ++j)
+        for (int i = pb->is; i <= pb->ie; ++i)
+        {
+          sum += u(IDN, k, j, i) * pb->pcoord->dx1f(i) *
+                 pb->pcoord->dx2f(j) * pb->pcoord->dx3f(k);
+        }
+  }
+  return sum;
+}
+
+Real GlobalReduceSum(Real local)
+{
+#ifdef MPI_PARALLEL
+  MPI_Allreduce(MPI_IN_PLACE, &local, 1, MPI_ATHENA_REAL, MPI_SUM,
+                MPI_COMM_WORLD);
+#endif
+  return local;
+}
+}  // namespace
+#endif  // EOS_POLICY_CODE == 4 && FLUID_ENABLED
 
 //----------------------------------------------------------------------------------------
 // \!fn void Mesh::LoadBalancingAndAdaptiveMeshRefinement(ParameterInput *pin)
@@ -455,6 +496,13 @@ bool Mesh::GatherCostListAndCheckBalance()
 
 void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot)
 {
+#if EOS_POLICY_CODE == 4 && FLUID_ENABLED
+  // Mass-conservation audit: global interior mass on the old grid. Blocks
+  // migrate between ranks, so only the global before/after difference is
+  // meaningful; rank 0 owns the accumulator.
+  const Real diag_mass_before = GlobalReduceSum(InteriorMassLocal(pblock));
+#endif
+
   // compute nleaf= number of leaf MeshBlocks per refined block
   int nleaf = 2;
   if (mesh_size.nx2 > 1)
@@ -744,6 +792,16 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot)
                                     pb->is, pb->ie,
                                     pb->js, pb->je,
                                     pb->ks, pb->ke);
+  }
+#endif
+
+#if EOS_POLICY_CODE == 4 && FLUID_ENABLED
+  // Mass-conservation audit: global interior mass on the new grid, before
+  // Initialize's interior C2P (whose adjustments the c2p_dM channels count).
+  {
+    const Real mass_after = GlobalReduceSum(InteriorMassLocal(pblock));
+    if (Globals::my_rank == 0)
+      EOSDiag::amr_dM += mass_after - diag_mass_before;
   }
 #endif
 

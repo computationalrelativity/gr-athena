@@ -43,6 +43,17 @@
 #include <mpi.h>
 #endif
 
+#if defined(USE_TRANSITION_EOS)
+// c2p mass-conservation audit accumulators (eostaudyn_ps_gr.cpp)
+namespace EOSDiag
+{
+extern double c2p_dM_plus;
+extern double c2p_dM_minus;
+extern double adm_dM;
+extern double amr_dM;
+}
+#endif
+
 // Enroll standard quantities used in multiple pgens --------------------------
 namespace
 {
@@ -196,6 +207,74 @@ Real num_c2p_fail(MeshBlock* pmb, int iout)
   return sum_;
 }
 
+#if defined(USE_TRANSITION_EOS)
+// Cumulative (since launch/restart) per-rank mass-conservation audit of the
+// c2p driver, defined in eostaudyn_ps_gr.cpp. Emitted once per rank via the
+// lid == 0 block; the hst sum reduction then totals over ranks. Diff two hst
+// rows to get the mass added/removed in that interval; compare with d(mass).
+Real c2p_dM_plus(MeshBlock* pmb, int iout)
+{
+  return (pmb->lid == 0) ? EOSDiag::c2p_dM_plus : 0.0;
+}
+
+Real c2p_dM_minus(MeshBlock* pmb, int iout)
+{
+  return (pmb->lid == 0) ? EOSDiag::c2p_dM_minus : 0.0;
+}
+
+Real adm_dM(MeshBlock* pmb, int iout)
+{
+  return (pmb->lid == 0) ? EOSDiag::adm_dM : 0.0;
+}
+
+// Rank 0 owns the whole accumulator (global reduction at the regrid site).
+Real amr_dM(MeshBlock* pmb, int iout)
+{
+  return (Globals::my_rank == 0 && pmb->lid == 0) ? EOSDiag::amr_dM : 0.0;
+}
+
+// True conservation residue of the species fractions: max |sum_l s_l - D|
+// over the four mass-fraction scalars. Absolute (conserved-variable) measure;
+// the relative sum_l X_l - 1 inflates as 1/rho in rarefying atmosphere cells
+// and says nothing about conservation there.
+Real max_abs_Xsum_err(MeshBlock* pmb, int iout)
+{
+  Real max_err = 0.0;
+  AA& s = pmb->pscalars->s;
+  AA& u = pmb->phydro->u;
+
+  CC_ILOOP3(k, j, i)
+  {
+    const Real res = s(SCXN, k, j, i) + s(SCXP, k, j, i) +
+                     s(SCXA, k, j, i) + s(SCXH, k, j, i) -
+                     u(IDN, k, j, i);
+    max_err = std::max(max_err, std::abs(res));
+  }
+  return max_err;
+}
+
+// 1-norm companion of the above: integral |sum_l s_l - D| dV over coordinate
+// cell volumes (s and D are densitized, cf. E_int / the hst mass integrals).
+Real L1_Xcons_err(MeshBlock* pmb, int iout)
+{
+  Real sum_err = 0.0;
+  AA& s = pmb->pscalars->s;
+  AA& u = pmb->phydro->u;
+
+  CC_NS_ILOOP3(k, j, i)
+  {
+    const Real dv = pmb->pcoord->dx1v(i) *
+                    pmb->pcoord->dx2v(j) *
+                    pmb->pcoord->dx3v(k);
+    const Real res = s(SCXN, k, j, i) + s(SCXP, k, j, i) +
+                     s(SCXA, k, j, i) + s(SCXH, k, j, i) -
+                     u(IDN, k, j, i);
+    sum_err += std::abs(res) * dv;
+  }
+  return sum_err;
+}
+#endif  // USE_TRANSITION_EOS
+
 Real E_int(MeshBlock* pmb, int iout)
 {
   Real sum_Q = 0;
@@ -267,6 +346,18 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
   EnrollUserHistoryOutput(max_T, "max_T", UserHistoryOperation::max);
   EnrollUserHistoryOutput(
     num_c2p_fail, "num_c2p_fail", UserHistoryOperation::max);
+#if defined(USE_TRANSITION_EOS)
+  EnrollUserHistoryOutput(
+    max_abs_Xsum_err, "max_abs_Xcons_err", UserHistoryOperation::max);
+  EnrollUserHistoryOutput(
+    L1_Xcons_err, "L1_Xcons_err", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(
+    c2p_dM_plus, "c2p_dM_plus", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(
+    c2p_dM_minus, "c2p_dM_minus", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(adm_dM, "adm_dM", UserHistoryOperation::sum);
+  EnrollUserHistoryOutput(amr_dM, "amr_dM", UserHistoryOperation::sum);
+#endif  // USE_TRANSITION_EOS
 
   // Enroll all average [windowed] quantities ---------------------------------
   InputBlock* pib = pin->pfirst_block;

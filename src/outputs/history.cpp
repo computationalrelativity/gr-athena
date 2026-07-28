@@ -41,7 +41,8 @@
 #define NHISTORY_VARS (((NHYDRO) + 3) * (FLUID_ENABLED) + \
                        (NFIELD) + (NSCALARS) + \
                        3 * (WAVE_ENABLED) + \
-                       8 * (Z4C_ENABLED))
+                       8 * (Z4C_ENABLED) + \
+                       2 * ((EOS_POLICY_CODE == 4) && (FLUID_ENABLED)))
 
 // Index of the WAVE "err-max-pw" slot (a max, not a sum).
 // Only meaningful when WAVE_ENABLED=1.
@@ -202,6 +203,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
             }
           }
 
+#if EOS_POLICY_CODE == 4 && FLUID_ENABLED
+          // RHINE luminosities: slots are densitized code-unit rates
+          // (D carries sqrt(gamma)*W), so slot * coordinate volume sums
+          // to the total in code energy per code time.
+          hst_data[isum++] += vol(i)*phyd->derived_ms(IX_QDOT,k,j,i);
+          hst_data[isum++] += vol(i)*phyd->derived_ms(IX_LNU,k,j,i);
+#endif
         }
       }
     }
@@ -429,6 +437,11 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
         std::fprintf(pfile,"[%d]=Theta-norm2 ", iout++);
         std::fprintf(pfile,"[%d]=C-norm2 ",     iout++);
       }
+
+#if EOS_POLICY_CODE == 4 && FLUID_ENABLED
+      std::fprintf(pfile,"[%d]=rhine-qdot ", iout++);
+      std::fprintf(pfile,"[%d]=rhine-Lfnu ", iout++);
+#endif
 
       for (int n=0; n<nuser_history_output_; n++)
         std::fprintf(pfile,"[%d]=%s ", iout++,
