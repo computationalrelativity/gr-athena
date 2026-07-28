@@ -142,6 +142,19 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   xorder_use_dmp_scalars = pin->GetOrAddBoolean(
     "time", "xorder_use_dmp_scalars", (xorder_use_dmp) ? true : false);
 
+  // Whether the fb validity mask checks the composition species bounds. Default
+  // true keeps legacy behaviour. Set false to drop the composition scalars
+  // (Xn/Xp/Xa/Xh/Ah/EB) from the mask: the reconstruction species limiter
+  // (ApplySpeciesLimits + SanitizeMassFractions) plus the discrete maximum
+  // principle for the consistent F_S = F_D * Y flux already keep them within
+  // [min_Y, max_Y], so re-checking them only misfires on values legitimately
+  // pinned at a bound (e.g. Ah = 1), forcing spurious low-order fallback and
+  // dissipative heating. Ye is always checked -- its clamp is not
+  // conservation-corrected (see add_flux_divergence.cpp), so an unchecked
+  // excursion leaks integral D*Ye.
+  xorder_fb_scalars =
+    pin->GetOrAddBoolean("time", "xorder_fb_scalars", true);
+
   xorder_dmp_min = pin->GetOrAddReal("time", "xorder_dmp_min", 0.9);
 
   xorder_dmp_max = pin->GetOrAddReal("time", "xorder_dmp_max", 1.1);
@@ -151,6 +164,17 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
     std::stringstream msg;
     msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
         << "xorder_use_dmp requires xorder_use_fb." << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
+  // A hydro-only fb trigger relies entirely on the reconstruction species
+  // limiter to keep advected fractions in range, so it must be enabled.
+  if (xorder_use_fb && !xorder_fb_scalars && !xorder_limit_species)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_fb_scalars=false requires xorder_limit_species=true."
+        << std::endl;
     ATHENA_ERROR(msg);
   }
 

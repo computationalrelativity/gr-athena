@@ -68,6 +68,12 @@ class Reconstruction
   bool xorder_use_dmp = false;  // approximate DMP
   bool xorder_use_dmp_scalars;
 
+  // Include the composition species (Xn/Xp/Xa/Xh/Ah/EB) in the fb validity
+  // mask. Default true preserves legacy behaviour. Set false to drop them (kept
+  // in range by the reconstruction limiter + discrete maximum principle); Ye is
+  // always checked, since its clamp is not conservation-corrected.
+  bool xorder_fb_scalars;
+
   bool xorder_min_tau_zero = false;
 
   Real xorder_dmp_min;  // fiddle factors controlling decay / growth
