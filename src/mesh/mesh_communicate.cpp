@@ -334,6 +334,19 @@ void Mesh::FinalizeHydroConsRP(const std::vector<MeshBlock*>& pmb_array)
     // but that is harmless
     pcomm->ApplyPhysicalBCs(comm::CommGroup::MainInt, time, 0.0);
 
+#if EOS_POLICY_CODE == 4  // transition EOS
+    // Ghost cells prolonged from coarser neighbors lose the species-sum
+    // identity (minmod is nonlinear per component); restore before C2P.
+    // Whole block: idempotent away from prolonged regions.
+    if (multilevel)
+    {
+      const int iu = (pmb->ncells1 > 1) ? pmb->ncells1 - 1 : 0;
+      const int ju = (pmb->ncells2 > 1) ? pmb->ncells2 - 1 : 0;
+      const int ku = (pmb->ncells3 > 1) ? pmb->ncells3 - 1 : 0;
+      ps->EnforceSpeciesSum(ph->u, 0, iu, 0, ju, 0, ku);
+    }
+#endif
+
     if (MAGNETIC_FIELDS_ENABLED)
     {
       const int il = 0, iu = (pmb->ncells1 > 1) ? pmb->ncells1 - 1 : 0;

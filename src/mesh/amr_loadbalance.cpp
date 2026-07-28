@@ -27,6 +27,7 @@
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
+#include "../scalars/scalars.hpp"
 #include "../utils/buffer_utils.hpp"
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
@@ -729,6 +730,23 @@ void Mesh::RedistributeAndRefineMeshBlocks(ParameterInput* pin, int ntot)
   {
     pmb_array[idx]->SearchAndSetNeighbors(tree, ranklist, nslist);
   }
+
+#if EOS_POLICY_CODE == 4  // transition EOS
+  // c2f prolongation of {u, s} is minmod-limited per component, so on newly
+  // refined blocks the species sum drifts from u(IDN); restore it before
+  // Initialize's interior C2P consumes the data. Idempotent (ratio ~ 1) on
+  // blocks that were copied or restricted.
+#pragma omp parallel for schedule(static)
+  for (int idx = 0; idx < n_pmb; ++idx)
+  {
+    MeshBlock* pb = pmb_array[idx];
+    pb->pscalars->EnforceSpeciesSum(pb->phydro->u,
+                                    pb->is, pb->ie,
+                                    pb->js, pb->je,
+                                    pb->ks, pb->ke);
+  }
+#endif
+
   Initialize(initialize_style::regrid, pin);
 
   ResetLoadBalanceVariables();
