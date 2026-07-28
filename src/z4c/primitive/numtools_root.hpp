@@ -6,6 +6,7 @@
 //
 //  \brief Declares some functions for root-finding.
 
+#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -23,7 +24,6 @@ class Root
   unsigned int iterations;
 
   /// Only used for benchmarking, not thread-safe.
-  int last_count;
 
   Root() : iterations(30)
   {
@@ -55,25 +55,27 @@ class Root
                             Real& ub,
                             Real& x,
                             Real tol,
-                            Types... args)
+                            Types... args) const
   {
     int side = 0;
     Real ftest;
     unsigned int count = 0;
-    last_count         = 0;
     // Get our initial bracket.
     Real flb = f(lb, args...);
     Real fub = f(ub, args...);
     Real xold;
     x = lb;
-    // If one of the bounds is already within tolerance of the root, we can
-    // skip all of this.
-    if (std::fabs(flb) <= tol)
+    // If one of the bounds is exactly a root, we can skip all of this.
+    // N.B. no |f| <= tol early exit: f carries the caller's scaling (for
+    // the primitive solver it is mu-scaled, which can be ~1e-9 in some
+    // unit systems), so an absolute functional tolerance would accept
+    // points far from the root. Convergence is judged in x only.
+    if (flb == 0.0)
     {
       x = lb;
       return true;
     }
-    else if (std::fabs(fub) <= tol)
+    else if (fub == 0.0)
     {
       x = ub;
       return true;
@@ -99,10 +101,7 @@ class Root
 
       // Calculate f at the prospective root.
       ftest = f(x, args...);
-
-      // Functional tolerance: also accept convergence when |f| is
-      // already within tolerance of zero.
-      if (std::fabs(ftest) <= tol)
+      if (ftest == 0.0)
       {
         return true;
       }
@@ -110,35 +109,37 @@ class Root
       // Check the sign of f. If f is on the same side as the lower bound, then
       // we adjust the lower bound. Similarly, if f is on the same side as the
       // upper bound, we adjust the upper bound. If ftest falls on the same
-      // side twice, we weight one of the sides to force the new root to fall
-      // on the other side. This allows us to whittle down both sides at once
-      // and get better average convergence.
+      // side twice, we rescale the opposite function value (Anderson-Bjorck
+      // weighting, falling back to Illinois halving if the scale factor is
+      // nonpositive) to force the new root to fall on the other side. This
+      // allows us to whittle down both sides at once and gives superlinear
+      // average convergence.
       if (ftest * flb >= 0)
       {
-        flb = ftest;
-        lb  = x;
         if (side == 1)
         {
-          fub /= 2.0;
+          Real m = 1.0 - ftest / flb;
+          fub    = (m > 0) ? fub * m : 0.5 * fub;
         }
+        flb  = ftest;
+        lb   = x;
         side = 1;
       }
       else
       {
-        fub = ftest;
-        ub  = x;
         if (side == -1)
         {
-          flb /= 2.0;
+          Real m = 1.0 - ftest / fub;
+          flb    = (m > 0) ? flb * m : 0.5 * flb;
         }
+        fub  = ftest;
+        ub   = x;
         side = -1;
       }
     } while (count < iterations);
-    last_count = count;
 
     // Return success if we're below the tolerance, otherwise report failure.
-    return std::fabs(x - xold) <= tol * (std::fabs(x) + tol) ||
-           std::fabs(ftest) <= tol;
+    return std::fabs(x - xold) <= tol * (std::fabs(x) + tol);
   }
 
   // }}}
@@ -170,7 +171,6 @@ class Root
                            Types... args)
   {
     unsigned int count = 0;
-    last_count         = 0;
     // Get our initial bracket.
     Real flb = f(lb, args...);
     Real fub = f(ub, args...);
@@ -247,7 +247,6 @@ class Root
         t = 0.5;
       }
     } while (count < iterations);
-    last_count = count;
 
     // Return success if we're below the tolerance, otherwise report failure.
     return std::fabs(x - x1) <= tol * (std::fabs(x) + tol) ||
@@ -281,7 +280,6 @@ class Root
     Real dfx;
     Real xold;
     unsigned int count = 0;
-    // last_count = 0;
     //  We first need to ensure that the bracket is valid.
     Real fub, flb;
     f(flb, dfx, lb, args...);
@@ -338,7 +336,6 @@ class Root
       count++;
     } while (std::fabs(xold - x) > tol * (std::fabs(x) + tol) &&
              count < iterations);
-    // last_count = count;
 
     // Return success if we're below the tolerance, otherwise report failure.
     return std::fabs(x - xold) <= tol * (std::fabs(x) + tol) ||
@@ -681,8 +678,8 @@ class Root
       //
       T min_diff = min_value<T>() * 32;
       bool prof  = (fabs(fa - fb) < min_diff) || (fabs(fa - fd) < min_diff) ||
-                  (fabs(fa - fe) < min_diff) || (fabs(fb - fd) < min_diff) ||
-                  (fabs(fb - fe) < min_diff) || (fabs(fd - fe) < min_diff);
+                   (fabs(fa - fe) < min_diff) || (fabs(fb - fd) < min_diff) ||
+                   (fabs(fb - fe) < min_diff) || (fabs(fd - fe) < min_diff);
       if (prof)
       {
         c = quadratic_interpolate(a, b, d, fa, fb, fd, 2);
