@@ -115,6 +115,11 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
     loge_min, loge_max, ECLOGE, log(e), wn0, wn1, in, wy0, wy1, iy);
 }
 
+Real EOSCompOSE::TemperatureFromEps(Real n, Real eps, Real* Y)
+{
+  return TemperatureFromE(n, (eps + 1.0) * mb * n, Y);
+}
+
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real* Y)
 {
   assert(m_initialized);
@@ -529,6 +534,12 @@ Real EOSCompOSE::FrYp(Real n, Real T, Real* Y)
   return eval_at_nty(ECYP, n, T, Y[0]);
 }
 
+Real EOSCompOSE::FrXa(Real n, Real T, Real* Y)
+{
+  assert(m_initialized);
+  return eval_at_nty(ECXA, n, T, Y[0]);
+}
+
 Real EOSCompOSE::FrXh(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
@@ -606,6 +617,16 @@ Real EOSCompOSE::MinimumEnergy(Real n, Real* Y)
 Real EOSCompOSE::MaximumEnergy(Real n, Real* Y)
 {
   return Energy(n, max_T, Y);
+}
+
+Real EOSCompOSE::MinimumSpecificInternalEnergy(Real n, Real* Y)
+{
+  return MinimumEnergy(n, Y) / (mb * n) - 1.0;
+}
+
+Real EOSCompOSE::MaximumSpecificInternalEnergy(Real n, Real* Y)
+{
+  return MaximumEnergy(n, Y) / (mb * n) - 1.0;
 }
 
 Real EOSCompOSE::MinimumEntropy(Real n, Real* Y)
@@ -790,7 +811,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         {
           for (int it = 0; it < m_nt; ++it)
           {
-            m_table[index(ECYN, in, iy, it)] = scratch[index(0, in, iy, it)];
+            m_table[index(ECYN, in, iy, it)] =
+              max(0.0, min(scratch[index(0, in, iy, it)], 1.0));
           }
         }
       }
@@ -803,7 +825,76 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         {
           for (int it = 0; it < m_nt; ++it)
           {
-            m_table[index(ECYP, in, iy, it)] = scratch[index(0, in, iy, it)];
+            m_table[index(ECYP, in, iy, it)] =
+              max(0.0, min(scratch[index(0, in, iy, it)], 1.0));
+          }
+        }
+      }
+
+      // X[He4] must be assigned before the light nuclei (H2, H3, He3) are
+      // accumulated on top of it; those datasets are optional and are
+      // lumped into ECXA as bound light nuclei (Z/A ~ 0.5).
+      ierr = H5LTread_dataset_double(file_id, "Y[He4]", scratch);
+      MYH5CHECK(ierr);
+      for (int in = 0; in < m_nn; ++in)
+      {
+        for (int iy = 0; iy < m_ny; ++iy)
+        {
+          for (int it = 0; it < m_nt; ++it)
+          {
+            m_table[index(ECXA, in, iy, it)] =
+              max(0.0, min(scratch[index(0, in, iy, it)] * 4.0, 1.0));
+          }
+        }
+      }
+
+      ierr = H5LTread_dataset_double(file_id, "Y[H2]", scratch);
+      if (ierr == 0)
+      {
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              // convert from abundance to mass fraction
+              m_table[index(ECXA, in, iy, it)] +=
+                max(0.0, min(scratch[index(0, in, iy, it)] * 2.0, 1.0));
+            }
+          }
+        }
+      }
+
+      ierr = H5LTread_dataset_double(file_id, "Y[H3]", scratch);
+      if (ierr == 0)
+      {
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              // convert from abundance to mass fraction
+              m_table[index(ECXA, in, iy, it)] +=
+                max(0.0, min(scratch[index(0, in, iy, it)] * 3.0, 1.0));
+            }
+          }
+        }
+      }
+
+      ierr = H5LTread_dataset_double(file_id, "Y[He3]", scratch);
+      if (ierr == 0)
+      {
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              // convert from abundance to mass fraction
+              m_table[index(ECXA, in, iy, it)] +=
+                max(0.0, min(scratch[index(0, in, iy, it)] * 3.0, 1.0));
+            }
           }
         }
       }
@@ -816,7 +907,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         {
           for (int it = 0; it < m_nt; ++it)
           {
-            m_table[index(ECAN, in, iy, it)] = scratch[index(0, in, iy, it)];
+            m_table[index(ECAN, in, iy, it)] =
+              max(1.0, scratch[index(0, in, iy, it)]);
           }
         }
       }
@@ -866,7 +958,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
             const Real AN = m_table[index(ECAN, in, iy, it)];
 
             // X_h = A_N * Y_N (heavy-nucleus mass fraction)
-            m_table[index(ECXH, in, iy, it)] = AN * YN;
+            m_table[index(ECXH, in, iy, it)] = max(0.0, min(AN * YN, 1.0));
           }
         }
       }
@@ -881,6 +973,51 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
       ierr = H5LTread_dataset_double(file_id, "mp", scratch);
       MYH5CHECK(ierr);
       mp = scratch[0];
+
+      // normalize sum of mass fractions to 1
+      long n_warn      = 0;
+      Real worst_SumX  = 1.0;
+      for (int in = 0; in < m_nn; ++in)
+      {
+        for (int iy = 0; iy < m_ny; ++iy)
+        {
+          for (int it = 0; it < m_nt; ++it)
+          {
+            Real SumX = m_table[index(ECYN, in, iy, it)] +
+                        m_table[index(ECYP, in, iy, it)] +
+                        m_table[index(ECXA, in, iy, it)] +
+                        m_table[index(ECXH, in, iy, it)];
+            if (SumX <= 0.0)
+            {
+              // Nothing sensible to normalize; leave the point untouched
+              // (downstream consumers guard against zero fractions).
+              n_warn++;
+              worst_SumX = min(worst_SumX, SumX);
+              continue;
+            }
+            if (abs(SumX - 1.0) > 1e-2)
+            {
+              n_warn++;
+              if (abs(SumX - 1.0) > abs(worst_SumX - 1.0))
+              {
+                worst_SumX = SumX;
+              }
+            }
+            m_table[index(ECYN, in, iy, it)] /= SumX;
+            m_table[index(ECYP, in, iy, it)] /= SumX;
+            m_table[index(ECXA, in, iy, it)] /= SumX;
+            m_table[index(ECXH, in, iy, it)] /= SumX;
+          }
+        }
+      }
+      if (n_warn > 0 && Globals::my_rank == 0)
+      {
+        printf(
+          "EOSCompOSE::ReadTableFromFile: normalized mass fractions at %ld "
+          "points where |sum - 1| > 1e-2 (worst sum = %e)\n",
+          n_warn,
+          worst_SumX);
+      }
 
       // Mark table as read
       m_initialized = true;
@@ -1000,7 +1137,8 @@ Real EOSCompOSE::temperature_from_var_precomp(Real var_min,
   if (flo * fhi > 0)
   {
     // Should not happen after the caller's bounds check, but handle
-    // gracefully: bracket already at adjacent points is the best we can do.
+    // gracefully: bracket already at adjacent points is the best we can
+    // do.
   }
   else
   {

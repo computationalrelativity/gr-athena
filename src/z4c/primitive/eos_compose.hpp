@@ -15,6 +15,7 @@
 #include <string>
 
 #include "../../athena.hpp"
+#include "../../globals.hpp"
 #include "eos_policy_interface.hpp"
 
 namespace Primitive
@@ -22,6 +23,8 @@ namespace Primitive
 
 class EOSCompOSE : public EOSPolicyInterface
 {
+  friend class EOSTransition;
+
   public:
   enum TableVariables
   {
@@ -34,11 +37,12 @@ class EOSCompOSE : public EOSPolicyInterface
     ECCS    = 6,   //! sound speed [c]
     ECYN    = 7,   //! Y[n]
     ECYP    = 8,   //! Y[p]
-    ECXH    = 9,   //! X_h = A_N * Y[N], heavy-nucleus mass fraction
-    ECAN    = 10,  //! A[N]
-    ECZN    = 11,  //! Z[N]
-    ECDU    = 12,  //! effective nucleon potential difference dU [MeV]
-    ECNVARS = 13
+    ECXA    = 9,   //! X[He4]
+    ECXH    = 10,  //! X_h = A_N * Y[N], heavy-nucleus mass fraction
+    ECAN    = 11,  //! A[N]
+    ECZN    = 12,  //! Z[N]
+    ECDU    = 13,  //! effective nucleon potential difference dU [MeV]
+    ECNVARS = 14
   };
 
   protected:
@@ -53,6 +57,9 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Calculate the temperature from the pressure
   Real TemperatureFromP(Real n, Real p, Real* Y);
+
+  /// Temperature from specific internal energy
+  Real TemperatureFromEps(Real n, Real e, Real* Y);
 
   /// Calculate the temperature from the entropy
   Real TemperatureFromEntropy(Real n, Real s, Real* Y);
@@ -96,8 +103,10 @@ class EOSCompOSE : public EOSPolicyInterface
   Real FrYn(Real n, Real T, Real* Y);
   // Returns proton number fraction Y_p = n_p / n_b.
   Real FrYp(Real n, Real T, Real* Y);
+  // The following are mass fraction, not a number fraction.
+  // Returns alpha-particle mass fraction X_a = 4 * Y_a.
+  Real FrXa(Real n, Real T, Real* Y);
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
-  // This is a mass fraction, not a number fraction.
   Real FrXh(Real n, Real T, Real* Y);
 
   Real AN(Real n, Real T, Real* Y);
@@ -121,6 +130,14 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Get the minimum enthalpy per baryon.
   Real MinimumEnthalpy();
 
+  /// Get the minimum specific internal energy at a given density and
+  /// composition
+  Real MinimumSpecificInternalEnergy(Real n, Real* Y);
+
+  /// Get the maximum specific internal energy at a given density and
+  /// composition
+  Real MaximumSpecificInternalEnergy(Real n, Real* Y);
+
   /// Get the minimum pressure at a given density and composition
   Real MinimumPressure(Real n, Real* Y);
 
@@ -142,6 +159,14 @@ class EOSCompOSE : public EOSPolicyInterface
   public:
   /// Reads the table file.
   void ReadTableFromFile(std::string fname);
+
+  /// Set the baryon mass.
+  /// Updating the table is not necessary because it stores the total energy
+  /// and the baryon number density
+  void SetBaryonMass(Real new_mb)
+  {
+    mb = new_mb;
+  }
 
   /// Get the raw number density
   Real const* GetRawLogNumberDensity() const

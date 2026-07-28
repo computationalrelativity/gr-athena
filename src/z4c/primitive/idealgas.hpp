@@ -6,6 +6,7 @@
 
 #include <limits>
 
+
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
 #include "unit_system.hpp"
@@ -25,6 +26,9 @@ class IdealGas : public EOSPolicyInterface
 
   /// Calculate the temperature using the ideal gas law.
   Real TemperatureFromE(Real n, Real e, Real* Y);
+
+  /// Calculate the temperature from the specific internal energy.
+  Real TemperatureFromEps(Real n, Real eps, Real* Y);
 
   /// Calculate the temperature using the ideal gas law.
   Real TemperatureFromP(Real n, Real p, Real* Y);
@@ -79,6 +83,10 @@ class IdealGas : public EOSPolicyInterface
   // Returns proton number fraction Y_p = n_p / n_b.
   [[noreturn]]
   Real FrYp(Real n, Real T, Real* Y);
+  // Returns alpha-particle mass fraction X_a = 4 * Y_a.
+  // This is a mass fraction, not a number fraction.
+  [[noreturn]]
+  Real FrXa(Real n, Real T, Real* Y);
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
   // This is a mass fraction, not a number fraction.
   [[noreturn]]
@@ -138,6 +146,20 @@ class IdealGas : public EOSPolicyInterface
   /// Calculate the maximum entropy at a given density and composition.
   [[noreturn]]
   Real MaximumEntropy(Real n, Real* Y);
+
+  /// Calculate the minimum specific internal energy at a given density and
+  /// composition
+  Real MinimumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MinimumEnergy(n, Y) / (mb * n) - 1.0;
+  }
+
+  /// Calculate the maximum specific internal energy at a given density and
+  /// composition
+  inline Real MaximumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MaximumEnergy(n, Y) / (mb * n) - 1.0;
+  }
 
   public:
   /// Set the adiabatic index for the ideal gas.
