@@ -17,6 +17,14 @@ class EOSPolicyInterface {
     EOSPolicyInterface() = default;
     ~EOSPolicyInterface() = default;
 
+    /// The lowest temperature (in EOS units) at which the EOS is valid at
+    /// the given number density. Policies whose valid temperature range
+    /// depends on density (e.g. the transition EOS) shadow this.
+    Real MinimumValidTemperature(Real n) const {
+      (void)n;
+      return min_T;
+    }
+
     /// Number of particle species
     int n_species;
     /// Baryon mass

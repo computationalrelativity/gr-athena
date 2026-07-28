@@ -76,6 +76,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::MaximumPressure;
   using EOSPolicy::MinimumEnergy;
   using EOSPolicy::MinimumEnthalpy;
+  using EOSPolicy::MinimumValidTemperature;
   using EOSPolicy::MinimumEntropy;
   using EOSPolicy::MinimumPressure;
   using EOSPolicy::Pressure;
@@ -614,12 +615,20 @@ class EOS : public EOSPolicy, public ErrorPolicy
   //  \brief Get the tau floor used by the EOS ErrorPolicy based
   //         on the current particle composition.
   //
+  //  The atmosphere temperature is clamped to the lowest temperature at
+  //  which the EOS is valid at this density; evaluating below it (e.g.
+  //  below a table edge) can overestimate the energy and floor perfectly
+  //  valid states.
+  //
   //  \param[in] Y A n_species-sized array of particle fractions.
   inline Real GetTauFloor(Real D, Real* Y, Real Bsq)
   {
-    // return GetEnergy(D/GetBaryonMass(), T_atm, Y) - D + 0.5*Bsq;
-    return D * GetSpecificInternalEnergy(D / GetBaryonMass(), T_atm, Y) +
-           0.5 * Bsq;
+    Real n = D / GetBaryonMass();
+    Real T_floor =
+      std::max(T_atm,
+               MinimumValidTemperature(n) *
+                 eos_units->TemperatureConversion(*code_units));
+    return D * GetSpecificInternalEnergy(n, T_floor, Y) + 0.5 * Bsq;
   }
 
   //! \fn void SetDensityFloor(Real floor)
