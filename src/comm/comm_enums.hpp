@@ -88,7 +88,8 @@ enum class ProlongOp : int
     3,  // CX: Lagrange children (boundary-compatible, lower order)
   FaceSharedMinmod  = 4,  // FC: minmod in transverse dirs at shared faces
   FaceDivPreserving = 5,  // FC: divergence-preserving internal reconstruction
-  None              = 6   // no prolongation (uniform-only variable)
+  None              = 6,  // no prolongation (uniform-only variable)
+  WenoZ             = 7   // CC: WENO-Z cell-average interpolation
 };
 
 //----------------------------------------------------------------------------------------

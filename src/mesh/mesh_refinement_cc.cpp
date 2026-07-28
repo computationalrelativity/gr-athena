@@ -10,6 +10,7 @@
 // C++ headers
 #include <algorithm>  // min
 #include <cmath>
+#include <limits>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -17,6 +18,105 @@
 #include "../coordinates/coordinates.hpp"
 #include "mesh.hpp"
 #include "mesh_refinement.hpp"
+
+namespace {
+
+inline Real WenoZChild(const Real cm2,
+                       const Real cm1,
+                       const Real c0,
+                       const Real cp1,
+                       const Real cp2,
+                       const int b)
+{
+  const Real d0 = (1.0 / 8.0) * cm2 - (1.0 / 2.0) * cm1 + (3.0 / 8.0) * c0;
+  const Real d1 = -(1.0 / 8.0) * cm1 + (1.0 / 8.0) * cp1;
+  const Real d2 = -(3.0 / 8.0) * c0 + (1.0 / 2.0) * cp1 - (1.0 / 8.0) * cp2;
+
+  const Real scale =
+    std::max(std::max(std::abs(cm2), std::abs(cm1)),
+             std::max(std::max(std::abs(c0), std::abs(cp1)), std::abs(cp2)));
+  if (scale == 0.0)
+    return c0;
+
+  const Real qm2 = cm2 / scale;
+  const Real qm1 = cm1 / scale;
+  const Real q0  = c0 / scale;
+  const Real qp1 = cp1 / scale;
+  const Real qp2 = cp2 / scale;
+
+  const Real b0a   = qm2 - 2.0 * qm1 + q0;
+  const Real b0b   = qm2 - 4.0 * qm1 + 3.0 * q0;
+  const Real beta0 = (13.0 / 12.0) * b0a * b0a + (1.0 / 4.0) * b0b * b0b;
+  const Real b1a   = qm1 - 2.0 * q0 + qp1;
+  const Real b1b   = qm1 - qp1;
+  const Real beta1 = (13.0 / 12.0) * b1a * b1a + (1.0 / 4.0) * b1b * b1b;
+  const Real b2a   = q0 - 2.0 * qp1 + qp2;
+  const Real b2b   = 3.0 * q0 - 4.0 * qp1 + qp2;
+  const Real beta2 = (13.0 / 12.0) * b2a * b2a + (1.0 / 4.0) * b2b * b2b;
+
+  const Real tau = std::abs(beta0 - beta2);
+  const Real eps = std::numeric_limits<Real>::epsilon();
+  const Real alpha0 = (3.0 / 16.0) *
+                      (1.0 + (tau / (beta0 + eps)) * (tau / (beta0 + eps)));
+  const Real alpha1 = (5.0 / 8.0) *
+                      (1.0 + (tau / (beta1 + eps)) * (tau / (beta1 + eps)));
+  const Real alpha2 = (3.0 / 16.0) *
+                      (1.0 + (tau / (beta2 + eps)) * (tau / (beta2 + eps)));
+  const Real alpha_sum = alpha0 + alpha1 + alpha2;
+  const Real delta = (alpha0 * d0 + alpha1 * d1 + alpha2 * d2) / alpha_sum;
+
+  return c0 + (b == 0 ? -delta : delta);
+}
+
+inline Real WenoZChildX(const AthenaArray<Real>& coarse,
+                        const int n,
+                        const int k,
+                        const int j,
+                        const int i,
+                        const int bx)
+{
+  return WenoZChild(coarse(n, k, j, i - 2),
+                    coarse(n, k, j, i - 1),
+                    coarse(n, k, j, i),
+                    coarse(n, k, j, i + 1),
+                    coarse(n, k, j, i + 2),
+                    bx);
+}
+
+inline Real WenoZChildY(const AthenaArray<Real>& coarse,
+                        const int n,
+                        const int k,
+                        const int j,
+                        const int i,
+                        const int bx,
+                        const int by)
+{
+  return WenoZChild(WenoZChildX(coarse, n, k, j - 2, i, bx),
+                    WenoZChildX(coarse, n, k, j - 1, i, bx),
+                    WenoZChildX(coarse, n, k, j, i, bx),
+                    WenoZChildX(coarse, n, k, j + 1, i, bx),
+                    WenoZChildX(coarse, n, k, j + 2, i, bx),
+                    by);
+}
+
+inline Real WenoZChildZ(const AthenaArray<Real>& coarse,
+                        const int n,
+                        const int k,
+                        const int j,
+                        const int i,
+                        const int bx,
+                        const int by,
+                        const int bz)
+{
+  return WenoZChild(WenoZChildY(coarse, n, k - 2, j, i, bx, by),
+                    WenoZChildY(coarse, n, k - 1, j, i, bx, by),
+                    WenoZChildY(coarse, n, k, j, i, bx, by),
+                    WenoZChildY(coarse, n, k + 1, j, i, bx, by),
+                    WenoZChildY(coarse, n, k + 2, j, i, bx, by),
+                    bz);
+}
+
+}  // namespace
 
 //----------------------------------------------------------------------------------------
 //! \fn void MeshRefinement::RestrictCellCenteredValues(const AthenaArray<Real>
@@ -497,4 +597,85 @@ void MeshRefinement::ProlongateCellCenteredValues(
     }
   }
   return;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void MeshRefinement::ProlongateCellCenteredWenoZValues(
+//!        const AthenaArray<Real> &coarse, AthenaArray<Real> &fine, int sn, int
+//!        en, int si, int ei, int sj, int ej, int sk, int ek)
+//! \brief prolongate cell-centered values with WENO-Z child averages
+
+void MeshRefinement::ProlongateCellCenteredWenoZValues(
+  const AthenaArray<Real>& coarse,
+  AthenaArray<Real>& fine,
+  int sn,
+  int en,
+  int si,
+  int ei,
+  int sj,
+  int ej,
+  int sk,
+  int ek)
+{
+  MeshBlock* pmb = pmy_block_;
+
+  if (pmb->block_size.nx3 > 1)
+  {
+    for (int n = sn; n <= en; ++n)
+    {
+      for (int k = sk; k <= ek; ++k)
+      {
+        const int fk = (k - pmb->cks) * 2 + pmb->ks;
+        for (int j = sj; j <= ej; ++j)
+        {
+          const int fj = (j - pmb->cjs) * 2 + pmb->js;
+          for (int i = si; i <= ei; ++i)
+          {
+            const int fi = (i - pmb->cis) * 2 + pmb->is;
+            for (int bz = 0; bz < 2; ++bz)
+              for (int by = 0; by < 2; ++by)
+                for (int bx = 0; bx < 2; ++bx)
+                  fine(n, fk + bz, fj + by, fi + bx) =
+                    WenoZChildZ(coarse, n, k, j, i, bx, by, bz);
+          }
+        }
+      }
+    }
+  }
+  else if (pmb->block_size.nx2 > 1)
+  {
+    const int k  = pmb->cks;
+    const int fk = pmb->ks;
+    for (int n = sn; n <= en; ++n)
+    {
+      for (int j = sj; j <= ej; ++j)
+      {
+        const int fj = (j - pmb->cjs) * 2 + pmb->js;
+        for (int i = si; i <= ei; ++i)
+        {
+          const int fi = (i - pmb->cis) * 2 + pmb->is;
+          for (int by = 0; by < 2; ++by)
+            for (int bx = 0; bx < 2; ++bx)
+              fine(n, fk, fj + by, fi + bx) =
+                WenoZChildY(coarse, n, k, j, i, bx, by);
+        }
+      }
+    }
+  }
+  else
+  {
+    const int k  = pmb->cks;
+    const int fk = pmb->ks;
+    const int j  = pmb->cjs;
+    const int fj = pmb->js;
+    for (int n = sn; n <= en; ++n)
+    {
+      for (int i = si; i <= ei; ++i)
+      {
+        const int fi = (i - pmb->cis) * 2 + pmb->is;
+        fine(n, fk, fj, fi)     = WenoZChildX(coarse, n, k, j, i, 0);
+        fine(n, fk, fj, fi + 1) = WenoZChildX(coarse, n, k, j, i, 1);
+      }
+    }
+  }
 }

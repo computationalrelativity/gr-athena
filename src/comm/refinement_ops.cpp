@@ -43,7 +43,7 @@ idx::IndexRange3D ProlongationIndices(const MeshBlock *pmb,
       cvs1 = pmb->cis;  cve1 = pmb->cie;
       cvs2 = pmb->cjs;  cve2 = pmb->cje;
       cvs3 = pmb->cks;  cve3 = pmb->cke;
-      pcng = pmb->cnghost - 1;
+      pcng = (pmb->ng + 1) / 2;
       break;
     case Sampling::CX:
       cvs1 = pmb->cx_cis;  cve1 = pmb->cx_cie;
@@ -64,7 +64,7 @@ idx::IndexRange3D ProlongationIndices(const MeshBlock *pmb,
       cvs1 = pmb->cis;  cve1 = pmb->cie;
       cvs2 = pmb->cjs;  cve2 = pmb->cje;
       cvs3 = pmb->cks;  cve3 = pmb->cke;
-      pcng = pmb->cnghost - 1;
+      pcng = (pmb->ng + 1) / 2;
       break;
   }
 
@@ -99,6 +99,10 @@ void ProlongateNeighbor(MeshBlock *pmb,
       // CC: minmod-limited piecewise linear interpolation.
       pmr->ProlongateCellCenteredValues(coarse, fine, 0, nu,
                                         r.si, r.ei, r.sj, r.ej, r.sk, r.ek);
+      break;
+    case ProlongOp::WenoZ:
+      pmr->ProlongateCellCenteredWenoZValues(coarse, fine, 0, nu,
+                                             r.si, r.ei, r.sj, r.ej, r.sk, r.ek);
       break;
     case ProlongOp::LagrangeUniform:
       // VC: symmetric Lagrange on uniform grid (inject coincident + interpolate).

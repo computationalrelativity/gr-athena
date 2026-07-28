@@ -109,12 +109,16 @@ void AMRRegistry::ComputeBufferSizes(AMRGroup group)
     {
       case Sampling::CC:
       {
-        int nv = s.nvar;
+        const int nv = s.nvar;
+        const int h  = (s.prolong_op == ProlongOp::WenoZ) ? 2 : 1;
+        const int h2 = f2 ? h : 0;
+        const int h3 = f3 ? h : 0;
         bs.same_level += bnx1 * bnx2 * bnx3 * nv;
         bs.fine_to_coarse +=
           (bnx1 / 2) * ((bnx2 + 1) / 2) * ((bnx3 + 1) / 2) * nv;
-        bs.coarse_to_fine += (bnx1 / 2 + 2) * ((bnx2 + 1) / 2 + 2 * f2) *
-                             ((bnx3 + 1) / 2 + 2 * f3) * nv;
+        bs.coarse_to_fine += (bnx1 / 2 + 2 * h) *
+                             ((bnx2 + 1) / 2 + 2 * h2) *
+                             ((bnx3 + 1) / 2 + 2 * h3) * nv;
         break;
       }
       case Sampling::CX:
@@ -520,13 +524,18 @@ int AMRRegistry::PackCoarseToFine(MeshBlock* pb,
     {
       case Sampling::CC:
       {
+        const int h  = (s.prolong_op == ProlongOp::WenoZ) ? 2 : 1;
+        const int h2 = f2 ? h : 0;
+        const int h3 = f3 ? h : 0;
         int il, iu, jl, ju, kl, ku;
-        il     = (ox1 == 0) ? pb->is - 1 : pb->is + b_hsz1 - 1;
-        iu     = (ox1 == 0) ? pb->is + b_hsz1 : pb->ie + 1;
-        jl     = (ox2 == 0) ? pb->js - f2 : pb->js + b_hsz2 - f2;
-        ju     = (ox2 == 0) ? pb->js + b_hsz2 : pb->je + f2;
-        kl     = (ox3 == 0) ? pb->ks - f3 : pb->ks + b_hsz3 - f3;
-        ku     = (ox3 == 0) ? pb->ks + b_hsz3 : pb->ke + f3;
+        il     = (ox1 == 0) ? pb->is - h : pb->is + b_hsz1 - h;
+        iu     = (ox1 == 0) ? pb->is + b_hsz1 + h - 1 : pb->ie + h;
+        jl     = f2 ? ((ox2 == 0) ? pb->js - h2 : pb->js + b_hsz2 - h2) : pb->js;
+        ju     = f2 ? ((ox2 == 0) ? pb->js + b_hsz2 + h2 - 1 : pb->je + h2)
+                    : pb->js;
+        kl     = f3 ? ((ox3 == 0) ? pb->ks - h3 : pb->ks + b_hsz3 - h3) : pb->ks;
+        ku     = f3 ? ((ox3 == 0) ? pb->ks + b_hsz3 + h3 - 1 : pb->ke + h3)
+                    : pb->ks;
         int nu = s.nvar - 1;
         BufferUtility::PackData(
           *s.var, sendbuf, 0, nu, il, iu, jl, ju, kl, ku, p);
@@ -733,12 +742,16 @@ void AMRRegistry::UnpackCoarseToFine(MeshBlock* pb,
     switch (s.sampling)
     {
       case Sampling::CC:
-        uil = cc_il;
-        uiu = cc_iu;
-        ujl = cc_jl;
-        uju = cc_ju;
-        ukl = cc_kl;
-        uku = cc_ku;
+      {
+        const int h  = (s.prolong_op == ProlongOp::WenoZ) ? 2 : 1;
+        const int h2 = f2 ? h : 0;
+        const int h3 = f3 ? h : 0;
+        uil = pb->cis - h;
+        uiu = pb->cie + h;
+        ujl = pb->cjs - h2;
+        uju = pb->cje + h2;
+        ukl = pb->cks - h3;
+        uku = pb->cke + h3;
         pil = pb->cis;
         piu = pb->cie;
         pjl = pb->cjs;
@@ -746,6 +759,7 @@ void AMRRegistry::UnpackCoarseToFine(MeshBlock* pb,
         pkl = pb->cks;
         pku = pb->cke;
         break;
+      }
       case Sampling::CX:
         uil = cx_il;
         uiu = cx_iu;
@@ -787,6 +801,10 @@ void AMRRegistry::UnpackCoarseToFine(MeshBlock* pb,
     {
       case ProlongOp::MinmodLinear:
         pmr->ProlongateCellCenteredValues(
+          *s.coarse_var, *s.var, 0, nu, pil, piu, pjl, pju, pkl, pku);
+        break;
+      case ProlongOp::WenoZ:
+        pmr->ProlongateCellCenteredWenoZValues(
           *s.coarse_var, *s.var, 0, nu, pil, piu, pjl, pju, pkl, pku);
         break;
       case ProlongOp::LagrangeUniform:
@@ -1130,15 +1148,19 @@ void AMRRegistry::FillSameRankCoarseToFine(MeshBlock* src_block,
     switch (ss.sampling)
     {
       case Sampling::CC:
-        cil = src_block->cis - 1;
-        ciu = src_block->cie + 1;
-        cjl = src_block->cjs - f2;
-        cju = src_block->cje + f2;
-        ckl = src_block->cks - f3;
-        cku = src_block->cke + f3;
-        cis = nlx1 * b_hsz1 + src_block->is - 1;
-        cjs = nlx2 * b_hsz2 + src_block->js - f2;
-        cks = nlx3 * b_hsz3 + src_block->ks - f3;
+      {
+        const int h  = (ds.prolong_op == ProlongOp::WenoZ) ? 2 : 1;
+        const int h2 = f2 ? h : 0;
+        const int h3 = f3 ? h : 0;
+        cil = src_block->cis - h;
+        ciu = src_block->cie + h;
+        cjl = src_block->cjs - h2;
+        cju = src_block->cje + h2;
+        ckl = src_block->cks - h3;
+        cku = src_block->cke + h3;
+        cis = nlx1 * b_hsz1 + src_block->is - h;
+        cjs = nlx2 * b_hsz2 + src_block->js - h2;
+        cks = nlx3 * b_hsz3 + src_block->ks - h3;
         pil = src_block->cis;
         piu = src_block->cie;
         pjl = src_block->cjs;
@@ -1146,6 +1168,7 @@ void AMRRegistry::FillSameRankCoarseToFine(MeshBlock* src_block,
         pkl = src_block->cks;
         pku = src_block->cke;
         break;
+      }
       case Sampling::CX:
       {
         const int min_cx_ng = std::min(NCGHOST_CX, NGHOST);
@@ -1213,6 +1236,10 @@ void AMRRegistry::FillSameRankCoarseToFine(MeshBlock* src_block,
     {
       case ProlongOp::MinmodLinear:
         pmr->ProlongateCellCenteredValues(
+          dst_a, *ds.var, 0, nu, pil, piu, pjl, pju, pkl, pku);
+        break;
+      case ProlongOp::WenoZ:
+        pmr->ProlongateCellCenteredWenoZValues(
           dst_a, *ds.var, 0, nu, pil, piu, pjl, pju, pkl, pku);
         break;
       case ProlongOp::LagrangeUniform:

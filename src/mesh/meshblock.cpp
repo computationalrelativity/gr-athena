@@ -547,7 +547,8 @@ MeshBlock::~MeshBlock()
 inline void MeshBlock::SetAllIndicialParameters()
 {
   ng      = NGHOST;
-  cnghost = (NGHOST + 1) / 2 + 1;
+  cnghost = (NGHOST + 1) / 2 + 1 +
+            (pmy_mesh->hydro_prolong_op == comm::ProlongOp::WenoZ ? 1 : 0);
 
   // allow decoupling of coarse ghosts for vertex-centered
   cng  = NCGHOST;
