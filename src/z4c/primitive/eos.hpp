@@ -86,9 +86,11 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::SpecificInternalEnergy;
   using EOSPolicy::TemperatureFromE;
   using EOSPolicy::TemperatureFromEntropy;
+  using EOSPolicy::TemperatureFromEps;
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
 
+  using EOSPolicy::FrXa;
   using EOSPolicy::FrXh;
   using EOSPolicy::FrYn;
   using EOSPolicy::FrYp;
@@ -175,6 +177,25 @@ class EOS : public EOSPolicy, public ErrorPolicy
   {
     return TemperatureFromE(
              n, e * code_units->PressureConversion(*eos_units), Y) *
+           eos_units->TemperatureConversion(*code_units);
+  }
+
+  //! \fn Real GetTemperatureFromEps(Real n, Real e, Real *Y)
+  //  \brief Calculate the temperature from number density, specific internal
+  //  energy, and
+  //         particle fractions.
+  //
+  //  \param[in] n  The number density
+  //  \param[in] eps The specific internal energy
+  //  \param[in] Y  An array of particle fractions, expected to be of size
+  //  n_species.
+  //  \return The temperature according to the EOS.
+  inline Real GetTemperatureFromEps(Real n, Real eps, Real* Y)
+  {
+    return TemperatureFromEps(
+             n,
+             eps * code_units->SpecificInternalEnergyConversion(*eos_units),
+             Y) *
            eos_units->TemperatureConversion(*code_units);
   }
 
@@ -404,6 +425,11 @@ class EOS : public EOSPolicy, public ErrorPolicy
   inline Real GetYp(Real n, Real T, Real* Y)
   {
     return FrYp(n, T * code_units->TemperatureConversion(*eos_units), Y);
+  }
+
+  inline Real GetXa(Real n, Real T, Real* Y)
+  {
+    return FrXa(n, T * code_units->TemperatureConversion(*eos_units), Y);
   }
 
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.

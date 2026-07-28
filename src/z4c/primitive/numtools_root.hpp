@@ -775,6 +775,97 @@ class Root
     f(root, args...);
     return root;
   }
+
+  template <class Functor, class... Types>
+  inline bool FalsePositionModified(Functor&& f,
+                                    Real& lb,
+                                    Real& ub,
+                                    Real& x,
+                                    Real xtol,
+                                    Real ftol,
+                                    Types... args) const
+  {
+    int side = 0;
+    Real ftest;
+    unsigned int count = 0;
+    // Get our initial bracket.
+    Real flb = f(lb, args...);
+    Real fub = f(ub, args...);
+    Real xold;
+    x = lb;
+    // If one of the bounds is already within tolerance of the root, we can
+    // skip all of this.
+    if (std::fabs(flb) <= ftol)
+    {
+      x = lb;
+      return true;
+    }
+    else if (std::fabs(fub) <= ftol)
+    {
+      x = ub;
+      return true;
+    }
+    if (flb * fub > 0)
+    {
+      return false;
+    }
+    do
+    {
+      xold = x;
+      // Calculate the new root position.
+      x = (fub * lb - flb * ub) / (fub - flb);
+      count++;
+
+      // Robust relative-x tolerance: guard against x -> 0 by adding
+      // tol in the denominator (degenerates to absolute tol when |x|
+      // is small, relative tol when |x| is large).
+      if (std::fabs(x - xold) <= xtol * (std::fabs(x) + xtol))
+      {
+        return true;
+      }
+
+      // Calculate f at the prospective root.
+      ftest = f(x, args...);
+
+      // Functional tolerance: also accept convergence when |f| is
+      // already within tolerance of zero.
+      if (std::fabs(ftest) <= ftol)
+      {
+        return true;
+      }
+
+      // Check the sign of f. If f is on the same side as the lower bound, then
+      // we adjust the lower bound. Similarly, if f is on the same side as the
+      // upper bound, we adjust the upper bound. If ftest falls on the same
+      // side twice, we weight one of the sides to force the new root to fall
+      // on the other side. This allows us to whittle down both sides at once
+      // and get better average convergence.
+      if (ftest * flb >= 0)
+      {
+        flb = ftest;
+        lb  = x;
+        if (side == 1)
+        {
+          fub /= 2.0;
+        }
+        side = 1;
+      }
+      else
+      {
+        fub = ftest;
+        ub  = x;
+        if (side == -1)
+        {
+          flb /= 2.0;
+        }
+        side = -1;
+      }
+    } while (count < iterations);
+
+    // Return success if we're below the tolerance, otherwise report failure.
+    return std::fabs(x - xold) <= xtol * (std::fabs(x) + xtol) ||
+           std::fabs(ftest) <= ftol;
+  }
 };
 
 }  // namespace NumTools
