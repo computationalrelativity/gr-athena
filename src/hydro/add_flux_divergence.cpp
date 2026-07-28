@@ -175,8 +175,30 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
         bool is_valid =
           (D_star * oo_sqrt_detgamma >= pr->xorder_fb_dfloor_fac * dfloor);
 
+        // The composition scalars are kept in range by the reconstruction
+        // limiter (ApplySpeciesLimits + SanitizeMassFractions) and the discrete
+        // maximum principle for the consistent F_S = F_D * Y flux, so checking
+        // them here only misfires on values legitimately pinned at a bound
+        // (e.g. Ah = 1), forcing spurious low-order fallback and dissipative
+        // heating. With xorder_fb_scalars=false they are dropped from the mask.
+        //
+        // Ye (SCYE) is the exception and is ALWAYS checked: unlike the mass
+        // fractions it has no sum constraint / flux correction, so an
+        // out-of-bounds excursion is clamped by c2p which -- with
+        // adjust_conserved -- rewrites the conserved lepton scalar D*Ye
+        // non-conservatively and leaks integral D*Ye. The fb fallback
+        // suppresses those excursions. In hydro-only mode Ye uses the raw table
+        // bound (no fac_Y margin) so a value legitimately at min_Ye does not
+        // trip; only a genuine excursion out of [min_Ye, max_Ye] does.
         for (int n = 0; n < NSCALARS; ++n)
         {
+#if EOS_POLICY_CODE == 4
+          // SCYE and the composition mask only exist for the transition EOS;
+          // other policies keep every scalar in the mask.
+          if (!pr->xorder_fb_scalars && n != SCYE)
+            continue;
+#endif
+
           const Real S = s(n, k, j, i);
           const Real S_star =
             S -
@@ -186,8 +208,15 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
                (sflux[1](n, k, j + 1, i) - sflux[1](n, k, j, i)) * oo_dx2f_j +
                (sflux[2](n, k + 1, j, i) - sflux[2](n, k, j, i)) * oo_dx3f_k);
 
-          is_valid = is_valid && ((S_star / D_star >= min_Y__[n]) &&
-                                  (S_star / D_star <= max_Y__[n]));
+          const Real S_lo = pr->xorder_fb_scalars
+                              ? min_Y__[n]
+                              : pmb->peos->GetEOS().GetMinimumSpeciesFraction(n);
+          const Real S_hi = pr->xorder_fb_scalars
+                              ? max_Y__[n]
+                              : pmb->peos->GetEOS().GetMaximumSpeciesFraction(n);
+
+          is_valid = is_valid && ((S_star / D_star >= S_lo) &&
+                                  (S_star / D_star <= S_hi));
         }
 
         mask(k, j, i) = mask(k, j, i) && is_valid;
