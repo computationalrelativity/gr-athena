@@ -207,7 +207,7 @@ parser.add_argument(
 parser.add_argument(
   "--eospolicy",
   default="idealgas",
-  choices=["idealgas", "piecewise_polytrope", "eos_compose", "hybrid_table"],
+  choices=["idealgas", "piecewise_polytrope", "eos_compose", "hybrid_table", "eos_transition"],
   help="select EOS policy for PrimitiveSolver framework",
 )
 
@@ -215,7 +215,7 @@ parser.add_argument(
 parser.add_argument(
   "--errorpolicy",
   default="do_nothing",
-  choices=["do_nothing", "reset_floor", "reset_floor_no_adjust_conserved"],
+  choices=["do_nothing", "reset_floor", "reset_floor_no_adjust_conserved", "reset_floor_transition"],
   help="select error policy for PrimitiveSolver framework",
 )
 
@@ -840,6 +840,10 @@ if args["eos"] == "eostaudyn_ps":
     definitions["EOS_POLICY"] = "HybridTable"
     definitions["EOS_POLICY_CODE"] = "3"
     definitions["COLDEOS_POLICY"] = "ColdHybridTable"
+  elif args["eospolicy"] == "eos_transition":
+    definitions["EOS_POLICY"] = "EOSTransition"
+    definitions["EOS_POLICY_CODE"] = "4"
+    definitions["COLDEOS_POLICY"] = "ColdEOSTransition"
   else:
     definitions["EOS_POLICY"] = ""
 
@@ -849,6 +853,9 @@ if args["eos"] == "eostaudyn_ps":
   elif args["errorpolicy"] == "reset_floor":
     definitions["ERROR_POLICY"] = "ResetFloor"
     definitions["ERROR_POLICY_CODE"] = "1"
+  elif args["errorpolicy"] == "reset_floor_transition":
+    definitions["ERROR_POLICY"] = "ResetFloorTransition"
+    definitions["ERROR_POLICY_CODE"] = "2"
   elif args["errorpolicy"] == "reset_floor_no_adjust_conserved":
     # this is just to set a macro in defs.hpp which controls
     # `adjust_conserved` in reset_floor.cpp.
@@ -1974,6 +1981,10 @@ files = [
   "ps_error",
   f"cold_{args['eospolicy']}",
 ]
+if args["eospolicy"] == "eos_transition":
+  files.append("eos_compose")
+  files.append("eos_helmholtz")
+
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]
   makefile_options["EOS_FILES"] = "\n".join(aux) + "\n"
