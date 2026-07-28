@@ -58,13 +58,25 @@ Real Polytrope::DensityFromPressure(Real P) {
   return pow(P/K, 1.0/gamma);
 }
 
-Real Polytrope::DensityFromEnergy(Real E) {
-  throw std::logic_error("Polytrope::DensityFromEnergy not implemented");
-}
-
 void Polytrope::SetNSpecies(int n) {
   if (n > MAX_SPECIES || n < 0) {
     throw std::out_of_range("IdealGas::SetNSpecies - n cannot exceed MAX_SPECIES.");
   }
   n_species = n;
+}
+
+Real Polytrope::DensityFromEnergy(Real E) {
+  // Invert E = n*mb + K*n^gamma/(gamma - 1) with Newton iterations,
+  // starting from the cold, pressureless estimate n = E/mb.
+  Real n = E/mb;
+  for (int i = 0; i < 50; i++) {
+    Real f = Energy(n) - E;
+    Real df = mb + gamma*K*pow(n, gammam1)/gammam1;
+    Real dn = f/df;
+    n -= dn;
+    if (fabs(dn) <= 1e-15*fabs(n)) {
+      break;
+    }
+  }
+  return n;
 }

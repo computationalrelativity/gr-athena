@@ -11,6 +11,9 @@
 //  law:
 //  \f$P_\textrm{therm} = nk_B T\f$
 
+#include <cassert>
+#include <string>
+
 #include "../../athena.hpp"
 #include "eos_policy_interface.hpp"
 #include "unit_system.hpp"
@@ -42,6 +45,9 @@ class PiecewisePolytrope : public EOSPolicyInterface
 
   /// Calculate the temperature using the ideal gas law.
   Real TemperatureFromE(Real n, Real e, Real* Y);
+
+  /// Calculate the temperature from the specific internal energy.
+  Real TemperatureFromEps(Real n, Real eps, Real* Y);
 
   /// Calculate the temperature using the ideal gas law.
   Real TemperatureFromP(Real n, Real p, Real* Y);
@@ -93,6 +99,10 @@ class PiecewisePolytrope : public EOSPolicyInterface
   // Returns proton number fraction Y_p = n_p / n_b.
   [[noreturn]]
   Real FrYp(Real n, Real T, Real* Y);
+  // Returns alpha-particle mass fraction X_a = 4 * Y_a.
+  // This is a mass fraction, not a number fraction.
+  [[noreturn]]
+  Real FrXa(Real n, Real T, Real* Y);
   // Returns heavy-nucleus mass fraction X_h = A_N * Y_N.
   // This is a mass fraction, not a number fraction.
   [[noreturn]]
@@ -142,6 +152,13 @@ class PiecewisePolytrope : public EOSPolicyInterface
   Real MinimumEntropy(Real n, Real* Y);
   [[noreturn]]
   Real MaximumEntropy(Real n, Real* Y);
+
+  /// Calculate the maximum specific internal energy at a given density and
+  /// composition
+  Real MaximumSpecificInternalEnergy(Real n, Real* Y)
+  {
+    return MaximumEnergy(n, Y) / (mb * n) - 1.0;
+  }
 
   public:
   /// Load the EOS parameters from a file.

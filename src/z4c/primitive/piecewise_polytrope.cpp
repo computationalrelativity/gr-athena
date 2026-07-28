@@ -102,6 +102,11 @@ Real PiecewisePolytrope::TemperatureFromE(Real n, Real e, Real* Y)
   return T;
 }
 
+Real PiecewisePolytrope::TemperatureFromEps(Real n, Real eps, Real* Y)
+{
+  return TemperatureFromE(n, (eps + 1.0) * mb * n, Y);
+}
+
 Real PiecewisePolytrope::TemperatureFromP(Real n, Real p, Real* Y)
 {
   int i       = FindPiece(n);
@@ -212,6 +217,12 @@ Real PiecewisePolytrope::FrYp(Real n, Real s, Real* Y)
 {
   throw std::logic_error(
     "PiecewisePolytrope::FrYp not currently implemented.");
+}
+
+Real PiecewisePolytrope::FrXa(Real n, Real s, Real* Y)
+{
+  throw std::logic_error(
+    "PiecewisePolytrope::FrXa not currently implemented.");
 }
 
 Real PiecewisePolytrope::FrXh(Real n, Real s, Real* Y)
