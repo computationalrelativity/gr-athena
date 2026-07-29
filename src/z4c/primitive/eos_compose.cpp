@@ -198,7 +198,7 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
   Real e_min    = exp(loge_min);
   Real e_max    = exp(loge_max);
 
-  if (e <= e_min)
+  if (!std::isfinite(e) || e <= e_min)
     return min_T;
   if (e >= e_max)
     return max_T;
@@ -219,7 +219,7 @@ Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real* Y)
   Real p_min    = exp(logp_min);
   Real p_max    = exp(logp_max);
 
-  if (p <= p_min)
+  if (!std::isfinite(p) || p <= p_min)
     return min_T;
   if (p >= p_max)
     return max_T;
@@ -239,7 +239,7 @@ Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real* Y)
   Real s_min = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, 0);
   Real s_max = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
 
-  if (s <= s_min)
+  if (!std::isfinite(s) || s <= s_min)
     return min_T;
   if (s >= s_max)
     return max_T;
@@ -333,6 +333,14 @@ void EOSCompOSE::FindTBracketAndWeights(Real n,
 {
   boundary_lo = false;
   boundary_hi = false;
+
+  // Guard against non-positive or non-finite energy: log(e) would be NaN
+  // or -inf, which silently bypasses the boundary checks below and hits
+  // the assertion.  Treat as below-minimum-energy (cold EOS floor).
+  if (!std::isfinite(e) || e <= 0.0) {
+    boundary_lo = true;
+    return;
+  }
 
   Real log_n = log(n);
   weight_idx_ln(&wn0, &wn1, &in, log_n);
@@ -1077,6 +1085,11 @@ Real EOSCompOSE::temperature_from_var_precomp(Real var_min,
                                               Real wy1,
                                               int iy) const
 {
+  // Guard against NaN/non-finite var propagating from callers.
+  if (!std::isfinite(var)) {
+    return min_T;
+  }
+
   // Pre-compute the four base offsets for the (iv, in, iy) cell.
   // Temperature indices are contiguous, so f(it) = m_table[base + it].
   ptrdiff_t const b00 = index(iv, in, iy, 0);

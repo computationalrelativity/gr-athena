@@ -79,12 +79,9 @@ class Hydro
     1.0e-6
   };  // relative tolerance for HLLE denominator guard
 
-  uint64_t hllc_ncells_{ 0 };
-  uint64_t hllc_nhit_{ 0 };
-  uint64_t hllc_nfallback_{ 0 };
-  uint64_t hllc_nlambda_c_oor_{ 0 };
-  int hllc_print_interval_{ 0 };
-  int hllc_last_print_cycle_{ -1 };
+  // Padding: preserve ABI compatibility with builds that pre-date the
+  // HLLC stats migration.  Must remain zero-initialized.
+  bool _pad_flux_reconstruction = false;
 
   struct
   {
@@ -214,6 +211,14 @@ class Hydro
 
   AT_H_vec flux_l_;
   AT_H_vec flux_r_;
+
+  // --- HLLC statistics (runtime, hllc-only) ---
+  uint64_t hllc_ncells_{ 0 };
+  uint64_t hllc_nhit_{ 0 };
+  uint64_t hllc_nfallback_{ 0 };
+  uint64_t hllc_nlambda_c_oor_{ 0 };
+  int hllc_print_interval_{ 0 };
+  int hllc_last_print_cycle_{ -1 };
 
   // --- HLLC tetrad-frame scratch arrays ---
   AT_N_vec v_tet_l_;

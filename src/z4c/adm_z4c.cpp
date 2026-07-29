@@ -222,7 +222,7 @@ void Z4c::Z4cToADM(AthenaArray<Real>& u, AthenaArray<Real>& u_adm)
     {
       GLOOP1(i)
       {
-        adm.psi4(k, j, i) = 1.0 / z4c.chi(k, j, i);
+        adm.psi4(k, j, i) = 1.0 / std::max(z4c.chi(k, j, i), opt.chi_div_floor);
       }
     }
     else
@@ -311,7 +311,7 @@ void Z4c::Z4cToADM(AA& u,
           {
             continue;
           }
-          adm.psi4(k, j, i) = 1.0 / z4c.chi(k, j, i);
+          adm.psi4(k, j, i) = 1.0 / std::max(z4c.chi(k, j, i), opt.chi_div_floor);
         }
       }
       else
