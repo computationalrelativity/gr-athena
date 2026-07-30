@@ -189,6 +189,12 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
 
   xorder_dmp_max = pin->GetOrAddReal("time", "xorder_dmp_max", 1.1);
 
+  xorder_dmp_max_rat_D =
+    pin->GetOrAddReal("time", "xorder_dmp_max_rat_D", 0.0);
+
+  xorder_fb_max_rel_D =
+    pin->GetOrAddReal("time", "xorder_fb_max_rel_D", 0.0);
+
   if (xorder_use_dmp && !xorder_use_fb)
   {
     std::stringstream msg;

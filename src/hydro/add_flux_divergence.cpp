@@ -175,6 +175,10 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
         bool is_valid =
           (D_star * oo_sqrt_detgamma >= pr->xorder_fb_dfloor_fac * dfloor);
 
+        if (is_valid && pr->xorder_fb_max_rel_D > 0.0) {
+          is_valid = (std::abs(D_star - D) <= pr->xorder_fb_max_rel_D * D);
+        }
+
         for (int n = 0; n < NSCALARS; ++n)
         {
           const Real S = s(n, k, j, i);
@@ -296,13 +300,23 @@ void Hydro::CheckStateWithFluxDivergenceDMP(const Real wght,
         Real tau_min = +std::numeric_limits<Real>::infinity();
         Real tau_max = -std::numeric_limits<Real>::infinity();
 
+        const Real max_rat_D = pr->xorder_dmp_max_rat_D;
+        const Real D_c       = u_old(IDN, k, j, i);
+
         for (int kk = k - 1; kk <= k + 1; ++kk)
           for (int jj = j - 1; jj <= j + 1; ++jj)
             for (int ii = i - 1; ii <= i + 1; ++ii)
             {
               const Real D_i = u_old(IDN, kk, jj, ii);
-              D_min          = std::min(D_min, D_i);
-              D_max          = std::max(D_max, D_i);
+              if (max_rat_D > 0.0)
+              {
+                const Real D_lo = std::min(D_c, D_i);
+                const Real D_hi = std::max(D_c, D_i);
+                if (!(D_lo > 0.0) || D_hi > max_rat_D * D_lo)
+                  is_valid = false;
+              }
+              D_min = std::min(D_min, D_i);
+              D_max = std::max(D_max, D_i);
 
               const Real tau_i = u_old(IEN, kk, jj, ii);
               tau_min          = std::min(tau_min, tau_i);
