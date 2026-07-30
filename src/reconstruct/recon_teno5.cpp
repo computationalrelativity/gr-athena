@@ -3,6 +3,7 @@
 
 // Athena++ classes headers
 #include "../athena.hpp"
+#include "recon_koren.hpp"
 #include "reconstruction.hpp"
 #include "reconstruction_utils.hpp"
 
@@ -104,7 +105,7 @@ inline void teno5_cutoff(const Real b0,
 }
 
 // ---------------------------------------------------------------------------
-// MC2 / Koren TVD fallback functions (used by TENO5 templates below)
+// MC2 TVD fallback function (used by TENO5 templates below)
 // ---------------------------------------------------------------------------
 
 #pragma omp declare simd
@@ -129,39 +130,6 @@ inline void rec1d_mc2_LR(const Real a,
   const Real du  = sgn * std::fmin(2.0 * adl, std::fmin(2.0 * adr, adc));
   uL             = b + 0.5 * du;
   uR             = b - 0.5 * du;
-}
-
-#pragma omp declare simd
-inline void rec1d_koren_LR(const Real a,
-                           const Real b,
-                           const Real c,
-                           Real& uL,
-                           Real& uR)
-{
-  const Real dl = c - b;
-  const Real dr = b - a;
-  if (dl * dr <= 0.0)
-  {
-    uL = b;
-    uR = b;
-    return;
-  }
-  const Real r_fwd   = dl / (dr + EPSL);
-  const Real r_bwd   = dr / (dl + EPSL);
-  const Real phi_fwd = std::fmax(
-    Real(0.0),
-    std::fmin(
-      Real(2.0) * r_fwd,
-      std::fmin((Real(1.0) + Real(2.0) * r_fwd) / Real(3.0), Real(2.0))));
-  const Real phi_bwd = std::fmax(
-    Real(0.0),
-    std::fmin(
-      Real(2.0) * r_bwd,
-      std::fmin((Real(1.0) + Real(2.0) * r_bwd) / Real(3.0), Real(2.0))));
-  const Real slope = std::copysign(
-    std::fmin(phi_fwd * std::fabs(dr), phi_bwd * std::fabs(dl)), dl);
-  uL = b + 0.5 * slope;
-  uR = b - 0.5 * slope;
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +322,7 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
   }
   else
   {
-    rec1d_koren_LR(uimo, ui, uipo, uL, uR);
+    reconstruction::koren::ReconstructLR(uimo, ui, uipo, uL, uR);
   }
 
   const Real b1_R = teno_B1(ui, uimo, uimt);
@@ -384,7 +352,7 @@ inline void rec1d_p_teno5_koren_LR(const Real uimt,
   else
   {
     Real uR_dummy;
-    rec1d_koren_LR(uimo, ui, uipo, uR_dummy, uR);
+    reconstruction::koren::ReconstructLR(uimo, ui, uipo, uR_dummy, uR);
   }
 }
 

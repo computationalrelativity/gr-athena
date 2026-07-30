@@ -39,6 +39,7 @@ class Reconstruction
     donate,
     lin_vl,
     lin_mc2,
+    koren,
     ppm,
     ppmx,
     ceno3,
@@ -332,6 +333,36 @@ class Reconstruction
                               const int j,
                               const int il,
                               const int iu);
+
+  void ReconstructKorenX1(AthenaArray<Real>& z,
+                          AthenaArray<Real>& zl_,
+                          AthenaArray<Real>& zr_,
+                          const int n_tar,
+                          const int n_src,
+                          const int k,
+                          const int j,
+                          const int il,
+                          const int iu);
+
+  void ReconstructKorenX2(AthenaArray<Real>& z,
+                          AthenaArray<Real>& zl_,
+                          AthenaArray<Real>& zr_,
+                          const int n_tar,
+                          const int n_src,
+                          const int k,
+                          const int j,
+                          const int il,
+                          const int iu);
+
+  void ReconstructKorenX3(AthenaArray<Real>& z,
+                          AthenaArray<Real>& zl_,
+                          AthenaArray<Real>& zr_,
+                          const int n_tar,
+                          const int n_src,
+                          const int k,
+                          const int j,
+                          const int il,
+                          const int iu);
 
   void ReconstructPPMX1(AthenaArray<Real>& z,
                         AthenaArray<Real>& zl_,

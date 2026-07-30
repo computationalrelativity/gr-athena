@@ -51,6 +51,10 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::lin_mc2;
   }
+  else if (str_xorder_style == "koren")
+  {
+    xorder_style = ReconVar::koren;
+  }
   else if (str_xorder_style == "ppm")
   {
     xorder_style = ReconVar::ppm;
@@ -486,6 +490,11 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructLinearMC2X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ppm):
     {
       ReconstructPPMX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -628,6 +637,11 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructLinearMC2X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ppm):
     {
       ReconstructPPMX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -768,6 +782,11 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
     case (ReconVar::lin_mc2):
     {
       ReconstructLinearMC2X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ppm):
