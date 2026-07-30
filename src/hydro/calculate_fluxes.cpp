@@ -10,6 +10,7 @@
 // C headers
 
 // C++ headers
+#include <cmath>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -134,11 +135,22 @@ void ReconstructFields(MeshBlock* pmb,
   Hydro* ph             = pmb->phydro;
   PassiveScalars* ps    = pmb->pscalars;
   EquationOfState* peos = pmb->peos;
+#if EOS_POLICY_CODE == 2
+  const bool xorder_use_aux_eos_conditioned =
+    pr->xorder_use_aux_eos_conditioned;
+#else
+  const bool xorder_use_aux_eos_conditioned = false;
+#endif
 
   const int os_il = (ivx == 1) ? 1 : 0;
 
   for (int n = 0; n < NHYDRO; ++n)
-    pr->ReconstructFieldXd(rv_w, w, wl_, wr_, ivx, n, n, k, j, il - os_il, iu);
+    if (!xorder_use_aux_eos_conditioned || n != IPR)
+      pr->ReconstructFieldXd(rv_w, w, wl_, wr_, ivx, n, n, k, j, il - os_il, iu);
+
+  if (xorder_use_aux_eos_conditioned)
+    pr->ReconstructFieldXd(
+      rv_a, w, wl_, wr_, ivx, IPR, IPR, k, j, il - os_il, iu);
 
   if (MAGNETIC_FIELDS_ENABLED)
   {
@@ -173,7 +185,8 @@ void ReconstructFields(MeshBlock* pmb,
           (n == IX_ETH && pr->xorder_use_aux_h) ||
           (n == IX_LOR && pr->xorder_use_aux_W) ||
           (n == IX_CS2 && pr->xorder_use_aux_cs2) ||
-          (n == IX_SPB && pr->xorder_use_aux_s))
+          (n == IX_SPB && pr->xorder_use_aux_s) ||
+          (n == IX_SEN && xorder_use_aux_eos_conditioned))
         pr->ReconstructFieldXd(
           rv_a, aux, al_, ar_, ivx, n, n, k, j, il - os_il, iu);
 
@@ -188,6 +201,42 @@ void ReconstructFields(MeshBlock* pmb,
   Real Wvul__[NDIM]      = { 0.0 };
   Real Wvur__[NDIM]      = { 0.0 };
   Real nl__, nr__;
+
+#if EOS_POLICY_CODE == 2
+  auto GetConditionedTemperature = [peos, mb](Real n,
+                                              Real P,
+                                              Real epsilon,
+                                              Real* Y) {
+    auto& eos = peos->GetEOS();
+    const Real T_P = eos.GetTemperatureFromP(n, P, Y);
+    const Real E   = mb * n * (1.0 + epsilon);
+    const Real T_E = eos.GetTemperatureFromE(n, E, Y);
+
+    Real kappa_P, kappa_E_unused;
+    Real kappa_P_unused, kappa_E;
+    const bool P_condition =
+      n >= eos.GetDensityFloor() &&
+      eos.GetTemperatureInversionCondition(
+        n, T_P, Y, &kappa_P, &kappa_E_unused);
+    const bool E_condition =
+      std::isfinite(E) && E > 0.0 &&
+      eos.GetTemperatureInversionCondition(
+        n, T_E, Y, &kappa_P_unused, &kappa_E);
+    if (!P_condition || !E_condition || !std::isfinite(kappa_P) ||
+        !std::isfinite(kappa_E))
+    {
+      return T_P;
+    }
+
+    const Real kappa_max = std::max(kappa_P, kappa_E);
+    const Real kappa_P_scaled = kappa_P / kappa_max;
+    const Real kappa_E_scaled = kappa_E / kappa_max;
+    const Real w_P = SQR(kappa_E_scaled) /
+                     (SQR(kappa_P_scaled) + SQR(kappa_E_scaled));
+    return std::exp(w_P * std::log(T_P) +
+                    (1.0 - w_P) * std::log(T_E));
+  };
+#endif
 
   for (int i = il - os_il; i <= iu; ++i)
   {
@@ -212,6 +261,16 @@ void ReconstructFields(MeshBlock* pmb,
       peos->GetEOS().ApplySpeciesLimits(Yr__);
     }
 
+#if EOS_POLICY_CODE == 2
+    if (xorder_use_aux_eos_conditioned)
+    {
+      al_(IX_T, i) = GetConditionedTemperature(
+        nl__, wl_(IPR, i), al_(IX_SEN, i), Yl__);
+      ar_(IX_T, i) = GetConditionedTemperature(
+        nr__, wr_(IPR, i), ar_(IX_SEN, i), Yr__);
+    }
+    else
+#endif
     if (pr->xorder_use_aux_s)
     {
       peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
@@ -244,8 +303,6 @@ void ReconstructFields(MeshBlock* pmb,
         nl__, Wvul__, wl_(IPR, i), al_(IX_T, i), Yl__);
       peos->GetEOS().ApplyPrimitiveFloor(
         nr__, Wvur__, wr_(IPR, i), ar_(IX_T, i), Yr__);
-      wl_(IDN, i) = mb * nl__;
-      wr_(IDN, i) = mb * nr__;
       for (int n = 0; n < NDIM; ++n)
       {
         wl_(IVX + n, i) = Wvul__[n];
@@ -253,20 +310,50 @@ void ReconstructFields(MeshBlock* pmb,
       }
     }
 
+#if EOS_POLICY_CODE == 2
+    if (xorder_use_aux_eos_conditioned)
+    {
+      peos->GetEOS().GetPressureEnthalpyAndSoundSpeed(
+        nl__, al_(IX_T, i), Yl__, &wl_(IPR, i), &al_(IX_ETH, i),
+        &al_(IX_CS2, i));
+      peos->GetEOS().GetPressureEnthalpyAndSoundSpeed(
+        nr__, ar_(IX_T, i), Yr__, &wr_(IPR, i), &ar_(IX_ETH, i),
+        &ar_(IX_CS2, i));
+      if (peos->restrict_cs2)
+      {
+        al_(IX_CS2, i) = std::min(al_(IX_CS2, i), peos->max_cs2);
+        ar_(IX_CS2, i) = std::min(ar_(IX_CS2, i), peos->max_cs2);
+      }
+    }
+    else
+#endif
     if (!pr->xorder_use_aux_h)
     {
       al_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nl__, al_(IX_T, i), Yl__);
       ar_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nr__, ar_(IX_T, i), Yr__);
     }
 
-    if (pr->xorder_limit_species)
+    if (pr->xorder_floor_primitives || xorder_use_aux_eos_conditioned)
+    {
+      wl_(IDN, i) = mb * nl__;
+      wr_(IDN, i) = mb * nr__;
+    }
+
+    if (pr->xorder_limit_species || xorder_use_aux_eos_conditioned)
       for (int n = 0; n < NSCALARS; ++n)
       {
         rl_(n, i) = Yl__[n];
         rr_(n, i) = Yr__[n];
       }
 
-    if (pr->xorder_floor_primitives)
+    if (xorder_use_aux_eos_conditioned)
+    {
+      al_(IX_SEN, i) =
+        al_(IX_ETH, i) - 1.0 - wl_(IPR, i) / wl_(IDN, i);
+      ar_(IX_SEN, i) =
+        ar_(IX_ETH, i) - 1.0 - wr_(IPR, i) / wr_(IDN, i);
+    }
+    else if (pr->xorder_floor_primitives)
     {
       al_(IX_ETH, i) = std::max(al_(IX_ETH, i), min_ETH);
       ar_(IX_ETH, i) = std::max(ar_(IX_ETH, i), min_ETH);

@@ -54,6 +54,16 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Calculate the temperature from the pressure
   Real TemperatureFromP(Real n, Real p, Real* Y);
 
+  /// Return table-interior inverse-temperature conditioning.  The returned
+  /// values are kappa_q = 1 / |d log(q) / d log(T)| for pressure and energy;
+  /// an unavailable slope is returned as NaN.  False denotes no interior
+  /// temperature bracket.
+  bool TemperatureInversionCondition(Real n,
+                                     Real T,
+                                     Real* Y,
+                                     Real* kappa_P,
+                                     Real* kappa_E);
+
   /// Calculate the temperature from the entropy
   Real TemperatureFromEntropy(Real n, Real s, Real* Y);
 
@@ -88,6 +98,10 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Fused pressure + enthalpy: single weight computation for both P and h.
   void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
+
+  /// Fused pressure + enthalpy + sound speed from one table interpolation.
+  void PressureEnthalpyAndSoundSpeed(
+    Real n, Real T, Real* Y, Real* P, Real* h, Real* cs);
 
   /// Calculate the sound speed.
   Real SoundSpeed(Real n, Real T, Real* Y);

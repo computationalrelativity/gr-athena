@@ -101,6 +101,7 @@ void Hydro::RiemannSolverLLF(const int ivx,
   T_min = peos->GetEOS().GetTemperatureFloor();
   h_min = peos->GetEOS().GetMinimumEnthalpy();
 
+
   // deal with excision -------------------------------------------------------
   auto excise = [&](const int i)
   {
@@ -251,7 +252,8 @@ void Hydro::RiemannSolverLLF(const int ivx,
 
     // Compute sound speed squared
     Real cs2l, cs2r;
-    if (precon->xorder_use_aux_cs2)
+    if (precon->xorder_use_aux_cs2 ||
+        precon->xorder_use_aux_eos_conditioned)
     {
       cs2l = aux_l_(IX_CS2, i);
       cs2r = aux_r_(IX_CS2, i);

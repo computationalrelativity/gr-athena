@@ -95,6 +95,8 @@ class Reconstruction
   bool xorder_use_aux_W;                     // reconstruct lorentz?
   bool xorder_use_aux_cs2;                   // reconstruct cs^2?
   bool xorder_use_aux_s;                     // reconstruct entropy/baryon?
+  bool xorder_use_aux_eos_conditioned =
+    false;  // reconstruct P/epsilon and close with CompOSE
 
   bool xorder_limit_fluxes        = false;
   bool enforce_limits_integration = false;

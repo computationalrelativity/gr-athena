@@ -221,6 +221,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
 
   xorder_use_aux_s = pin->GetOrAddBoolean("time", "xorder_use_aux_s", false);
 
+  xorder_use_aux_eos_conditioned = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_eos_conditioned", false);
+
   if (xorder_use_aux_s && xorder_use_aux_T)
   {
     std::stringstream msg;
@@ -229,6 +232,30 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
         << std::endl;
     ATHENA_ERROR(msg);
   }
+
+  if (xorder_use_aux_eos_conditioned &&
+      (xorder_use_aux_T || xorder_use_aux_h || xorder_use_aux_cs2 ||
+       xorder_use_aux_s))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_aux_eos_conditioned is incompatible with "
+           "xorder_use_aux_{T,h,cs2,s}."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
+#if EOS_POLICY_CODE != 2
+  if (xorder_use_aux_eos_conditioned)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_aux_eos_conditioned requires EOS_POLICY_CODE == 2 "
+           "(CompOSE)."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+#endif
 
   xorder_flux_correction =
     pin->GetOrAddBoolean("time", "xorder_flux_correction", false);

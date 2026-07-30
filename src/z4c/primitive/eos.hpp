@@ -88,12 +88,18 @@ class EOS : public EOSPolicy, public ErrorPolicy
   using EOSPolicy::Pressure;
   using EOSPolicy::PressureAndEnthalpy;
   using EOSPolicy::PressureAndEnthalpyFromE;
+#if EOS_POLICY_CODE == 2
+  using EOSPolicy::PressureEnthalpyAndSoundSpeed;
+#endif
   using EOSPolicy::SoundSpeed;
   using EOSPolicy::SpecificInternalEnergy;
   using EOSPolicy::TemperatureFromE;
   using EOSPolicy::TemperatureFromEntropy;
   using EOSPolicy::TemperatureFromP;
   using EOSPolicy::TemperaturePressureAndEnthalpyFromE;
+#if EOS_POLICY_CODE == 2
+  using EOSPolicy::TemperatureInversionCondition;
+#endif
 
   using EOSPolicy::FrXh;
   using EOSPolicy::FrYn;
@@ -207,6 +213,23 @@ class EOS : public EOSPolicy, public ErrorPolicy
              eos_units->TemperatureConversion(*code_units);
     }
   }
+
+#if EOS_POLICY_CODE == 2
+  //! \brief Return CompOSE inverse-temperature conditioning at a face state.
+  inline bool GetTemperatureInversionCondition(Real n,
+                                               Real T,
+                                               Real* Y,
+                                               Real* kappa_P,
+                                               Real* kappa_E)
+  {
+    return TemperatureInversionCondition(
+      n,
+      T * code_units->TemperatureConversion(*eos_units),
+      Y,
+      kappa_P,
+      kappa_E);
+  }
+#endif
 
   //! \fn Real GetTemperatureFromEntropy(Real n, Real s, Real *Y)
   //  \brief Calculate the temperature from number density, entropy, and
@@ -363,6 +386,31 @@ class EOS : public EOSPolicy, public ErrorPolicy
          (eos_units->EnergyConversion(*code_units) /
           eos_units->MassConversion(*code_units));
   }
+
+#if EOS_POLICY_CODE == 2
+  //! \brief Fused CompOSE pressure, enthalpy, and sound-speed-squared query.
+  inline void GetPressureEnthalpyAndSoundSpeed(Real n,
+                                               Real T,
+                                               Real* Y,
+                                               Real* P,
+                                               Real* h,
+                                               Real* cs2)
+  {
+    Real P_eos, h_eos, cs_eos;
+    PressureEnthalpyAndSoundSpeed(
+      n,
+      T * code_units->TemperatureConversion(*eos_units),
+      Y,
+      &P_eos,
+      &h_eos,
+      &cs_eos);
+    *P = P_eos * eos_units->PressureConversion(*code_units);
+    *h = h_eos / mb *
+         (eos_units->EnergyConversion(*code_units) /
+          eos_units->MassConversion(*code_units));
+    *cs2 = SQR(cs_eos * eos_units->VelocityConversion(*code_units));
+  }
+#endif
 
   //! \fn Real GetMinimumEnthalpy()
   //  \brief Get the global minimum for enthalpy per mass from the EOS.

@@ -227,6 +227,60 @@ Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real* Y)
     logp_min, logp_max, ECLOGP, log(p), wn0, wn1, in, wy0, wy1, iy);
 }
 
+bool EOSCompOSE::TemperatureInversionCondition(Real n,
+                                                Real T,
+                                                Real* Y,
+                                                Real* kappa_P,
+                                                Real* kappa_E)
+{
+  assert(m_initialized);
+  *kappa_P = numeric_limits<Real>::quiet_NaN();
+  *kappa_E = numeric_limits<Real>::quiet_NaN();
+
+  if (!std::isfinite(n) || !std::isfinite(T) || !std::isfinite(Y[0]) ||
+      n <= 0.0 || T <= 0.0 || m_nt < 2 || T <= min_T || T >= max_T)
+  {
+    return false;
+  }
+
+  const Real log_T = log(T);
+  if (log_T <= m_log_t[0] || log_T >= m_log_t[m_nt - 1])
+  {
+    return false;
+  }
+
+  int in, iy, it;
+  Real wn0, wn1, wy0, wy1, wt0, wt1;
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_lt(&wt0, &wt1, &it, log_T);
+
+  const Real delta_log_T = m_log_t[it + 1] - m_log_t[it];
+  if (!std::isfinite(delta_log_T) || delta_log_T <= 0.0)
+  {
+    return false;
+  }
+
+  const Real slope_P =
+    (eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, it + 1) -
+     eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, it)) /
+    delta_log_T;
+  const Real slope_E =
+    (eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, it + 1) -
+     eval_at_it(ECLOGE, wn0, wn1, in, wy0, wy1, iy, it)) /
+    delta_log_T;
+
+  if (std::isfinite(slope_P) && slope_P > 0.0)
+  {
+    *kappa_P = 1.0 / slope_P;
+  }
+  if (std::isfinite(slope_E) && slope_E > 0.0)
+  {
+    *kappa_E = 1.0 / slope_E;
+  }
+  return true;
+}
+
 Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real* Y)
 {
   assert(m_initialized);
@@ -312,6 +366,40 @@ void EOSCompOSE::PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h)
   Real eval = exp(logE);
   *P        = Pval;
   *h        = (Pval + eval) / n;
+}
+
+void EOSCompOSE::PressureEnthalpyAndSoundSpeed(
+  Real n, Real T, Real* Y, Real* P, Real* h, Real* cs)
+{
+  assert(m_initialized);
+  const Real log_n = log(n);
+  const Real log_t = log(T);
+  const Real Yq    = Y[0];
+
+  int in, iy, it;
+  Real wn0, wn1, wy0, wy1, wt0, wt1;
+  weight_idx_ln(&wn0, &wn1, &in, log_n);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
+  weight_idx_lt(&wt0, &wt1, &it, log_t);
+
+  const auto interpolate = [&](int iv) {
+    const ptrdiff_t b00 = index(iv, in, iy, it);
+    const ptrdiff_t b01 = index(iv, in, iy + 1, it);
+    const ptrdiff_t b10 = index(iv, in + 1, iy, it);
+    const ptrdiff_t b11 = index(iv, in + 1, iy + 1, it);
+    return wn0 *
+             (wy0 * (wt0 * m_table[b00] + wt1 * m_table[b00 + 1]) +
+              wy1 * (wt0 * m_table[b01] + wt1 * m_table[b01 + 1])) +
+           wn1 *
+             (wy0 * (wt0 * m_table[b10] + wt1 * m_table[b10 + 1]) +
+              wy1 * (wt0 * m_table[b11] + wt1 * m_table[b11 + 1]));
+  };
+
+  const Real Pval = exp(interpolate(ECLOGP));
+  const Real eval = exp(interpolate(ECLOGE));
+  *P              = Pval;
+  *h              = (Pval + eval) / n;
+  *cs             = interpolate(ECCS);
 }
 
 void EOSCompOSE::FindTBracketAndWeights(Real n,

@@ -159,6 +159,7 @@ void Hydro::RiemannSolverHLLC(
   Real T_min = peos->GetEOS().GetTemperatureFloor();
   Real h_min = peos->GetEOS().GetMinimumEnthalpy();
 
+
   auto excise = [&](const int i)
   {
     PrimHelper::SetPrimAtmo(peos->GetEOS(), prim_l_, pscalars_l_, i);
@@ -262,7 +263,8 @@ void Hydro::RiemannSolverHLLC(
     w_hrho_r_(i) = w_rho_r_(i) * hr;
 
     Real cs2l, cs2r;
-    if (precon->xorder_use_aux_cs2)
+    if (precon->xorder_use_aux_cs2 ||
+        precon->xorder_use_aux_eos_conditioned)
     {
       cs2l = aux_l_(IX_CS2, i);
       cs2r = aux_r_(IX_CS2, i);

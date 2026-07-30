@@ -86,6 +86,17 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
     }
   }
 
+  if (pmb->precon->xorder_use_aux_eos_conditioned &&
+      solver_method_ == SolverMethod::split_llf)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Hydro constructor" << std::endl
+        << "xorder_use_aux_eos_conditioned is incompatible with "
+           "[hydro] rsolver=split_llf."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
   // HLLE safety tolerances (fallback to LLF when lam_r - lam_l is too small)
   hlle_eps_abs = pin->GetOrAddReal("hydro", "hlle_eps_abs", 1.0e-12);
   hlle_eps_rel = pin->GetOrAddReal("hydro", "hlle_eps_rel", 1.0e-6);

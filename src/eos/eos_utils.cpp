@@ -888,7 +888,8 @@ void EquationOfState::NearestNeighborSmooth(AA& tar,
 
 // ----------------------------------------------------------------------------
 // Smooth derived_ms(IX_T,:) by nearest-neighbour averaging and refresh
-// derived enthalpy / cs2 / entropy-per-baryon as appropriate.
+// derived enthalpy / conditioned internal energy / cs2 / entropy-per-baryon
+// as appropriate.
 // No-op when smooth_temperature is false.
 // w1(0,:) is used as scratch and left in an unspecified state on return
 // (callers should invoke RetainState(w1, w, ...) afterwards).
@@ -939,6 +940,23 @@ void EquationOfState::SmoothTemperatureAndRecompute(AA& w,
       const Real n = w(IDN, k, j, i) / mb;
       derived_ms(IX_ETH, k, j, i) =
         GetEOS().GetEnthalpy(n, derived_ms(IX_T, k, j, i), Y);
+    }
+  }
+
+  if (pmb->precon->xorder_use_aux_eos_conditioned)
+  {
+    const Real mb_sen = GetEOS().GetBaryonMass();
+    CC_GLOOP3(k, j, i)
+    {
+      Real Y[MAX_SPECIES] = { 0.0 };
+      for (int l = 0; l < NSCALARS; l++)
+      {
+        Y[l] = r(l, k, j, i);
+      }
+      const Real n = w(IDN, k, j, i) / mb_sen;
+      const Real T = derived_ms(IX_T, k, j, i);
+      derived_ms(IX_SEN, k, j, i) =
+        (T > 0) ? GetEOS().GetSpecificInternalEnergy(n, T, Y) : 0.0;
     }
   }
 

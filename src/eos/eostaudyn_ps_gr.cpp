@@ -286,6 +286,8 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
 
   const bool use_aux_cs2 = pmb->precon->xorder_use_aux_cs2;
   const bool use_aux_s   = pmb->precon->xorder_use_aux_s;
+  const bool use_aux_eos_conditioned =
+    pmb->precon->xorder_use_aux_eos_conditioned;
 
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il;
@@ -486,6 +488,15 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         // enthalpy update required at all substeps
         ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
           prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
+
+        // specific internal-energy update required when conditioned EOS
+        // reconstruction is active
+        if (use_aux_eos_conditioned)
+        {
+          ph->derived_ms(IX_SEN, k, j, i) =
+            ph->derived_ms(IX_ETH, k, j, i) - 1.0 -
+            prim_pt[IPR] / (mb * prim_pt[IDN]);
+        }
 
         // cs2 update required when auxiliary reconstruction of cs2 is active
         if (use_aux_cs2)
