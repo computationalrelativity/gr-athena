@@ -862,6 +862,22 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     return solver_result;
   }
 
+  if (!use_toms_748)
+  {
+    (void)RootFunction(mu,
+                       D,
+                       q,
+                       bsqr,
+                       rsqr,
+                       rbsqr,
+                       Y,
+                       peos,
+                       &n,
+                       &e,
+                       &P,
+                       &guess_it);
+  }
+
   // Retrieve the primitive variables.
   Real rho  = n * peos->GetBaryonMass();
   Real rbmu = rb * mu;
