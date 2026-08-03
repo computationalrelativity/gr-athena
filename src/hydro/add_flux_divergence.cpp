@@ -125,6 +125,8 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
   const Real mb     = pmb->peos->GetEOS().GetBaryonMass();
   const Real dfloor = mb * pmb->peos->GetEOS().GetDensityFloor();
 
+  const Real max_rel_momentum_flux = pr->xorder_fb_max_rel_momentum_flux;
+
   Real min_Y__[MAX_SPECIES] = { 0.0 };
   Real max_Y__[MAX_SPECIES] = { 0.0 };
 
@@ -163,20 +165,50 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
       {
         const Real oo_sqrt_detgamma = OO(sqrt_detgamma(k, j, i));
 
-        const Real D = u(IDN, k, j, i);
-        const Real D_star =
-          D - wght * ((hflux[0](IDN, k, j, i + 1) - hflux[0](IDN, k, j, i)) /
-                        pmb->pcoord->dx1f(i) +
-                      (hflux[1](IDN, k, j + 1, i) - hflux[1](IDN, k, j, i)) *
-                        oo_dx2f_j +
-                      (hflux[2](IDN, k + 1, j, i) - hflux[2](IDN, k, j, i)) *
-                        oo_dx3f_k);
+        Real u_star[NHYDRO];
+        for (int n = 0; n < NHYDRO; ++n)
+        {
+          u_star[n] =
+            u(n, k, j, i) -
+            wght * ((hflux[0](n, k, j, i + 1) - hflux[0](n, k, j, i)) /
+                      pmb->pcoord->dx1f(i) +
+                    (hflux[1](n, k, j + 1, i) - hflux[1](n, k, j, i)) *
+                      oo_dx2f_j +
+                    (hflux[2](n, k + 1, j, i) - hflux[2](n, k, j, i)) *
+                      oo_dx3f_k);
+        }
+
+        const Real D        = u(IDN, k, j, i);
+        const Real D_star   = u_star[IDN];
+        const Real tau_star = u_star[IEN];
 
         bool is_valid =
           (D_star * oo_sqrt_detgamma >= pr->xorder_fb_dfloor_fac * dfloor);
 
-        if (is_valid && pr->xorder_fb_max_rel_D > 0.0) {
+        if (is_valid && pr->xorder_fb_max_rel_D > 0.0)
+        {
           is_valid = (std::abs(D_star - D) <= pr->xorder_fb_max_rel_D * D);
+        }
+
+        const Real S1_star = u_star[IM1];
+        const Real S2_star = u_star[IM2];
+        const Real S3_star = u_star[IM3];
+
+        is_valid = is_valid && std::isfinite(S1_star) &&
+                   std::isfinite(S2_star) && std::isfinite(S3_star);
+
+        if (is_valid && max_rel_momentum_flux > 0.0)
+        {
+          const Real max_delta_S = max_rel_momentum_flux * D;
+          is_valid = std::isfinite(max_delta_S) && max_delta_S > 0.0 &&
+                     std::abs(S1_star - u(IM1, k, j, i)) <= max_delta_S &&
+                     std::abs(S2_star - u(IM2, k, j, i)) <= max_delta_S &&
+                     std::abs(S3_star - u(IM3, k, j, i)) <= max_delta_S;
+        }
+
+        if (is_valid && pr->xorder_min_tau_zero)
+        {
+          is_valid = (tau_star * oo_sqrt_detgamma >= 0.0);
         }
 
         for (int n = 0; n < NSCALARS; ++n)
@@ -196,38 +228,6 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
 
         mask(k, j, i) = mask(k, j, i) && is_valid;
         all_valid     = all_valid && is_valid;
-      }
-    }
-  }
-
-  // Optional conservative tau validity check (tau >= 0). This is strictly
-  // weaker than the EOS-dependent floor enforced later in C2P.
-  if (pr->xorder_min_tau_zero)
-  {
-    for (int k = ks - nel; k <= ke + nel; ++k)
-    {
-      const Real oo_dx3f_k = 1.0 / pmb->pcoord->dx3f(k);
-      for (int j = js - nel; j <= je + nel; ++j)
-      {
-        const Real oo_dx2f_j = 1.0 / pmb->pcoord->dx2f(j);
-        for (int i = is - nel; i <= ie + nel; ++i)  // avoid simd here
-        {
-          const Real oo_sqrt_detgamma = OO(sqrt_detgamma(k, j, i));
-          const Real tau              = u(IEN, k, j, i);
-          const Real tau_star =
-            tau -
-            wght * ((hflux[0](IEN, k, j, i + 1) - hflux[0](IEN, k, j, i)) /
-                      pmb->pcoord->dx1f(i) +
-                    (hflux[1](IEN, k, j + 1, i) - hflux[1](IEN, k, j, i)) *
-                      oo_dx2f_j +
-                    (hflux[2](IEN, k + 1, j, i) - hflux[2](IEN, k, j, i)) *
-                      oo_dx3f_k);
-
-          bool is_valid = (tau_star * oo_sqrt_detgamma >= 0);
-
-          mask(k, j, i) = mask(k, j, i) && is_valid;
-          all_valid     = all_valid && is_valid;
-        }
       }
     }
   }

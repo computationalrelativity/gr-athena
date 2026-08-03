@@ -199,6 +199,19 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   xorder_fb_max_rel_D =
     pin->GetOrAddReal("time", "xorder_fb_max_rel_D", 0.0);
 
+  xorder_fb_max_rel_momentum_flux =
+    pin->GetOrAddReal("time", "xorder_fb_max_rel_momentum_flux", 0.0);
+
+  if (!std::isfinite(xorder_fb_max_rel_momentum_flux) ||
+      xorder_fb_max_rel_momentum_flux < 0.0)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_fb_max_rel_momentum_flux must be finite and nonnegative."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
   if (xorder_use_dmp && !xorder_use_fb)
   {
     std::stringstream msg;

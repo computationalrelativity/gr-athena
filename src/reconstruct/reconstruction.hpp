@@ -86,8 +86,9 @@ class Reconstruction
   Real xorder_dmp_min;  // fiddle factors controlling decay / growth
   Real xorder_dmp_max;
 
-  Real xorder_dmp_max_rat_D = 0.0;  // max density ratio in DMP stencil
-  Real xorder_fb_max_rel_D  = 0.0;  // max relative D change per substep
+  Real xorder_dmp_max_rat_D            = 0.0;  // max density ratio in DMP stencil
+  Real xorder_fb_max_rel_D             = 0.0;  // max relative D change per substep
+  Real xorder_fb_max_rel_momentum_flux = 0.0;  // max component delta S / D
 
   const bool xorder_use_auxiliaries = true;  // reconstruct derived quantities?
   bool xorder_use_aux_T;                     // reconstruct temperature?
