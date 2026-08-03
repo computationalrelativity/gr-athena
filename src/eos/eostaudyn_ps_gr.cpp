@@ -485,17 +485,25 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         ph->derived_ms(IX_LOR, k, j, i) =
           std::min(max_W, ph->derived_ms(IX_LOR, k, j, i));
 
-        // enthalpy update required at all substeps
-        ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
-          prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
-
-        // specific internal-energy update required when conditioned EOS
-        // reconstruction is active
+        // Enthalpy update required at all substeps. Conditioned reconstruction
+        // also needs pressure from the same forward EOS state to close epsilon.
         if (use_aux_eos_conditioned)
         {
+          Real pressure_eos;
+          GetEOS().GetPressureAndEnthalpy(
+            prim_pt[IDN],
+            ph->derived_ms(IX_T, k, j, i),
+            &prim_pt[IYF],
+            &pressure_eos,
+            &ph->derived_ms(IX_ETH, k, j, i));
           ph->derived_ms(IX_SEN, k, j, i) =
             ph->derived_ms(IX_ETH, k, j, i) - 1.0 -
-            prim_pt[IPR] / (mb * prim_pt[IDN]);
+            pressure_eos / (mb * prim_pt[IDN]);
+        }
+        else
+        {
+          ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
+            prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
         }
 
         // cs2 update required when auxiliary reconstruction of cs2 is active

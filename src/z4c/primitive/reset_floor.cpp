@@ -141,12 +141,12 @@ bool ResetFloor::SpeciesLimits(Real* Y,
   bool adjusted = false;
   for (int i = 0; i < n_species; i++)
   {
-    if (Y[i] < Y_min[i])
+    if (!(Y[i] >= Y_min[i]))
     {
       adjusted = true;
       Y[i]     = Y_min[i];
     }
-    else if (Y[i] > Y_max[i])
+    else if (!(Y[i] <= Y_max[i]))
     {
       adjusted = true;
       Y[i]     = Y_max[i];

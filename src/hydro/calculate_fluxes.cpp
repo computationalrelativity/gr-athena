@@ -222,8 +222,15 @@ void ReconstructFields(MeshBlock* pmb,
       std::isfinite(E) && E > 0.0 &&
       eos.GetTemperatureInversionCondition(
         n, T_E, Y, &kappa_P_unused, &kappa_E);
-    if (!P_condition || !E_condition || !std::isfinite(kappa_P) ||
-        !std::isfinite(kappa_E))
+    const bool P_usable =
+      P_condition && std::isfinite(kappa_P) && kappa_P > 0.0;
+    const bool E_usable =
+      E_condition && std::isfinite(kappa_E) && kappa_E > 0.0;
+    if (!P_usable)
+    {
+      return E_usable ? T_E : T_P;
+    }
+    if (!E_usable)
     {
       return T_P;
     }
