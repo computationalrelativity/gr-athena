@@ -166,7 +166,7 @@ bool EquationOfState::CanExcisePoint(const bool is_slice,
 
   bool is_admissible = true;
 
-  const bool alpha__ = (is_slice) ? alpha(i) : alpha(k, j, i);
+  const Real alpha__ = (is_slice) ? alpha(i) : alpha(k, j, i);
 
   if (ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
   {
@@ -225,7 +225,7 @@ bool EquationOfState::CanExcisePoint(Real& excision_factor,
 
   bool is_admissible = true;
 
-  const bool alpha__ = (is_slice) ? alpha(i) : alpha(k, j, i);
+  const Real alpha__ = (is_slice) ? alpha(i) : alpha(k, j, i);
 
   if (ph->opt_excision.horizon_based || ph->opt_excision.hybrid_hydro)
   {

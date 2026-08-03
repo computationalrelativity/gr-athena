@@ -79,6 +79,7 @@ Real* EOSCompOSE::m_log_t      = nullptr;
 Real* EOSCompOSE::m_yq         = nullptr;
 Real* EOSCompOSE::m_table      = nullptr;
 bool EOSCompOSE::m_initialized = false;
+bool EOSCompOSE::m_has_dU      = false;
 
 Real EOSCompOSE::sm_id_log_nb = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSE::sm_id_log_t  = numeric_limits<Real>::quiet_NaN();

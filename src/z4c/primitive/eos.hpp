@@ -204,7 +204,7 @@ class EOS : public EOSPolicy, public ErrorPolicy
   {
     if (n < GetDensityFloor())
     {
-      return T_atm * eos_units->TemperatureConversion(*code_units);
+      return T_atm;
     }
     else
     {

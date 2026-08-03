@@ -312,7 +312,7 @@ class EOSCompOSE : public EOSPolicyInterface
 
   // Whether the optional dU dataset was present in the loaded HDF5 table.
   // When false, InteractionPotentialDifference asserts on call.
-  bool m_has_dU = false;
+  static bool m_has_dU;
 
   // Auxiliary static variables to share data only available when table is open
   // to those threads that do not open it variables from EOSCompOSE

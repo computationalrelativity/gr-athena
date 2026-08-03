@@ -182,7 +182,7 @@ void Hydro::CheckStateWithFluxDivergence(const Real wght,
         const Real D_star   = u_star[IDN];
         const Real tau_star = u_star[IEN];
 
-        bool is_valid =
+        bool is_valid = std::isfinite(D_star) && std::isfinite(tau_star) &&
           (D_star * oo_sqrt_detgamma >= pr->xorder_fb_dfloor_fac * dfloor);
 
         if (is_valid && pr->xorder_fb_max_rel_D > 0.0)
