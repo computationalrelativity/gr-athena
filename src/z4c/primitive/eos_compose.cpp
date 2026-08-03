@@ -30,6 +30,16 @@ using namespace std;
     throw runtime_error(ss.str().c_str());                            \
   }
 
+namespace
+{
+inline Real ClampCoordinate(Real value, Real lower, Real upper)
+{
+  if (!(value > lower)) return lower;
+  if (!(value < upper)) return upper;
+  return value;
+}
+}  // namespace
+
 EOSCompOSE::EOSCompOSE()
     : m_id_log_nb(numeric_limits<Real>::quiet_NaN()),
       m_id_log_t(numeric_limits<Real>::quiet_NaN()),
@@ -184,12 +194,14 @@ void EOSCompOSE::RefreshMinimumEnthalpyBound()
 Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   // Hoist density and composition weights: computed once, reused for
   // bounds checks and the inner root-find.
   int in, iy;
   Real wn0, wn1, wy0, wy1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
 
   // Evaluate log(e) at the table boundaries using 4 lookups each
   // (the temperature weight is trivially 1 at grid endpoints).
@@ -198,9 +210,9 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
   Real e_min    = exp(loge_min);
   Real e_max    = exp(loge_max);
 
-  if (!std::isfinite(e) || e <= e_min)
+  if (!(e > e_min))
     return min_T;
-  if (e >= e_max)
+  if (!(e < e_max))
     return max_T;
   return temperature_from_var_precomp(
     loge_min, loge_max, ECLOGE, log(e), wn0, wn1, in, wy0, wy1, iy);
@@ -209,19 +221,21 @@ Real EOSCompOSE::TemperatureFromE(Real n, Real e, Real* Y)
 Real EOSCompOSE::TemperatureFromP(Real n, Real p, Real* Y)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   int in, iy;
   Real wn0, wn1, wy0, wy1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
 
   Real logp_min = eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, 0);
   Real logp_max = eval_at_it(ECLOGP, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
   Real p_min    = exp(logp_min);
   Real p_max    = exp(logp_max);
 
-  if (!std::isfinite(p) || p <= p_min)
+  if (!(p > p_min))
     return min_T;
-  if (p >= p_max)
+  if (!(p < p_max))
     return max_T;
   return temperature_from_var_precomp(
     logp_min, logp_max, ECLOGP, log(p), wn0, wn1, in, wy0, wy1, iy);
@@ -237,8 +251,11 @@ bool EOSCompOSE::TemperatureInversionCondition(Real n,
   *kappa_P = numeric_limits<Real>::quiet_NaN();
   *kappa_E = numeric_limits<Real>::quiet_NaN();
 
-  if (!std::isfinite(n) || !std::isfinite(T) || !std::isfinite(Y[0]) ||
-      n <= 0.0 || T <= 0.0 || m_nt < 2 || T <= min_T || T >= max_T)
+  n = ClampCoordinate(n, min_n, max_n);
+  T = ClampCoordinate(T, min_T, max_T);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
+
+  if (m_nt < 2 || T <= min_T || T >= max_T)
   {
     return false;
   }
@@ -252,7 +269,7 @@ bool EOSCompOSE::TemperatureInversionCondition(Real n,
   int in, iy, it;
   Real wn0, wn1, wy0, wy1, wt0, wt1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
   weight_idx_lt(&wt0, &wt1, &it, log_T);
 
   const Real delta_log_T = m_log_t[it + 1] - m_log_t[it];
@@ -284,18 +301,20 @@ bool EOSCompOSE::TemperatureInversionCondition(Real n,
 Real EOSCompOSE::TemperatureFromEntropy(Real n, Real s, Real* Y)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   int in, iy;
   Real wn0, wn1, wy0, wy1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
 
   // Entropy is stored directly (not in log space).
   Real s_min = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, 0);
   Real s_max = eval_at_it(ECENT, wn0, wn1, in, wy0, wy1, iy, m_nt - 1);
 
-  if (!std::isfinite(s) || s <= s_min)
+  if (!(s > s_min))
     return min_T;
-  if (s >= s_max)
+  if (!(s < s_max))
     return max_T;
   return temperature_from_var_precomp(
     s_min, s_max, ECENT, s, wn0, wn1, in, wy0, wy1, iy);
@@ -322,6 +341,7 @@ Real EOSCompOSE::Entropy(Real n, Real T, Real* Y)
 Real EOSCompOSE::Enthalpy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
   Real const P = Pressure(n, T, Y);
   Real const e = Energy(n, T, Y);
   return (P + e) / n;
@@ -330,9 +350,11 @@ Real EOSCompOSE::Enthalpy(Real n, Real T, Real* Y)
 void EOSCompOSE::PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
+  T = ClampCoordinate(T, min_T, max_T);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   Real log_n = log(n);
   Real log_t = log(T);
-  Real Yq    = Y[0];
 
   int in, iy, it;
   Real wn0, wn1, wy0, wy1, wt0, wt1;
@@ -372,9 +394,11 @@ void EOSCompOSE::PressureEnthalpyAndSoundSpeed(
   Real n, Real T, Real* Y, Real* P, Real* h, Real* cs)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
+  T = ClampCoordinate(T, min_T, max_T);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   const Real log_n = log(n);
   const Real log_t = log(T);
-  const Real Yq    = Y[0];
 
   int in, iy, it;
   Real wn0, wn1, wy0, wy1, wt0, wt1;
@@ -422,17 +446,22 @@ void EOSCompOSE::FindTBracketAndWeights(Real n,
   boundary_lo = false;
   boundary_hi = false;
 
-  // Guard against non-positive or non-finite energy: log(e) would be NaN
-  // or -inf, which silently bypasses the boundary checks below and hits
-  // the assertion.  Treat as below-minimum-energy (cold EOS floor).
-  if (!std::isfinite(e) || e <= 0.0) {
+  // Classify invalid energies before log(e): NaN and non-positive values use
+  // the cold boundary, while positive infinity uses the hot boundary.
+  if (!(e > 0.0)) {
     boundary_lo = true;
     return;
   }
+  if (!std::isfinite(e)) {
+    boundary_hi = true;
+    return;
+  }
 
+  n = ClampCoordinate(n, min_n, max_n);
+  const Real Yq = ClampCoordinate(Y[0], min_Y[0], max_Y[0]);
   Real log_n = log(n);
   weight_idx_ln(&wn0, &wn1, &in, log_n);
-  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_yq(&wy0, &wy1, &iy, Yq);
 
   ptrdiff_t const be00 = index(ECLOGE, in, iy, 0);
   ptrdiff_t const be01 = index(ECLOGE, in, iy + 1, 0);
@@ -594,6 +623,7 @@ void EOSCompOSE::TemperaturePressureAndEnthalpyFromE(Real n,
                                                      int* guess_it)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
   int in, iy, it;
   Real wn0, wn1, wy0, wy1, wt0, wt1, lt;
   bool boundary_lo, boundary_hi;
@@ -652,6 +682,7 @@ void EOSCompOSE::PressureAndEnthalpyFromE(Real n,
                                           int* guess_it)
 {
   assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
   int in, iy, it;
   Real wn0, wn1, wy0, wy1, wt0, wt1, lt;
   bool boundary_lo, boundary_hi;
@@ -736,6 +767,8 @@ Real EOSCompOSE::ZN(Real n, Real T, Real* Y)
 
 Real EOSCompOSE::SpecificInternalEnergy(Real n, Real T, Real* Y)
 {
+  assert(m_initialized);
+  n = ClampCoordinate(n, min_n, max_n);
   return Energy(n, T, Y) / (mb * n) - 1;
 }
 
@@ -1152,6 +1185,8 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
 
 Real EOSCompOSE::temperature_from_var(int iv, Real var, Real n, Real Yq) const
 {
+  n = ClampCoordinate(n, min_n, max_n);
+  Yq = ClampCoordinate(Yq, min_Y[0], max_Y[0]);
   int in, iy;
   Real wn0, wn1, wy0, wy1;
   weight_idx_ln(&wn0, &wn1, &in, log(n));
@@ -1173,10 +1208,10 @@ Real EOSCompOSE::temperature_from_var_precomp(Real var_min,
                                               Real wy1,
                                               int iy) const
 {
-  // Guard against NaN/non-finite var propagating from callers.
-  if (!std::isfinite(var)) {
+  if (!(var > var_min)) {
     return min_T;
   }
+  if (!(var < var_max)) return max_T;
 
   // Pre-compute the four base offsets for the (iv, in, iy) cell.
   // Temperature indices are contiguous, so f(it) = m_table[base + it].
@@ -1269,20 +1304,26 @@ Real EOSCompOSE::temperature_from_var_precomp(Real var_min,
 
 Real EOSCompOSE::eval_at_nty(int vi, Real n, Real T, Real Yq) const
 {
+  n = ClampCoordinate(n, min_n, max_n);
+  T = ClampCoordinate(T, min_T, max_T);
+  Yq = ClampCoordinate(Yq, min_Y[0], max_Y[0]);
   return eval_at_lnty(vi, log(n), log(T), Yq);
 }
 
 void EOSCompOSE::weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const
 {
-  *in = (log_n - m_log_nb[0]) * m_id_log_nb;
-  // if outside table limits, linearly extrapolate
-  if (*in > m_nn - 2)
+  if (!(log_n > m_log_nb[0]))
+  {
+    *in = 0;
+  }
+  else if (!(log_n < m_log_nb[m_nn - 1]))
   {
     *in = m_nn - 2;
   }
-  else if (*in < 0)
+  else
   {
-    *in = 0;
+    *in = static_cast<int>((log_n - m_log_nb[0]) * m_id_log_nb);
+    *in = std::max(0, std::min(m_nn - 2, *in));
   }
 
   *w1 = (log_n - m_log_nb[*in]) * m_id_log_nb;
@@ -1291,15 +1332,18 @@ void EOSCompOSE::weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const
 
 void EOSCompOSE::weight_idx_yq(Real* w0, Real* w1, int* iy, Real yq) const
 {
-  *iy = (yq - m_yq[0]) * m_id_yq;
-  // if outside table limits, linearly extrapolate
-  if (*iy > m_ny - 2)
+  if (!(yq > m_yq[0]))
+  {
+    *iy = 0;
+  }
+  else if (!(yq < m_yq[m_ny - 1]))
   {
     *iy = m_ny - 2;
   }
-  else if (*iy < 0)
+  else
   {
-    *iy = 0;
+    *iy = static_cast<int>((yq - m_yq[0]) * m_id_yq);
+    *iy = std::max(0, std::min(m_ny - 2, *iy));
   }
 
   *w1 = (yq - m_yq[*iy]) * m_id_yq;
@@ -1308,15 +1352,18 @@ void EOSCompOSE::weight_idx_yq(Real* w0, Real* w1, int* iy, Real yq) const
 
 void EOSCompOSE::weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const
 {
-  *it = (log_t - m_log_t[0]) * m_id_log_t;
-  // if outside table limits, linearly extrapolate
-  if (*it > m_nt - 2)
+  if (!(log_t > m_log_t[0]))
+  {
+    *it = 0;
+  }
+  else if (!(log_t < m_log_t[m_nt - 1]))
   {
     *it = m_nt - 2;
   }
-  else if (*it < 0)
+  else
   {
-    *it = 0;
+    *it = static_cast<int>((log_t - m_log_t[0]) * m_id_log_t);
+    *it = std::max(0, std::min(m_nt - 2, *it));
   }
   *w1 = (log_t - m_log_t[*it]) * m_id_log_t;
   *w0 = 1.0 - (*w1);
