@@ -711,11 +711,25 @@ void Hydro::RiemannSolverHLLC(
                       q_sel, f_sel,
                       F_D, F_Sd, F_Sa, F_Sb, F_tau);
 
+    const Real F_E = F_tau - F_D;
+    if (!std::isfinite(F_D) || !std::isfinite(F_Sd) ||
+        !std::isfinite(F_Sa) || !std::isfinite(F_Sb) ||
+        !std::isfinite(F_E))
+    {
+      hllc_wave_side_(i) = 0.0;
+      ++hllc_nfallback_;
+      for (int n = 0; n < NHYDRO; ++n)
+        flux(n, k, j, i) = 0.5 *
+          ((flux_l_(n, i) + flux_r_(n, i)) -
+           lambda(i) * (cons_r_(n, i) - cons_l_(n, i)));
+      continue;
+    }
+
     flux(IDN, k, j, i)      = F_D;
     flux(IVX + d, k, j, i)  = F_Sd;
     flux(IVX + a, k, j, i)  = F_Sa;
     flux(IVX + b, k, j, i)  = F_Sb;
-    flux(IEN, k, j, i)      = F_tau - F_D;
+    flux(IEN, k, j, i)      = F_E;
     ++hllc_nhit_;
   }  // for i = il..iu
 

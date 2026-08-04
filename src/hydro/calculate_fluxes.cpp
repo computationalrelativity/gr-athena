@@ -336,8 +336,10 @@ void ReconstructFields(MeshBlock* pmb,
 #endif
     if (!pr->xorder_use_aux_h)
     {
-      al_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nl__, al_(IX_T, i), Yl__);
-      ar_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nr__, ar_(IX_T, i), Yr__);
+      peos->GetEOS().GetPressureAndEnthalpy(
+        nl__, al_(IX_T, i), Yl__, &wl_(IPR, i), &al_(IX_ETH, i));
+      peos->GetEOS().GetPressureAndEnthalpy(
+        nr__, ar_(IX_T, i), Yr__, &wr_(IPR, i), &ar_(IX_ETH, i));
     }
 
     if (pr->xorder_floor_primitives || xorder_use_aux_eos_conditioned)
