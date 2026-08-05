@@ -78,7 +78,7 @@ inline void FluxBackTransform(const int d,
                               Real& F_Sd,
                               Real& F_Sa,
                               Real& F_Sb,
-                              Real& F_tau)
+                              Real& F_E)
 {
   F_D = sqrtg * alpha * (et_x * q[0] + ex_x * f[0]);
 
@@ -100,7 +100,7 @@ inline void FluxBackTransform(const int d,
   F_Sb = sqrtg * alpha * (et_x * sum_J_b + ex_x * sum_fJ_b);
 
   // Energy: F(sqrt(gamma) * rho_H), NOT F(tau). Caller must subtract F_D to get F(tau).
-  F_tau = sqrtg * alpha * (et_x * q[4] + ex_x * f[4]);
+  F_E = sqrtg * alpha * (et_x * q[4] + ex_x * f[4]);
 }
 
 //----------------------------------------------------------------------------------------
@@ -703,18 +703,18 @@ void Hydro::RiemannSolverHLLC(
     const Real et_x  = -beta_d / alpha;               // e^(t^)^d
     const Real ex_x  = sqrt_gdd;                      // e^(d^)^d
 
-    Real F_D, F_Sd, F_Sa, F_Sb, F_tau;
+    Real F_D, F_Sd, F_Sa, F_Sb, F_E;
     FluxBackTransform(d, a, b,
                       sqrtg, alpha, et_x, ex_x,
                       e_cov_dd, e_cov_ad, e_cov_aa,
                       e_cov_bd, e_cov_ba, e_cov_bb,
                       q_sel, f_sel,
-                      F_D, F_Sd, F_Sa, F_Sb, F_tau);
+                      F_D, F_Sd, F_Sa, F_Sb, F_E);
 
-    const Real F_E = F_tau - F_D;
+    const Real F_tau = F_E - F_D;
     if (!std::isfinite(F_D) || !std::isfinite(F_Sd) ||
         !std::isfinite(F_Sa) || !std::isfinite(F_Sb) ||
-        !std::isfinite(F_E))
+        !std::isfinite(F_tau))
     {
       hllc_wave_side_(i) = 0.0;
       ++hllc_nfallback_;
@@ -729,7 +729,7 @@ void Hydro::RiemannSolverHLLC(
     flux(IVX + d, k, j, i)  = F_Sd;
     flux(IVX + a, k, j, i)  = F_Sa;
     flux(IVX + b, k, j, i)  = F_Sb;
-    flux(IEN, k, j, i)      = F_E;
+    flux(IEN, k, j, i)      = F_tau;
     ++hllc_nhit_;
   }  // for i = il..iu
 
