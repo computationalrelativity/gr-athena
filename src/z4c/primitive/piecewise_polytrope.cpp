@@ -369,9 +369,20 @@ bool PiecewisePolytrope::InitializeFromData(Real* densities,
     // of piece i-1 / lower boundary of piece i) requires the jump in
     // eps to be evaluated at that boundary, using the shared continuous
     // value of P_cold there: pressure_pieces[i] / (density_pieces[i] * mb).
+
+    eps_pieces[i] = eps_pieces[i-1] + pressure_pieces[i-1] / 
+                     (density_pieces[i] * mb) * 
+                     pow((density_pieces[i]/density_pieces[i-1]),gammas[i-1])*
+                     (1.0/(gammas[i-1] - 1.0) - 1.0/(gammas[i] - 1.0) );
+
+
+
+//old
+/*
     eps_pieces[i] = eps_pieces[i - 1] +
                     pressure_pieces[i] / (density_pieces[i] * mb) *
                       (1.0 / (gammas[i - 1] - 1.0) - 1.0 / (gammas[i] - 1.0));
+*/
   }
 
   // Because we're adding in a finite-temperature component via the ideal gas,
