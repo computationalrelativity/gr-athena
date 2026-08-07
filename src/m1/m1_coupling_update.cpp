@@ -309,7 +309,7 @@ void M1::CoupleSourcesYe(const Real mb, AA& ps)
     if (MaskGet(k, j, i))
     {
       const Real dye = mb * (S_sc_nG_nua(k, j, i) - S_sc_nG_nue(k, j, i));
-      ps(SCYE, k, j, i) += dye;
+      ps(0, k, j, i) += dye;  // Ye is scalar 0 for every policy with scalars
 #if EOS_POLICY_CODE == 4
       // Charged-current captures convert free neutrons <-> protons, so the
       // advected mass fractions must follow Ye where matter is out of NSE.
