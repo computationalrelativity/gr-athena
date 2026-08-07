@@ -119,7 +119,22 @@ class EOSHelmholtz : public EOSPolicyInterface
   void ReadTableFromFile(std::string fname, Real min_Ye, Real max_Ye);
 
   /// Set the baryon mass.
+  ///
+  /// N.B. mb is a convention, not a physical mass. It is the reference mass
+  /// per baryon that defines rho = mb * n and the rest-mass / eps split, it
+  /// is set at runtime from hydro/bmass, and the RHINE glue converts mass
+  /// excesses against it. It is unrelated to mn, mp below, and must not be
+  /// touched by SetNucleonMasses.
   void SetBaryonMass(Real new_mb);
+
+  /// Set the physical nucleon masses [MeV].
+  ///
+  /// Used by EOSTransition to adopt the values carried by the compose table,
+  /// so that both halves of the blended EOS build their chemical potentials
+  /// and rest-mass zero points from the same constants. Only evaluations use
+  /// mn, mp (chemical potentials, Sackur-Tetrode entropy), never the stored
+  /// table, so no rebuild is needed.
+  void SetNucleonMasses(Real new_mn, Real new_mp);
 
   /// Get the raw number density
   Real const* GetRawLogNumberDensity() const
@@ -218,8 +233,14 @@ class EOSHelmholtz : public EOSPolicyInterface
   // const Real sac_const = 244654.27090035815; // h^2/(2*pi) in (MeV fm)^2
   static constexpr Real sac_const = hbarc * hbarc * 2.0 * M_PI;  // (MeV fm)^2
   static constexpr Real me        = 0.5109989461;                // MeV
-  static constexpr Real mn        = 939.5654133;                 // MeV
-  static constexpr Real mp        = 938.2720813;                 // MeV
+  // Physical nucleon masses [MeV]. The CODATA values below are the defaults;
+  // when the Helmholtz EOS is driven by EOSTransition these are replaced by
+  // the values carried by the compose table (SetNucleonMasses), since the
+  // table energies and chemical potentials were built with them.
+  static constexpr Real mn_codata = 939.5654133;                 // MeV
+  static constexpr Real mp_codata = 938.2720813;                 // MeV
+  static Real mn;                                                // MeV
+  static Real mp;                                                // MeV
   static constexpr Real ma        = 3727.379378;                 // MeV
   static constexpr int g_n        = 2;  // neutron spin degeneracy
   static constexpr int g_p        = 2;  // proton spin degeneracy

@@ -62,6 +62,11 @@ Real* EOSHelmholtz::m_log_t      = nullptr;
 Real* EOSHelmholtz::m_table      = nullptr;
 bool EOSHelmholtz::m_initialized = false;
 
+// Physical nucleon masses, CODATA defaults; EOSTransition overrides these
+// with the compose table values (SetNucleonMasses).
+Real EOSHelmholtz::mn = EOSHelmholtz::mn_codata;
+Real EOSHelmholtz::mp = EOSHelmholtz::mp_codata;
+
 Real EOSHelmholtz::sm_id_log_ne = numeric_limits<Real>::quiet_NaN();
 Real EOSHelmholtz::sm_id_log_t  = numeric_limits<Real>::quiet_NaN();
 
@@ -410,6 +415,12 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname,
 void EOSHelmholtz::SetBaryonMass(Real new_mb)
 {
   mb = new_mb;
+}
+
+void EOSHelmholtz::SetNucleonMasses(Real new_mn, Real new_mp)
+{
+  mn = new_mn;
+  mp = new_mp;
 }
 
 void EOSHelmholtz::SetNSpecies(int n)
