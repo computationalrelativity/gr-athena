@@ -149,7 +149,8 @@ class Hydro
       "hydro.aux.c2p_status", "hydro.aux.W",    "hydro.aux.T",
       "hydro.aux.h",          "hydro.aux.s",    "hydro.aux.e",
       "hydro.aux.u_t",        "hydro.aux.hu_t", "hydro.aux.cs2",
-      "hydro.aux.Omega",
+      "hydro.aux.Omega",      "hydro.aux.mu_b", "hydro.aux.mu_q",
+      "hydro.aux.mu_le",
 #if EOS_POLICY_CODE == 4
       "hydro.aux.heating_rate",
       "hydro.aux.transition_w",
