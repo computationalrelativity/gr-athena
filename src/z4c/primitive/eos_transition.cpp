@@ -59,7 +59,8 @@ EOSTransition::EOSTransition()
   root.iterations   = 500;
 }
 
-bool EOSTransition::s_printed_parameters = false;
+bool EOSTransition::s_printed_parameters      = false;
+bool EOSTransition::s_printed_nucleon_masses  = false;
 
 EOSTransition::~EOSTransition()
 {
@@ -601,6 +602,10 @@ void EOSTransition::PrintParameters()
              compose_eos->min_T);
       printf("  min_h = %.15e\n", m_min_h);
       printf("  mb = %.15e MeV\n", mb);
+      printf("  mn, mp = %.7f %.7f MeV (Qnp = %.7f)\n",
+             EOSHelmholtz::mn,
+             EOSHelmholtz::mp,
+             EOSHelmholtz::mn - EOSHelmholtz::mp);
       printf(
         "  T transition start, end = %e %e\n", trans_T_start, trans_T_end);
       printf("  n transition start, end = %e %e\n",
@@ -620,7 +625,7 @@ void EOSTransition::SetBaryonMass(Real new_mb)
   helmholtz_eos->SetBaryonMass(new_mb);
   compose_eos->SetBaryonMass(new_mb);
   min_Y[SCEB] = mFe / (56.0 * new_mb) - 1.0;  // most bound nucleus is Fe-56
-  max_Y[SCEB] = mn / new_mb - 1.0;            // free neutron limit
+  max_Y[SCEB] = EOSHelmholtz::mn / new_mb - 1.0;  // free neutron limit
   // Minimum enthalpy per baryon (in MeV, converted to per-mass by the
   // EOS wrapper): cold, pressureless Fe-56, h = e/n = m(Fe56)/56.
   // N.B. not min_Y[SCEB], which is the binding *excess* (h/mb - 1).
@@ -858,7 +863,8 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
     // atomic hydrogen/helium masses for the light species; mFe is already
     // the atomic 56Fe mass. Both bounds are mass fractions times mass per
     // BARYON of each species.
-    Real const mH   = mp + me;        // atomic 1H
+    Real const mn   = EOSHelmholtz::mn;
+    Real const mH   = EOSHelmholtz::mp + me;  // atomic 1H
     Real const yq_h = (Ah > 0) ? Zh / Ah : 0.5;
     Real min_EB = (Y_NSE[SCXN] * mn + Y_NSE[SCXP] * mH +
                    Y_NSE[SCXA] * (ma + 2 * me) / 4 +
@@ -874,6 +880,63 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
     Real eb     = max(min_EB, min(eps_comp - eps_helm, max_EB));
     return eb;
   }
+}
+
+void EOSTransition::SyncNucleonMasses()
+{
+  // Deviation from the CODATA defaults that is worth reporting. Real tables
+  // sit ~1e-4 MeV away; anything larger suggests a different convention in
+  // the table (CompOSE stores the baryon mass in the same "mn" dataset).
+  constexpr Real tol = 1e-3;  // MeV
+
+  Real const table_mn = compose_eos->GetTableNeutronMass();
+  Real const table_mp = compose_eos->GetTableProtonMass();
+
+  bool const no_table_masses = std::isnan(table_mn) or std::isnan(table_mp);
+  bool const deviates =
+    (std::abs(table_mn - EOSHelmholtz::mn_codata) >= tol) or
+    (std::abs(table_mp - EOSHelmholtz::mp_codata) >= tol);
+
+  // One EOSTransition is constructed per MeshBlock, report at most once.
+#pragma omp critical
+  {
+    if ((not s_printed_nucleon_masses) and (Globals::my_rank == 0))
+    {
+      if (no_table_masses)
+      {
+        printf(
+          "EOSTransition: compose table carries no nucleon masses, "
+          "keeping CODATA (mn = %.7f, mp = %.7f MeV)\n",
+          EOSHelmholtz::mn_codata,
+          EOSHelmholtz::mp_codata);
+        s_printed_nucleon_masses = true;
+      }
+      else if (deviates)
+      {
+        printf(
+          "EOSTransition: compose table nucleon masses deviate from CODATA "
+          "by more than %.0e MeV, using the table values.\n"
+          "  mn: table %.7f vs CODATA %.7f MeV\n"
+          "  mp: table %.7f vs CODATA %.7f MeV\n"
+          "  Qnp = mn - mp: table %.7f vs CODATA %.7f MeV\n",
+          tol,
+          table_mn,
+          EOSHelmholtz::mn_codata,
+          table_mp,
+          EOSHelmholtz::mp_codata,
+          table_mn - table_mp,
+          EOSHelmholtz::mn_codata - EOSHelmholtz::mp_codata);
+        s_printed_nucleon_masses = true;
+      }
+    }
+  }
+
+  if (no_table_masses)
+  {
+    return;
+  }
+
+  helmholtz_eos->SetNucleonMasses(table_mn, table_mp);
 }
 
 void EOSTransition::InitializeTables(std::string fname,
@@ -895,6 +958,8 @@ void EOSTransition::InitializeTables(std::string fname,
     {
       SetTransition(10.0 * compose_eos->min_n, compose_eos->min_n, 0.6, 0.5);
     }
+    // Before SetBaryonMass: max_Y[SCEB] is built from the neutron mass.
+    SyncNucleonMasses();
     SetBaryonMass(baryon_mass);
     update_bounds();
     PrintParameters();

@@ -209,6 +209,19 @@ class EOSTransition : public EOSPolicyInterface
     return m_initialized;
   }
 
+  // Physical nucleon masses [MeV] as carried by the compose table. Names
+  // follow EOSCompOSE so that table-aware consumers (e.g. the M1 weakrates
+  // degeneracy parameter) work against either policy unchanged.
+  Real GetTableProtonMass()
+  {
+    return compose_eos->GetTableProtonMass();
+  }
+
+  Real GetTableNeutronMass()
+  {
+    return compose_eos->GetTableNeutronMass();
+  }
+
   /// Set the upper temperature for using the helmholtz eos at all
   void SetHelmholtzTMax(Real T_max)
   {
@@ -238,7 +251,20 @@ class EOSTransition : public EOSPolicyInterface
 
   private:
   /// Set the baryon mass.
+  ///
+  /// N.B. mb is a convention (reference mass per baryon, from hydro/bmass),
+  /// not a physical mass. SyncNucleonMasses below never touches it.
   void SetBaryonMass(Real new_mb);
+
+  /// Adopt the nucleon masses carried by the compose table.
+  ///
+  /// The table energies and chemical potentials were built with the table's
+  /// own mn, mp, so the Helmholtz half of the blend must use the same pair,
+  /// otherwise mu_q = mu_p - mu_n (which carries mp - mn explicitly) has a
+  /// different zero point on either side of the transition ramp. The table
+  /// wins; a deviation from the CODATA defaults of 1e-3 MeV or more is
+  /// reported but not treated as an error.
+  void SyncNucleonMasses();
 
   void update_bounds();
 
@@ -246,8 +272,9 @@ class EOSTransition : public EOSPolicyInterface
   Real temperature_from_var_trans(int iv, Real var, Real n, Real* Y) const;
   int comp_it_trans_start, comp_it_trans_end, comp_it_helm_tmax;
 
-  static constexpr Real mn  = EOSHelmholtz::mn;   // neutron mass in MeV
-  static constexpr Real mp  = EOSHelmholtz::mp;   // proton mass in MeV
+  // Physical masses. The nucleon pair lives in EOSHelmholtz (single source
+  // of truth, table-synced by SyncNucleonMasses); read it as
+  // EOSHelmholtz::mn / ::mp. The remaining masses have no table counterpart.
   static constexpr Real ma  = EOSHelmholtz::ma;   // alpha mass in MeV
   static constexpr Real me  = EOSHelmholtz::me;   // electron mass in MeV
   static constexpr Real mFe = 52103.06261020851;  // ATOMIC mass of 56Fe, MeV
@@ -270,6 +297,7 @@ class EOSTransition : public EOSPolicyInterface
   // repeated reading of table
   bool m_initialized;
   static bool s_printed_parameters;
+  static bool s_printed_nucleon_masses;
 
   // helmholtz upper bounds
   Real m_helm_n_max, m_helm_T_max;
