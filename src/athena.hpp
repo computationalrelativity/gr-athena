@@ -265,24 +265,27 @@ enum HydroDerivedIndex
   IX_CS2    = 8,  // cs^2
   IX_OM     = 9,  // Omega = (- y (alpha v^x -beta^x) + x (alpha v^y - beta^y))
                   // /(x^2 + y^2) angular velocity
+  IX_MU_B   = 10,  // baryon chemical potential (code units)
+  IX_MU_Q   = 11,  // charge chemical potential (code units)
+  IX_MU_LE  = 12,  // electron-lepton chemical potential (code units)
 #if EOS_POLICY_CODE == 4
-  IX_HEAT    = 10,  // heating rate per unit volume (erg/cm^3/s)
-  IX_TRANS   = 11,  // eos transition factor
-  IX_XERR    = 12,  // mass fraction error (sum of mass fractions - 1)
-  IX_FNU     = 13,  // neutrino loss fraction of the nuclear energy release
-  IX_QDOT    = 14,  // densitized heating rate, code energy / code time / vol
-  IX_LNU     = 15,  // densitized fnu neutrino loss rate, code units
-  IX_DYE     = 16,  // RHINE rate dYe/dt [1/s, comoving]
-  IX_DYN     = 17,  // RHINE rate dYn/dt [1/s]
-  IX_DYP     = 18,  // RHINE rate dYp/dt [1/s]
-  IX_DYA     = 19,  // RHINE rate dYalpha/dt [1/s]
-  IX_DYH     = 20,  // RHINE rate dYh/dt [1/s]
-  IX_DAH     = 21,  // RHINE rate dAh/dt [1/s]
-  IX_DMA     = 22,  // RHINE rate dma/dt [MeV/baryon/s]
-  NDRV_HYDRO = 23
+  IX_HEAT    = 13,  // heating rate per unit volume (erg/cm^3/s)
+  IX_TRANS   = 14,  // eos transition factor
+  IX_XERR    = 15,  // mass fraction error (sum of mass fractions - 1)
+  IX_FNU     = 16,  // neutrino loss fraction of the nuclear energy release
+  IX_QDOT    = 17,  // densitized heating rate, code energy / code time / vol
+  IX_LNU     = 18,  // densitized fnu neutrino loss rate, code units
+  IX_DYE     = 19,  // RHINE rate dYe/dt [1/s, comoving]
+  IX_DYN     = 20,  // RHINE rate dYn/dt [1/s]
+  IX_DYP     = 21,  // RHINE rate dYp/dt [1/s]
+  IX_DYA     = 22,  // RHINE rate dYalpha/dt [1/s]
+  IX_DYH     = 23,  // RHINE rate dYh/dt [1/s]
+  IX_DAH     = 24,  // RHINE rate dAh/dt [1/s]
+  IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
+  NDRV_HYDRO = 26
 };
 #else
-  NDRV_HYDRO = 10
+  NDRV_HYDRO = 13
 };
 #endif
 

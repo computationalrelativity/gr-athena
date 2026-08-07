@@ -1193,6 +1193,13 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
     Real Vy                    = hyd_der_int(IX_TR_V2, k, j, i);
     hyd_der_ms(IX_OM, k, j, i) = (x * Vy - y * Vx) / (SQR(x) + SQR(y));
 
+    hyd_der_ms(IX_MU_B, k, j, i) =
+      (T > 0) ? GetEOS().GetBaryonChemicalPotential(n, T, Y) : 0;
+    hyd_der_ms(IX_MU_Q, k, j, i) =
+      (T > 0) ? GetEOS().GetChargeChemicalPotential(n, T, Y) : 0;
+    hyd_der_ms(IX_MU_LE, k, j, i) =
+      (T > 0) ? GetEOS().GetElectronLeptonChemicalPotential(n, T, Y) : 0;
+
 #if defined(USE_TRANSITION_EOS)
     TransitionDiagnostics(prim, prim_scalar, hyd_der_ms, k, j, i);
 #endif  // USE_TRANSITION_EOS
