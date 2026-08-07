@@ -308,7 +308,16 @@ void M1::CoupleSourcesYe(const Real mb, AA& ps)
     NS_ILOOP3(k, j, i)
     if (MaskGet(k, j, i))
     {
-      ps(0, k, j, i) += mb * (S_sc_nG_nua(k, j, i) - S_sc_nG_nue(k, j, i));
+      const Real dye = mb * (S_sc_nG_nua(k, j, i) - S_sc_nG_nue(k, j, i));
+      ps(SCYE, k, j, i) += dye;
+#if EOS_POLICY_CODE == 4
+      // Charged-current captures convert free neutrons <-> protons, so the
+      // advected mass fractions must follow Ye where matter is out of NSE.
+      // In NSE the network reset overwrites them, so no gating is needed.
+      // Sum over species is preserved (dXn = -dXp).
+      ps(SCXN, k, j, i) -= dye;
+      ps(SCXP, k, j, i) += dye;
+#endif
       if (!std::isfinite(S_sc_nG_nue(k, j, i)) ||
           !std::isfinite(S_sc_nG_nua(k, j, i)))
       {
