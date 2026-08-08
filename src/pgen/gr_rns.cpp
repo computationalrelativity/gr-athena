@@ -469,7 +469,18 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
 #if NSCALARS > 0
         for (int l = 0; l < NSCALARS; ++l)
+        {
+#if defined(USE_TRANSITION_EOS)
+          // SCEB has no cold-slice entry (ColdEOSTransition stops at SCAH);
+          // the EOS sets the binding energy at runtime, as in gr_tov.
+          if (l == SCEB)
+          {
+            pscalars->r(l, k, j, i) = 0.0;
+            continue;
+          }
+#endif
           pscalars->r(l, k, j, i) = ceos->GetY(rho[flat_ix], l);
+        }
 #endif
 
         phydro->w(IDN, k, j, i) = rho[flat_ix];
