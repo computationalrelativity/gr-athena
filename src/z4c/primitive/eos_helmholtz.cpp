@@ -182,7 +182,12 @@ Real EOSHelmholtz::SoundSpeed(Real n, Real T, Real* Y)
 Real EOSHelmholtz::NeutronChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real Yn = Y[SCXN];
+  // NSE can drive the free-nucleon fraction to exactly zero (or a tiny
+  // negative rounding residue), where log(n*Yn*...) is -inf/NaN. Floor at
+  // the abundance regularizer RHINE already uses for the same log
+  // (log10(y + 1e-25), rhine_optim.hpp:330); the ideal-gas mu is only a
+  // large negative number there, as it should be for an absent species.
+  Real Yn = fmax(Y[SCXN], 1e-25);
   // Non-degenerate
   return mn + T * log(n * Yn / 2 * pow(sac_const / (mn * T), 1.5));
 }
@@ -190,7 +195,8 @@ Real EOSHelmholtz::NeutronChemicalPotential(Real n, Real T, Real* Y)
 Real EOSHelmholtz::ProtonChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real Yp = Y[SCXP];
+  // Same floor as NeutronChemicalPotential.
+  Real Yp = fmax(Y[SCXP], 1e-25);
   // Non-degenerate
   return mp + T * log(n * Yp / 2 * pow(sac_const / (mp * T), 1.5));
 }
