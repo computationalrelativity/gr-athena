@@ -282,7 +282,11 @@ class EOSTransition : public EOSPolicyInterface
   Real MaximumPressureSanitized(Real n, Real* Y_norm);
   Real MinimumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
   Real MaximumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
-  Real TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm);
+  /// guess_it warm-starts the Helmholtz-branch bracket across c2p
+  /// iterations (validated in EOSHelmholtz::temperature_from_var, so an
+  /// index written by the compose interior path is harmless).
+  Real TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm,
+                                   int* guess_it = nullptr);
   Real TemperatureFromPSanitized(Real n, Real p, Real* Y_norm);
   void PressureAndEnthalpySanitized(Real n, Real T, Real* Y_norm,
                                     Real* P, Real* h);

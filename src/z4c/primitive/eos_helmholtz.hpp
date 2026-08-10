@@ -48,8 +48,12 @@ class EOSHelmholtz : public EOSPolicyInterface
   /// Calculate the temperature from the pressure
   Real TemperatureFromP(Real n, Real p, Real* Y);
   //
-  /// Temperature from specific internal energy
-  Real TemperatureFromEps(Real n, Real eps, Real* Y);
+  /// Temperature from specific internal energy. guess_it, when given,
+  /// warm-starts the temperature bracket with the table index of a
+  /// previous call (the c2p iteration hot path); a stale or foreign-grid
+  /// index is validated and falls back to the full search, so any int is
+  /// safe to pass.
+  Real TemperatureFromEps(Real n, Real eps, Real* Y, int* guess_it = nullptr);
 
   /// Calculate the temperature from the entropy
   Real TemperatureFromEntropy(Real n, Real s, Real* Y);
@@ -185,7 +189,8 @@ class EOSHelmholtz : public EOSPolicyInterface
   }
 
   /// Low level function, not intended for outside use
-  Real temperature_from_var(int vi, Real var, Real n, Real* Y) const;
+  Real temperature_from_var(int vi, Real var, Real n, Real* Y,
+                            int* guess_it = nullptr) const;
   /// Low level evaluation function, not intended for outside use
   Real eval_at_nty(int vi, Real n, Real T, Real* Y) const;
   /// Low level evaluation function, not intended for outside use

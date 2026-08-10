@@ -85,24 +85,31 @@ Real EOSHelmholtz::TemperatureFromE(Real n, Real e, Real* Y)
   return TemperatureFromEps(n, e / (mb * n) - 1, Y);
 }
 
-Real EOSHelmholtz::TemperatureFromEps(Real n, Real eps, Real* Y)
+Real EOSHelmholtz::TemperatureFromEps(Real n, Real eps, Real* Y,
+                                      int* guess_it)
 {
+  // Lazy bounds: floor-clamped states hit the min early-out and never
+  // pay for the max bound.
   Real eps_min = MinimumInternalEnergy(n, Y);
+  if (eps <= eps_min)
+    return min_T;
   Real eps_max = MaximumInternalEnergy(n, Y);
-  return (eps <= eps_min) ? min_T
-       : (eps >= eps_max) ? max_T
-                          : temperature_from_var(ECLOGEPS, log(eps), n, Y);
+  if (eps >= eps_max)
+    return max_T;
+  return temperature_from_var(ECLOGEPS, log(eps), n, Y, guess_it);
 }
 
 Real EOSHelmholtz::TemperatureFromP(Real n, Real p, Real* Y)
 {
   assert(m_initialized);
+  // Lazy bounds, as in TemperatureFromEps.
   Real p_min = MinimumPressure(n, Y);
+  if (p <= p_min)
+    return min_T;
   Real p_max = MaximumPressure(n, Y);
-
-  return (p <= p_min) ? min_T
-       : (p >= p_max) ? max_T
-                      : temperature_from_var(ECLOGP, log(p), n, Y);
+  if (p >= p_max)
+    return max_T;
+  return temperature_from_var(ECLOGP, log(p), n, Y);
 }
 
 Real EOSHelmholtz::TemperatureFromEntropy(Real n, Real s, Real* Y)
@@ -442,7 +449,8 @@ void EOSHelmholtz::SetNSpecies(int n)
 Real EOSHelmholtz::temperature_from_var(int iv,
                                         Real var,
                                         Real n,
-                                        Real* Y) const
+                                        Real* Y,
+                                        int* guess_it) const
 {
   int in;
   Real wn0, wn1;
@@ -456,20 +464,72 @@ Real EOSHelmholtz::temperature_from_var(int iv,
     return var - var_pt;
   };
 
-  int ilo  = 0;
-  int ihi  = m_nt - 1;
-  Real flo = f(ilo);
-  Real fhi = f(ihi);
-  while (flo * fhi > 0)
+  int ilo, ihi;
+  Real flo, fhi;
+  bool bracketed = false;
+
+  // Hunt locally around the warm-start index first (same pattern as
+  // EOSCompOSE::FindTBracketAndWeights). f = var - var_pt decreases with
+  // it for the monotone channels, so f < 0 means the root lies to the
+  // left. A miss (stale index, or an index from the compose grid when the
+  // c2p iterate crossed the Helmholtz cutoff) falls through to the full
+  // search below.
+  if (guess_it && *guess_it >= 0 && *guess_it < m_nt - 1)
   {
-    if (ilo == ihi - 1)
+    int itg = *guess_it;
+    Real fl = f(itg);
+    Real fh = f(itg + 1);
+    if (fl * fh <= 0)
     {
-      break;
+      ilo       = itg;
+      ihi       = itg + 1;
+      flo       = fl;
+      fhi       = fh;
+      bracketed = true;
     }
-    else
+    else if (fl < 0 && itg > 0)  // Try shifting left
     {
-      ilo += 1;
-      flo = f(ilo);
+      Real fl_minus = f(itg - 1);
+      if (fl_minus * fl <= 0)
+      {
+        ilo       = itg - 1;
+        ihi       = itg;
+        flo       = fl_minus;
+        fhi       = fl;
+        bracketed = true;
+      }
+    }
+    else if (fh > 0 && itg + 2 < m_nt)  // Try shifting right
+    {
+      Real fh_plus = f(itg + 2);
+      if (fh * fh_plus <= 0)
+      {
+        ilo       = itg + 1;
+        ihi       = itg + 2;
+        flo       = fh;
+        fhi       = fh_plus;
+        bracketed = true;
+      }
+    }
+  }
+
+  if (!bracketed)
+  {
+    ilo = 0;
+    ihi = m_nt - 1;
+    flo = f(ilo);
+    fhi = f(ihi);
+    while (flo * fhi > 0)
+    {
+      if (ilo == ihi - 1)
+      {
+        break;
+      }
+      else
+      {
+        ilo += 1;
+        flo = f(ilo);
+      }
     }
   }
   if (!(flo * fhi <= 0))
@@ -502,6 +562,10 @@ Real EOSHelmholtz::temperature_from_var(int iv,
     }
   }
   assert(ihi - ilo == 1);
+  if (guess_it)
+  {
+    *guess_it = ilo;
+  }
   Real lthi = m_log_t[ihi];
   Real ltlo = m_log_t[ilo];
 
