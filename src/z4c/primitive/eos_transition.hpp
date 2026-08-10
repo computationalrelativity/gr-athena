@@ -270,6 +270,22 @@ class EOSTransition : public EOSPolicyInterface
 
   /// Low level inversion function, not intended for outside use
   Real temperature_from_var_trans(int iv, Real var, Real n, Real* Y) const;
+
+  /// Internal variants that assume Y_norm has already been through
+  /// SanitizeMassFractions. The public accessors sanitize exactly once and
+  /// route here; nested calls (bounds inside the temperature inversions,
+  /// the fused FromE chain) reuse the sanitized composition instead of
+  /// re-deriving it at every level.
+  Real PressureSanitized(Real n, Real T, Real* Y_norm);
+  Real SpecificInternalEnergySanitized(Real n, Real T, Real* Y_norm);
+  Real MinimumPressureSanitized(Real n, Real* Y_norm);
+  Real MaximumPressureSanitized(Real n, Real* Y_norm);
+  Real MinimumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
+  Real MaximumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
+  Real TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm);
+  Real TemperatureFromPSanitized(Real n, Real p, Real* Y_norm);
+  void PressureAndEnthalpySanitized(Real n, Real T, Real* Y_norm,
+                                    Real* P, Real* h);
   int comp_it_trans_start, comp_it_trans_end, comp_it_helm_tmax;
 
   // Physical masses. The nucleon pair lives in EOSHelmholtz (single source

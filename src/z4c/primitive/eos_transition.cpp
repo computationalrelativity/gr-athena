@@ -77,13 +77,19 @@ Real EOSTransition::TemperatureFromEps(Real n, Real eps, Real* Y)
 
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
+  return TemperatureFromEpsSanitized(n, eps, Y_norm);
+}
 
+Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm)
+{
   if (n < compose_eos->min_n)
     return helmholtz_eos->TemperatureFromEps(n, eps, Y_norm);
-  Real eps_min = MinimumSpecificInternalEnergy(n, Y_norm);
-  Real eps_max = MaximumSpecificInternalEnergy(n, Y_norm);
+  // Bounds are evaluated lazily: floor-clamped states (the atmosphere) hit
+  // the eps_min early-out, so the max bound is only computed when needed.
+  Real eps_min = MinimumSpecificInternalEnergySanitized(n, Y_norm);
   if (eps <= eps_min)
     return (log(n) >= m_ln_n_h0) ? compose_eos->min_T : min_T;
+  Real eps_max = MaximumSpecificInternalEnergySanitized(n, Y_norm);
   if (eps >= eps_max)
     return max_T;
 
@@ -154,13 +160,18 @@ Real EOSTransition::TemperatureFromP(Real n, Real p, Real* Y)
 
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
+  return TemperatureFromPSanitized(n, p, Y_norm);
+}
 
+Real EOSTransition::TemperatureFromPSanitized(Real n, Real p, Real* Y_norm)
+{
   if (n < compose_eos->min_n)
     return helmholtz_eos->TemperatureFromP(n, p, Y_norm);
-  Real p_min = MinimumPressure(n, Y_norm);
-  Real p_max = MaximumPressure(n, Y_norm);
+  // Lazy bounds, as in TemperatureFromEpsSanitized.
+  Real p_min = MinimumPressureSanitized(n, Y_norm);
   if (p <= p_min)
     return (log(n) >= m_ln_n_h0) ? compose_eos->min_T : min_T;
+  Real p_max = MaximumPressureSanitized(n, Y_norm);
   if (p >= p_max)
     return max_T;
 
@@ -290,6 +301,11 @@ Real EOSTransition::Pressure(Real n, Real T, Real* Y)
     return compose_eos->Pressure(n, T, &yq);
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
+  return PressureSanitized(n, T, Y_norm);
+}
+
+Real EOSTransition::PressureSanitized(Real n, Real T, Real* Y_norm)
+{
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->Pressure(n, T, Y_norm);
@@ -351,6 +367,12 @@ Real EOSTransition::SpecificInternalEnergy(Real n, Real T, Real* Y)
     return compose_eos->SpecificInternalEnergy(n, T, &yq);
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
+  return SpecificInternalEnergySanitized(n, T, Y_norm);
+}
+
+Real EOSTransition::SpecificInternalEnergySanitized(Real n, Real T,
+                                                    Real* Y_norm)
+{
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->SpecificInternalEnergy(n, T, Y_norm);
@@ -500,9 +522,20 @@ Real EOSTransition::MinimumPressure(Real n, Real* Y)
   return Pressure(n, min_T, Y);
 }
 
+Real EOSTransition::MinimumPressureSanitized(Real n, Real* Y_norm)
+{
+  return PressureSanitized(
+    n, (log(n) >= m_ln_n_h0) ? compose_eos->min_T : min_T, Y_norm);
+}
+
 Real EOSTransition::MaximumPressure(Real n, Real* Y)
 {
   return Pressure(n, max_T, Y);
+}
+
+Real EOSTransition::MaximumPressureSanitized(Real n, Real* Y_norm)
+{
+  return PressureSanitized(n, max_T, Y_norm);
 }
 
 Real EOSTransition::MinimumEntropy(Real n, Real* Y)
@@ -528,9 +561,22 @@ Real EOSTransition::MinimumSpecificInternalEnergy(Real n, Real* Y)
   return SpecificInternalEnergy(n, min_T, Y);
 }
 
+Real EOSTransition::MinimumSpecificInternalEnergySanitized(Real n,
+                                                           Real* Y_norm)
+{
+  return SpecificInternalEnergySanitized(
+    n, (log(n) >= m_ln_n_h0) ? compose_eos->min_T : min_T, Y_norm);
+}
+
 Real EOSTransition::MaximumSpecificInternalEnergy(Real n, Real* Y)
 {
   return SpecificInternalEnergy(n, max_T, Y);
+}
+
+Real EOSTransition::MaximumSpecificInternalEnergySanitized(Real n,
+                                                           Real* Y_norm)
+{
+  return SpecificInternalEnergySanitized(n, max_T, Y_norm);
 }
 
 Real EOSTransition::MinimumEnergy(Real n, Real* Y)
@@ -760,9 +806,13 @@ void EOSTransition::TemperaturePressureAndEnthalpyFromE(Real n,
       n, e, &yq, T, P, h, guess_it);
     return;
   }
-  // get T
-  *T = TemperatureFromE(n, e, Y);
-  PressureAndEnthalpy(n, *T, Y, P, h);
+  // Below the cutoff (InteriorYq false <=> n <= m_helm_n_max, the same
+  // branch TemperatureFromE takes): sanitize once and reuse for both the
+  // inversion and the P/h evaluation.
+  Real Y_norm[SCNVAR];
+  SanitizeMassFractions(Y, Y_norm);
+  *T = TemperatureFromEpsSanitized(n, e / (mb * n) - 1.0, Y_norm);
+  PressureAndEnthalpySanitized(n, *T, Y_norm, P, h);
 }
 
 void EOSTransition::PressureAndEnthalpyFromE(Real n,
@@ -781,9 +831,12 @@ void EOSTransition::PressureAndEnthalpyFromE(Real n,
     compose_eos->PressureAndEnthalpyFromE(n, e, &yq, P, h, guess_it);
     return;
   }
-  // get T
-  Real T = TemperatureFromE(n, e, Y);
-  PressureAndEnthalpy(n, T, Y, P, h);
+  // Sanitize once for the whole chain (see
+  // TemperaturePressureAndEnthalpyFromE).
+  Real Y_norm[SCNVAR];
+  SanitizeMassFractions(Y, Y_norm);
+  Real T = TemperatureFromEpsSanitized(n, e / (mb * n) - 1.0, Y_norm);
+  PressureAndEnthalpySanitized(n, T, Y_norm, P, h);
 }
 
 /// Fused pressure + enthalpy: sanitize the composition and compute the
@@ -804,6 +857,13 @@ void EOSTransition::PressureAndEnthalpy(Real n,
   }
   Real Y_norm[SCNVAR];
   SanitizeMassFractions(Y, Y_norm);
+  PressureAndEnthalpySanitized(n, T, Y_norm, P, h);
+}
+
+void EOSTransition::PressureAndEnthalpySanitized(Real n, Real T,
+                                                 Real* Y_norm,
+                                                 Real* P, Real* h)
+{
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
   {
