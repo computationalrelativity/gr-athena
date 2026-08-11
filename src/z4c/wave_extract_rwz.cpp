@@ -43,6 +43,10 @@ char const* const
     "areal", "areal_simple", "average_schw", "schw_gthth", "schw_gphph",
   };
 
+
+// Hack to dump output for Cartesian metric and drvts on spheres
+#define DUMP_CMETRIC_DRVTS_SPHERE (1) 
+
 //----------------------------------------------------------------------------------------
 //! \fn
 //  \brief class for RWZ waveform extraction
@@ -152,6 +156,13 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
   ofbname[Iof_Qstar] =
     pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
 
+  
+#if (DUMP_CMETRIC_DRVTS_SPHERE)
+  ofname_cmetric = pin->GetOrAddString("rwz_extraction",
+                                       "filename_cmetric_sphere", "wave_cmetric_sphere");
+#endif
+
+  
   if (opt.extra_output)
   {
     ofbname[Iof_H1_dot] =
@@ -467,7 +478,7 @@ void WaveExtractRWZ::ExtractAll(std::vector<WaveExtractRWZ*>& rwz_vec,
   // Phase 1: local accumulation of background integrals for all radii
   for (auto prwz : rwz_vec)
   {
-    prwz->MetricToSphere();
+    prwz->MetricToSphere(iter, time);
     prwz->BackgroundAccumulate();
   }
 
@@ -530,7 +541,7 @@ void WaveExtractRWZ::ExtractAll(std::vector<WaveExtractRWZ*>& rwz_vec,
 // \!fn void WaveExtractRWZ::MetricToSphere()
 // \brief Lazily prepare the extraction sphere, then interpolate the ADM metric
 //        and its derivatives onto the sphere in spherical coordinates.
-void WaveExtractRWZ::MetricToSphere()
+void WaveExtractRWZ::MetricToSphere(int iter, Real time)
 {
   grid_.PrepareFixedSphere(pmesh,
                            opt.center,
@@ -538,7 +549,7 @@ void WaveExtractRWZ::MetricToSphere()
                            opt.bitant,
                            SW_CCX_VC(true, false),
                            SW_CCX_VC(false, true));
-  InterpMetricToSphere();
+  InterpMetricToSphere(iter, time);
 }
 
 //----------------------------------------------------------------------------------------
@@ -553,7 +564,7 @@ void WaveExtractRWZ::MetricToSphere()
 
 // TODO 2nd drvts are missing, but they can be taken from the interpolation.
 
-void WaveExtractRWZ::InterpMetricToSphere()
+void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
 {
   // Zero ADM integral accumulators (local partial sums, reduced in
   // BackgroundReduce)
@@ -582,14 +593,99 @@ void WaveExtractRWZ::InterpMetricToSphere()
   Real sum_adm_Pz = 0.0, sum_adm_Jx = 0.0, sum_adm_Jy = 0.0;
   Real sum_adm_Jz = 0.0;
 
+
+
+
+  
+#if (DUMP_CMETRIC_DRVTS_SPHERE)
+  // ---------------------------------------------------------------
+
+  // This is called at Mesh level (this MPI rank)
+  // for each extr. radius and at different iterations
+  // Writes sequentially for each MPI rank and radii
+  
+  // Filename
+  std::stringstream str_r;
+  str_r << std::setfill('0') << std::setw(5) << std::fixed
+        << std::setprecision(2) << r;
+  ofname_cmetric += "_r" + str_r.str();
+  
+  std::stringstream str_rank;
+  str_rank << std::setfill('0') << std::setw(3) << Globals::my_rank;
+  ofname_cmetric += "_" + str_rank.str();
+
+  std::stringstream str_i;
+  str_i << std::setfill('0') << std::setw(5) << iter;
+  ofname_cmetric += "_i" + str_i.str() + ".txt";
+
+  
+  // Open file
+  const bool exists  = (access(ofname_cmetric.c_str(), F_OK) == 0);
+  FILE* ofcmetric    = fopen(ofname_cmetric.c_str(), exists ? "a" : "w");
+  if (!ofcmetric)
+    {
+      char buf[512];
+      snprintf(buf,
+             sizeof(buf),
+               "### FATAL ERROR in WaveExtractRWZ: "
+               "Could not open file '%s' for writing!",
+               ofname_cmetric.c_str());
+    throw std::runtime_error(buf);
+  }
+
+  const std::vector<std::string> cmetric_names = {
+    "alpha",
+    "alpha_t",
+    "alpha_x", "alpha_y", "alpha_z",
+    "betax", "betay", "betaz",
+    "betax_t", "betay_t", "betaz_t",
+    "betax_x", "betay_x", "betaz_x",
+    "betax_y", "betay_y", "betaz_y",
+    "betax_z", "betay_z", "betaz_z",
+    "gxx", "gxy", "gxz", "gyx", "gyy", "gyz", "gzx", "gzy", "gzz",
+    "gxx_t", "gxy_t", "gxz_t", "gyx_t", "gyy_t", "gyz_t", "gzx_t", "gzy_t", "gzz_t",
+    "gxx_x", "gxy_x", "gxz_x", "gyx_x", "gyy_x", "gyz_x", "gzx_x", "gzy_x", "gzz_x",
+    "gxx_y", "gxy_y", "gxz_y", "gyx_y", "gyy_y", "gyz_y", "gzx_y", "gzy_y", "gzz_y",
+    "gxx_z", "gxy_z", "gxz_z", "gyx_z", "gyy_z", "gyz_z", "gzx_z", "gzy_z", "gzz_z",
+  };
+  int cmetric_names_N = cmetric_names.size();
+  
+  // Write column header for newly created files
+  if (!exists)
+    {
+      fprintf(ofcmetric, "# iter = %d\n", iter);
+      fprintf(ofcmetric, "# time = %.9e\n", time);
+      fprintf(ofcmetric, "# radius = %.9e\n", r);
+      fprintf(ofcmetric, "# rank = %d\n", Globals::my_rank);
+      fprintf(ofcmetric, "# i:0 j:1 theta:2 phi:3");
+      for (size_t i = 0; i < cmetric_names_N; ++i) {
+        fprintf(ofcmetric, " %s:%ld", cmetric_names[i].c_str(), i + 4);
+      }
+      fprintf(ofcmetric, "\n");
+      //fflush(f);
+    }
+
+  // ---------------------------------------------------------------  
+
+#else
+  // No OMP parallelism for DUMP_CMETRIC_DRVTS_SPHERE
+
 #pragma omp parallel for collapse(2) schedule(dynamic) \
   reduction(+ : sum_adm_M,                             \
-              sum_adm_Px,                              \
-              sum_adm_Py,                              \
-              sum_adm_Pz,                              \
-              sum_adm_Jx,                              \
-              sum_adm_Jy,                              \
-              sum_adm_Jz)
+            sum_adm_Px,                                \
+            sum_adm_Py,                                \
+            sum_adm_Pz,                                \
+            sum_adm_Jx,                                \
+            sum_adm_Jy,                                \
+            sum_adm_Jz)
+
+
+#endif
+
+
+
+
+  
   for (int i = 0; i < grid_.ntheta; i++)
   {
     for (int j = 0; j < grid_.nphi; j++)
@@ -805,7 +901,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
                                                  Cgamma(2, 2));
       const Real sqrt_det = (det > 0.0) ? std::sqrt(det) : 1.0;
       const Real div_det  = (det > 0.0) ? 1.0 / det : 1.0;
-
+      
       // Inverse 3-metric
       LinearAlgebra::Inv3Metric(div_det,
                                 Cgamma(0, 0),
@@ -876,6 +972,84 @@ void WaveExtractRWZ::InterpMetricToSphere()
         }
       }
 
+
+
+      
+
+#if (DUMP_CMETRIC_DRVTS_SPHERE)
+      // ---------------------------------------------------------------
+
+      std::vector<double> cmetric_values = {
+        Calpha(),
+        Calpha(D01), // d_t alpha
+        Calpha_der_d(0), // d_i alpha
+        Calpha_der_d(1),
+        Calpha_der_d(2),
+        //
+        Cbeta_u(0),
+        Cbeta_u(1),
+        Cbeta_u(2),
+        Cbeta_u(D01, 0), // d_t beta^i
+        Cbeta_u(D01, 1),
+        Cbeta_u(D01, 2),
+        Cbeta_der_du(0, 0), // d_x beta^i
+        Cbeta_der_du(0, 1), 
+        Cbeta_der_du(0, 2), 
+        Cbeta_der_du(1, 0), // d_y beta^i
+        Cbeta_der_du(1, 1), 
+        Cbeta_der_du(1, 2),
+        Cbeta_der_du(2, 0), // d_z beta^i
+        Cbeta_der_du(2, 1), 
+        Cbeta_der_du(2, 2),
+        //
+        Cgamma(0, 0), // gamma_ij
+        Cgamma(0, 1),
+        Cgamma(0, 2),
+        Cgamma(1, 1),
+        Cgamma(1, 2),
+        Cgamma(2, 2),
+        Cgamma(D01, 0, 0), // d_t gamma_ij
+        Cgamma(D01, 0, 1),
+        Cgamma(D01, 0, 2),
+        Cgamma(D01, 1, 1),
+        Cgamma(D01, 1, 2),
+        Cgamma(D01, 2, 2), 
+        Cgamma_der_ddd(0, 0, 0), // d_x gamma_ij
+        Cgamma_der_ddd(0, 0, 1),
+        Cgamma_der_ddd(0, 0, 2),
+        Cgamma_der_ddd(0, 1, 1),
+        Cgamma_der_ddd(0, 1, 2),
+        Cgamma_der_ddd(0, 2, 2),
+        Cgamma_der_ddd(1, 0, 0), //d_y gamma_ij
+        Cgamma_der_ddd(1, 0, 1),
+        Cgamma_der_ddd(1, 0, 2),
+        Cgamma_der_ddd(1, 1, 1),
+        Cgamma_der_ddd(1, 1, 2),
+        Cgamma_der_ddd(1, 2, 2),
+        Cgamma_der_ddd(2, 0, 0), //d_z gamma_ij
+        Cgamma_der_ddd(2, 0, 1),
+        Cgamma_der_ddd(2, 0, 2),
+        Cgamma_der_ddd(2, 1, 1),
+        Cgamma_der_ddd(2, 1, 2),
+        Cgamma_der_ddd(2, 2, 2),
+      };        
+
+      fprintf(ofcmetric, "%d %d %.15e %.15e",
+              i, j, theta, phi);
+      for (const auto& value : cmetric_values)
+        fprintf(ofcmetric, " %.15e", value);
+      fprintf(ofcmetric, "\n");
+      
+      // ---------------------------------------------------------------  
+#endif
+
+
+        
+        
+
+
+
+      
       // ADM integrals (based on Cartesian expressions)
       // These integrals will be reduced together with the background integrals
       // and will be normalized by 1/(4 Pi)
@@ -1072,6 +1246,23 @@ void WaveExtractRWZ::InterpMetricToSphere()
   integrals_adm[I_ADM_Jx] = sum_adm_Jx;
   integrals_adm[I_ADM_Jy] = sum_adm_Jy;
   integrals_adm[I_ADM_Jz] = sum_adm_Jz;
+
+
+
+
+#if (DUMP_CMETRIC_DRVTS_SPHERE)
+  // ---------------------------------------------------------------
+  
+  // Close file 
+  if (ofcmetric)
+    fclose(ofcmetric);
+
+  // ---------------------------------------------------------------  
+#endif
+
+
+
+  
 }
 
 //----------------------------------------------------------------------------------------

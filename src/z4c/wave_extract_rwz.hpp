@@ -35,7 +35,7 @@ class WaveExtractRWZ
   ~WaveExtractRWZ();
 
   // -- Main API --------------------------------------------------------------
-  void MetricToSphere();
+  void MetricToSphere(int iter, Real time);
 
   // Split-phase background: local accumulation then finalization after MPI
   void BackgroundAccumulate();
@@ -306,6 +306,8 @@ class WaveExtractRWZ
   std::string ofbname[Iof_Num];
   FILE* ofile[Iof_Num]{};
 
+  std::string ofname_cmetric;
+  
   // -- Back-pointers ---------------------------------------------------------
   Mesh const* pmesh;
 
@@ -320,7 +322,7 @@ class WaveExtractRWZ
                      gra::sph_harm::Factorial(l - 2));
   }
 
-  void InterpMetricToSphere();
+  void InterpMetricToSphere(int iter, Real time);
   void MasterFuns();
   void MultipolesGaugeInvariant();
 
