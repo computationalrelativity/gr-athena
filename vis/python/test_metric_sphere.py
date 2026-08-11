@@ -443,7 +443,210 @@ def test_hdf5(tmp_path):
 
     print("HDF5: OK")
 
+def test_hdf5_roundtrip(data1, h5file):
+    """
+    Verify that writing to HDF5 and reading it back preserves
+    the scientific data.
 
+    The MPI 'rank' column is intentionally excluded because it is
+    file-level bookkeeping and is not stored in the HDF5 format.
+    """
+
+    # --------------------------------------------------------------
+    # Read HDF5
+    # --------------------------------------------------------------
+
+    data2 = MetricData()
+    data2.read_hdf5(h5file)
+
+    # --------------------------------------------------------------
+    # Compare iterations
+    # --------------------------------------------------------------
+
+    assert data1.iterations() == data2.iterations()
+
+    # --------------------------------------------------------------
+    # Compare times and radii
+    # --------------------------------------------------------------
+
+    for iteration in data1.iterations():
+
+        assert data1.times(iteration) == data2.times(iteration)
+
+        for time in data1.times(iteration):
+
+            assert (
+                data1.radii(iteration, time)
+                == data2.radii(iteration, time)
+            )
+
+    # --------------------------------------------------------------
+    # Compare global grid
+    # --------------------------------------------------------------
+
+    grid_names = [
+        "k",
+        "i",
+        "j",
+        "theta",
+        "phi",
+    ]
+
+    for name in grid_names:
+
+        assert name in data1.grid
+        assert name in data2.grid
+
+        np.testing.assert_allclose(
+            data1.grid[name],
+            data2.grid[name],
+        )
+
+    # --------------------------------------------------------------
+    # Compare fields
+    #
+    # Do NOT compare list ordering. HDF5 does not necessarily
+    # reproduce the order in which fields were originally read.
+    # --------------------------------------------------------------
+
+    assert set(data1.fields) == set(data2.fields)
+
+    # --------------------------------------------------------------
+    # Compare slices
+    # --------------------------------------------------------------
+
+    columns = grid_names + list(data1.fields)
+
+    for key in data1.slices:
+
+        assert key in data2.slices
+
+        df1 = data1.slices[key]
+        df2 = data2.slices[key]
+
+        # Check that all expected columns exist
+        for column in columns:
+
+            assert column in df1.columns, (
+                f"Missing column '{column}' in original data "
+                f"for slice {key}"
+            )
+
+            assert column in df2.columns, (
+                f"Missing column '{column}' in HDF5 data "
+                f"for slice {key}"
+            )
+
+        # Compare actual values
+        for column in columns:
+
+            np.testing.assert_allclose(
+                df1[column].to_numpy(),
+                df2[column].to_numpy(),
+                equal_nan=True,
+                err_msg=(
+                    f"Mismatch in field '{column}' "
+                    f"for slice {key}"
+                ),
+            )
+
+    print("HDF5 round-trip: OK")
+    
+def __test_hdf5_roundtrip(data1, h5file):
+    """
+    Verify that writing to HDF5 and reading it back preserves
+    the scientific data.
+
+    The MPI 'rank' column is intentionally excluded because it is
+    file-level bookkeeping and is not stored in the HDF5 format.
+    """
+
+    # --------------------------------------------------------------
+    # Read HDF5
+    # --------------------------------------------------------------
+
+    data2 = MetricData()
+    data2.read_hdf5(h5file)
+
+    # --------------------------------------------------------------
+    # Compare iterations
+    # --------------------------------------------------------------
+
+    assert data1.iterations() == data2.iterations()
+
+    # --------------------------------------------------------------
+    # Compare times and radii
+    # --------------------------------------------------------------
+
+    for iteration in data1.iterations():
+
+        assert (
+            data1.times(iteration)
+            == data2.times(iteration)
+        )
+        
+        for time in data1.times(iteration):
+
+            assert (
+                data1.radii(iteration, time)
+                == data2.radii(iteration, time)
+            )
+
+    # --------------------------------------------------------------
+    # Compare global grid
+    # --------------------------------------------------------------
+
+    grid_names = [
+        "k",
+        "i",
+        "j",
+        "theta",
+        "phi",
+    ]
+
+    for name in grid_names:
+
+        assert name in data1.grid
+        assert name in data2.grid
+        
+        assert np.allclose(
+            data1.grid[name],
+            data2.grid[name],
+        )
+
+    # --------------------------------------------------------------
+    # Compare fields
+    # --------------------------------------------------------------
+
+    assert data1.fields == data2.fields
+
+    # --------------------------------------------------------------
+    # Compare slices
+    # --------------------------------------------------------------
+
+    columns = grid_names + data1.fields
+
+    for key in data1.slices:
+
+        assert key in data2.slices
+
+        df1 = data1.slices[key]
+        df2 = data2.slices[key]
+
+        # The HDF5 representation intentionally does not contain rank.
+        for column in columns:
+
+            assert column in df1.columns
+            assert column in df2.columns
+
+            assert np.allclose(
+                df1[column].to_numpy(),
+                df2[column].to_numpy(),
+                equal_nan=True,
+            )
+            
+    print("HDF5 round-trip: OK")
+        
 def test_plots(tmp_path):
 
     files = generate_test_files(tmp_path)
@@ -652,6 +855,18 @@ def demo(output_dir="test_cmetric_output"):
         f"HDF5 written to: {h5file}"
     )
 
+    # --------------------------------------------------------------
+    # HDF5 round-trip test
+    # --------------------------------------------------------------
+
+    print()
+    print("Testing HDF5 round-trip...")
+
+    test_hdf5_roundtrip(
+        data,
+        h5file,
+    )
+    
     # --------------------------------------------------------------
     # Inspect HDF5
     # --------------------------------------------------------------

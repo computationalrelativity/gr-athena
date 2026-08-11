@@ -50,7 +50,7 @@ class MetricData:
 
     def read_file(self, filename):
         """
-        Read one cmetric file and add it to the container.
+        Read one metric file and add it to the container.
         """
 
         filename = Path(filename)
@@ -616,7 +616,227 @@ class MetricData:
                         dataset.attrs["description"] = (
                             f"Metric field {field}"
                         )
+
+
+    def read_hdf5(self, filename):
+        """
+        Read a MetricData HDF5 file.
+
+        Expected layout:
+
+        /grid/
+            k
+            i
+            j
+            theta
+            phi
+
+        /iteration_<N>/
+            /time_<T>/
+                /radius_<R>/
+                    alpha
+                    alpha_t
+                    ...
+                    gzz_z
+
+        The HDF5 data are reconstructed into self.slices using
+
+        (iteration, time, radius) -> DataFrame
+        """
+
+        filename = Path(filename)
+
+        if not filename.exists():
+            raise FileNotFoundError(
+                f"HDF5 file not found: {filename}"
+            )
+
+        # Reset current data
+        self.slices = {}
+        self.grid = {}
+        self.fields = []
+        self.metadata = {}
+        
+        with h5py.File(filename, "r") as h5:
+
+            # ==============================================================
+            # Read global grid
+            # ==============================================================
+
+            if "grid" not in h5:
+                raise ValueError(
+                    "HDF5 file does not contain a 'grid' group"
+                )
+
+            grid_group = h5["grid"]
+
+            for name in [
+                    "k",
+                    "i",
+                    "j",
+                    "theta",
+                    "phi",
+            ]:
+
+                if name in grid_group:
+
+                    self.grid[name] = (
+                        grid_group[name][:]
+                    )
+
+            # ==============================================================
+            # Read iterations
+            # ==============================================================
+
+            for iteration_name in h5:
+
+                # Skip global groups
+                if iteration_name == "grid":
+                    continue
+
+                # Expect iteration_<N>
+                if not iteration_name.startswith("iteration_"):
+                    continue
+
+                iteration_group = h5[iteration_name]
+
+                iteration = int(
+                    iteration_name[len("iteration_"):]
+                )
+
+                # ==========================================================
+                # Read times
+                # ==========================================================
+
+                for time_name in iteration_group:
+
+                    if not time_name.startswith("time_"):
+                        continue
+
+                    time_group = iteration_group[time_name]
+                    
+                    time = float(
+                        time_name[len("time_"):]
+                    )
+
+                    # ======================================================
+                    # Read radii
+                    # ======================================================
+
+                    for radius_name in time_group:
+
+                        if not radius_name.startswith("radius_"):
+                            continue
+
+                        radius_group = (
+                            time_group[radius_name]
+                        )
+                        
+                        radius = float(
+                            radius_name[len("radius_"):]
+                        )
+
+                        key = (
+                            iteration,
+                            time,
+                            radius,
+                        )
+
+                        # ==================================================
+                        # Construct DataFrame
+                        # ==================================================
+
+                        data = {}
+
+                        # Global grid information
+                        # is common to all fields.
+                        for name in [
+                                "k",
+                                "i",
+                                "j",
+                                "theta",
+                                "phi",
+                        ]:
+
+                            if name in self.grid:
+
+                                data[name] = (
+                                    self.grid[name].copy()
+                                )
+
+                        # ==================================================
+                        # Read physical fields
+                        # ==================================================
+
+                        for field_name in radius_group:
+
+                            dataset = radius_group[field_name]
                             
+                            data[field_name] = (
+                                dataset[:]
+                            )
+
+                            if field_name not in self.fields:
+                                self.fields.append(
+                                    field_name
+                                )
+
+                        # ==================================================
+                        # Create DataFrame
+                        # ==================================================
+
+                        df = pd.DataFrame(data)
+
+                        self.slices[key] = df
+
+                        # ==================================================
+                        # Metadata
+                        # ==================================================
+
+                        self.metadata[key] = {
+                            "iteration": iteration,
+                            "time": time,
+                            "radius": radius,
+                        }
+
+            # ==============================================================
+            # Sort fields consistently
+            # ==============================================================
+
+            self.fields = [
+                field
+                for field in self.fields
+                if field not in [
+                        "k",
+                        "i",
+                        "j",
+                        "theta",
+                        "phi",
+                        "rank",
+                ]
+            ]
+
+            print(
+                f"Read HDF5 file: {filename}"
+            )
+            
+            print(
+                f"  iterations : {len(self.iterations())}"
+            )
+
+            print(
+                f"  slices     : {len(self.slices)}"
+            )
+
+            print(
+                f"  fields     : {len(self.fields)}"
+            )
+            
+            if self.grid:
+                print(
+                    f"  grid points: {len(self.grid['k'])}"
+                )
+                        
     # ==================================================================
     # HDF5 helper
     # ==================================================================
