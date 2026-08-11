@@ -657,9 +657,9 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
       fprintf(ofcmetric, "# time = %.9e\n", time);
       fprintf(ofcmetric, "# radius = %.9e\n", r);
       fprintf(ofcmetric, "# rank = %d\n", Globals::my_rank);
-      fprintf(ofcmetric, "# i:0 j:1 theta:2 phi:3");
+      fprintf(ofcmetric, "# k:0 i:1 j:2 theta:3 phi:4");
       for (size_t i = 0; i < cmetric_names_N; ++i) {
-        fprintf(ofcmetric, " %s:%ld", cmetric_names[i].c_str(), i + 4);
+        fprintf(ofcmetric, " %s:%ld", cmetric_names[i].c_str(), i + 5);
       }
       fprintf(ofcmetric, "\n");
       //fflush(f);
@@ -1034,8 +1034,9 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
         Cgamma_der_ddd(2, 2, 2),
       };        
 
-      fprintf(ofcmetric, "%d %d %.15e %.15e",
-              i, j, theta, phi);
+      int kidx = i * grid_.nphi + j;
+      fprintf(ofcmetric, "%d %d %d %.15e %.15e",
+              kidx, i, j, theta, phi);
       for (const auto& value : cmetric_values)
         fprintf(ofcmetric, " %.15e", value);
       fprintf(ofcmetric, "\n");
