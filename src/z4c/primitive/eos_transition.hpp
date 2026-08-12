@@ -125,6 +125,42 @@ class EOSTransition : public EOSPolicyInterface
     return true;
   }
 
+  /// Hot-path composition guard, used by the public accessors in place of
+  /// SanitizeMassFractions. Live cells pass their advected mass fractions
+  /// through untouched: the clamp, the normalization and the charge remap
+  /// are no-ops on every cell whose EOS output survives (a raw pass-through
+  /// build evolves bitwise identically, doc S14.2), while the accessors call
+  /// this ~270 times per zone-cycle. Only a degenerate Xsum <= 0 -- a
+  /// floor-overwritten cell, which did occur in the violent rns runs -- is
+  /// repaired, into Y_fb, to free nucleons at Ye = 0.5. Consumers that need
+  /// genuinely normalized fractions (RHINE rates, reconstructed face states)
+  /// still call SanitizeMassFractions.
+  inline Real* GuardMassFractions(Real* Y, Real* Y_fb) const
+  {
+    if (Y[SCXN] + Y[SCXP] + Y[SCXA] + Y[SCXH] > 0.0)
+      return Y;
+
+    static bool warned = false;
+    if (!warned)
+    {
+      warned = true;
+      printf(
+        "EOSTransition::GuardMassFractions: got invalid mass fractions "
+        "(sum <= 0); falling back to free nucleons at Ye = 0.5. Silencing "
+        "further reports.\n");
+    }
+    for (int i = 0; i < SCNVAR; ++i)
+    {
+      Y_fb[i] = Y[i];
+    }
+    Y_fb[SCYE] = 0.5;
+    Y_fb[SCXN] = 0.5;
+    Y_fb[SCXP] = 0.5;
+    Y_fb[SCXA] = 0.0;
+    Y_fb[SCXH] = 0.0;
+    return Y_fb;
+  }
+
   /// Get the minimum pressure at a given density and composition
   Real MinimumPressure(Real n, Real* Y);
 
@@ -272,10 +308,11 @@ class EOSTransition : public EOSPolicyInterface
   Real temperature_from_var_trans(int iv, Real var, Real n, Real* Y) const;
 
   /// Internal variants that assume Y_norm has already been through
-  /// SanitizeMassFractions. The public accessors sanitize exactly once and
-  /// route here; nested calls (bounds inside the temperature inversions,
-  /// the fused FromE chain) reuse the sanitized composition instead of
-  /// re-deriving it at every level.
+  /// GuardMassFractions. The public accessors guard exactly once and route
+  /// here; nested calls (bounds inside the temperature inversions, the fused
+  /// FromE chain) reuse that composition instead of re-deriving it at every
+  /// level. (The Sanitized suffix predates the guard, which replaced the
+  /// full sanitize on this path.)
   Real PressureSanitized(Real n, Real T, Real* Y_norm);
   Real SpecificInternalEnergySanitized(Real n, Real T, Real* Y_norm);
   Real MinimumPressureSanitized(Real n, Real* Y_norm);

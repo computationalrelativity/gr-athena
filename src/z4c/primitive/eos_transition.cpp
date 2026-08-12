@@ -75,8 +75,8 @@ Real EOSTransition::TemperatureFromEps(Real n, Real eps, Real* Y)
   if (InteriorYq(n, Y, yq))
     return compose_eos->TemperatureFromEps(n, eps, &yq);
 
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   return TemperatureFromEpsSanitized(n, eps, Y_norm);
 }
 
@@ -159,8 +159,8 @@ Real EOSTransition::TemperatureFromP(Real n, Real p, Real* Y)
   if (InteriorYq(n, Y, yq))
     return compose_eos->TemperatureFromP(n, p, &yq);
 
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   return TemperatureFromPSanitized(n, p, Y_norm);
 }
 
@@ -300,8 +300,8 @@ Real EOSTransition::Pressure(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->Pressure(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   return PressureSanitized(n, T, Y_norm);
 }
 
@@ -323,8 +323,8 @@ Real EOSTransition::Entropy(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->Entropy(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->Entropy(n, T, Y_norm);
@@ -348,8 +348,8 @@ Real EOSTransition::SoundSpeed(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->SoundSpeed(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->SoundSpeed(n, T, Y_norm);
@@ -366,8 +366,8 @@ Real EOSTransition::SpecificInternalEnergy(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->SpecificInternalEnergy(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   return SpecificInternalEnergySanitized(n, T, Y_norm);
 }
 
@@ -390,8 +390,8 @@ Real EOSTransition::BaryonChemicalPotential(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->BaryonChemicalPotential(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->BaryonChemicalPotential(n, T, Y_norm);
@@ -408,8 +408,8 @@ Real EOSTransition::ChargeChemicalPotential(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->ChargeChemicalPotential(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->ChargeChemicalPotential(n, T, Y_norm);
@@ -426,8 +426,8 @@ Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
   Real yq;
   if (InteriorYq(n, Y, yq))
     return compose_eos->ElectronLeptonChemicalPotential(n, T, &yq);
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real w = TransitionFactor(n, T);
   if (w == 1.0)
     return compose_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
@@ -808,10 +808,10 @@ void EOSTransition::TemperaturePressureAndEnthalpyFromE(Real n,
     return;
   }
   // Below the cutoff (InteriorYq false <=> n <= m_helm_n_max, the same
-  // branch TemperatureFromE takes): sanitize once and reuse for both the
-  // inversion and the P/h evaluation.
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  // branch TemperatureFromE takes): guard the composition once and reuse it
+  // for both the inversion and the P/h evaluation.
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   *T = TemperatureFromEpsSanitized(n, e / (mb * n) - 1.0, Y_norm, guess_it);
   PressureAndEnthalpySanitized(n, *T, Y_norm, P, h);
 }
@@ -832,15 +832,15 @@ void EOSTransition::PressureAndEnthalpyFromE(Real n,
     compose_eos->PressureAndEnthalpyFromE(n, e, &yq, P, h, guess_it);
     return;
   }
-  // Sanitize once for the whole chain (see
+  // Guard once for the whole chain (see
   // TemperaturePressureAndEnthalpyFromE).
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   Real T = TemperatureFromEpsSanitized(n, e / (mb * n) - 1.0, Y_norm, guess_it);
   PressureAndEnthalpySanitized(n, T, Y_norm, P, h);
 }
 
-/// Fused pressure + enthalpy: sanitize the composition and compute the
+/// Fused pressure + enthalpy: guard the composition and compute the
 /// transition weight only once, and evaluate each sub-EOS at most once.
 /// This is the hot path of the conservative-to-primitive root find.
 void EOSTransition::PressureAndEnthalpy(Real n,
@@ -856,8 +856,8 @@ void EOSTransition::PressureAndEnthalpy(Real n,
     compose_eos->PressureAndEnthalpy(n, T, &yq, P, h);
     return;
   }
-  Real Y_norm[SCNVAR];
-  SanitizeMassFractions(Y, Y_norm);
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm = GuardMassFractions(Y, Y_fb__);
   PressureAndEnthalpySanitized(n, T, Y_norm, P, h);
 }
 
