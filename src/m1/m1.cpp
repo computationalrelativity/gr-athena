@@ -399,7 +399,8 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real>& u, vars_RadMat& radmat)
       SetVarAlias(
         radmat.sc_avg_nrg, u, ix_g, ix_s, ixn_RaM::avg_nrg, ixn_RaM::N);
       SetVarAlias(
-        radmat.sc_num_flux, u, ix_g, ix_s, ixn_RaM::num_flux, ixn_RaM::N);
+        radmat.sc_log_num_flux, u, ix_g, ix_s, ixn_RaM::log_num_flux,
+        ixn_RaM::N);
     }
 }
 
