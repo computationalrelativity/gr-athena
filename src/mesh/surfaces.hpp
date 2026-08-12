@@ -159,6 +159,34 @@ class Surfaces
       cc, vc
     };
 
+    // Is this quantity non-negative by construction?
+    //
+    // Interpolation onto the surface is Lagrange and therefore not positivity
+    // preserving; on fields with a large dynamic range it overshoots into
+    // negative values that are physically meaningless. Consumers of the
+    // radiation diagnostics (e.g. nuclear-network post-processing) cannot use
+    // a negative number flux or average energy, so those are clamped after
+    // interpolation. Quantities that are legitimately signed (velocities,
+    // u_t, metric components) must NOT be listed here.
+    static inline bool IsNonNegativeVariety(variety_data vd)
+    {
+#ifdef M1_ENABLED
+      switch (vd)
+      {
+        case variety_data::M1_radmat_sc_num_flux_00:
+        case variety_data::M1_radmat_sc_num_flux_01:
+        case variety_data::M1_radmat_sc_num_flux_02:
+        case variety_data::M1_radmat_sc_avg_nrg_00:
+        case variety_data::M1_radmat_sc_avg_nrg_01:
+        case variety_data::M1_radmat_sc_avg_nrg_02:
+          return true;
+        default:
+          break;
+      }
+#endif // M1_ENABLED
+      return false;
+    }
+
   private:
     // Get the base grid sampling (e.g. Z4c/ADM depend on macros etc)
     inline variety_base_grid GetDataBaseGrid(variety_data vd)

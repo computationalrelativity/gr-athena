@@ -502,7 +502,22 @@ void SurfaceSpherical::DoInterpolations()
           // slice to current function component for interp
           AA sl_u(raw_var, mapped_cix_pre[ix_dump], 1);
 
-          u_vars(ix_dump, i, j) = InterpolateAtPoint(sl_u, vbg, i, j);
+          Real val = InterpolateAtPoint(sl_u, vbg, i, j);
+
+          // Lagrange interpolation is not positivity preserving. On fields
+          // spanning many orders of magnitude (the M1 number flux runs from
+          // ~1e-44 in the atmosphere to ~1e49 in the star) the stencil
+          // overshoots across steep gradients and can return a sizeable
+          // negative value, which is meaningless for a quantity that is
+          // non-negative by construction. Clamp those.
+          // N.B. this only removes the negative half of the overshoot; the
+          // positive half remains, so these fields stay approximate.
+          if (Surfaces::IsNonNegativeVariety(psurfs->variables(vix)))
+          {
+            val = std::max(0.0, val);
+          }
+
+          u_vars(ix_dump, i, j) = val;
           ix_dump++;
         }
       }
