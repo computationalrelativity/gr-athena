@@ -1,5 +1,6 @@
 // C++ standard headers
 #include <algorithm>  // std::min, std::max
+#include <cmath>      // std::log
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
@@ -70,7 +71,7 @@ void CalcEnergyAverages(MeshBlock *pmb)
     AT_C_sca & sc_xi   = pm1->lab_aux.sc_xi(ix_g,ix_s);
 
     AT_C_sca & sc_avg_nrg  = pm1->radmat.sc_avg_nrg(ix_g, ix_s);
-    AT_C_sca & sc_num_flux = pm1->radmat.sc_num_flux(ix_g, ix_s);
+    AT_C_sca & sc_log_num_flux = pm1->radmat.sc_log_num_flux(ix_g, ix_s);
 
     M1_GLOOP3(k, j, i)
     if (pm1->MaskGet(k,j,i))
@@ -109,22 +110,37 @@ void CalcEnergyAverages(MeshBlock *pmb)
       // Alternatively could use fiducial frame form:
       // sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
 
-      // Absolute (fiducial-frame) neutrino number flux, F = xi * n.
+      // Absolute (fiducial-frame) neutrino number flux, F = xi * n, stored as
+      // log(F).
+      //
       // xi = sqrt(H_a H^a) / J is the flux factor of eq. (23) of the code
       // paper (arXiv:2602.18290); it is a ratio of densitized quantities and
       // so is itself undensitized. sc_n is not: it inherits sqrt(det g) from
       // the evolved sc_nG, hence the division here, which makes F a proper
       // number flux and removes any need to dump sc_sqrt_det_g alongside it.
+      //
       // The stored xi carries closure-solver slop: the Newton iterate is
       // allowed onto [-bnd_xi_delta, 1+bnd_xi_delta] (M1_closure/bnd_xi_delta,
-      // 0.1 in production), so xi can come out slightly negative or above 1.
-      // Both are unphysical for a flux factor and would put a negative number
-      // flux into the tracer output, so clamp to [0,1] here.
+      // 0.1 in production), so clamp to the physical range first.
+      //
+      // The log is what gets dumped because F spans ~90 orders of magnitude
+      // between the star and the atmosphere. Surface interpolation is Lagrange
+      // and is neither positivity preserving nor accurate across a range like
+      // that; in log space the field is smooth where it matters (free
+      // streaming, F ~ 1/r^2) and exponentiating after interpolation cannot
+      // produce a negative flux. Consumers must exponentiate, and should do so
+      // only after all interpolation is complete.
       const Real xi = std::min(1.0, std::max(0.0, sc_xi(k,j,i)));
       const Real sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
-      sc_num_flux(k,j,i) = (sqrt_det_g > 0.0)
+      const Real F = (sqrt_det_g > 0.0)
         ? std::max(0.0, xi * sc_n(k,j,i) / sqrt_det_g)
         : 0.0;
+      // xi -> 0 in the thick limit makes F vanish identically, so floor before
+      // taking the log; exp(LOG_F_FLOOR) is zero for any practical purpose.
+      static const Real LOG_F_FLOOR = -200.0;
+      sc_log_num_flux(k,j,i) = (F > 0.0)
+        ? std::max(LOG_F_FLOOR, std::log(F))
+        : LOG_F_FLOOR;
     }
 
 
