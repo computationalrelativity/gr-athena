@@ -468,6 +468,7 @@ class M1
     GroupSpeciesContainer<AT_C_sca> sc_kap_s;
 
     GroupSpeciesContainer<AT_C_sca> sc_avg_nrg;
+    GroupSpeciesContainer<AT_C_sca> sc_num_flux;
 
     // AT_C_sca abs_0;
     // AT_C_sca abs_1;
@@ -753,6 +754,7 @@ class M1
       kap_a,
       kap_s,
       avg_nrg,
+      num_flux,
       // abs_0, abs_1,
       // eta_0, eta_1,
       // scat_1,
@@ -765,7 +767,8 @@ class M1
       "M1.radmat.sc_eta",
       "M1.radmat.sc_kap_a",
       "M1.radmat.sc_kap_s",
-      "M1.radmat.sc_avg_nrg"
+      "M1.radmat.sc_avg_nrg",
+      "M1.radmat.sc_num_flux"
       // "rmat.abs_0", "rmat.abs_1",
       // "rmat.eta_0", "rmat.eta_1",
       // "rmat.scat_1",
