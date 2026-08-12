@@ -78,9 +78,9 @@ class Surfaces
       M1_radmat_sc_avg_nrg_00,
       M1_radmat_sc_avg_nrg_01,
       M1_radmat_sc_avg_nrg_02,
-      M1_radmat_sc_num_flux_00,
-      M1_radmat_sc_num_flux_01,
-      M1_radmat_sc_num_flux_02,
+      M1_radmat_sc_log_num_flux_00,
+      M1_radmat_sc_log_num_flux_01,
+      M1_radmat_sc_log_num_flux_02,
     };
 
   private:
@@ -143,9 +143,9 @@ class Surfaces
       {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
-      {"M1.radmat.sc_num_flux_00", variety_data::M1_radmat_sc_num_flux_00},
-      {"M1.radmat.sc_num_flux_01", variety_data::M1_radmat_sc_num_flux_01},
-      {"M1.radmat.sc_num_flux_02", variety_data::M1_radmat_sc_num_flux_02},
+      {"M1.radmat.sc_log_num_flux_00", variety_data::M1_radmat_sc_log_num_flux_00},
+      {"M1.radmat.sc_log_num_flux_01", variety_data::M1_radmat_sc_log_num_flux_01},
+      {"M1.radmat.sc_log_num_flux_02", variety_data::M1_radmat_sc_log_num_flux_02},
 #endif
     };
 
@@ -161,6 +161,10 @@ class Surfaces
 
     // Is this quantity non-negative by construction?
     //
+    // N.B. M1.radmat.sc_log_num_flux is deliberately NOT listed: it is a
+    // logarithm, so negative values are ordinary small fluxes. Clamping it
+    // at zero would floor F at 1 and destroy ~100 decades of dynamic range.
+    //
     // Interpolation onto the surface is Lagrange and therefore not positivity
     // preserving; on fields with a large dynamic range it overshoots into
     // negative values that are physically meaningless. Consumers of the
@@ -173,9 +177,6 @@ class Surfaces
 #ifdef M1_ENABLED
       switch (vd)
       {
-        case variety_data::M1_radmat_sc_num_flux_00:
-        case variety_data::M1_radmat_sc_num_flux_01:
-        case variety_data::M1_radmat_sc_num_flux_02:
         case variety_data::M1_radmat_sc_avg_nrg_00:
         case variety_data::M1_radmat_sc_avg_nrg_01:
         case variety_data::M1_radmat_sc_avg_nrg_02:

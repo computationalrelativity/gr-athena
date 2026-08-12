@@ -511,17 +511,17 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pm1->radmat.sc_avg_nrg(0,2).array();
     }
-    case variety_data::M1_radmat_sc_num_flux_00:
+    case variety_data::M1_radmat_sc_log_num_flux_00:
     {
-      return &pmb->pm1->radmat.sc_num_flux(0,0).array();
+      return &pmb->pm1->radmat.sc_log_num_flux(0,0).array();
     }
-    case variety_data::M1_radmat_sc_num_flux_01:
+    case variety_data::M1_radmat_sc_log_num_flux_01:
     {
-      return &pmb->pm1->radmat.sc_num_flux(0,1).array();
+      return &pmb->pm1->radmat.sc_log_num_flux(0,1).array();
     }
-    case variety_data::M1_radmat_sc_num_flux_02:
+    case variety_data::M1_radmat_sc_log_num_flux_02:
     {
-      return &pmb->pm1->radmat.sc_num_flux(0,2).array();
+      return &pmb->pm1->radmat.sc_log_num_flux(0,2).array();
     }
     case variety_data::tracer_vel:
     {
@@ -647,15 +647,15 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 1;
     }
-    case variety_data::M1_radmat_sc_num_flux_00:
+    case variety_data::M1_radmat_sc_log_num_flux_00:
     {
       return 1;
     }
-    case variety_data::M1_radmat_sc_num_flux_01:
+    case variety_data::M1_radmat_sc_log_num_flux_01:
     {
       return 1;
     }
-    case variety_data::M1_radmat_sc_num_flux_02:
+    case variety_data::M1_radmat_sc_log_num_flux_02:
     {
       return 1;
     }
@@ -975,19 +975,19 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       ret = "M1.radmat.sc_avg_nrg_02";
       break;
     }
-    case variety_data::M1_radmat_sc_num_flux_00:
+    case variety_data::M1_radmat_sc_log_num_flux_00:
     {
-      ret = "M1.radmat.sc_num_flux_00";
+      ret = "M1.radmat.sc_log_num_flux_00";
       break;
     }
-    case variety_data::M1_radmat_sc_num_flux_01:
+    case variety_data::M1_radmat_sc_log_num_flux_01:
     {
-      ret = "M1.radmat.sc_num_flux_01";
+      ret = "M1.radmat.sc_log_num_flux_01";
       break;
     }
-    case variety_data::M1_radmat_sc_num_flux_02:
+    case variety_data::M1_radmat_sc_log_num_flux_02:
     {
-      ret = "M1.radmat.sc_num_flux_02";
+      ret = "M1.radmat.sc_log_num_flux_02";
       break;
     }
     case variety_data::tracer_vel:
