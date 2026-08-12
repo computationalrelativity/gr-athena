@@ -66,7 +66,10 @@ void CalcEnergyAverages(MeshBlock *pmb)
     AT_C_sca & sc_J = pm1->rad.sc_J(ix_g,ix_s);
     AT_D_vec & st_H_u = pm1->rad.st_H_u(ix_g, ix_s);
 
-    AT_C_sca & sc_avg_nrg = pm1->radmat.sc_avg_nrg(ix_g, ix_s);
+    AT_C_sca & sc_xi   = pm1->lab_aux.sc_xi(ix_g,ix_s);
+
+    AT_C_sca & sc_avg_nrg  = pm1->radmat.sc_avg_nrg(ix_g, ix_s);
+    AT_C_sca & sc_num_flux = pm1->radmat.sc_num_flux(ix_g, ix_s);
 
     M1_GLOOP3(k, j, i)
     if (pm1->MaskGet(k,j,i))
@@ -104,6 +107,17 @@ void CalcEnergyAverages(MeshBlock *pmb)
 
       // Alternatively could use fiducial frame form:
       // sc_avg_nrg(k,j,i) = sc_J(k,j,i) / sc_n(k,j,i);
+
+      // Absolute (fiducial-frame) neutrino number flux, F = xi * n.
+      // xi = sqrt(H_a H^a) / J is the flux factor of eq. (23) of the code
+      // paper (arXiv:2602.18290); it is a ratio of densitized quantities and
+      // so is itself undensitized. sc_n is not: it inherits sqrt(det g) from
+      // the evolved sc_nG, hence the division here, which makes F a proper
+      // number flux and removes any need to dump sc_sqrt_det_g alongside it.
+      const Real sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
+      sc_num_flux(k,j,i) = (sqrt_det_g > 0.0)
+        ? sc_xi(k,j,i) * sc_n(k,j,i) / sqrt_det_g
+        : 0.0;
     }
 
 
