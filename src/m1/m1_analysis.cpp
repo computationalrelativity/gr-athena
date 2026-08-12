@@ -1,4 +1,5 @@
 // C++ standard headers
+#include <algorithm>  // std::min, std::max
 
 // Athena++ headers
 #include "../mesh/mesh.hpp"
@@ -114,9 +115,15 @@ void CalcEnergyAverages(MeshBlock *pmb)
       // so is itself undensitized. sc_n is not: it inherits sqrt(det g) from
       // the evolved sc_nG, hence the division here, which makes F a proper
       // number flux and removes any need to dump sc_sqrt_det_g alongside it.
+      // The stored xi carries closure-solver slop: the Newton iterate is
+      // allowed onto [-bnd_xi_delta, 1+bnd_xi_delta] (M1_closure/bnd_xi_delta,
+      // 0.1 in production), so xi can come out slightly negative or above 1.
+      // Both are unphysical for a flux factor and would put a negative number
+      // flux into the tracer output, so clamp to [0,1] here.
+      const Real xi = std::min(1.0, std::max(0.0, sc_xi(k,j,i)));
       const Real sqrt_det_g = pm1->geom.sc_sqrt_det_g(k,j,i);
       sc_num_flux(k,j,i) = (sqrt_det_g > 0.0)
-        ? sc_xi(k,j,i) * sc_n(k,j,i) / sqrt_det_g
+        ? std::max(0.0, xi * sc_n(k,j,i) / sqrt_det_g)
         : 0.0;
     }
 
