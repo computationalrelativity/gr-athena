@@ -605,23 +605,24 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
   // Writes sequentially for each MPI rank and radii
   
   // Filename
+  std::string this_ofname_cmetric = ofname_cmetric;
   std::stringstream str_r;
   str_r << std::setfill('0') << std::setw(5) << std::fixed
         << std::setprecision(2) << r;
-  ofname_cmetric += "_r" + str_r.str();
+  this_ofname_cmetric += "_r" + str_r.str();
   
   std::stringstream str_rank;
   str_rank << std::setfill('0') << std::setw(3) << Globals::my_rank;
-  ofname_cmetric += "_" + str_rank.str();
+  this_ofname_cmetric += "_" + str_rank.str();
 
   std::stringstream str_i;
-  str_i << std::setfill('0') << std::setw(5) << iter;
-  ofname_cmetric += "_i" + str_i.str() + ".txt";
+  str_i << std::setfill('0') << std::setw(7) << iter;
+  this_ofname_cmetric += "_i" + str_i.str() + ".txt";
 
   
   // Open file
-  const bool exists  = (access(ofname_cmetric.c_str(), F_OK) == 0);
-  FILE* ofcmetric    = fopen(ofname_cmetric.c_str(), exists ? "a" : "w");
+  const bool exists  = (access(this_ofname_cmetric.c_str(), F_OK) == 0);
+  FILE* ofcmetric    = fopen(this_ofname_cmetric.c_str(), exists ? "a" : "w");
   if (!ofcmetric)
     {
       char buf[512];
@@ -629,7 +630,7 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
              sizeof(buf),
                "### FATAL ERROR in WaveExtractRWZ: "
                "Could not open file '%s' for writing!",
-               ofname_cmetric.c_str());
+               this_ofname_cmetric.c_str());
     throw std::runtime_error(buf);
   }
 
