@@ -78,6 +78,9 @@ class Surfaces
       M1_radmat_sc_avg_nrg_00,
       M1_radmat_sc_avg_nrg_01,
       M1_radmat_sc_avg_nrg_02,
+      M1_radmat_sc_num_flux_00,
+      M1_radmat_sc_num_flux_01,
+      M1_radmat_sc_num_flux_02,
     };
 
   private:
@@ -140,6 +143,9 @@ class Surfaces
       {"M1.radmat.sc_avg_nrg_00", variety_data::M1_radmat_sc_avg_nrg_00},
       {"M1.radmat.sc_avg_nrg_01", variety_data::M1_radmat_sc_avg_nrg_01},
       {"M1.radmat.sc_avg_nrg_02", variety_data::M1_radmat_sc_avg_nrg_02},
+      {"M1.radmat.sc_num_flux_00", variety_data::M1_radmat_sc_num_flux_00},
+      {"M1.radmat.sc_num_flux_01", variety_data::M1_radmat_sc_num_flux_01},
+      {"M1.radmat.sc_num_flux_02", variety_data::M1_radmat_sc_num_flux_02},
 #endif
     };
 

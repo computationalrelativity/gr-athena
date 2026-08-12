@@ -100,7 +100,8 @@ M1::M1(MeshBlock* pmb, ParameterInput* pin)
       },
       rad{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } },
       radmat{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS },
-              { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } },
+              { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS },
+              { N_GRPS, N_SPCS } },
       eql{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } },
       sources{ { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS }, { N_GRPS, N_SPCS } },
       rdiag{ { N_GRPS, N_SPCS },
@@ -397,6 +398,8 @@ void M1::SetVarAliasesRadMat(AthenaArray<Real>& u, vars_RadMat& radmat)
 
       SetVarAlias(
         radmat.sc_avg_nrg, u, ix_g, ix_s, ixn_RaM::avg_nrg, ixn_RaM::N);
+      SetVarAlias(
+        radmat.sc_num_flux, u, ix_g, ix_s, ixn_RaM::num_flux, ixn_RaM::N);
     }
 }
 
