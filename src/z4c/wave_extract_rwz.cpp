@@ -622,7 +622,7 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
   
   // Open file
   const bool exists  = (access(this_ofname_cmetric.c_str(), F_OK) == 0);
-  FILE* ofcmetric    = fopen(this_ofname_cmetric.c_str(), exists ? "a" : "w");
+  FILE* ofcmetric    = fopen(this_ofname_cmetric.c_str(), "w"); 
   if (!ofcmetric)
     {
       char buf[512];
@@ -980,7 +980,7 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
 #if (DUMP_CMETRIC_DRVTS_SPHERE)
       // ---------------------------------------------------------------
 
-      std::vector<double> cmetric_values = {
+      std::vector<Real> cmetric_values = {
         Calpha(),
         Calpha(D01), // d_t alpha
         Calpha_der_d(0), // d_i alpha
@@ -1041,6 +1041,7 @@ void WaveExtractRWZ::InterpMetricToSphere(int iter, Real time)
       for (const auto& value : cmetric_values)
         fprintf(ofcmetric, " %.15e", value);
       fprintf(ofcmetric, "\n");
+      fflush(ofcmetric);
       
       // ---------------------------------------------------------------  
 #endif
