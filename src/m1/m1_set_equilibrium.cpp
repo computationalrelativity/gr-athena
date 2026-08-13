@@ -287,15 +287,16 @@ void SetEquilibrium_n_nG(M1& pm1,
       // Evolve fluid frame quantities
       const Real sqrt_det_g__ = pm1.geom.sc_sqrt_det_g(k, j, i);
       const Real kap_as       = C.sc_kap_a(k, j, i) + C.sc_kap_s(k, j, i);
+      const Real alpha_dt     = pm1.geom.sc_alpha(k, j, i) * dt;
 
-      J_0 = (J_0 * W + dt * sqrt_det_g__ * C.sc_eta(k, j, i)) /
-            (W + dt * C.sc_kap_a(k, j, i));
+      J_0 = (J_0 * W + alpha_dt * sqrt_det_g__ * C.sc_eta(k, j, i)) /
+            (W + alpha_dt * C.sc_kap_a(k, j, i));
 
-      Real H_n__ = W * H_n / (W + dt * kap_as);
+      Real H_n__ = W * H_n / (W + alpha_dt * kap_as);
 
       for (int a = 0; a < N; ++a)
       {
-        sp_H_d_(a, i) = W * sp_H_d_(a, i) / (W + dt * kap_as);
+        sp_H_d_(a, i) = W * sp_H_d_(a, i) / (W + alpha_dt * kap_as);
       }
 
       // Project back assuming thick limit ------------------------------------
