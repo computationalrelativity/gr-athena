@@ -1,3 +1,4 @@
+import os
 import shutil
 from pathlib import Path
 
@@ -160,9 +161,14 @@ def generate_test_files(directory):
 
     Dataset:
 
-        iterations = [100, 200]
-        times      = [0.0, 1.0]
-        radii      = [10.0, 20.0]
+        (iteration, time) = (100, 0.0), (200, 1.0)
+        radii              = [10.0, 20.0]
+
+    Iteration and time are paired one-to-one, as they are in a real
+    simulation (each iteration corresponds to exactly one time) --
+    this matters here because the real WaveExtractRWZ filename
+    convention encodes the iteration but not the time, so two
+    different times sharing an iteration would collide on disk.
 
     Sphere:
 
@@ -179,8 +185,7 @@ def generate_test_files(directory):
     nphi = 8
     npoints = ntheta * nphi
 
-    iterations = [100, 200]
-    times = [0.0, 1.0]
+    iteration_times = [(100, 0.0), (200, 1.0)]
     radii = [10.0, 20.0]
 
     nranks = 4
@@ -193,37 +198,36 @@ def generate_test_files(directory):
         nranks,
     )
 
-    for iteration in iterations:
+    for iteration, time in iteration_times:
 
-        for time in times:
+        for radius in radii:
 
-            for radius in radii:
+            for rank in range(nranks):
 
-                for rank in range(nranks):
-
-                    filename = (
-                        directory
-                        / (
-                            f"cmetric_"
-                            f"it{iteration}_"
-                            f"t{time:g}_"
-                            f"r{radius:g}_"
-                            f"rank{rank:04d}.txt"
-                        )
+                # Real WaveExtractRWZ naming convention, e.g.
+                # wave_cmetric_sphere_r100.00_009_i0000023.txt
+                filename = (
+                    directory
+                    / (
+                        f"wave_cmetric_sphere"
+                        f"_r{radius:.2f}"
+                        f"_{rank:03d}"
+                        f"_i{iteration:07d}.txt"
                     )
+                )
 
-                    write_cmetric_file(
-                        filename=filename,
-                        iteration=iteration,
-                        time=time,
-                        radius=radius,
-                        rank=rank,
-                        k_values=rank_k[rank],
-                        ntheta=ntheta,
-                        nphi=nphi,
-                    )
+                write_cmetric_file(
+                    filename=filename,
+                    iteration=iteration,
+                    time=time,
+                    radius=radius,
+                    rank=rank,
+                    k_values=rank_k[rank],
+                    ntheta=ntheta,
+                    nphi=nphi,
+                )
 
-                    files.append(filename)
+                files.append(filename)
 
     return files
 
@@ -240,8 +244,8 @@ def test_read_and_merge(tmp_path):
 
     data.read_files(files)
 
-    # 2 iterations x 2 times x 2 radii
-    assert len(data.slices) == 8
+    # 2 (iteration, time) pairs x 2 radii
+    assert len(data.slices) == 4
 
     # --------------------------------------------------------------
     # Check iterations
@@ -253,8 +257,8 @@ def test_read_and_merge(tmp_path):
     # Check times
     # --------------------------------------------------------------
 
-    assert data.times(100) == [0.0, 1.0]
-    assert data.times(200) == [0.0, 1.0]
+    assert data.times(100) == [0.0]
+    assert data.times(200) == [1.0]
 
     # --------------------------------------------------------------
     # Check radii
@@ -332,7 +336,7 @@ def test_field_values(tmp_path):
     data = MetricData()
     data.read_files(files)
 
-    iteration = 100
+    iteration = 200
     time = 1.0
     radius = 20.0
 
@@ -389,6 +393,56 @@ def test_get_field(tmp_path):
     print("get_field: OK")
 
 
+def test_find_files(tmp_path):
+
+    generate_test_files(tmp_path)
+
+    found = MetricData.find_files(tmp_path)
+
+    # 2 (iteration, time) pairs x 2 radii x 4 ranks
+    assert len(found) == 16
+
+    for f in found:
+        assert Path(f).name.startswith("wave_cmetric_sphere_r")
+        assert Path(f).name.endswith(".txt")
+
+    # A non-matching basename should find nothing
+    assert MetricData.find_files(tmp_path, basename="not_a_match") == []
+
+    print("find_files: OK")
+
+
+def test_read_directory(tmp_path):
+
+    generate_test_files(tmp_path)
+
+    data = MetricData()
+    files = data.read_directory(tmp_path)
+
+    assert len(files) == 16
+    assert len(data.slices) == 4
+
+    assert data.iterations() == [100, 200]
+
+    print("read_directory: OK")
+
+
+def test_read_directory_missing(tmp_path):
+
+    data = MetricData()
+
+    try:
+        data.read_directory(tmp_path)
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError(
+            "expected FileNotFoundError for an empty directory"
+        )
+
+    print("read_directory (missing): OK")
+
+
 def test_hdf5(tmp_path):
 
     files = generate_test_files(tmp_path)
@@ -419,11 +473,10 @@ def test_hdf5(tmp_path):
         assert "100" in h5
         assert "200" in h5
 
-        # Times
+        # Times (iteration 100 pairs with time 0.0 only)
         it100 = h5["100"]
 
         assert "0.000000000000e+00" in it100
-        assert "1.000000000000e+00" in it100
 
         # Radius
         t0 = it100["0.000000000000e+00"]
@@ -443,10 +496,15 @@ def test_hdf5(tmp_path):
 
     print("HDF5: OK")
 
-def test_hdf5_roundtrip(data1, h5file):
+def check_hdf5_roundtrip(data1, h5file):
     """
     Verify that writing to HDF5 and reading it back preserves
     the scientific data.
+
+    This is a helper, not a pytest test itself (it takes plain
+    arguments rather than fixtures) -- see test_hdf5_roundtrip()
+    below for the actual pytest entry point, and demo() for the
+    other caller.
 
     The MPI 'rank' column is intentionally excluded because it is
     file-level bookkeeping and is not stored in the HDF5 format.
@@ -552,101 +610,111 @@ def test_hdf5_roundtrip(data1, h5file):
 
     print("HDF5 round-trip: OK")
     
-def __test_hdf5_roundtrip(data1, h5file):
-    """
-    Verify that writing to HDF5 and reading it back preserves
-    the scientific data.
+def test_hdf5_roundtrip(tmp_path):
 
-    The MPI 'rank' column is intentionally excluded because it is
-    file-level bookkeeping and is not stored in the HDF5 format.
-    """
+    files = generate_test_files(tmp_path)
+
+    data = MetricData()
+    data.read_files(files)
+
+    h5file = tmp_path / "roundtrip.h5"
+    data.dump_hdf5(h5file)
+
+    check_hdf5_roundtrip(data, h5file)
+
+
+def test_hdf5_compression(tmp_path):
+
+    files = generate_test_files(tmp_path)
+
+    data = MetricData()
+    data.read_files(files)
+
+    # Default (gzip + shuffle)
+    h5_gzip = tmp_path / "gzip.h5"
+    data.dump_hdf5(h5_gzip)
+
+    with h5py.File(h5_gzip, "r") as h5:
+        dset = h5["100"]["0.000000000000e+00"]["1.000000000000e+01"]["gxx"]
+        assert dset.compression == "gzip"
+        assert dset.shuffle is True
+
+    # Uncompressed, for backward compatibility
+    h5_none = tmp_path / "none.h5"
+    data.dump_hdf5(h5_none, compression=None)
+
+    with h5py.File(h5_none, "r") as h5:
+        dset = h5["100"]["0.000000000000e+00"]["1.000000000000e+01"]["gxx"]
+        assert dset.compression is None
+
+    # Both must round-trip to identical data regardless of compression
+    for h5file in (h5_gzip, h5_none):
+        check_hdf5_roundtrip(data, h5file)
+
+    print("HDF5 compression: OK")
+
+
+def test_hdf5_dtype(tmp_path):
+
+    files = generate_test_files(tmp_path)
+
+    data = MetricData()
+    data.read_files(files)
 
     # --------------------------------------------------------------
-    # Read HDF5
+    # Default: no downcast, fields stay float64
+    # --------------------------------------------------------------
+
+    h5_default = tmp_path / "default.h5"
+    data.dump_hdf5(h5_default)
+
+    with h5py.File(h5_default, "r") as h5:
+        dset = h5["100"]["0.000000000000e+00"]["1.000000000000e+01"]["gxx"]
+        assert dset.dtype == np.float64
+        assert h5.attrs["field_dtype"] == "original (not downcast)"
+
+    # --------------------------------------------------------------
+    # float32 downcast: fields shrink, grid stays float64
+    # --------------------------------------------------------------
+
+    h5_f32 = tmp_path / "f32.h5"
+    data.dump_hdf5(h5_f32, dtype=np.float32)
+
+    with h5py.File(h5_f32, "r") as h5:
+        dset = h5["100"]["0.000000000000e+00"]["1.000000000000e+01"]["gxx"]
+        assert dset.dtype == np.float32
+        assert h5.attrs["field_dtype"] == "float32"
+
+        # grid coordinates are never downcast
+        assert h5["grid"]["theta"].dtype == np.float64
+        assert h5["grid"]["phi"].dtype == np.float64
+
+    assert (
+        os.path.getsize(h5_f32) < os.path.getsize(h5_default)
+    )
+
+    # --------------------------------------------------------------
+    # Values should round-trip to within float32 precision
     # --------------------------------------------------------------
 
     data2 = MetricData()
-    data2.read_hdf5(h5file)
+    data2.read_hdf5(h5_f32)
 
-    # --------------------------------------------------------------
-    # Compare iterations
-    # --------------------------------------------------------------
+    original = data.get_field("gxx", 100, 0.0, 10.0)
+    downcast = data2.get_field("gxx", 100, 0.0, 10.0)
 
-    assert data1.iterations() == data2.iterations()
+    assert downcast.dtype == np.float32
 
-    # --------------------------------------------------------------
-    # Compare times and radii
-    # --------------------------------------------------------------
+    np.testing.assert_allclose(
+        downcast,
+        original,
+        rtol=1e-6,
+        atol=1e-6,
+    )
 
-    for iteration in data1.iterations():
+    print("HDF5 dtype downcast: OK")
 
-        assert (
-            data1.times(iteration)
-            == data2.times(iteration)
-        )
-        
-        for time in data1.times(iteration):
 
-            assert (
-                data1.radii(iteration, time)
-                == data2.radii(iteration, time)
-            )
-
-    # --------------------------------------------------------------
-    # Compare global grid
-    # --------------------------------------------------------------
-
-    grid_names = [
-        "k",
-        "i",
-        "j",
-        "theta",
-        "phi",
-    ]
-
-    for name in grid_names:
-
-        assert name in data1.grid
-        assert name in data2.grid
-        
-        assert np.allclose(
-            data1.grid[name],
-            data2.grid[name],
-        )
-
-    # --------------------------------------------------------------
-    # Compare fields
-    # --------------------------------------------------------------
-
-    assert data1.fields == data2.fields
-
-    # --------------------------------------------------------------
-    # Compare slices
-    # --------------------------------------------------------------
-
-    columns = grid_names + data1.fields
-
-    for key in data1.slices:
-
-        assert key in data2.slices
-
-        df1 = data1.slices[key]
-        df2 = data2.slices[key]
-
-        # The HDF5 representation intentionally does not contain rank.
-        for column in columns:
-
-            assert column in df1.columns
-            assert column in df2.columns
-
-            assert np.allclose(
-                df1[column].to_numpy(),
-                df2[column].to_numpy(),
-                equal_nan=True,
-            )
-            
-    print("HDF5 round-trip: OK")
-        
 def test_plots(tmp_path):
 
     files = generate_test_files(tmp_path)
@@ -787,7 +855,7 @@ def demo(output_dir="test_cmetric_output"):
     # Query
     # --------------------------------------------------------------
 
-    iteration = 100
+    iteration = 200
     time = 1.0
     radius = 20.0
 
@@ -862,7 +930,7 @@ def demo(output_dir="test_cmetric_output"):
     print()
     print("Testing HDF5 round-trip...")
 
-    test_hdf5_roundtrip(
+    check_hdf5_roundtrip(
         data,
         h5file,
     )

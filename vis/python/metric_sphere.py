@@ -1,3 +1,4 @@
+import glob
 import re
 from pathlib import Path
 
@@ -5,6 +6,22 @@ import numpy as np
 import pandas as pd
 import h5py
 import matplotlib.pyplot as plt
+
+
+# Filename convention used by WaveExtractRWZ
+# (wave_extract_rwz.cpp, DUMP_CMETRIC_DRVTS_SPHERE):
+#
+#   <basename>_r<radius>_<rank>_i<iter>.txt
+#
+# e.g. wave_cmetric_sphere_r100.00_009_i0000023.txt
+#
+# Note: the metadata (iteration, time, radius, rank) actually used by
+# MetricData is always read from the file's own header, never from
+# the filename -- this pattern is only used to *discover* files on
+# disk.
+CMETRIC_FNAME_RE = re.compile(
+    r"^(?P<base>.+)_r(?P<radius>\d+\.\d+)_(?P<rank>\d+)_i(?P<iter>\d+)\.txt$"
+)
 
 
 class MetricData:
@@ -229,6 +246,64 @@ class MetricData:
         self._finalize()
 
     # ==================================================================
+    # Discover files on disk
+    # ==================================================================
+
+    @staticmethod
+    def find_files(directory, basename="wave_cmetric_sphere"):
+        """
+        Find cmetric files on disk following the naming convention
+
+            <basename>_r<radius>_<rank>_i<iter>.txt
+
+        used by WaveExtractRWZ, e.g.
+
+            wave_cmetric_sphere_r100.00_009_i0000023.txt
+
+        Returns a sorted list of matching file paths. This is purely
+        for discovery -- the actual (iteration, time, radius, rank)
+        values are always read from each file's own header.
+        """
+
+        directory = Path(directory)
+
+        candidates = glob.glob(
+            str(directory / f"{basename}_r*_*_i*.txt")
+        )
+
+        matches = [
+            f for f in candidates
+            if (
+                m := CMETRIC_FNAME_RE.match(Path(f).name)
+            ) and m.group("base") == basename
+        ]
+
+        return sorted(matches)
+
+    def read_directory(self, directory, basename="wave_cmetric_sphere"):
+        """
+        Discover and read all cmetric files in a directory.
+
+        Equivalent to:
+
+            files = MetricData.find_files(directory, basename)
+            self.read_files(files)
+
+        Returns the list of files that were read.
+        """
+
+        files = self.find_files(directory, basename)
+
+        if not files:
+            raise FileNotFoundError(
+                f"No '{basename}_r*_*_i*.txt' files found in {directory}"
+            )
+
+        self.read_files(files)
+
+        return files
+
+    # ==================================================================
     # Incremental timeslice
     # ==================================================================
 
@@ -442,7 +517,14 @@ class MetricData:
     # HDF5
     # ==================================================================
 
-    def dump_hdf5(self, filename):
+    def dump_hdf5(
+        self,
+        filename,
+        compression="gzip",
+        compression_opts=4,
+        shuffle=True,
+        dtype=None,
+    ):
         """
         Write all data to HDF5.
 
@@ -468,7 +550,82 @@ class MetricData:
 
         The grid is stored once because it is common to all
         iterations, times, and radii.
+
+        Parameters
+        ----------
+        compression : str or None
+            HDF5 filter applied to every dataset, e.g. "gzip" or
+            "lzf". "gzip" compresses more but is slower; "lzf" is
+            faster but compresses less and is not available outside
+            HDF5/h5py (i.e. not readable by every third-party tool).
+            Pass None to disable compression and write plain,
+            uncompressed datasets (matches the original behaviour).
+            Note that compression only pays off once datasets are
+            reasonably large -- for very small spheres the per-dataset
+            chunk/filter overhead can make compressed files *larger*
+            than uncompressed ones. Also note that gzip/lzf/shuffle
+            typically only buy ~1.2x on real (noisy) double-precision
+            simulation data -- see `dtype` below for a much bigger win.
+        compression_opts : int or None
+            Compression level, 0 (fastest/largest) to 9
+            (slowest/smallest). Only used with compression="gzip";
+            ignored for "lzf" and None.
+        shuffle : bool
+            Apply the HDF5 byte-shuffle filter before compression.
+            This reorders bytes across elements and typically improves
+            the compression ratio for floating-point arrays like ours
+            at essentially no extra cost. Ignored when compression is
+            None.
+        dtype : numpy dtype or None
+            If given (e.g. `np.float32`), physical field data is cast
+            to this dtype before writing, roughly halving file size
+            for float32 on top of whatever `compression` gives. This
+            is a real (lossy) precision reduction -- float32 keeps
+            about 7 significant decimal digits, vs ~16 for float64 --
+            so make sure that is acceptable for your downstream
+            analysis. The coordinate grid (k, i, j, theta, phi) is
+            always written at its original precision regardless of
+            this setting, since it is tiny and precision there is
+            usually more important. Default None keeps the original
+            dtype (typically float64), matching the previous
+            behaviour.
         """
+
+        # compression_opts is only meaningful for gzip
+        gzip_opts = compression_opts if compression == "gzip" else None
+
+        def _create_dataset(group, name, data, cast=False, **attrs):
+            """Create a dataset, compressed unless it is empty (HDF5
+            cannot chunk/compress a zero-length dataset).
+
+            `cast` controls whether `dtype` downcasting applies to
+            this dataset -- it is applied to physical field data but
+            never to the coordinate grid.
+            """
+
+            data = np.asarray(data)
+
+            if cast and dtype is not None and np.issubdtype(
+                    data.dtype, np.floating):
+                data = data.astype(dtype)
+
+            kwargs = {}
+            if compression is not None and data.size > 0:
+                kwargs["compression"] = compression
+                kwargs["shuffle"] = shuffle
+                if gzip_opts is not None:
+                    kwargs["compression_opts"] = gzip_opts
+
+            dataset = group.create_dataset(
+                name,
+                data=data,
+                **kwargs,
+            )
+
+            for key, value in attrs.items():
+                dataset.attrs[key] = value
+
+            return dataset
 
         with h5py.File(filename, "w") as h5:
 
@@ -495,6 +652,11 @@ class MetricData:
 
             h5.attrs["data_structure"] = (
                 "iteration/time/radius/field"
+            )
+
+            h5.attrs["field_dtype"] = (
+                np.dtype(dtype).name if dtype is not None
+                else "original (not downcast)"
             )
 
             # ==============================================================
@@ -529,9 +691,10 @@ class MetricData:
 
             for name, values in self.grid.items():
 
-                grid_group.create_dataset(
+                _create_dataset(
+                    grid_group,
                     name,
-                    data=values
+                    values,
                 )
 
             # ==============================================================
@@ -608,13 +771,12 @@ class MetricData:
                     
                     if field in df:
 
-                        dataset = radius_group.create_dataset(
+                        _create_dataset(
+                            radius_group,
                             field,
-                            data=df[field].to_numpy()
-                        )
-
-                        dataset.attrs["description"] = (
-                            f"Metric field {field}"
+                            df[field].to_numpy(),
+                            cast=True,
+                            description=f"Metric field {field}",
                         )
 
 
@@ -694,15 +856,13 @@ class MetricData:
                 if iteration_name == "grid":
                     continue
 
-                # Expect iteration_<N>
-                if not iteration_name.startswith("iteration_"):
+                # Expect a bare iteration number, e.g. "100"
+                try:
+                    iteration = int(iteration_name)
+                except ValueError:
                     continue
 
                 iteration_group = h5[iteration_name]
-
-                iteration = int(
-                    iteration_name[len("iteration_"):]
-                )
 
                 # ==========================================================
                 # Read times
@@ -710,14 +870,14 @@ class MetricData:
 
                 for time_name in iteration_group:
 
-                    if not time_name.startswith("time_"):
+                    # Expect a bare formatted float, e.g.
+                    # "0.000000000000e+00"
+                    try:
+                        time = float(time_name)
+                    except ValueError:
                         continue
 
                     time_group = iteration_group[time_name]
-                    
-                    time = float(
-                        time_name[len("time_"):]
-                    )
 
                     # ======================================================
                     # Read radii
@@ -725,15 +885,15 @@ class MetricData:
 
                     for radius_name in time_group:
 
-                        if not radius_name.startswith("radius_"):
+                        # Expect a bare formatted float, e.g.
+                        # "1.000000000000e+01"
+                        try:
+                            radius = float(radius_name)
+                        except ValueError:
                             continue
 
                         radius_group = (
                             time_group[radius_name]
-                        )
-                        
-                        radius = float(
-                            radius_name[len("radius_"):]
                         )
 
                         key = (
@@ -844,18 +1004,23 @@ class MetricData:
     @staticmethod
     def _group_name(prefix, value):
         """
-        Create a descriptive HDF5 group name.
-        
+        Create an HDF5 group name.
+
+        No prefix is used: iteration groups are named by the bare
+        iteration number, and time/radius groups are named by the
+        bare formatted float. This matches the cmetric HDF5
+        convention (<iteration>/<time>/<radius>/<field>).
+
         Examples:
-           iteration_100
-           time_1.000000000000e+00
-           radius_1.000000000000e+02
+           100
+           1.000000000000e+00
+           1.000000000000e+02
         """
 
         if prefix == "iteration":
-            return f"iteration_{int(value)}"
+            return f"{int(value)}"
 
-        return f"{prefix}_{value:.12e}"
+        return f"{value:.12e}"
     
     # ==================================================================
     # Visualization: 2D sphere
