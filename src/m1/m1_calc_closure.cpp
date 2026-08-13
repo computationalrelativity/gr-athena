@@ -238,6 +238,8 @@ void ClosureMetaVector::Closure(const int k, const int j, const int i)
   }
 
   // compute Eddington factor -------------------------------------------------
+  // Defensive clamp of xi to [0,1] on the success path.
+  solvers::Enforce_Xi_Limits(sc_xi(k, j, i));
   EddingtonFactors::Compute(pm1, sc_xi(k, j, i), sc_chi(k, j, i));
 }
 
