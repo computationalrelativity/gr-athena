@@ -250,7 +250,7 @@ class WaveExtractRWZ
     Ih1_dot,
     IG_dot,
     IK_dot,
-    IH0,
+    IH0, 
     IH1,  // odd
     IH,
     IH0_dr,
@@ -288,24 +288,113 @@ class WaveExtractRWZ
     Iof_Psio_dyn,
     Iof_Qplus,
     Iof_Qstar,
-    //
-    Iof_H1_dot,
-    Iof_H0_dr,
-    Iof_H0,
-    Iof_H1,
+    // extra output -------------------------
+    // even multipoles
+    Iof_h00,
+    Iof_h01,
+    Iof_h11,  // even
+    Iof_h0,
+    Iof_h1,
+    Iof_G,
+    Iof_K,
+    Iof_h00_dr,
+    Iof_h01_dr,
+    Iof_h11_dr,  // even d/dr drvts
+    Iof_h0_dr,
+    Iof_h1_dr,
+    Iof_G_dr,
+    Iof_K_dr,
+    Iof_G_dr2,
+    Iof_K_dr2,  // even d2/dr2 drvts
+    Iof_G_dr_dot,
+    Iof_K_dr_dot,  // even mixed drvts
+    Iof_h00_dot,
+    Iof_h01_dot,
+    Iof_h11_dot,  // even d/dt drvts
+    Iof_h0_dot,
+    Iof_h1_dot,
+    Iof_G_dot,
+    Iof_K_dot,
+    // odd multipoles
+    Iof_H0, 
+    Iof_H1,  // odd
     Iof_H,
+    Iof_H0_dr,
+    Iof_H1_dr,  // odd d/dr drvts
     Iof_H_dr,
+    Iof_H0_dot,
+    Iof_H1_dot,  // odd d/dt drvts
+    Iof_H_dot,
+    Iof_H0_dr2,
+    Iof_H_dr2,
+    Iof_H1_dr_dot,  // odd second drvts
+    // master fun drvts
     Iof_Psie_dr,
     Iof_Psio_dr,
     Iof_Qplus_dr,
     Iof_Qstar_dr,
-    //
+    // --------------------------------------
     Iof_hlm,  // This should be last!
     Iof_Num,
   };
   std::string ofbname[Iof_Num];
   FILE* ofile[Iof_Num]{};
-
+  
+  static const char *field_names[Iof_Num] = {
+    "diagnostic",
+    "adm",
+    "Psie",
+    "Psio",
+    "Psie_dyn",
+    "Psio_dyn",
+    "Qplus",
+    "Qstar",
+    // ----------------------
+    "h00",
+    "h01",
+    "h11",
+    "h0",
+    "h1",
+    "G",
+    "K",
+    "h00_dr",
+    "h01_dr",
+    "h11_dr",
+    "h0_dr",
+    "h1_dr",
+    "G_dr",
+    "K_dr",
+    "G_dr2",
+    "K_dr2",
+    "G_dr_dot",
+    "K_dr_dot",
+    "h00_dot",
+    "h01_dot",
+    "h11_dot",
+    "h0_dot",
+    "h1_dot",
+    "G_dot",
+    "K_dot",
+    "H0",
+    "H1",
+    "H",
+    "H0_dr",
+    "H1_dr",
+    "H_dr",
+    "H0_dot",
+    "H1_dot",
+    "H_dot",
+    "H0_dr2",
+    "H_dr2",
+    "H1_dr_dot",
+    "Psie_dr",
+    "Psio_dr",
+    "Qplus_dr",
+    "Qstar_dr",
+    // ----------------------
+    "hlm"
+  };
+  
   std::string ofname_cmetric;
   
   // -- Back-pointers ---------------------------------------------------------

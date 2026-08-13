@@ -164,29 +164,13 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
 
   
   if (opt.extra_output)
-  {
-    ofbname[Iof_H1_dot] =
-      pin->GetOrAddString("rwz_extraction", "filename_H1_dot", "wave_H1dot");
-    ofbname[Iof_H0_dr] =
-      pin->GetOrAddString("rwz_extraction", "filename_H0_dr", "wave_H0dr");
-    ofbname[Iof_H0] =
-      pin->GetOrAddString("rwz_extraction", "filename_H0", "wave_H0");
-    ofbname[Iof_H1] =
-      pin->GetOrAddString("rwz_extraction", "filename_H1", "wave_H1");
-    ofbname[Iof_H] =
-      pin->GetOrAddString("rwz_extraction", "filename_H", "wave_H");
-    ofbname[Iof_H_dr] =
-      pin->GetOrAddString("rwz_extraction", "filename_H_dr", "wave_Hdr");
-
-    ofbname[Iof_Psie_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_psie_dr", "wave_psie_dr");
-    ofbname[Iof_Psio_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_psio_dr", "wave_psio_dr");
-    ofbname[Iof_Qplus_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_Qplus_dr", "wave_Qplus_dr");
-    ofbname[Iof_Qstar_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_Qstar_dr", "wave_Qstar_dr");
-  }
+    {
+      for (int i = Iof_h00; i < Iof_hlm; ++i) {
+	std::string _fstr = "wave_" + field_names[i];
+	std::string _pstr = "filename_" + field_names[i];      
+	ofbname[i] =  pin->GetOrAddString("rwz_extraction", _pstr, _fstr);
+      }    
+    }
 
   // Warn if RWZ will run but storage.aux ghost zones won't be communicated
   {
@@ -393,31 +377,79 @@ void WaveExtractRWZ::Write(int iter, Real time)
   // Iof_hlm is special-cased (computed on-the-fly from Psie/Psio).
 
   std::vector<AthenaArray<Real>*> data;
-  data.reserve(opt.extra_output ? 16 : 6);
+  data.reserve(opt.extra_output ? 47 : 6);
   data.push_back(&Psie);
   data.push_back(&Psio);
   data.push_back(&Psie_dyn);
   data.push_back(&Psio_dyn);
   data.push_back(&Qplus);
   data.push_back(&Qstar);
+  
   if (opt.extra_output)
-  {
-    data.push_back(&H1[D01]);
-    data.push_back(&H0[D10]);
-    data.push_back(&H0[D00]);
-    data.push_back(&H1[D00]);
-    data.push_back(&H[D00]);
-    data.push_back(&H[D10]);
-    data.push_back(&Psie_dr);
-    data.push_back(&Psio_dr);
-    data.push_back(&Qplus_dr);
-    data.push_back(&Qstar_dr);
-  }
+    {
+      // even multipoles
+      data.push_back(&h00[D00]);
+      data.push_back(&h01[D00]);
+      data.push_back(&h11[D00]);
+      
+      data.push_back(&h0[D00]);
+      data.push_back(&h1[D00]);
+      data.push_back(&G[D00]);
+      data.push_back(&K[D00]);
+      
+      data.push_back(&h00[D10]);
+      data.push_back(&h01[D10]);
+      data.push_back(&h11[D10]);
+      
+      data.push_back(&h0[D10]);
+      data.push_back(&h1[D10]);
+      data.push_back(&G[D10]);
+      data.push_back(&K[D10]);
+      
+      data.push_back(&G[D20]);
+      data.push_back(&K[D20]);
+      
+      data.push_back(&G[D11]);
+      data.push_back(&K[D11]);
 
+      data.push_back(&h00[D01]);
+      data.push_back(&h01[D01]);
+      data.push_back(&h11[D01]);
+      
+      data.push_back(&h0[D01]);
+      data.push_back(&h1[D01]);
+      data.push_back(&G[D01]);
+      data.push_back(&K[D01]);
+      
+      // odd multipoles
+      data.push_back(&H0[D00]);
+      data.push_back(&H1[D00]);
+      data.push_back(&H[D00]);
+      
+      data.push_back(&H0[D10]);
+      data.push_back(&H1[D10]);
+      data.push_back(&H[D10]);
+      
+      data.push_back(&H0[D01]);
+      data.push_back(&H1[D01]);
+      data.push_back(&H[D01]);
+      
+      data.push_back(&H1[D11]);
+      
+      data.push_back(&H0[D20]);
+      data.push_back(&H[D20]);
+      
+      // master functions r-drvts
+      data.push_back(&Psie_dr);
+      data.push_back(&Psio_dr);
+      data.push_back(&Qplus_dr);
+      data.push_back(&Qstar_dr);
+    }
+  
   for (int i = Iof_adm + 1; i < Iof_Num; ++i)
   {
     // Skip extra output files when extra_output is disabled
-    if (!opt.extra_output && i >= Iof_H1_dot && i <= Iof_Qstar_dr)
+    if (!opt.extra_output && i >= Iof_h00 && i < Iof_hlm)
       continue;
 
     FILE* f = ofile[i] ? ofile[i] : OpenOutputFile(i);
