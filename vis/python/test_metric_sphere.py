@@ -29,24 +29,24 @@ FIELDS = [
     "betax_z", "betay_z", "betaz_z",
 
     "gxx", "gxy", "gxz",
-    "gyx", "gyy", "gyz",
-    "gzx", "gzy", "gzz",
+    "gyy", "gyz",
+    "gzz",
 
     "gxx_t", "gxy_t", "gxz_t",
-    "gyx_t", "gyy_t", "gyz_t",
-    "gzx_t", "gzy_t", "gzz_t",
+    "gyy_t", "gyz_t",
+    "gzz_t",
 
     "gxx_x", "gxy_x", "gxz_x",
-    "gyx_x", "gyy_x", "gyz_x",
-    "gzx_x", "gzy_x", "gzz_x",
+    "gyy_x", "gyz_x",
+    "gzz_x",
 
     "gxx_y", "gxy_y", "gxz_y",
-    "gyx_y", "gyy_y", "gyz_y",
-    "gzx_y", "gzy_y", "gzz_y",
+    "gyy_y", "gyz_y",
+    "gzz_y",
 
     "gxx_z", "gxy_z", "gxz_z",
-    "gyx_z", "gyy_z", "gyz_z",
-    "gzx_z", "gzy_z", "gzz_z",
+    "gyy_z", "gyz_z",
+    "gzz_z",
 ]
 
 
