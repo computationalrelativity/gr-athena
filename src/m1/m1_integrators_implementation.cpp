@@ -164,13 +164,14 @@ void PrepareApproximateFirstOrder_E_F_d(
   // Evolve fluid frame quantities
   const Real sqrt_det_g__ = pm1.geom.sc_sqrt_det_g(k,j,i);
   const Real kap_as = C.sc_kap_a(k,j,i) + C.sc_kap_s(k,j,i);
+  const Real alpha_dt = pm1.geom.sc_alpha(k,j,i) * dt;
 
-  J_0 = (J_0 * W + dt * sqrt_det_g__ * C.sc_eta(k,j,i)) /
-        (W + dt * C.sc_kap_a(k,j,i));
+  J_0 = (J_0 * W + alpha_dt * sqrt_det_g__ * C.sc_eta(k,j,i)) /
+        (W + alpha_dt * C.sc_kap_a(k,j,i));
 
   for (int a=0; a<N; ++a)
   {
-    sp_H_d_(a,i) = W * sp_H_d_(a,i) / (W + dt * kap_as);
+    sp_H_d_(a,i) = W * sp_H_d_(a,i) / (W + alpha_dt * kap_as);
   }
 
   // This follows from the orthogonality relation H_a u^a = 0
@@ -1118,6 +1119,15 @@ void StepImplicitCustomN(
       std::ostringstream msg;
       msg << "StepImplicitCustomN failure: ";
       msg << "no convergence " << iter;
+
+      pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
+    }
+    else if (!converged)
+    {
+      // No remaining fallback
+      std::ostringstream msg;
+      msg << "StepImplicitCustomN failure: ";
+      msg << "no remaining fallback " << iter;
 
       pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
     }
