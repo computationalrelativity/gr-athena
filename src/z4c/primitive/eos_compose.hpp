@@ -204,6 +204,37 @@ class EOSCompOSE : public EOSPolicyInterface
     return s_mn;
   }
 
+  // ---- tabulated opacity injection (nua) --------------------------------
+  void ReadTableFromFile_m1_nrg(std::string fname);
+  void ReadTableFromFile_m1_num(std::string fname);
+
+  // 5D opacity interpolation handlers
+  Real OpacNrg(Real n, Real T, Real *Y, Real nrg, const int ix_spc);
+  Real OpacNum(Real n, Real T, Real *Y, Real nrg, const int ix_spc);
+
+  // Indexing for 5D opacity table: [nb x yq x T x species x energy]
+  inline ptrdiff_t index_opac(int in, int iy, int it, int is, int ie) const {
+    // Promote every operand to ptrdiff_t before multiplying so the nested
+    // products cannot overflow int for large tables.
+    return (ptrdiff_t)ie +
+           (ptrdiff_t)m_n_energy *
+             ((ptrdiff_t)is +
+              (ptrdiff_t)m_n_species_opac *
+                ((ptrdiff_t)it +
+                 (ptrdiff_t)m_nt * ((ptrdiff_t)iy + (ptrdiff_t)m_ny * (ptrdiff_t)in)));
+  }
+
+  // Evaluate interpolation weight on the non-uniform energy axis
+  void weight_idx_nrg(Real *w0, Real *w1, int *ie, Real nrg) const;
+
+  static Real * m_table_m1_nrg;
+  static Real * m_table_m1_num;
+  static bool m_nrg_initialized;
+  static bool m_num_initialized;
+  static int m_n_species_opac;   // number of species (dim 4 of opacity table)
+  static int m_n_energy;         // number of energy bins (dim 5 of opacity table)
+  static Real * m_nrg_axis;      // energy axis, length m_n_energy
+
   private:
   /// Low level function, not intended for outside use
   Real temperature_from_var(int vi, Real var, Real n, Real Yq) const;

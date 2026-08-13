@@ -1,6 +1,8 @@
 #ifndef M1_OPACITIES_WEAKRATES_HPP
 #define M1_OPACITIES_WEAKRATES_HPP
 
+#include <sstream>
+
 #include "../common/rates_pipeline.hpp"
 #include "../common/utils.hpp"
 #include "weak_rates.hpp"
@@ -66,6 +68,19 @@ class WeakRates
 
     // WeakRates always uses Kirchhoff energy-ratio correction
     opu.opt.use_kirchhoff_energy_correction = true;
+
+    // Tabulated opacity (nua) tables are loaded once per Mesh by
+    // M1::Opacities::LoadTabulatedOpacityTablesOnce; the injection is
+    // CompOSE-only, so reject the request here for any other EOS policy.
+#if EOS_POLICY_CODE != 2
+    if (opu.opt.use_nua)
+    {
+      std::ostringstream msg;
+      msg << "M1_opacities/use_nua requires --eospolicy eos_compose"
+          << std::endl;
+      ATHENA_ERROR(msg);
+    }
+#endif
   };
 
   ~WeakRates()

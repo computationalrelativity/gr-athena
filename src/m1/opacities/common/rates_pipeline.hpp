@@ -30,9 +30,10 @@ namespace M1::Opacities::Common
 //   (pre-correction)
 //   6. OpacityKirchoffCorrected      - Kirchhoff + energy-ratio correction
 //   7. NN opacity corrections        - optional median/extrema fixes
-//   8. FlagEquilibrium (corrected)   - optional equilibrium mask
+//   8. tabulated opacity (nua) injection - CompOSE-only, gated on use_nua
+//   9. FlagEquilibrium (corrected)   - optional equilibrium mask
 //   (post-correction)
-//   9. ValidateRadMatQuantities      - sanity checks on final values
+//   10. ValidateRadMatQuantities     - sanity checks on final values
 //
 // The Backend type must expose the following public interface:
 //   - M1 *pm1
@@ -343,6 +344,62 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
       opu.ApplyValueFixes(data, calc_state, k, j, i);
     }
   }
+  // ========================================================================
+
+#if EOS_POLICY_CODE == 2
+  // inject tabulated opacity (nua) on top of the weakrates opacities =======
+  if (opu.opt.use_nua)
+  {
+    const int ix_g = 0;
+
+    typedef M1::vars_RadMat RM;
+    RM& rm = pm1->radmat;
+
+    auto& eos = pm1->pmy_block->peos->GetEOS();
+    const Real mb = eos.GetBaryonMass();
+
+    const Real e_conv =
+      Primitive::GeometricSolar.EnergyConversion(Primitive::Nuclear);
+    const Real l_conv =
+      Primitive::GeometricSolar.LengthConversion(Primitive::CGS);
+
+    M1_FLOOP3(k, j, i)
+    if (calc_state(k, j, i) == cstate::need)
+    {
+      Real rho, T, Y_e;
+      opu.GetHydro(k, j, i, rho, T, Y_e);
+      const Real nb = rho / mb;
+      Real Y[1] = { Y_e };
+
+      const Real invsdetg = pm1->geom.sc_oo_sqrt_det_g(k, j, i);
+
+      for (int ix_s = 0; ix_s < std::min(2, opu.N_SPCS); ++ix_s)
+      {
+        Real& kap_a   = rm.sc_kap_a(ix_g, ix_s)(k, j, i);
+        Real& kap_a_0 = rm.sc_kap_a_0(ix_g, ix_s)(k, j, i);
+        Real& eta     = rm.sc_eta(ix_g, ix_s)(k, j, i);
+        Real& eta_0   = rm.sc_eta_0(ix_g, ix_s)(k, j, i);
+
+        const Real J_rad = pm1->rad.sc_J(0, ix_s)(k, j, i) * invsdetg;
+        const Real n_rad = pm1->rad.sc_n(0, ix_s)(k, j, i) * invsdetg;
+        const Real J_eql = pm1->eql.sc_J(0, ix_s)(k, j, i) * invsdetg;
+        const Real n_eql = pm1->eql.sc_n(0, ix_s)(k, j, i) * invsdetg;
+
+        const Real eavg = (n_rad > 0.0) ? (J_rad / n_rad) * e_conv : 0.0;
+
+        const Real dopac_nrg = eos.OpacNrg(nb, T, Y, eavg, ix_s) * l_conv;
+        const Real dopac_num = eos.OpacNum(nb, T, Y, eavg, ix_s) * l_conv;
+
+        kap_a   += dopac_nrg;
+        kap_a_0 += dopac_num;
+
+        // keep emissivity consistent (Kirchhoff)
+        eta_0 = kap_a_0 * n_eql;
+        eta   = kap_a * J_eql;
+      }
+    }
+  }
+#endif // EOS_POLICY_CODE == 2
   // ========================================================================
 
   // equilibrium flag =======================================================

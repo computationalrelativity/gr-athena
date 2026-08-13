@@ -174,6 +174,11 @@ class OpacityUtils
     // used.
     bool use_kirchhoff_energy_correction = true;
 
+    // ----- tabulated opacity (nua) ----------------------------------------
+    const bool use_nua;
+    const std::string tabulated_nua_nrg;
+    const std::string tabulated_nua_num;
+
     // Constructor: reads all from pin
     explicit Opt(ParameterInput* pin)
         : cut_dfloor(pin->GetOrAddReal("M1_opacities", "cut_dfloor", 0.0)),
@@ -312,7 +317,12 @@ class OpacityUtils
           min_rho_usefloor(
             pin->GetOrAddBoolean("M1_opacities", "min_rho_usefloor", false)),
           min_t_usefloor(
-            pin->GetOrAddBoolean("M1_opacities", "min_t_usefloor", false))
+            pin->GetOrAddBoolean("M1_opacities", "min_t_usefloor", false)),
+          use_nua(pin->GetOrAddBoolean("M1_opacities", "use_nua", false)),
+          tabulated_nua_nrg(
+            pin->GetOrAddString("M1_opacities", "tabulated_nua_nrg", "")),
+          tabulated_nua_num(
+            pin->GetOrAddString("M1_opacities", "tabulated_nua_num", ""))
     {
     }
   };

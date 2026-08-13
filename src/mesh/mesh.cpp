@@ -32,6 +32,9 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
+#if M1_ENABLED
+#include "../m1/opacities/m1_opacities.hpp"
+#endif
 #include "../field/field.hpp"
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
@@ -763,6 +766,10 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
   RebuildBlockByGid();
   ResetLoadBalanceVariables();
 
+#if M1_ENABLED && FLUID_ENABLED && EOS_POLICY_CODE == 2
+  M1::Opacities::LoadTabulatedOpacityTablesOnce(pfirst, pin);
+#endif
+
 #if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);
 #endif
@@ -1429,6 +1436,10 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
   }
 
   ResetLoadBalanceVariables();
+
+#if M1_ENABLED && FLUID_ENABLED && EOS_POLICY_CODE == 2
+  M1::Opacities::LoadTabulatedOpacityTablesOnce(pfirst, pin);
+#endif
 
 #if FLUID_ENABLED
   presc = new gra::hydro::rescaling::Rescaling(this, pin);

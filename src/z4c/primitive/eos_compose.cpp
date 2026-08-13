@@ -9,11 +9,13 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 // #ifdef HDF5OUTPUT
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
+#include "../../globals.hpp"
 #include "eos_compose.hpp"
 #include "numtools_root.hpp"
 #include "unit_system.hpp"
@@ -68,6 +70,15 @@ Real* EOSCompOSE::m_log_t      = nullptr;
 Real* EOSCompOSE::m_yq         = nullptr;
 Real* EOSCompOSE::m_table      = nullptr;
 bool EOSCompOSE::m_initialized = false;
+
+// Tabulated opacity (nua) static state
+Real* EOSCompOSE::m_table_m1_nrg     = nullptr;
+Real* EOSCompOSE::m_table_m1_num     = nullptr;
+Real* EOSCompOSE::m_nrg_axis         = nullptr;
+int   EOSCompOSE::m_n_species_opac   = 0;
+int   EOSCompOSE::m_n_energy         = 0;
+bool  EOSCompOSE::m_nrg_initialized  = false;
+bool  EOSCompOSE::m_num_initialized  = false;
 
 Real EOSCompOSE::sm_id_log_nb = numeric_limits<Real>::quiet_NaN();
 Real EOSCompOSE::sm_id_log_t  = numeric_limits<Real>::quiet_NaN();
@@ -1136,6 +1147,367 @@ Real EOSCompOSE::eval_at_lnty(int iv, Real log_n, Real log_t, Real yq) const
                 wy1 * (wt0 * m_table[b01] + wt1 * m_table[b01 + 1])) +
          wn1 * (wy0 * (wt0 * m_table[b10] + wt1 * m_table[b10 + 1]) +
                 wy1 * (wt0 * m_table[b11] + wt1 * m_table[b11 + 1]));
+}
+
+// ---- tabulated opacity injection (nua) ---------------------------------
+
+namespace
+{
+// RAII closer for an HDF5 file handle so every early throw closes the file.
+struct H5FileGuard
+{
+  hid_t id;
+  explicit H5FileGuard(hid_t id_) : id(id_) {}
+  ~H5FileGuard()
+  {
+    if (id >= 0)
+      H5Fclose(id);
+  }
+};
+
+[[noreturn]] void M1OpacityTableError(const string& operation)
+{
+  throw runtime_error("EOSCompOSE M1 opacity table: " + operation);
+}
+
+void CheckM1OpacityHDFStatus(herr_t status, const string& operation)
+{
+  if (status < 0)
+    M1OpacityTableError(operation);
+}
+} // namespace
+
+void EOSCompOSE::ReadTableFromFile_m1_nrg(std::string fname)
+{
+  #pragma omp critical (EOSCompose_ReadTable_m1_nrg)
+  {
+    if (m_nrg_initialized == false)
+    {
+      if (Globals::my_rank == 0)
+        std::printf("Loading nrg opacity table: %s\n", fname.c_str());
+
+      herr_t ierr;
+
+      H5FileGuard file(H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT));
+      if (file.id < 0)
+        M1OpacityTableError("cannot open energy opacity table");
+
+      // Opacity dataset must be rank 5: [nb x yq x T x species x energy]
+      {
+        int rank = 0;
+        herr_t ierr_rank = H5LTget_dataset_ndims(file.id, "opacity [cm-1]", &rank);
+        CheckM1OpacityHDFStatus(
+          ierr_rank, "cannot determine energy-opacity dataset rank");
+        if (rank != 5) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " opacity (nrg) dataset must be rank 5, got rank " << rank;
+          throw runtime_error(ss.str().c_str());
+        }
+      }
+      hsize_t opac_dims[5];
+      ierr = H5LTget_dataset_info(file.id, "opacity [cm-1]", opac_dims, NULL, NULL);
+      CheckM1OpacityHDFStatus(ierr, "cannot inspect energy-opacity dataset");
+
+      // Energy axis must be rank 1 and match the opacity energy dimension
+      {
+        int rank = 0;
+        herr_t ierr_rank = H5LTget_dataset_ndims(file.id, "neutrino energies [MeV]", &rank);
+        CheckM1OpacityHDFStatus(
+          ierr_rank, "cannot determine neutrino-energy-axis rank");
+        if (rank != 1) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " neutrino energies dataset must be rank 1, got rank " << rank;
+          throw runtime_error(ss.str().c_str());
+        }
+        hsize_t eaxis_dims[1];
+        ierr = H5LTget_dataset_info(file.id, "neutrino energies [MeV]", eaxis_dims, NULL, NULL);
+        CheckM1OpacityHDFStatus(ierr, "cannot inspect neutrino-energy axis");
+        if (eaxis_dims[0] != opac_dims[4]) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " neutrino energies extent [" << eaxis_dims[0]
+             << "] does not match opacity energy dimension [" << opac_dims[4] << "]";
+          throw runtime_error(ss.str().c_str());
+        }
+      }
+
+      const hsize_t nn_opac        = opac_dims[0];
+      const hsize_t ny_opac        = opac_dims[1];
+      const hsize_t nt_opac        = opac_dims[2];
+      const hsize_t n_species_opac = opac_dims[3];
+      const hsize_t n_energy       = opac_dims[4];
+
+      // First three dims must match the EOS table grid
+      if (nn_opac != (hsize_t)m_nn || ny_opac != (hsize_t)m_ny ||
+          nt_opac != (hsize_t)m_nt) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " opacity table (nrg) dimensions [" << nn_opac << "x" << ny_opac
+           << "x" << nt_opac << "] do not match EOS table ["
+           << m_nn << "x" << m_ny << "x" << m_nt << "]!";
+        throw runtime_error(ss.str().c_str());
+      }
+
+      // Hard minimums required by the interpolation and the pipeline caller
+      if (n_species_opac < 2 || n_energy < 2) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " opacity table (nrg) needs at least 2 species and 2 energy bins,"
+           << " got " << n_species_opac << "x" << n_energy;
+        throw runtime_error(ss.str().c_str());
+      }
+
+      // The shared int members must hold these dims
+      if (n_species_opac > (hsize_t)std::numeric_limits<int>::max() ||
+          n_energy > (hsize_t)std::numeric_limits<int>::max()) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " opacity table (nrg) dimensions exceed int storage";
+        throw runtime_error(ss.str().c_str());
+      }
+
+      // Read the energy axis into an RAII temporary and validate it
+      std::vector<Real> nrg_axis((size_t)n_energy);
+      {
+        std::vector<double> scratch((size_t)n_energy);
+        ierr = H5LTread_dataset_double(file.id, "neutrino energies [MeV]", scratch.data());
+        CheckM1OpacityHDFStatus(ierr, "cannot read neutrino-energy axis");
+        for (size_t ie = 0; ie < (size_t)n_energy; ++ie)
+          nrg_axis[ie] = (Real)scratch[ie];
+      }
+      for (size_t ie = 0; ie < (size_t)n_energy; ++ie) {
+        if (!std::isfinite(nrg_axis[ie])) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " non-finite neutrino energy at index " << ie;
+          throw runtime_error(ss.str().c_str());
+        }
+      }
+      for (size_t ie = 1; ie < (size_t)n_energy; ++ie) {
+        if (nrg_axis[ie] <= nrg_axis[ie - 1]) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " neutrino energies must be strictly increasing"
+             << " (violated at index " << ie << ")";
+          throw runtime_error(ss.str().c_str());
+        }
+      }
+
+      // Read the opacity table into an RAII temporary
+      const size_t table_size =
+        (size_t)nn_opac * (size_t)ny_opac * (size_t)nt_opac *
+        (size_t)n_species_opac * (size_t)n_energy;
+      std::vector<Real> table(table_size);
+      {
+        std::vector<double> scratch(table_size);
+        ierr = H5LTread_dataset_double(file.id, "opacity [cm-1]", scratch.data());
+        CheckM1OpacityHDFStatus(ierr, "cannot read energy-opacity dataset");
+        for (size_t idx = 0; idx < table_size; ++idx)
+          table[idx] = (Real)scratch[idx];
+      }
+
+      // Commit to the process-wide static state only after full success
+      m_n_energy       = (int)n_energy;
+      m_n_species_opac = (int)n_species_opac;
+      m_nrg_axis       = new Real[(size_t)n_energy];
+      for (size_t ie = 0; ie < (size_t)n_energy; ++ie)
+        m_nrg_axis[ie] = nrg_axis[ie];
+      m_table_m1_nrg = new Real[table_size];
+      for (size_t idx = 0; idx < table_size; ++idx)
+        m_table_m1_nrg[idx] = table[idx];
+      m_nrg_initialized = true;
+    }
+  } // omp critical
+}
+
+void EOSCompOSE::ReadTableFromFile_m1_num(std::string fname)
+{
+  #pragma omp critical (EOSCompose_ReadTable_m1_num)
+  {
+    if (m_num_initialized == false)
+    {
+      // The energy table owns the shared energy axis and must be loaded first.
+      if (!m_nrg_initialized) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " number opacity table must be loaded after the energy table";
+        throw runtime_error(ss.str().c_str());
+      }
+
+      if (Globals::my_rank == 0)
+        std::printf("Loading num opacity table: %s\n", fname.c_str());
+
+      herr_t ierr;
+
+      H5FileGuard file(H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT));
+      if (file.id < 0)
+        M1OpacityTableError("cannot open number opacity table");
+
+      // Opacity dataset must be rank 5: [nb x yq x T x species x energy]
+      {
+        int rank = 0;
+        herr_t ierr_rank = H5LTget_dataset_ndims(file.id, "opacity [cm-1]", &rank);
+        CheckM1OpacityHDFStatus(
+          ierr_rank, "cannot determine number-opacity dataset rank");
+        if (rank != 5) {
+          stringstream ss;
+          ss << __FILE__ << ":" << __LINE__
+             << " opacity (num) dataset must be rank 5, got rank " << rank;
+          throw runtime_error(ss.str().c_str());
+        }
+      }
+      hsize_t opac_dims[5];
+      ierr = H5LTget_dataset_info(file.id, "opacity [cm-1]", opac_dims, NULL, NULL);
+      CheckM1OpacityHDFStatus(ierr, "cannot inspect number-opacity dataset");
+
+      const hsize_t nn_opac        = opac_dims[0];
+      const hsize_t ny_opac        = opac_dims[1];
+      const hsize_t nt_opac        = opac_dims[2];
+      const hsize_t n_species_opac = opac_dims[3];
+      const hsize_t n_energy       = opac_dims[4];
+
+      // First three dims must match the EOS table grid
+      if (nn_opac != (hsize_t)m_nn || ny_opac != (hsize_t)m_ny ||
+          nt_opac != (hsize_t)m_nt) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " opacity table (num) dimensions [" << nn_opac << "x" << ny_opac
+           << "x" << nt_opac << "] do not match EOS table ["
+           << m_nn << "x" << m_ny << "x" << m_nt << "]!";
+        throw runtime_error(ss.str().c_str());
+      }
+
+      // Must match the energy table's species/energy dims (shared energy axis)
+      if (n_species_opac != (hsize_t)m_n_species_opac ||
+          n_energy != (hsize_t)m_n_energy) {
+        stringstream ss;
+        ss << __FILE__ << ":" << __LINE__
+           << " opacity table (num) species/energy dimensions ["
+           << n_species_opac << "x" << n_energy
+           << "] do not match nrg table [" << m_n_species_opac
+           << "x" << m_n_energy << "]!";
+        throw runtime_error(ss.str().c_str());
+      }
+
+      // Read the opacity table into an RAII temporary
+      const size_t table_size =
+        (size_t)nn_opac * (size_t)ny_opac * (size_t)nt_opac *
+        (size_t)n_species_opac * (size_t)n_energy;
+      std::vector<Real> table(table_size);
+      {
+        std::vector<double> scratch(table_size);
+        ierr = H5LTread_dataset_double(file.id, "opacity [cm-1]", scratch.data());
+        CheckM1OpacityHDFStatus(ierr, "cannot read number-opacity dataset");
+        for (size_t idx = 0; idx < table_size; ++idx)
+          table[idx] = (Real)scratch[idx];
+      }
+
+      // Commit to the process-wide static state only after full success
+      m_table_m1_num = new Real[table_size];
+      for (size_t idx = 0; idx < table_size; ++idx)
+        m_table_m1_num[idx] = table[idx];
+      m_num_initialized = true;
+    }
+  } // omp critical
+}
+
+// either clamp the edges or extrapolate
+#define M1_OPAC_NRG_CLAMP
+
+// note non-uniform energy axis
+void EOSCompOSE::weight_idx_nrg(Real *w0, Real *w1, int *ie, Real nrg) const {
+#ifdef M1_OPAC_NRG_CLAMP
+  // Clamp query value to table boundaries
+  Real nrg_clamped = nrg;
+  if (nrg_clamped < m_nrg_axis[0]) nrg_clamped = m_nrg_axis[0];
+  if (nrg_clamped > m_nrg_axis[m_n_energy-1]) nrg_clamped = m_nrg_axis[m_n_energy-1];
+#else
+  Real nrg_clamped = nrg;
+#endif
+
+  if (nrg_clamped <= m_nrg_axis[0]) {
+    *ie = 0;
+  } else if (nrg_clamped >= m_nrg_axis[m_n_energy-1]) {
+    *ie = m_n_energy - 2;
+  } else {
+    // Linear scan to find bracketing interval (energy axis is small)
+    *ie = 0;
+    for (int i = 0; i < m_n_energy - 1; ++i) {
+      if (nrg_clamped >= m_nrg_axis[i] && nrg_clamped < m_nrg_axis[i+1]) {
+        *ie = i;
+        break;
+      }
+    }
+  }
+
+  Real dE = m_nrg_axis[*ie + 1] - m_nrg_axis[*ie];
+  *w1 = (nrg_clamped - m_nrg_axis[*ie]) / dE;
+  *w0 = 1.0 - (*w1);
+}
+
+// 5D multilinear interpolation over [nb x yq x T x species x energy]
+Real EOSCompOSE::OpacNrg(Real n, Real T, Real *Y, Real nrg, const int ix_spc)
+{
+  assert (m_nrg_initialized);
+
+  int in, iy, it, ie;
+  Real wn0, wn1, wy0, wy1, wt0, wt1, we0, we1;
+
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_lt(&wt0, &wt1, &it, log(T));
+  weight_idx_nrg(&we0, &we1, &ie, nrg);
+
+  return
+    wn0 * (wy0 * (wt0 * (we0 * m_table_m1_nrg[index_opac(in+0, iy+0, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+0, iy+0, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_nrg[index_opac(in+0, iy+0, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+0, iy+0, it+1, ix_spc, ie+1)])) +
+            wy1 * (wt0 * (we0 * m_table_m1_nrg[index_opac(in+0, iy+1, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+0, iy+1, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_nrg[index_opac(in+0, iy+1, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+0, iy+1, it+1, ix_spc, ie+1)]))) +
+    wn1 * (wy0 * (wt0 * (we0 * m_table_m1_nrg[index_opac(in+1, iy+0, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+1, iy+0, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_nrg[index_opac(in+1, iy+0, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+1, iy+0, it+1, ix_spc, ie+1)])) +
+            wy1 * (wt0 * (we0 * m_table_m1_nrg[index_opac(in+1, iy+1, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+1, iy+1, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_nrg[index_opac(in+1, iy+1, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_nrg[index_opac(in+1, iy+1, it+1, ix_spc, ie+1)])));
+}
+
+Real EOSCompOSE::OpacNum(Real n, Real T, Real *Y, Real nrg, const int ix_spc)
+{
+  assert (m_num_initialized);
+
+  int in, iy, it, ie;
+  Real wn0, wn1, wy0, wy1, wt0, wt1, we0, we1;
+
+  weight_idx_ln(&wn0, &wn1, &in, log(n));
+  weight_idx_yq(&wy0, &wy1, &iy, Y[0]);
+  weight_idx_lt(&wt0, &wt1, &it, log(T));
+  weight_idx_nrg(&we0, &we1, &ie, nrg);
+
+  return
+    wn0 * (wy0 * (wt0 * (we0 * m_table_m1_num[index_opac(in+0, iy+0, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+0, iy+0, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_num[index_opac(in+0, iy+0, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+0, iy+0, it+1, ix_spc, ie+1)])) +
+            wy1 * (wt0 * (we0 * m_table_m1_num[index_opac(in+0, iy+1, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+0, iy+1, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_num[index_opac(in+0, iy+1, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+0, iy+1, it+1, ix_spc, ie+1)]))) +
+    wn1 * (wy0 * (wt0 * (we0 * m_table_m1_num[index_opac(in+1, iy+0, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+1, iy+0, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_num[index_opac(in+1, iy+0, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+1, iy+0, it+1, ix_spc, ie+1)])) +
+            wy1 * (wt0 * (we0 * m_table_m1_num[index_opac(in+1, iy+1, it+0, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+1, iy+1, it+0, ix_spc, ie+1)]) +
+                   wt1 * (we0 * m_table_m1_num[index_opac(in+1, iy+1, it+1, ix_spc, ie+0)] +
+                          we1 * m_table_m1_num[index_opac(in+1, iy+1, it+1, ix_spc, ie+1)])));
 }
 
 // #else //HDF5OUTPUT

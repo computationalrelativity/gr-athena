@@ -2,6 +2,8 @@
 #define M1_OPACITIES_BNS_NURATES_HPP_
 
 // BNSNuRates refactored headers
+#include <sstream>
+
 #include "../common/eos.hpp"
 #include "../common/rates_pipeline.hpp"
 #include "../common/utils.hpp"
@@ -56,6 +58,15 @@ class BNSNuRates
 
     // BNSNuRates only works for 1 group
     assert(opu.N_GRPS == 1);
+
+    // tabulated opacity (nua) injection is weakrates-only
+    if (opu.opt.use_nua)
+    {
+      std::ostringstream msg;
+      msg << "M1_opacities/use_nua is weakrates-only; not supported with "
+          << "variety = bnsnurates" << std::endl;
+      ATHENA_ERROR(msg);
+    }
 
     // logic simplified with retained eql; needs a patch otherwise
     if (!pm1->opt.retain_equilibrium)

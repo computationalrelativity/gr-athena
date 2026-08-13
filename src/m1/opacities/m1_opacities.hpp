@@ -21,6 +21,34 @@
 namespace M1::Opacities {
 // ============================================================================
 
+// Load the two tabulated opacity (nua) tables once per Mesh, using the first
+// MeshBlock's EOS.  Called from the Mesh constructor after all MeshBlocks are
+// built.  The table state is process-wide static, so this runs exactly once
+// per rank; AMR regrid does not need a reload.
+//
+// Note (see EOSCompOSE::ReadTableFromFile_m1_nrg/_num):
+//   * the opacity tables share the EOS table's nb/yq/T grid (extents checked,
+//     grid values assumed identical)
+//   * the energy and number tables share one neutrino-energy axis, owned by
+//     the energy table; load order is energy then number
+//   * gated to variety == "weakrates"; CompOSE-only (EOS_POLICY_CODE == 2)
+#if FLUID_ENABLED && EOS_POLICY_CODE == 2
+inline void LoadTabulatedOpacityTablesOnce(MeshBlock* pmb, ParameterInput* pin)
+{
+  const bool use_nua = pin->GetOrAddBoolean("M1_opacities", "use_nua", false);
+  const std::string variety =
+    pin->GetOrAddString("M1_opacities", "variety", "none");
+  if (use_nua && variety == "weakrates")
+  {
+    auto& eos = pmb->peos->GetEOS();
+    eos.ReadTableFromFile_m1_nrg(
+      pin->GetOrAddString("M1_opacities", "tabulated_nua_nrg", ""));
+    eos.ReadTableFromFile_m1_num(
+      pin->GetOrAddString("M1_opacities", "tabulated_nua_num", ""));
+  }
+}
+#endif
+
 class Opacities
 {
 // methods ====================================================================
