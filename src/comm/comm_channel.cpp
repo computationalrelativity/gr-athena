@@ -497,6 +497,11 @@ void CommChannel::SetupPersistentMPI(const NeighborConnectivity& nc,
     ATHENA_ERROR(msg);
   }
 
+  // Serialize the persistent-request setup: Mesh::Initialize calls Finalize()
+  // from an `omp parallel for`, and concurrent UCX endpoint creation inside
+  // the first MPI_Send_init to a peer is not thread-safe (see mpi_guard.hpp).
+  gra::mpi_guard::scoped_lock guard;
+
   // Buffers use sparse nb.bufid indexing; requests already use nb.bufid.
   for (int n = 0; n < nc.num_neighbors(); ++n)
   {
@@ -577,6 +582,8 @@ void CommChannel::SetupPersistentMPI(const NeighborConnectivity& nc,
 void CommChannel::FreeMPIRequests()
 {
 #ifdef MPI_PARALLEL
+  gra::mpi_guard::scoped_lock guard;
+
   for (int n = 0; n < kMaxNeighbor; ++n)
   {
     if (req_send_[n] != MPI_REQUEST_NULL)
@@ -1858,6 +1865,9 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
                                    int max_channel_id)
 {
 #ifdef MPI_PARALLEL
+  // Concurrent persistent-request setup is not thread-safe (see mpi_guard.hpp).
+  gra::mpi_guard::scoped_lock guard;
+
   MeshBlock* pmb    = pmy_block_;
   const int mylevel = pmb->loc.level;
 
@@ -2057,6 +2067,8 @@ void CommChannel::SetupFluxCorrMPI(const NeighborConnectivity& nc,
 void CommChannel::FreeFluxCorrMPIRequests()
 {
 #ifdef MPI_PARALLEL
+  gra::mpi_guard::scoped_lock guard;
+
   for (int n = 0; n < kMaxNeighbor; ++n)
   {
     if (req_flcor_send_[n] != MPI_REQUEST_NULL)
