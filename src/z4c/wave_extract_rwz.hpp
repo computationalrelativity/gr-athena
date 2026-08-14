@@ -250,7 +250,7 @@ class WaveExtractRWZ
     Ih1_dot,
     IG_dot,
     IK_dot,
-    IH0,
+    IH0, 
     IH1,  // odd
     IH,
     IH0_dr,
@@ -288,24 +288,59 @@ class WaveExtractRWZ
     Iof_Psio_dyn,
     Iof_Qplus,
     Iof_Qstar,
-    //
-    Iof_H1_dot,
-    Iof_H0_dr,
-    Iof_H0,
-    Iof_H1,
+    // extra output -------------------------
+    // even multipoles
+    Iof_h00,
+    Iof_h01,
+    Iof_h11,  // even
+    Iof_h0,
+    Iof_h1,
+    Iof_G,
+    Iof_K,
+    Iof_h00_dr,
+    Iof_h01_dr,
+    Iof_h11_dr,  // even d/dr drvts
+    Iof_h0_dr,
+    Iof_h1_dr,
+    Iof_G_dr,
+    Iof_K_dr,
+    Iof_G_dr2,
+    Iof_K_dr2,  // even d2/dr2 drvts
+    Iof_G_dr_dot,
+    Iof_K_dr_dot,  // even mixed drvts
+    Iof_h00_dot,
+    Iof_h01_dot,
+    Iof_h11_dot,  // even d/dt drvts
+    Iof_h0_dot,
+    Iof_h1_dot,
+    Iof_G_dot,
+    Iof_K_dot,
+    // odd multipoles
+    Iof_H0, 
+    Iof_H1,  // odd
     Iof_H,
+    Iof_H0_dr,
+    Iof_H1_dr,  // odd d/dr drvts
     Iof_H_dr,
+    Iof_H0_dot,
+    Iof_H1_dot,  // odd d/dt drvts
+    Iof_H_dot,
+    Iof_H0_dr2,
+    Iof_H_dr2,
+    Iof_H1_dr_dot,  // odd second drvts
+    // master fun drvts
     Iof_Psie_dr,
     Iof_Psio_dr,
     Iof_Qplus_dr,
     Iof_Qstar_dr,
-    //
+    // --------------------------------------
     Iof_hlm,  // This should be last!
     Iof_Num,
   };
   std::string ofbname[Iof_Num];
   FILE* ofile[Iof_Num]{};
-
+  static char const* const field_names[Iof_Num];
+  
   // -- Back-pointers ---------------------------------------------------------
   Mesh const* pmesh;
 

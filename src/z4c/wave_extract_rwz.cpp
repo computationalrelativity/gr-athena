@@ -43,6 +43,62 @@ char const* const
     "areal", "areal_simple", "average_schw", "schw_gthth", "schw_gphph",
   };
 
+char const* const
+WaveExtractRWZ::field_names[WaveExtractRWZ::Iof_Num] = {
+  "diagnostic",
+  "adm",
+  "Psie",
+  "Psio",
+  "Psie_dyn",
+  "Psio_dyn",
+  "Qplus",
+  "Qstar",
+  // ----------------------
+  "h00",
+  "h01",
+  "h11",
+  "h0",
+  "h1",
+  "G",
+  "K",
+  "h00_dr",
+  "h01_dr",
+  "h11_dr",
+  "h0_dr",
+  "h1_dr",
+  "G_dr",
+  "K_dr",
+  "G_dr2",
+  "K_dr2",
+  "G_dr_dot",
+  "K_dr_dot",
+  "h00_dot",
+  "h01_dot",
+  "h11_dot",
+  "h0_dot",
+  "h1_dot",
+  "G_dot",
+  "K_dot",
+  "H0",
+  "H1",
+  "H",
+  "H0_dr",
+  "H1_dr",
+  "H_dr",
+  "H0_dot",
+  "H1_dot",
+  "H_dot",
+  "H0_dr2",
+  "H_dr2",
+  "H1_dr_dot",
+  "Psie_dr",
+  "Psio_dr",
+  "Qplus_dr",
+  "Qstar_dr",
+  // ----------------------
+  "hlm"
+};
+
 //----------------------------------------------------------------------------------------
 //! \fn
 //  \brief class for RWZ waveform extraction
@@ -151,31 +207,17 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
     pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
   ofbname[Iof_Qstar] =
     pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
-
+  
   if (opt.extra_output)
-  {
-    ofbname[Iof_H1_dot] =
-      pin->GetOrAddString("rwz_extraction", "filename_H1_dot", "wave_H1dot");
-    ofbname[Iof_H0_dr] =
-      pin->GetOrAddString("rwz_extraction", "filename_H0_dr", "wave_H0dr");
-    ofbname[Iof_H0] =
-      pin->GetOrAddString("rwz_extraction", "filename_H0", "wave_H0");
-    ofbname[Iof_H1] =
-      pin->GetOrAddString("rwz_extraction", "filename_H1", "wave_H1");
-    ofbname[Iof_H] =
-      pin->GetOrAddString("rwz_extraction", "filename_H", "wave_H");
-    ofbname[Iof_H_dr] =
-      pin->GetOrAddString("rwz_extraction", "filename_H_dr", "wave_Hdr");
-
-    ofbname[Iof_Psie_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_psie_dr", "wave_psie_dr");
-    ofbname[Iof_Psio_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_psio_dr", "wave_psio_dr");
-    ofbname[Iof_Qplus_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_Qplus_dr", "wave_Qplus_dr");
-    ofbname[Iof_Qstar_dr] = pin->GetOrAddString(
-      "rwz_extraction", "filename_Qstar_dr", "wave_Qstar_dr");
-  }
+    {
+      for (int i = Iof_h00; i < Iof_hlm; ++i) {
+	std::string pstr = "filename_";
+	pstr += field_names[i];      
+	std::string fstr = "wave_";
+	fstr += field_names[i];	
+	ofbname[i] =  pin->GetOrAddString("rwz_extraction", pstr, fstr);
+      }    
+    }
 
   // Warn if RWZ will run but storage.aux ghost zones won't be communicated
   {
@@ -382,31 +424,79 @@ void WaveExtractRWZ::Write(int iter, Real time)
   // Iof_hlm is special-cased (computed on-the-fly from Psie/Psio).
 
   std::vector<AthenaArray<Real>*> data;
-  data.reserve(opt.extra_output ? 16 : 6);
+  data.reserve(opt.extra_output ? 47 : 6);
   data.push_back(&Psie);
   data.push_back(&Psio);
   data.push_back(&Psie_dyn);
   data.push_back(&Psio_dyn);
   data.push_back(&Qplus);
   data.push_back(&Qstar);
+  
   if (opt.extra_output)
-  {
-    data.push_back(&H1[D01]);
-    data.push_back(&H0[D10]);
-    data.push_back(&H0[D00]);
-    data.push_back(&H1[D00]);
-    data.push_back(&H[D00]);
-    data.push_back(&H[D10]);
-    data.push_back(&Psie_dr);
-    data.push_back(&Psio_dr);
-    data.push_back(&Qplus_dr);
-    data.push_back(&Qstar_dr);
-  }
+    {
+      // even multipoles
+      data.push_back(&h00[D00]);
+      data.push_back(&h01[D00]);
+      data.push_back(&h11[D00]);
+      
+      data.push_back(&h0[D00]);
+      data.push_back(&h1[D00]);
+      data.push_back(&G[D00]);
+      data.push_back(&K[D00]);
+      
+      data.push_back(&h00[D10]);
+      data.push_back(&h01[D10]);
+      data.push_back(&h11[D10]);
+      
+      data.push_back(&h0[D10]);
+      data.push_back(&h1[D10]);
+      data.push_back(&G[D10]);
+      data.push_back(&K[D10]);
+      
+      data.push_back(&G[D20]);
+      data.push_back(&K[D20]);
+      
+      data.push_back(&G[D11]);
+      data.push_back(&K[D11]);
 
+      data.push_back(&h00[D01]);
+      data.push_back(&h01[D01]);
+      data.push_back(&h11[D01]);
+      
+      data.push_back(&h0[D01]);
+      data.push_back(&h1[D01]);
+      data.push_back(&G[D01]);
+      data.push_back(&K[D01]);
+      
+      // odd multipoles
+      data.push_back(&H0[D00]);
+      data.push_back(&H1[D00]);
+      data.push_back(&H[D00]);
+      
+      data.push_back(&H0[D10]);
+      data.push_back(&H1[D10]);
+      data.push_back(&H[D10]);
+      
+      data.push_back(&H0[D01]);
+      data.push_back(&H1[D01]);
+      data.push_back(&H[D01]);
+      
+      data.push_back(&H1[D11]);
+      
+      data.push_back(&H0[D20]);
+      data.push_back(&H[D20]);
+      
+      // master functions r-drvts
+      data.push_back(&Psie_dr);
+      data.push_back(&Psio_dr);
+      data.push_back(&Qplus_dr);
+      data.push_back(&Qstar_dr);
+    }
+  
   for (int i = Iof_adm + 1; i < Iof_Num; ++i)
   {
     // Skip extra output files when extra_output is disabled
-    if (!opt.extra_output && i >= Iof_H1_dot && i <= Iof_Qstar_dr)
+    if (!opt.extra_output && i >= Iof_h00 && i < Iof_hlm)
       continue;
 
     FILE* f = ofile[i] ? ofile[i] : OpenOutputFile(i);
@@ -584,12 +674,12 @@ void WaveExtractRWZ::InterpMetricToSphere()
 
 #pragma omp parallel for collapse(2) schedule(dynamic) \
   reduction(+ : sum_adm_M,                             \
-              sum_adm_Px,                              \
-              sum_adm_Py,                              \
-              sum_adm_Pz,                              \
-              sum_adm_Jx,                              \
-              sum_adm_Jy,                              \
-              sum_adm_Jz)
+            sum_adm_Px,                                \
+            sum_adm_Py,                                \
+            sum_adm_Pz,                                \
+            sum_adm_Jx,                                \
+            sum_adm_Jy,                                \
+            sum_adm_Jz)  
   for (int i = 0; i < grid_.ntheta; i++)
   {
     for (int j = 0; j < grid_.nphi; j++)
@@ -805,7 +895,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
                                                  Cgamma(2, 2));
       const Real sqrt_det = (det > 0.0) ? std::sqrt(det) : 1.0;
       const Real div_det  = (det > 0.0) ? 1.0 / det : 1.0;
-
+      
       // Inverse 3-metric
       LinearAlgebra::Inv3Metric(div_det,
                                 Cgamma(0, 0),
@@ -875,7 +965,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
           alpha(D20, i, j) += n[a] * n[b] * Calpha_der2_dd(a, b);
         }
       }
-
+      
       // ADM integrals (based on Cartesian expressions)
       // These integrals will be reduced together with the background integrals
       // and will be normalized by 1/(4 Pi)
@@ -1072,6 +1162,7 @@ void WaveExtractRWZ::InterpMetricToSphere()
   integrals_adm[I_ADM_Jx] = sum_adm_Jx;
   integrals_adm[I_ADM_Jy] = sum_adm_Jy;
   integrals_adm[I_ADM_Jz] = sum_adm_Jz;
+  
 }
 
 //----------------------------------------------------------------------------------------
