@@ -189,6 +189,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   xorder_use_dmp_scalars = pin->GetOrAddBoolean(
     "time", "xorder_use_dmp_scalars", (xorder_use_dmp) ? true : false);
 
+  xorder_use_dmp_momenta =
+    pin->GetOrAddBoolean("time", "xorder_use_dmp_momenta", false);
+
   xorder_dmp_min = pin->GetOrAddReal("time", "xorder_dmp_min", 0.9);
 
   xorder_dmp_max = pin->GetOrAddReal("time", "xorder_dmp_max", 1.1);

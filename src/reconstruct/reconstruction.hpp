@@ -80,6 +80,7 @@ class Reconstruction
 
   bool xorder_use_dmp = false;  // approximate DMP
   bool xorder_use_dmp_scalars;
+  bool xorder_use_dmp_momenta = false;
 
   bool xorder_min_tau_zero = false;
 

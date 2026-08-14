@@ -251,6 +251,27 @@ void Hydro::CheckStateWithFluxDivergenceDMP(const Real wght,
   const Real fac_dmp_min = pr->xorder_dmp_min;
   const Real fac_dmp_max = pr->xorder_dmp_max;
 
+  // Signed-safe multiplicative DMP relaxation. For nonnegative values this
+  // reproduces the legacy bounds f_min*u_min and f_max*u_max; for negative or
+  // sign-changing values it expands outward instead of collapsing the
+  // interval. Assumes f_min <= 1 and f_max >= 1.
+  auto violates_signed_dmp =
+    [fac_dmp_min, fac_dmp_max](const Real candidate,
+                               const Real value_min,
+                               const Real value_max)
+  {
+    const Real lower =
+      value_min - (1.0 - fac_dmp_min) * std::abs(value_min);
+    const Real upper =
+      value_max + (fac_dmp_max - 1.0) * std::abs(value_max);
+
+    return !std::isfinite(candidate) ||
+           !std::isfinite(lower) ||
+           !std::isfinite(upper) ||
+           candidate < lower ||
+           candidate > upper;
+  };
+
   int is = pmb->is;
   int js = pmb->js;
   int ks = pmb->ks;
@@ -363,10 +384,42 @@ void Hydro::CheckStateWithFluxDivergenceDMP(const Real wght,
           is_valid = false;
         }
 
-        if ((tau_star < fac_dmp_min * tau_min) ||
-            (fac_dmp_max * tau_max < tau_star))
+        if (violates_signed_dmp(tau_star, tau_min, tau_max))
         {
           is_valid = false;
+        }
+
+        if (is_valid && pr->xorder_use_dmp_momenta)
+        {
+          for (int n = IM1; n <= IM3; ++n)
+          {
+            const Real S = u(n, k, j, i);
+            const Real S_star =
+              S - wght * ((hflux[0](n, k, j, i + 1) - hflux[0](n, k, j, i)) /
+                            pmb->pcoord->dx1f(i) +
+                          (hflux[1](n, k, j + 1, i) - hflux[1](n, k, j, i)) *
+                            oo_dx2f_j +
+                          (hflux[2](n, k + 1, j, i) - hflux[2](n, k, j, i)) *
+                            oo_dx3f_k);
+
+            Real S_min = +std::numeric_limits<Real>::infinity();
+            Real S_max = -std::numeric_limits<Real>::infinity();
+
+            for (int kk = k - 1; kk <= k + 1; ++kk)
+              for (int jj = j - 1; jj <= j + 1; ++jj)
+                for (int ii = i - 1; ii <= i + 1; ++ii)
+                {
+                  const Real S_i = u_old(n, kk, jj, ii);
+                  S_min          = std::min(S_min, S_i);
+                  S_max          = std::max(S_max, S_i);
+                }
+
+            if (violates_signed_dmp(S_star, S_min, S_max))
+            {
+              is_valid = false;
+              break;
+            }
+          }
         }
 
         mask(k, j, i) = mask(k, j, i) && is_valid;
