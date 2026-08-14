@@ -17,10 +17,17 @@
 //
 //  Usage:  replace  MPI_Isend(...)  with  gra::mpi_guard::MPI_Isend(...)
 //          in task-list-phase code (concurrent from work-stealing threads).
+//          For a whole block of setup calls, hold a scoped_lock instead.
+//
+//  Setup/teardown (MPI_Send_init, MPI_Recv_init, MPI_Request_free) is NOT
+//  single-threaded: Mesh::Initialize finalizes CommChannels from an
+//  `omp parallel for` over meshblocks, so those calls do run concurrently.
+//  Under OpenMPI/UCX the first MPI_Send_init to a peer creates the UCX
+//  endpoint (mca_pml_ucx_add_proc -> ucp_ep_create), and concurrent wire-up
+//  corrupts the unpacked peer address ("addr_version" assertion in
+//  ucp_address_unpack).  Callers must take a scoped_lock around them.
 //
 //  Not wrapped:  MPI_Wait (blocking, would hold the spinlock too long),
-//                setup/teardown calls (MPI_Send_init, MPI_Recv_init,
-//                MPI_Request_free -- single-threaded context),
 //                collectives (MPI_Allgather, MPI_Allreduce, etc.).
 
 #include "../defs.hpp"
@@ -59,6 +66,22 @@ inline void unlock()
 {
 }
 #endif
+
+// Holds the guard for a block of MPI calls (setup/teardown loops).
+// Compiles away entirely when DBG_MPI_SPINLOCK is not defined.
+struct scoped_lock
+{
+  scoped_lock()
+  {
+    lock();
+  }
+  ~scoped_lock()
+  {
+    unlock();
+  }
+  scoped_lock(const scoped_lock&)            = delete;
+  scoped_lock& operator=(const scoped_lock&) = delete;
+};
 
 // ---------------------------------------------------------------------------
 // Guarded MPI wrappers -- signature-identical to the MPI standard.

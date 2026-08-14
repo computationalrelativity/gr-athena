@@ -654,6 +654,8 @@ void CommRegistry::FreeFusedBuffers(int g)
 void CommRegistry::FreeFusedMPIRequests(int g)
 {
 #ifdef MPI_PARALLEL
+  gra::mpi_guard::scoped_lock guard;
+
   FusedGroupState& fs = fused_[g];
   for (int n = 0; n < kMaxNeighbor; ++n)
   {
@@ -742,6 +744,9 @@ void CommRegistry::FinalizeFused()
 
     // --- Set up persistent MPI ---
 #ifdef MPI_PARALLEL
+    // Concurrent setup is not thread-safe (see mpi_guard.hpp).
+    gra::mpi_guard::scoped_lock guard;
+
     // Fused messages reuse the first channel's ID as the tag's channel_id
     // field. Safe because per-channel MPI for fused groups is never started
     // when DBG_FUSED_COMM is active.
