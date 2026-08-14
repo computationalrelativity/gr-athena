@@ -47,23 +47,10 @@ namespace mpi_guard
 #ifdef DBG_MPI_SPINLOCK
 extern std::atomic_flag spinlock_;
 
-// Spin hint: without it the contending threads saturate the lock's cache line.
-// Every MPI_Test poll takes this lock, so with many threads waiting on receives
-// the raw spin is the hottest instruction in the run.
-inline void cpu_relax()
-{
-#if defined(__x86_64__) || defined(__i386__)
-  __builtin_ia32_pause();
-#elif defined(__aarch64__)
-  __asm__ __volatile__("yield" ::: "memory");
-#endif
-}
-
 inline void lock()
 {
   while (spinlock_.test_and_set(std::memory_order_acquire))
   {
-    cpu_relax();
   }
 }
 

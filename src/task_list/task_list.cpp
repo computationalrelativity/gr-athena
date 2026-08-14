@@ -169,13 +169,6 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
     auto local_clock = std::chrono::steady_clock::now();
 #endif
 
-    // Per-thread scan cursor: threads take one spread-out start index from the
-    // shared counter and then advance locally.  Taking it on every scan attempt
-    // instead made this counter the hottest cache line in the whole run
-    // whenever blocks were stuck waiting on MPI receives.
-    int cursor =
-      next_idx.fetch_add(nmb / nthreads + 1, std::memory_order_relaxed) % nmb;
-
     while (nmb_left.load(std::memory_order_relaxed) > 0)
     {
       bool made_progress = false;
@@ -183,8 +176,8 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
       // Scan up to nmb blocks looking for one we can lock and advance.
       for (int attempt = 0; attempt < nmb; ++attempt)
       {
-        int idx = cursor;
-        cursor  = (cursor + 1) % nmb;
+        // Round-robin index selection via shared atomic counter.
+        int idx = next_idx.fetch_add(1, std::memory_order_relaxed) % nmb;
 
         if (completed[idx])
           continue;
