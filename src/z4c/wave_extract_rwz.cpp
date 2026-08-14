@@ -43,6 +43,61 @@ char const* const
     "areal", "areal_simple", "average_schw", "schw_gthth", "schw_gphph",
   };
 
+char const* const
+WaveExtractRWZ::field_names[WaveExtractRWZ::Iof_Num] = {
+  "diagnostic",
+  "adm",
+  "Psie",
+  "Psio",
+  "Psie_dyn",
+  "Psio_dyn",
+  "Qplus",
+  "Qstar",
+  // ----------------------
+  "h00",
+  "h01",
+  "h11",
+  "h0",
+  "h1",
+  "G",
+  "K",
+  "h00_dr",
+  "h01_dr",
+  "h11_dr",
+  "h0_dr",
+  "h1_dr",
+  "G_dr",
+  "K_dr",
+  "G_dr2",
+  "K_dr2",
+  "G_dr_dot",
+  "K_dr_dot",
+  "h00_dot",
+  "h01_dot",
+  "h11_dot",
+  "h0_dot",
+  "h1_dot",
+  "G_dot",
+  "K_dot",
+  "H0",
+  "H1",
+  "H",
+  "H0_dr",
+  "H1_dr",
+  "H_dr",
+  "H0_dot",
+  "H1_dot",
+  "H_dot",
+  "H0_dr2",
+  "H_dr2",
+  "H1_dr_dot",
+  "Psie_dr",
+  "Psio_dr",
+  "Qplus_dr",
+  "Qstar_dr",
+  // ----------------------
+  "hlm"
+};
 
 // Hack to dump output for Cartesian metric and drvts on spheres
 #define DUMP_CMETRIC_DRVTS_SPHERE (1) 
@@ -166,9 +221,11 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
   if (opt.extra_output)
     {
       for (int i = Iof_h00; i < Iof_hlm; ++i) {
-	std::string _fstr = "wave_" + field_names[i];
-	std::string _pstr = "filename_" + field_names[i];      
-	ofbname[i] =  pin->GetOrAddString("rwz_extraction", _pstr, _fstr);
+	std::string pstr = "filename_";
+	pstr += field_names[i];      
+	std::string fstr = "wave_";
+	fstr += field_names[i];	
+	ofbname[i] =  pin->GetOrAddString("rwz_extraction", pstr, fstr);
       }    
     }
 
