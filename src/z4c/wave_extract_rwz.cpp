@@ -189,24 +189,24 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
 
   // Baseline output filenames
   ofbname[Iof_diagnostic] =
-    pin->GetOrAddString("rwz_extraction", "filename_diagnostic", "diagnostic");
+    pin->GetOrAddString("rwz_extraction", "filename_diagnostic", field_names[Iof_diagnostic]);
   ofbname[Iof_adm] =
-    pin->GetOrAddString("rwz_extraction", "filename_adm", "adm");
+    pin->GetOrAddString("rwz_extraction", "filename_adm", field_names[Iof_adm]);
   ofbname[Iof_hlm] =
-    pin->GetOrAddString("rwz_extraction", "filename_hlm", "wave_rwz");
+    pin->GetOrAddString("rwz_extraction", "filename_hlm", field_names[Iof_hlm]);
   ofbname[Iof_Psie] =
-    pin->GetOrAddString("rwz_extraction", "filename_psie", "wave_psie");
+    pin->GetOrAddString("rwz_extraction", "filename_psie", field_names[Iof_Psie]);
   ofbname[Iof_Psio] =
-    pin->GetOrAddString("rwz_extraction", "filename_psio", "wave_psio");
+    pin->GetOrAddString("rwz_extraction", "filename_psio", field_names[Iof_Psio]);
 
   ofbname[Iof_Psie_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psie_dyn", "wave_psie_dyn");
+    "rwz_extraction", "filename_psie_dyn", field_names[Iof_Psie_dyn]);
   ofbname[Iof_Psio_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psio_dyn", "wave_psio_dyn");
+    "rwz_extraction", "filename_psio_dyn", field_names[Iof_Psio_dyn]);
   ofbname[Iof_Qplus] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qplus", "wave_Qplus");
+    pin->GetOrAddString("rwz_extraction", "filename_Qplus", field_names[Iof_Qplus]);
   ofbname[Iof_Qstar] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qstar", "wave_Qstar");
+    pin->GetOrAddString("rwz_extraction", "filename_Qstar", field_names[Iof_Qstar]);
   
   if (opt.extra_output)
     {
