@@ -21,7 +21,16 @@
 #if defined(USE_TRANSITION_EOS)
 // RHINE nuclear-network emulator (header-only). Requires the rhinehpp
 // sources on the include path: --include=<...>/rhinehpp/src at configure.
+// Build with -DRHINE_USE_EIGEN to select the Eigen GEMV implementation
+// instead; it needs Eigen on the include path as well. The two headers
+// expose the same Model API and differ only in namespace, so the alias
+// keeps every use site below unchanged.
+#if defined(RHINE_USE_EIGEN)
+#include <rhine_eigen.hpp>
+namespace RHINE = RHINE_EIGEN;
+#else
 #include <rhine_optim.hpp>
+#endif
 
 #include <string>
 #endif
