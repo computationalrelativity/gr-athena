@@ -188,37 +188,17 @@ void WaveExtractRWZ::ReadOptions(ParameterInput* pin, int n)
     pin->GetOrAddBoolean("rwz_extraction", "extra_output", false);
 
   // Baseline output filenames
-  ofbname[Iof_diagnostic] =
-    pin->GetOrAddString("rwz_extraction", "filename_diagnostic", field_names[Iof_diagnostic]);
-  ofbname[Iof_adm] =
-    pin->GetOrAddString("rwz_extraction", "filename_adm", field_names[Iof_adm]);
-  ofbname[Iof_hlm] =
-    pin->GetOrAddString("rwz_extraction", "filename_hlm", field_names[Iof_hlm]);
-  ofbname[Iof_Psie] =
-    pin->GetOrAddString("rwz_extraction", "filename_psie", field_names[Iof_Psie]);
-  ofbname[Iof_Psio] =
-    pin->GetOrAddString("rwz_extraction", "filename_psio", field_names[Iof_Psio]);
-
-  ofbname[Iof_Psie_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psie_dyn", field_names[Iof_Psie_dyn]);
-  ofbname[Iof_Psio_dyn] = pin->GetOrAddString(
-    "rwz_extraction", "filename_psio_dyn", field_names[Iof_Psio_dyn]);
-  ofbname[Iof_Qplus] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qplus", field_names[Iof_Qplus]);
-  ofbname[Iof_Qstar] =
-    pin->GetOrAddString("rwz_extraction", "filename_Qstar", field_names[Iof_Qstar]);
+  for (int i = Iof_diagnostic; i < Iof_Num; ++i) {
+    // Skip extra output files when extra_output is disabled
+    if (!opt.extra_output && i >= Iof_h00 && i < Iof_hlm)
+      continue;
+    std::string pstr = "filename_";
+    pstr += field_names[i];      
+    std::string fstr = "wave_";
+    fstr += field_names[i];	
+    ofbname[i] =  pin->GetOrAddString("rwz_extraction", pstr, fstr);
+  }
   
-  if (opt.extra_output)
-    {
-      for (int i = Iof_h00; i < Iof_hlm; ++i) {
-	std::string pstr = "filename_";
-	pstr += field_names[i];      
-	std::string fstr = "wave_";
-	fstr += field_names[i];	
-	ofbname[i] =  pin->GetOrAddString("rwz_extraction", pstr, fstr);
-      }    
-    }
-
   // Warn if RWZ will run but storage.aux ghost zones won't be communicated
   {
     const Real dt_rwz = pin->GetOrAddReal("task_triggers", "dt_Z4c_RWZ", 0.0);
