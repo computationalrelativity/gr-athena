@@ -162,12 +162,36 @@ class Z4c
   static constexpr char const* const Weyl_names[] = {
     "geom.weyl.rpsi4",
     "geom.weyl.ipsi4",
+    "geom.weyl.Exx",
+    "geom.weyl.Exy",
+    "geom.weyl.Exz",
+    "geom.weyl.Eyy",
+    "geom.weyl.Eyz",
+    "geom.weyl.Ezz",
+    "geom.weyl.Bxx",
+    "geom.weyl.Bxy",
+    "geom.weyl.Bxz",
+    "geom.weyl.Byy",
+    "geom.weyl.Byz",
+    "geom.weyl.Bzz",
   };
   // Indexes of Weyl scalars
   enum
   {
     I_WEY_rpsi4,
     I_WEY_ipsi4,
+    I_WEY_Exx,
+    I_WEY_Exy,
+    I_WEY_Exz,
+    I_WEY_Eyy,
+    I_WEY_Eyz,
+    I_WEY_Ezz,
+    I_WEY_Bxx,
+    I_WEY_Bxy,
+    I_WEY_Bxz,
+    I_WEY_Byy,
+    I_WEY_Byz,
+    I_WEY_Bzz,
     N_WEY
   };
 
@@ -329,6 +353,8 @@ class Z4c
   {
     AT_N_sca rpsi4;  // Real part of Psi_4
     AT_N_sca ipsi4;  // Imaginary part of Psi_4
+    AT_N_sym E_dd;   // Electric part of the Weyl tensor
+    AT_N_sym B_dd;   // Magnetic part of the Weyl tensor
   };
   Weyl_vars weyl;
 

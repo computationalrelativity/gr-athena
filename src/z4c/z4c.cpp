@@ -667,6 +667,8 @@ void Z4c::SetWeylAliases(AthenaArray<Real>& u, Z4c::Weyl_vars& weyl)
 {
   weyl.rpsi4.InitWithShallowSlice(u, I_WEY_rpsi4);
   weyl.ipsi4.InitWithShallowSlice(u, I_WEY_ipsi4);
+  weyl.E_dd.InitWithShallowSlice(u, I_WEY_Exx);
+  weyl.B_dd.InitWithShallowSlice(u, I_WEY_Bxx);
 }
 
 //----------------------------------------------------------------------------------------
