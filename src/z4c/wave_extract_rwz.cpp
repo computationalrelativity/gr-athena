@@ -100,7 +100,7 @@ WaveExtractRWZ::field_names[WaveExtractRWZ::Iof_Num] = {
 };
 
 // Hack to dump output for Cartesian metric and drvts on spheres
-#define DUMP_CMETRIC_DRVTS_SPHERE (1) 
+#define DUMP_CMETRIC_DRVTS_SPHERE (0) 
 
 //----------------------------------------------------------------------------------------
 //! \fn
