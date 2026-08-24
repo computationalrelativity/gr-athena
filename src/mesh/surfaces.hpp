@@ -47,6 +47,8 @@ class Surfaces
     enum class variety_data {
       geom_Z4c,
       geom_ADM,
+      geom_aux,
+      geom_weyl,
       // fluid
       hydro_cons,
       hydro_prim,
@@ -106,6 +108,8 @@ class Surfaces
 #if Z4C_ENABLED
       {"geom.Z4c",   variety_data::geom_Z4c},
       {"geom.ADM",   variety_data::geom_ADM},
+      {"geom.aux",   variety_data::geom_aux},
+      {"geom.weyl",   variety_data::geom_weyl},
 #endif
 #if FLUID_ENABLED
       {"hydro.cons", variety_data::hydro_cons},
@@ -159,7 +163,9 @@ class Surfaces
     {
 #ifdef Z4C_VC_ENABLED
       if ((vd == variety_data::geom_Z4c) ||
-          (vd == variety_data::geom_ADM))
+          (vd == variety_data::geom_ADM) ||
+	  (vd == variety_data::geom_aux) ||
+	  (vd == variety_data::geom_weyl))
       {
         return variety_base_grid::vc;
       }

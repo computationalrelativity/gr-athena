@@ -32,6 +32,14 @@ static int sgn(T val)
   return (T(0) < val) - (val < T(0));
 }
 
+// Fully antisymmetric permutation symbol [abc] for a,b,c in {0,1,2}.
+// Returns +1 for even permutations of (0,1,2), -1 for odd, 0 if any indices
+// repeat. Used to build the 3D Levi-Civita tensor eps^{ijk} = [ijk]/sqrt(detg).
+static inline int LeviCivita3(int a, int b, int c)
+{
+  return (a - b) * (b - c) * (c - a) / 2;
+}
+
 // BD: TODO - refactor
 
 //----------------------------------------------------------------------------------------
@@ -61,6 +69,8 @@ void Z4c::Z4cWeyl(AthenaArray<Real>& u_adm,
   SetWeylAliases(u_weyl, weyl);
   weyl.rpsi4.Fill(NAN);
   weyl.ipsi4.Fill(NAN);
+  weyl.E_dd.Fill(NAN);
+  weyl.B_dd.Fill(NAN);
 
   // Simplify constants (2 & sqrt 2 factors) featured in re/im[psi4]
   const Real FR4 = 0.25;
@@ -410,6 +420,74 @@ void Z4c::Z4cWeyl(AthenaArray<Real>& u_adm,
             }
           }
         }
+
+    // -----------------------------------------------------------------------------------
+    // Electric and magnetic parts of the Weyl tensor: E_ij, B_ij
+    //
+    // These are the projections of the 4D Weyl tensor onto the spatial slice
+    // w.r.t. the unit timelike normal n^mu:
+    //   E_ij = C_{i mu j nu} n^mu n^nu
+    //   B_ij = -*C_{i mu j nu} n^mu n^nu  (dual Weyl, up to sign convention)
+    //
+    // Built entirely from ADM 3+1 quantities already assembled above
+    // (3-Ricci R_dd, trace K, extrinsic curvature K_dd/K_ud, inverse metric
+    // g_uu, and the covariant derivative of K, DK_ddd) which themselves come
+    // from the ADM metric, its spatial derivatives (dg_ddd/ddg_dddd), and
+    // K_ij. Both tensors are symmetric and (in vacuum) trace-free.
+    //
+    // Gauss equation (electric part):
+    //   E_ij = R_ij + K K_ij - K_ik g^kl K_lj
+    //
+    // Codazzi equation (magnetic part), symmetrized:
+    //   B_ij = 1/2 * [ eps_i^{kl} D_k K_lj + eps_j^{kl} D_k K_li ]
+    // where eps^{ikl} = [ikl] / sqrt(detg) is the spatial Levi-Civita tensor
+    // built from the permutation symbol [ikl] (LeviCivita3 above) and
+    // eps_i^{kl} = g_im eps^{mkl}.
+    // -----------------------------------------------------------------------------------
+    ILOOP1(i)
+    {
+      const Real oosqrtg = 1.0 / std::sqrt(detg(i));
+
+      // Unsymmetrized magnetic-part candidate: rawB(a,b) = eps_a^{kl} D_k K_lb
+      Real rawB[NDIM][NDIM];
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = 0; b < NDIM; ++b)
+        {
+          Real val = 0.0;
+          for (int m = 0; m < NDIM; ++m)
+            for (int kk = 0; kk < NDIM; ++kk)
+              for (int ll = 0; ll < NDIM; ++ll)
+              {
+                const int eps = LeviCivita3(m, kk, ll);
+                if (eps == 0) continue;
+                val += eps * adm.g_dd(a, m, k, j, i) * oosqrtg *
+                       DK_ddd(kk, ll, b, i);
+              }
+          rawB[a][b] = val;
+        }
+
+      for (int a = 0; a < NDIM; ++a)
+        for (int b = a; b < NDIM; ++b)
+        {
+          // --- Electric part: E_ab = R_ab + K K_ab - K_ac g^cd K_db ---
+          Real Eab = R_dd(a, b, i) + K(i) * adm.K_dd(a, b, k, j, i);
+          for (int c = 0; c < NDIM; ++c)
+            for (int d = 0; d < NDIM; ++d)
+            {
+              Eab -= g_uu(c, d, i) * adm.K_dd(a, c, k, j, i) *
+                     adm.K_dd(d, b, k, j, i);
+            }
+
+          weyl.E_dd(a, b, k, j, i) = Eab;
+          if (a != b) weyl.E_dd(b, a, k, j, i) = Eab;
+
+          // --- Magnetic part: symmetrize rawB ---
+          const Real Bab = 0.5 * (rawB[a][b] + rawB[b][a]);
+
+          weyl.B_dd(a, b, k, j, i) = Bab;
+          if (a != b) weyl.B_dd(b, a, k, j, i) = Bab;
+        }
+    }
 
     //------------------------------------------------------------------------------------
     //     Construct tetrad

@@ -439,6 +439,14 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     {
       return &pmb->pz4c->storage.adm;
     }
+    case variety_data::geom_aux:
+    {
+      return &pmb->pz4c->storage.aux;
+    }
+    case variety_data::geom_weyl:
+    {
+      return &pmb->pz4c->storage.weyl;
+    }
     case variety_data::hydro_cons:
     {
       return &pmb->phydro->u;
@@ -551,6 +559,14 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     case variety_data::geom_ADM:
     {
       return Z4c::N_ADM;
+    }
+    case variety_data::geom_aux:
+    {
+      return Z4c::N_AUX;
+    }
+    case variety_data::geom_weyl:
+    {
+      return Z4c::N_WEY;
     }
     case variety_data::hydro_cons:
     {
@@ -829,6 +845,16 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
     case variety_data::geom_ADM:
     {
       ret = Z4c::ADM_names[nix];
+      break;
+    }
+    case variety_data::geom_aux:
+    {
+      ret = Z4c::Aux_names[nix];
+      break;
+    }
+    case variety_data::geom_weyl:
+    {
+      ret = Z4c::Weyl_names[nix];
       break;
     }
     case variety_data::hydro_cons:
