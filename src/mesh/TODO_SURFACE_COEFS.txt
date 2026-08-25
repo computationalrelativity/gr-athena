@@ -1,0 +1,35 @@
+# TODO: surfaces.[ch]pp
+
+Add spherical harmonics projections of "surface fields" and output coefficients.
+
+ * Logic for sph.harmonics basis, grid, interpolation and projections
+   available in
+ 
+        `../utils/spherical_harmonics.hpp`
+
+  CHECK: Is it tested/working?
+
+  CHECK(minor): Y_lm(theta_i, phi_j) storage there may be optimized by
+  separating Legendre P_lm(theta_i) and Fourier factor.
+  
+ * Add list of variables to project (can treat all as real scalar funs
+   to start) together with lmax and grid specification parameters [1,2].
+
+ * Add buffer for coefficients (real & imag) for each listed variable.
+
+ * Add interpolation of these variables and projection using
+   `spherical_harmonics.hpp" 
+ 
+ * Incorporate local sums and MPI reduction in current surface code.
+
+ * Incorporate coefficients in special group of current h5 output. 
+
+Notes
+
+ 1. Can use only positive m = 0 ... l since
+
+    a_l,-m = (-1)^m conj(a_lm)
+
+ 2. LG grid parameters for given lmax:
+
+    N_ph >= (2 * lmax + 1)  (N_th >= lmax + 1)
