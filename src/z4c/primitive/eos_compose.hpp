@@ -8,8 +8,9 @@
 //  Tables should be generated using
 //  <a href="https://bitbucket.org/dradice/pycompose">PyCompOSE</a>
 
-///  \warning This code assumes the table to be uniformly spaced in
-///           log nb, log t, and yq
+/// \warning The O(1) table locator requires axes uniform in log(nb), log(T), and Yq.
+/// ReadTableFromFile(..., true) explicitly remaps the hot table in memory onto a
+/// same-size grid uniform in those coordinates; false retains the source grid.
 
 #include <cstddef>
 #include <string>
@@ -141,7 +142,7 @@ class EOSCompOSE : public EOSPolicyInterface
 
   public:
   /// Reads the table file.
-  void ReadTableFromFile(std::string fname);
+  void ReadTableFromFile(std::string fname, bool uniformize_axes = false);
 
   /// Get the raw number density
   Real const* GetRawLogNumberDensity() const
@@ -166,7 +167,9 @@ class EOSCompOSE : public EOSPolicyInterface
   // Indexing used to access the data
   inline ptrdiff_t index(int iv, int in, int iy, int it) const
   {
-    return it + m_nt * (iy + m_ny * (in + m_nn * iv));
+    return it + static_cast<ptrdiff_t>(m_nt) *
+                  (iy + static_cast<ptrdiff_t>(m_ny) *
+                          (in + static_cast<ptrdiff_t>(m_nn) * iv));
   }
 
   /// Check if the EOS has been initialized properly.
@@ -229,6 +232,8 @@ class EOSCompOSE : public EOSPolicyInterface
   void weight_idx_yq(Real* w0, Real* w1, int* iy, Real yq) const;
   /// Evaluate interpolation weight for temperature
   void weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const;
+
+  void UniformizeAxes();
 
   /// Shared root-search used by Pressure/Temperature variants of
   /// *AndEnthalpyFromE.  Given (n, e, Y) finds the log-T bracket and

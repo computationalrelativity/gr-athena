@@ -3,6 +3,7 @@
 
 #include "cold_eos_compose.hpp"
 
+#include <algorithm>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -11,23 +12,153 @@
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
+#include <vector>
 
 #include "unit_system.hpp"
 
 using namespace Primitive;
 using namespace std;
 
-#define MYH5CHECK(ierr)                                               \
-  if (ierr < 0)                                                       \
-  {                                                                   \
-    stringstream ss;                                                  \
-    ss << __FILE__ << ":" << __LINE__ << " error reading EOS table!"; \
-    throw runtime_error(ss.str().c_str());                            \
+namespace
+{
+
+[[noreturn]] void ColdTableError(const string& message)
+{
+  throw runtime_error("ColdEOSCompOSE: " + message);
+}
+
+void CheckHDFStatus(herr_t status, const string& operation)
+{
+  if (status < 0)
+  {
+    ColdTableError(operation);
+  }
+}
+
+void CheckColdAxisDataset(hid_t group_id, hsize_t* extent)
+{
+  int rank = 0;
+  CheckHDFStatus(H5LTget_dataset_ndims(group_id, "nb", &rank),
+                 "cannot read rank for dataset 'cold_slice/nb'");
+  if (rank != 1)
+  {
+    ColdTableError("dataset 'cold_slice/nb' must have rank 1");
   }
 
+  hsize_t dimensions[1];
+  CheckHDFStatus(H5LTget_dataset_info(group_id, "nb", dimensions, NULL, NULL),
+                 "cannot read shape for dataset 'cold_slice/nb'");
+  if (dimensions[0] < 4)
+  {
+    ColdTableError(
+      "dataset 'cold_slice/nb' must contain at least four values");
+  }
+  if (dimensions[0] > static_cast<hsize_t>(numeric_limits<int>::max()))
+  {
+    ColdTableError(
+      "dataset 'cold_slice/nb' exceeds the supported index range");
+  }
+  *extent = dimensions[0];
+}
+
+void CheckColdScalarDataset(hid_t group_id, const char* name)
+{
+  int rank = 0;
+  CheckHDFStatus(
+    H5LTget_dataset_ndims(group_id, name, &rank),
+    string("cannot read rank for dataset 'cold_slice/") + name + "'");
+  if (rank == 0)
+  {
+    return;
+  }
+
+  if (rank == 1)
+  {
+    hsize_t dimensions[1];
+    CheckHDFStatus(
+      H5LTget_dataset_info(group_id, name, dimensions, NULL, NULL),
+      string("cannot read shape for dataset 'cold_slice/") + name + "'");
+    if (dimensions[0] == 1)
+    {
+      return;
+    }
+  }
+  else if (rank == 3)
+  {
+    hsize_t dimensions[3];
+    CheckHDFStatus(
+      H5LTget_dataset_info(group_id, name, dimensions, NULL, NULL),
+      string("cannot read shape for dataset 'cold_slice/") + name + "'");
+    if (dimensions[0] == 1 && dimensions[1] == 1 && dimensions[2] == 1)
+    {
+      return;
+    }
+  }
+
+  ColdTableError(string("dataset 'cold_slice/") + name +
+                 "' must contain exactly one value");
+}
+
+void CheckColdFieldDataset(hid_t group_id, const char* name, hsize_t np)
+{
+  int rank = 0;
+  CheckHDFStatus(
+    H5LTget_dataset_ndims(group_id, name, &rank),
+    string("cannot read rank for dataset 'cold_slice/") + name + "'");
+  if (rank == 1)
+  {
+    hsize_t dimensions[1];
+    CheckHDFStatus(
+      H5LTget_dataset_info(group_id, name, dimensions, NULL, NULL),
+      string("cannot read shape for dataset 'cold_slice/") + name + "'");
+    if (dimensions[0] == np)
+    {
+      return;
+    }
+  }
+  else if (rank == 3)
+  {
+    hsize_t dimensions[3];
+    CheckHDFStatus(
+      H5LTget_dataset_info(group_id, name, dimensions, NULL, NULL),
+      string("cannot read shape for dataset 'cold_slice/") + name + "'");
+    if (dimensions[0] == np && dimensions[1] == 1 && dimensions[2] == 1)
+    {
+      return;
+    }
+  }
+
+  ColdTableError(string("dataset 'cold_slice/") + name +
+                 "' must have shape (N), or (N, 1, 1)");
+}
+
+string ColdAxisError(int index, const char* condition)
+{
+  ostringstream stream;
+  stream << "dataset 'cold_slice/nb' at index " << index << " " << condition;
+  return stream.str();
+}
+
+Real InverseSpacing(Real lower, Real upper)
+{
+  const Real inverse = 1.0 / (upper - lower);
+  if (!isfinite(inverse) || inverse <= 0.0)
+  {
+    ColdTableError("invalid inverse spacing for cold log(nb)");
+  }
+  return inverse;
+}
+
+}  // namespace
+
 ColdEOSCompOSE::ColdEOSCompOSE()
-    : m_np(0), m_table(nullptr), m_initialized(false)
+    : m_np(0),
+      m_table(nullptr),
+      m_initialized(false),
+      m_id_log_nb(numeric_limits<Real>::quiet_NaN())
 {
   n_species = NSCALARS;
   eos_units = &Nuclear;
@@ -35,10 +166,7 @@ ColdEOSCompOSE::ColdEOSCompOSE()
 
 ColdEOSCompOSE::~ColdEOSCompOSE()
 {
-  if (m_initialized)
-  {
-    delete[] m_table;
-  }
+  delete[] m_table;
 }
 
 Real ColdEOSCompOSE::Pressure(Real n)
@@ -86,136 +214,308 @@ Real ColdEOSCompOSE::DensityFromEnergy(Real E)
 }
 
 void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname,
-                                           std::string species_names[NSCALARS])
+                                           std::string species_names[NSCALARS],
+                                           bool uniformize_axes)
 {
-  herr_t ierr;
-  hid_t file_id;
-  hid_t grp_id;
-  hsize_t snb;
+  hid_t file_id = H5I_INVALID_HID;
+  hid_t group_id = H5I_INVALID_HID;
 
-  // Open input file
-  // -------------------------------------------------------------------------
-  file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-  MYH5CHECK(file_id);
-
-  // Open the cold_slice group
-  grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
-  MYH5CHECK(grp_id);
-
-  // Get dataset sizes
-  // -------------------------------------------------------------------------
-  ierr = H5LTget_dataset_info(grp_id, "nb", &snb, NULL, NULL);
-  MYH5CHECK(ierr);
-  m_np = snb;
-
-  // Allocate memory
-  // -------------------------------------------------------------------------
-  m_table         = new Real[ECNVARS * m_np];
-  double* scratch = new double[m_np];
-
-  // Read nb, t, yq
-  // -------------------------------------------------------------------------
-  ierr = H5LTread_dataset_double(grp_id, "nb", scratch);
-  MYH5CHECK(ierr);
-  min_n = scratch[0];
-  max_n = scratch[m_np - 1];
-  for (int in = 0; in < m_np; ++in)
+  try
   {
-    m_table[index(ECLOGN, in)] = log(scratch[in]);
-  }
-  m_id_log_nb = 1.0 / (m_table[index(ECLOGN, 1)] - m_table[index(ECLOGN, 0)]);
+    file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0)
+    {
+      ColdTableError("cannot open cold-slice input file");
+    }
+    group_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
+    if (group_id < 0)
+    {
+      ColdTableError("cannot open group 'cold_slice'");
+    }
 
-  ierr = H5LTread_dataset_double(grp_id, "t", scratch);
-  MYH5CHECK(ierr);
-  T = scratch[0];
-  // the neutron mass is used as the baryon mass in CompOSE
-  ierr = H5LTread_dataset_double(grp_id, "mn", scratch);
-  MYH5CHECK(ierr);
-  mb = scratch[0];
+    hsize_t snb;
+    CheckColdAxisDataset(group_id, &snb);
+    const int np = static_cast<int>(snb);
+    const auto table_index = [np](int iv, int in) -> ptrdiff_t
+    {
+      return static_cast<ptrdiff_t>(in) + static_cast<ptrdiff_t>(np) * iv;
+    };
+    const size_t ntable = static_cast<size_t>(ECNVARS) * static_cast<size_t>(np);
+    vector<Real> table(ntable);
+    vector<double> scratch(np);
 
-  // Read the density index to cut lorene table
-  // #if !defined(DBG_PS_NO_LORENE_CUT)
-  //   // ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
-  //   //   MYH5CHECK(ierr);
-  // #else
-  //   i_lorene_cut = 0;
-  // #endif
+    CheckHDFStatus(H5LTread_dataset_double(group_id, "nb", scratch.data()),
+                   "cannot read dataset 'cold_slice/nb'");
+    const Real new_min_n = static_cast<Real>(scratch[0]);
+    const Real new_max_n = static_cast<Real>(scratch[np - 1]);
+    for (int in = 0; in < np; ++in)
+    {
+      const Real n = static_cast<Real>(scratch[in]);
+      if (!isfinite(n) || n <= 0.0)
+      {
+        ColdTableError(ColdAxisError(in, "is not finite and positive"));
+      }
+      const Real log_n = log(n);
+      if (!isfinite(log_n))
+      {
+        ColdTableError(ColdAxisError(in, "does not produce a finite log(nb)"));
+      }
+      if (in > 0 && !(log_n > table[table_index(ECLOGN, in - 1)]))
+      {
+        ColdTableError(ColdAxisError(in, "is not strictly increasing in log(nb)"));
+      }
+      table[table_index(ECLOGN, in)] = log_n;
+    }
 
-  if (H5LTfind_dataset(grp_id, "lorene_cut"))
-  {
-    ierr = H5LTread_dataset_int(grp_id, "lorene_cut", &i_lorene_cut);
-    MYH5CHECK(ierr);
-  }
-  else
-  {
-    if (Globals::my_rank == 0)
+    CheckColdScalarDataset(group_id, "t");
+    CheckHDFStatus(H5LTread_dataset_double(group_id, "t", scratch.data()),
+                   "cannot read dataset 'cold_slice/t'");
+    const Real new_temperature = static_cast<Real>(scratch[0]);
+    if (!isfinite(new_temperature) || new_temperature <= 0.0)
+    {
+      ColdTableError("dataset 'cold_slice/t' is not finite and positive");
+    }
+
+    // The neutron mass is used as the baryon mass in CompOSE.
+    CheckColdScalarDataset(group_id, "mn");
+    CheckHDFStatus(H5LTread_dataset_double(group_id, "mn", scratch.data()),
+                   "cannot read dataset 'cold_slice/mn'");
+    const Real new_mb = static_cast<Real>(scratch[0]);
+    if (!isfinite(new_mb) || new_mb <= 0.0)
+    {
+      ColdTableError("dataset 'cold_slice/mn' is not finite and positive");
+    }
+
+    int new_i_lorene_cut = 0;
+    const htri_t has_lorene_cut = H5LTfind_dataset(group_id, "lorene_cut");
+    if (has_lorene_cut < 0)
+    {
+      ColdTableError("cannot check for dataset 'cold_slice/lorene_cut'");
+    }
+    if (has_lorene_cut > 0)
+    {
+      CheckColdScalarDataset(group_id, "lorene_cut");
+      CheckHDFStatus(H5LTread_dataset_int(group_id, "lorene_cut", &new_i_lorene_cut),
+                     "cannot read dataset 'cold_slice/lorene_cut'");
+    }
+    else if (Globals::my_rank == 0)
     {
       std::printf("lorene_cut dataset not found; setting i_lorene_cut=0\n");
     }
-    i_lorene_cut = 0;
-  }
 
-  // Read other thermodynamics quantities
-  // -------------------------------------------------------------------------
-  ierr = H5LTread_dataset_double(grp_id, "Q1", scratch);
-  MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in)
-  {
-    m_table[index(ECLOGP, in)] = log(scratch[in]) + m_table[index(ECLOGN, in)];
-  }
-
-  ierr = H5LTread_dataset_double(grp_id, "Q7", scratch);
-  MYH5CHECK(ierr);
-  for (int in = 0; in < m_np; ++in)
-  {
-    m_table[index(ECLOGE, in)] =
-      log(mb * (scratch[in] + 1)) + m_table[index(ECLOGN, in)];
-  }
-
-  for (int iy = 0; iy < n_species; ++iy)
-  {
-    std::stringstream ss;
-    ss << "Y[" << species_names[iy] << "]";
-    ierr = H5LTread_dataset_double(grp_id, ss.str().c_str(), scratch);
-    MYH5CHECK(ierr);
-    for (int in = 0; in < m_np; ++in)
+    CheckColdFieldDataset(group_id, "Q1", snb);
+    CheckHDFStatus(H5LTread_dataset_double(group_id, "Q1", scratch.data()),
+                   "cannot read dataset 'cold_slice/Q1'");
+    for (int in = 0; in < np; ++in)
     {
-      m_table[index(ECY + iy, in)] = scratch[in];
+      const Real q1 = static_cast<Real>(scratch[in]);
+      if (!isfinite(q1) || q1 <= 0.0)
+      {
+        ColdTableError("dataset 'cold_slice/Q1' is not finite and positive");
+      }
+      table[table_index(ECLOGP, in)] = log(q1) + table[table_index(ECLOGN, in)];
+    }
+
+    CheckColdFieldDataset(group_id, "Q7", snb);
+    CheckHDFStatus(H5LTread_dataset_double(group_id, "Q7", scratch.data()),
+                   "cannot read dataset 'cold_slice/Q7'");
+    for (int in = 0; in < np; ++in)
+    {
+      const Real q7 = static_cast<Real>(scratch[in]);
+      if (!isfinite(q7) || q7 <= -1.0)
+      {
+        ColdTableError("dataset 'cold_slice/Q7' is not finite and greater than -1");
+      }
+      table[table_index(ECLOGE, in)] =
+        log(new_mb * (q7 + 1.0)) + table[table_index(ECLOGN, in)];
+    }
+
+    for (int iy = 0; iy < n_species; ++iy)
+    {
+      ostringstream stream;
+      stream << "Y[" << species_names[iy] << "]";
+      const string name = stream.str();
+      CheckColdFieldDataset(group_id, name.c_str(), snb);
+      CheckHDFStatus(H5LTread_dataset_double(group_id, name.c_str(), scratch.data()),
+                     string("cannot read dataset 'cold_slice/") + name + "'");
+      for (int in = 0; in < np; ++in)
+      {
+        const Real abundance = static_cast<Real>(scratch[in]);
+        if (!isfinite(abundance))
+        {
+          ColdTableError(string("dataset 'cold_slice/") + name +
+                         "' contains a nonfinite value");
+        }
+        table[table_index(ECY + iy, in)] = abundance;
+      }
+    }
+
+    // Fill enthalpy (per baryon): (e + p) / n.
+    for (int in = 0; in < np; ++in)
+    {
+      const Real n = exp(table[table_index(ECLOGN, in)]);
+      table[table_index(ECH, in)] =
+        (exp(table[table_index(ECLOGE, in)]) +
+         exp(table[table_index(ECLOGP, in)])) / n;
+    }
+
+    // D0_x_2 yields d(logP)/d(logN); convert via
+    // dP/dn = exp(logP - logN) * d(logP)/d(logN).
+    D0_x_2(&table[table_index(ECLOGP, 0)],
+           &table[table_index(ECLOGN, 0)],
+           np,
+           &table[table_index(ECDPDN, 0)]);
+    for (int in = 1; in < np; ++in)
+    {
+      table[table_index(ECDPDN, in)] *=
+        exp(table[table_index(ECLOGP, in)] - table[table_index(ECLOGN, in)]);
+    }
+
+    for (int iv = 0; iv < ECNVARS; ++iv)
+    {
+      for (int in = 0; in < np; ++in)
+      {
+        if (!isfinite(table[table_index(iv, in)]))
+        {
+          ostringstream stream;
+          stream << "nonfinite stored lane " << iv << " at index " << in;
+          ColdTableError(stream.str());
+        }
+      }
+    }
+
+    CheckHDFStatus(H5Gclose(group_id), "cannot close group 'cold_slice'");
+    group_id = H5I_INVALID_HID;
+    CheckHDFStatus(H5Fclose(file_id), "cannot close cold-slice input file");
+    file_id = H5I_INVALID_HID;
+
+    Real new_id_log_nb;
+    if (uniformize_axes)
+    {
+      UniformizeAxis(table.data(), np, &new_id_log_nb);
+    }
+    else
+    {
+      new_id_log_nb = InverseSpacing(table[table_index(ECLOGN, 0)],
+                                     table[table_index(ECLOGN, 1)]);
+    }
+
+    Real* const new_table = new Real[table.size()];
+    copy(table.begin(), table.end(), new_table);
+    Real* const old_table = m_table;
+    m_table = new_table;
+    m_np = np;
+    m_id_log_nb = new_id_log_nb;
+    min_n = new_min_n;
+    max_n = new_max_n;
+    T = new_temperature;
+    mb = new_mb;
+    i_lorene_cut = new_i_lorene_cut;
+    m_initialized = true;
+    delete[] old_table;
+  }
+  catch (...)
+  {
+    if (group_id != H5I_INVALID_HID)
+    {
+      H5Gclose(group_id);
+    }
+    if (file_id != H5I_INVALID_HID)
+    {
+      H5Fclose(file_id);
+    }
+    throw;
+  }
+}
+
+void ColdEOSCompOSE::UniformizeAxis(Real* table, int np, Real* inverse_spacing)
+{
+  const auto table_index = [np](int iv, int in) -> ptrdiff_t
+  {
+    return static_cast<ptrdiff_t>(in) + static_cast<ptrdiff_t>(np) * iv;
+  };
+  const Real* const source_log_nb = &table[table_index(ECLOGN, 0)];
+  vector<Real> target_log_nb(np);
+  for (int in = 0; in < np; ++in)
+  {
+    target_log_nb[in] = source_log_nb[0] + static_cast<Real>(in) *
+                         (source_log_nb[np - 1] - source_log_nb[0]) /
+                         static_cast<Real>(np - 1);
+  }
+  target_log_nb[0] = source_log_nb[0];
+  target_log_nb[np - 1] = source_log_nb[np - 1];
+  for (int in = 0; in < np; ++in)
+  {
+    if (!isfinite(target_log_nb[in]))
+    {
+      ColdTableError("nonfinite target cold log(nb) coordinate");
+    }
+    if (in > 0 && !(target_log_nb[in] > target_log_nb[in - 1]))
+    {
+      ColdTableError("target cold log(nb) coordinates are not strictly increasing");
     }
   }
 
-  //  fill enthalpy (per baryon): (e + p) / n
-  //  Note: ECLOGN stores log(n), so the denominator needs exp(.) to recover n.
-  for (int in = 0; in < m_np; ++in)
+  struct CellWeight
   {
-    const Real n_i = exp(m_table[index(ECLOGN, in)]);
-    m_table[index(ECH, in)] =
-      (exp(m_table[index(ECLOGE, in)]) + exp(m_table[index(ECLOGP, in)])) /
-      n_i;
+    int lower;
+    Real w0;
+    Real w1;
+  };
+  const auto find_cell = [source_log_nb, np](Real log_n) -> CellWeight
+  {
+    CellWeight result;
+    if (log_n == source_log_nb[0])
+    {
+      result.lower = 0;
+      result.w1 = 0.0;
+    }
+    else if (log_n == source_log_nb[np - 1])
+    {
+      result.lower = np - 2;
+      result.w1 = 1.0;
+    }
+    else
+    {
+      const Real* const upper =
+        std::upper_bound(source_log_nb, source_log_nb + np, log_n);
+      if (upper == source_log_nb || upper == source_log_nb + np)
+      {
+        ColdTableError("target cold log(nb) coordinate is outside the source axis");
+      }
+      result.lower = static_cast<int>(upper - source_log_nb) - 1;
+      result.w1 = (log_n - source_log_nb[result.lower]) /
+                  (source_log_nb[result.lower + 1] - source_log_nb[result.lower]);
+    }
+    result.w0 = 1.0 - result.w1;
+    if (!isfinite(result.w0) || !isfinite(result.w1))
+    {
+      ColdTableError("nonfinite cold source-cell interpolation weight");
+    }
+    return result;
+  };
+
+  vector<Real> remapped(static_cast<size_t>(ECNVARS) * static_cast<size_t>(np));
+  for (int in = 0; in < np; ++in)
+  {
+    remapped[table_index(ECLOGN, in)] = target_log_nb[in];
+    const CellWeight cell = find_cell(target_log_nb[in]);
+    for (int iv = ECLOGP; iv < ECNVARS; ++iv)
+    {
+      const Real value = cell.w0 * table[table_index(iv, cell.lower)] +
+                         cell.w1 * table[table_index(iv, cell.lower + 1)];
+      if (!isfinite(value))
+      {
+        ostringstream stream;
+        stream << "nonfinite remapped cold lane " << iv << " at index " << in;
+        ColdTableError(stream.str());
+      }
+      remapped[table_index(iv, in)] = value;
+    }
   }
 
-  //  fill dPdn
-  //  D0_x_2 yields d(logP)/d(logN); convert via
-  //    dP/dn = exp(logP - logN) * d(logP)/d(logN).
-  //  Loop starts at in = 1 because the getter uses eval_at_n<2>(ECDPDN, .)
-  //  which clamps the interp index to in >= 2, so ECDPDN[0..1] are never
-  //  read. If that clamp is ever loosened, widen this loop to in = 0.
-  D0_x_2(&m_table[index(ECLOGP, 0)],
-         &m_table[index(ECLOGN, 0)],
-         m_np,
-         &m_table[index(ECDPDN, 0)]);
-  for (int in = 1; in < m_np; ++in)
-  {
-    m_table[index(ECDPDN, in)] *=
-      exp(m_table[index(ECLOGP, in)] - m_table[index(ECLOGN, in)]);
-  }
-
-  // Cleanup
-  // -------------------------------------------------------------------------
-  delete[] scratch;
-  H5Fclose(file_id);
-
-  m_initialized = true;
+  copy(remapped.begin(), remapped.end(), table);
+  *inverse_spacing = InverseSpacing(target_log_nb[0], target_log_nb[1]);
 }
 
 void ColdEOSCompOSE::DumpLoreneEOSFile(std::string fname)

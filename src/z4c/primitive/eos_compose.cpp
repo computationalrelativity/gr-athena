@@ -9,6 +9,7 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 // #ifdef HDF5OUTPUT
 #include <hdf5.h>
@@ -21,13 +22,146 @@
 using namespace Primitive;
 using namespace std;
 
-#define MYH5CHECK(ierr)                                               \
-  if (ierr < 0)                                                       \
-  {                                                                   \
-    stringstream ss;                                                  \
-    ss << __FILE__ << ":" << __LINE__ << " error reading EOS table!"; \
-    throw runtime_error(ss.str().c_str());                            \
+namespace
+{
+
+[[noreturn]] void TableError(const string& message)
+{
+  throw runtime_error("EOSCompOSE: " + message);
+}
+
+void CheckHDFStatus(herr_t status, const string& operation)
+{
+  if (status < 0)
+  {
+    TableError(operation);
   }
+}
+
+size_t CheckedProduct(size_t left, size_t right, const char* quantity)
+{
+  if (left != 0 && right > numeric_limits<size_t>::max() / left)
+  {
+    TableError(string("overflow computing ") + quantity);
+  }
+  return left * right;
+}
+
+void CheckAllocationBytes(size_t count, size_t element_size, const char* quantity)
+{
+  if (count > numeric_limits<size_t>::max() / element_size)
+  {
+    TableError(string("byte-count overflow allocating ") + quantity);
+  }
+}
+
+void CheckAxisDataset(hid_t file_id, const char* name, hsize_t* extent)
+{
+  int rank = 0;
+  CheckHDFStatus(H5LTget_dataset_ndims(file_id, name, &rank),
+                 string("cannot read rank for dataset '") + name + "'");
+  if (rank != 1)
+  {
+    TableError(string("dataset '") + name + "' must have rank 1");
+  }
+
+  hsize_t dimensions[1];
+  CheckHDFStatus(H5LTget_dataset_info(file_id, name, dimensions, NULL, NULL),
+                 string("cannot read shape for dataset '") + name + "'");
+  if (dimensions[0] < 2)
+  {
+    TableError(string("dataset '") + name + "' must contain at least two values");
+  }
+  *extent = dimensions[0];
+}
+
+void CheckFieldDataset(hid_t file_id,
+                       const char* name,
+                       hsize_t nn,
+                       hsize_t ny,
+                       hsize_t nt)
+{
+  int rank = 0;
+  CheckHDFStatus(H5LTget_dataset_ndims(file_id, name, &rank),
+                 string("cannot read rank for dataset '") + name + "'");
+  if (rank != 3)
+  {
+    TableError(string("dataset '") + name + "' must have rank 3");
+  }
+
+  hsize_t dimensions[3];
+  CheckHDFStatus(H5LTget_dataset_info(file_id, name, dimensions, NULL, NULL),
+                 string("cannot read shape for dataset '") + name + "'");
+  if (dimensions[0] != nn || dimensions[1] != ny || dimensions[2] != nt)
+  {
+    ostringstream stream;
+    stream << "dataset '" << name << "' must have shape (" << nn << ", " << ny
+           << ", " << nt << ")";
+    TableError(stream.str());
+  }
+}
+
+void CheckMassDataset(hid_t file_id, const char* name)
+{
+  int rank = 0;
+  CheckHDFStatus(H5LTget_dataset_ndims(file_id, name, &rank),
+                 string("cannot read rank for dataset '") + name + "'");
+  if (rank == 0)
+  {
+    return;
+  }
+  if (rank != 1)
+  {
+    TableError(string("dataset '") + name + "' must be scalar or rank 1");
+  }
+
+  hsize_t dimensions[1];
+  CheckHDFStatus(H5LTget_dataset_info(file_id, name, dimensions, NULL, NULL),
+                 string("cannot read shape for dataset '") + name + "'");
+  if (dimensions[0] != 1)
+  {
+    TableError(string("dataset '") + name + "' must contain one value");
+  }
+}
+
+string AxisError(const char* name, int index, const char* condition)
+{
+  ostringstream stream;
+  stream << "dataset '" << name << "' at index " << index << " " << condition;
+  return stream.str();
+}
+
+string FieldError(const char* name, int in, int iy, int it, const char* condition)
+{
+  ostringstream stream;
+  stream << "dataset '" << name << "' at (" << in << ", " << iy << ", " << it
+         << ") " << condition;
+  return stream.str();
+}
+
+void CheckStoredFinite(Real value,
+                       const char* name,
+                       int in,
+                       int iy,
+                       int it)
+{
+  if (!isfinite(value))
+  {
+    TableError(FieldError(name, in, iy, it, "does not produce a finite stored value"));
+  }
+}
+
+Real InverseSpacing(Real lower, Real upper, const char* name)
+{
+  const Real inverse = 1.0 / (upper - lower);
+  if (!isfinite(inverse) || inverse <= 0.0)
+  {
+    TableError(string("invalid inverse spacing for ") + name);
+  }
+  return inverse;
+}
+
+}  // namespace
 
 EOSCompOSE::EOSCompOSE()
     : m_id_log_nb(numeric_limits<Real>::quiet_NaN()),
@@ -618,315 +752,753 @@ Real EOSCompOSE::MaximumEntropy(Real n, Real* Y)
   return Entropy(n, max_T, Y);
 }
 
-void EOSCompOSE::ReadTableFromFile(std::string fname)
+void EOSCompOSE::UniformizeAxes()
+{
+  vector<Real> target_log_nb(m_nn);
+  vector<Real> target_log_t(m_nt);
+  vector<Real> target_yq(m_ny);
+
+  for (int in = 0; in < m_nn; ++in)
+  {
+    target_log_nb[in] = m_log_nb[0] + static_cast<Real>(in) *
+                                        (m_log_nb[m_nn - 1] - m_log_nb[0]) /
+                                        static_cast<Real>(m_nn - 1);
+  }
+  for (int it = 0; it < m_nt; ++it)
+  {
+    target_log_t[it] = m_log_t[0] + static_cast<Real>(it) *
+                                      (m_log_t[m_nt - 1] - m_log_t[0]) /
+                                      static_cast<Real>(m_nt - 1);
+  }
+  for (int iy = 0; iy < m_ny; ++iy)
+  {
+    target_yq[iy] = m_yq[0] + static_cast<Real>(iy) *
+                                (m_yq[m_ny - 1] - m_yq[0]) /
+                                static_cast<Real>(m_ny - 1);
+  }
+
+  target_log_nb[0]        = m_log_nb[0];
+  target_log_nb[m_nn - 1] = m_log_nb[m_nn - 1];
+  target_log_t[0]         = m_log_t[0];
+  target_log_t[m_nt - 1]  = m_log_t[m_nt - 1];
+  target_yq[0]            = m_yq[0];
+  target_yq[m_ny - 1]     = m_yq[m_ny - 1];
+
+  auto check_target_axis = [](const vector<Real>& axis, const char* name)
+  {
+    for (size_t i = 0; i < axis.size(); ++i)
+    {
+      if (!isfinite(axis[i]))
+      {
+        TableError(string("nonfinite target ") + name + " coordinate");
+      }
+      if (i > 0 && !(axis[i] > axis[i - 1]))
+      {
+        TableError(string("target ") + name +
+                   " coordinates are not strictly increasing");
+      }
+    }
+  };
+
+  check_target_axis(target_log_nb, "log(nb)");
+  check_target_axis(target_log_t, "log(T)");
+  check_target_axis(target_yq, "Yq");
+
+  struct CellWeight
+  {
+    int lower;
+    Real w0;
+    Real w1;
+  };
+
+  auto find_cell = [](const Real* axis, int n, Real x) -> CellWeight
+  {
+    CellWeight result;
+    if (x == axis[0])
+    {
+      result.lower = 0;
+      result.w1    = 0.0;
+    }
+    else if (x == axis[n - 1])
+    {
+      result.lower = n - 2;
+      result.w1    = 1.0;
+    }
+    else
+    {
+      const Real* upper = upper_bound(axis, axis + n, x);
+      if (upper == axis || upper == axis + n)
+      {
+        TableError("target coordinate is outside the source axis");
+      }
+      result.lower = static_cast<int>(upper - axis) - 1;
+      result.w1    = (x - axis[result.lower]) /
+                     (axis[result.lower + 1] - axis[result.lower]);
+    }
+    result.w0 = 1.0 - result.w1;
+    if (!isfinite(result.w0) || !isfinite(result.w1))
+    {
+      TableError("nonfinite source-cell interpolation weight");
+    }
+    return result;
+  };
+
+  const size_t ncell = CheckedProduct(
+    CheckedProduct(
+      static_cast<size_t>(m_nn), static_cast<size_t>(m_ny), "cell count"),
+    static_cast<size_t>(m_nt),
+    "cell count");
+  const size_t ntable =
+    CheckedProduct(static_cast<size_t>(ECNVARS), ncell, "table count");
+  CheckAllocationBytes(ntable, sizeof(Real), "uniformized EOS table");
+  if (ntable > static_cast<size_t>(numeric_limits<ptrdiff_t>::max()))
+  {
+    TableError("uniformized EOS table exceeds index range");
+  }
+  vector<Real> remapped(ntable);
+
+  for (int in = 0; in < m_nn; ++in)
+  {
+    const CellWeight wn = find_cell(m_log_nb, m_nn, target_log_nb[in]);
+    for (int iy = 0; iy < m_ny; ++iy)
+    {
+      const CellWeight wy = find_cell(m_yq, m_ny, target_yq[iy]);
+      for (int it = 0; it < m_nt; ++it)
+      {
+        const CellWeight wt = find_cell(m_log_t, m_nt, target_log_t[it]);
+        for (int iv = 0; iv < ECNVARS; ++iv)
+        {
+          const Real v000 = m_table[index(iv, wn.lower, wy.lower, wt.lower)];
+          const Real v001 =
+            m_table[index(iv, wn.lower, wy.lower, wt.lower + 1)];
+          const Real v010 =
+            m_table[index(iv, wn.lower, wy.lower + 1, wt.lower)];
+          const Real v011 =
+            m_table[index(iv, wn.lower, wy.lower + 1, wt.lower + 1)];
+          const Real v100 =
+            m_table[index(iv, wn.lower + 1, wy.lower, wt.lower)];
+          const Real v101 =
+            m_table[index(iv, wn.lower + 1, wy.lower, wt.lower + 1)];
+          const Real v110 =
+            m_table[index(iv, wn.lower + 1, wy.lower + 1, wt.lower)];
+          const Real v111 =
+            m_table[index(iv, wn.lower + 1, wy.lower + 1, wt.lower + 1)];
+          const Real value = wn.w0 * (wy.w0 * (wt.w0 * v000 + wt.w1 * v001) +
+                                      wy.w1 * (wt.w0 * v010 + wt.w1 * v011)) +
+                             wn.w1 * (wy.w0 * (wt.w0 * v100 + wt.w1 * v101) +
+                                      wy.w1 * (wt.w0 * v110 + wt.w1 * v111));
+          if (!isfinite(value))
+          {
+            ostringstream stream;
+            stream << "nonfinite remapped lane " << iv << " at (" << in << ", "
+                   << iy << ", " << it << ")";
+            TableError(stream.str());
+          }
+          remapped[index(iv, in, iy, it)] = value;
+        }
+      }
+    }
+  }
+
+  copy(remapped.begin(), remapped.end(), m_table);
+  copy(target_log_nb.begin(), target_log_nb.end(), m_log_nb);
+  copy(target_log_t.begin(), target_log_t.end(), m_log_t);
+  copy(target_yq.begin(), target_yq.end(), m_yq);
+
+  m_id_log_nb = InverseSpacing(m_log_nb[0], m_log_nb[1], "log(nb)");
+  m_id_log_t  = InverseSpacing(m_log_t[0], m_log_t[1], "log(T)");
+  m_id_yq     = InverseSpacing(m_yq[0], m_yq[1], "Yq");
+}
+
+void EOSCompOSE::ReadTableFromFile(std::string fname, bool uniformize_axes)
 {
 #pragma omp critical(EOSCompose_ReadTable)
   {
     if (m_initialized == false)
     {
-      herr_t ierr;
-      hid_t file_id;
-      hsize_t snb, st, syq;
-
-      // Open input file
-      // -------------------------------------------------------------------------
-      file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-      MYH5CHECK(file_id);
-
-      // Get dataset sizes
-      // -------------------------------------------------------------------------
-      ierr = H5LTget_dataset_info(file_id, "nb", &snb, NULL, NULL);
-      MYH5CHECK(ierr);
-      ierr = H5LTget_dataset_info(file_id, "t", &st, NULL, NULL);
-      MYH5CHECK(ierr);
-      ierr = H5LTget_dataset_info(file_id, "yq", &syq, NULL, NULL);
-      MYH5CHECK(ierr);
-      m_nn = snb;
-      m_nt = st;
-      m_ny = syq;
-
-      // Allocate memory
-      // -------------------------------------------------------------------------
-      m_log_nb        = new Real[m_nn];
-      m_log_t         = new Real[m_nt];
-      m_yq            = new Real[m_ny];
-      m_table         = new Real[ECNVARS * m_nn * m_ny * m_nt];
-      double* scratch = new double[m_nn * m_ny * m_nt];
-
-      // Read nb, t, yq
-      // -------------------------------------------------------------------------
-      ierr = H5LTread_dataset_double(file_id, "nb", scratch);
-      MYH5CHECK(ierr);
-      min_n = scratch[0];
-      max_n = scratch[m_nn - 1];
-      for (int in = 0; in < m_nn; ++in)
+      hid_t file_id   = H5I_INVALID_HID;
+      double* scratch = nullptr;
+      try
       {
-        m_log_nb[in] = log(scratch[in]);
-      }
-      m_id_log_nb = 1.0 / (m_log_nb[1] - m_log_nb[0]);
+        hsize_t snb, st, syq;
 
-      ierr = H5LTread_dataset_double(file_id, "t", scratch);
-      MYH5CHECK(ierr);
-      min_T = scratch[0];
-      max_T = scratch[m_nt - 1];
-      for (int it = 0; it < m_nt; ++it)
-      {
-        m_log_t[it] = log(scratch[it]);
-      }
-      m_id_log_t = 1.0 / (m_log_t[1] - m_log_t[0]);
-
-      ierr = H5LTread_dataset_double(file_id, "yq", scratch);
-      MYH5CHECK(ierr);
-      min_Y[0] = scratch[0];
-      max_Y[0] = scratch[m_ny - 1];
-      for (int iy = 0; iy < m_ny; ++iy)
-      {
-        m_yq[iy] = scratch[iy];
-      }
-      m_id_yq = 1.0 / (m_yq[1] - m_yq[0]);
-
-      // the neutron mass is used as the baryon mass in CompOSE
-      ierr = H5LTread_dataset_double(file_id, "mn", scratch);
-      MYH5CHECK(ierr);
-      mb = scratch[0];
-
-      // Read other thermodynamics quantities
-      // -------------------------------------------------------------------------
-      ierr = H5LTread_dataset_double(file_id, "Q1", scratch);
-      MYH5CHECK(ierr);
-      for (int inb = 0; inb < m_nn; ++inb)
-      {
-        for (int iyq = 0; iyq < m_ny; ++iyq)
+        file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        if (file_id < 0)
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECLOGP, inb, iyq, it)] =
-              log(scratch[index(0, inb, iyq, it)]) + m_log_nb[inb];
-          }
+          TableError(string("cannot open EOS table '") + fname + "'");
         }
-      }
 
-      ierr = H5LTread_dataset_double(file_id, "Q2", scratch);
-      MYH5CHECK(ierr);
-      copy(&scratch[0],
-           &scratch[m_nn * m_ny * m_nt],
-           &m_table[index(ECENT, 0, 0, 0)]);
-
-      ierr = H5LTread_dataset_double(file_id, "Q3", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        CheckAxisDataset(file_id, "nb", &snb);
+        CheckAxisDataset(file_id, "t", &st);
+        CheckAxisDataset(file_id, "yq", &syq);
+        if (snb > static_cast<hsize_t>(numeric_limits<int>::max()) ||
+            st > static_cast<hsize_t>(numeric_limits<int>::max()) ||
+            syq > static_cast<hsize_t>(numeric_limits<int>::max()))
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECMUB, in, iy, it)] =
-              mb * (scratch[index(0, in, iy, it)] + 1);
-          }
+          TableError("axis extent exceeds int index range");
         }
-      }
 
-      ierr = H5LTread_dataset_double(file_id, "Q4", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        const char* const fields[] = { "Q1",   "Q2",   "Q3",   "Q4",
+                                       "Q5",   "Q7",   "cs2",  "Y[n]",
+                                       "Y[p]", "Y[N]", "A[N]", "Z[N]" };
+        for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); ++i)
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECMUQ, in, iy, it)] =
-              mb * scratch[index(0, in, iy, it)];
-          }
+          CheckFieldDataset(file_id, fields[i], snb, syq, st);
         }
-      }
-
-      ierr = H5LTread_dataset_double(file_id, "Q5", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        const htri_t dU_exists = H5Lexists(file_id, "dU", H5P_DEFAULT);
+        if (dU_exists < 0)
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECMUL, in, iy, it)] =
-              mb * scratch[index(0, in, iy, it)];
-          }
+          TableError("cannot determine whether dataset 'dU' exists");
         }
-      }
-
-      ierr = H5LTread_dataset_double(file_id, "Q7", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        if (dU_exists > 0)
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECLOGE, in, iy, it)] =
-              log(mb * (scratch[index(0, in, iy, it)] + 1)) + m_log_nb[in];
-          }
+          CheckFieldDataset(file_id, "dU", snb, syq, st);
         }
-      }
+        CheckMassDataset(file_id, "mn");
+        CheckMassDataset(file_id, "mp");
 
-      ierr = H5LTread_dataset_double(file_id, "cs2", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        m_nn = static_cast<int>(snb);
+        m_nt = static_cast<int>(st);
+        m_ny = static_cast<int>(syq);
+        const size_t ncell =
+          CheckedProduct(CheckedProduct(static_cast<size_t>(m_nn),
+                                        static_cast<size_t>(m_ny),
+                                        "cell count"),
+                         static_cast<size_t>(m_nt),
+                         "cell count");
+        const size_t ntable =
+          CheckedProduct(static_cast<size_t>(ECNVARS), ncell, "table count");
+        CheckAllocationBytes(ncell, sizeof(double), "EOS scratch array");
+        CheckAllocationBytes(ntable, sizeof(Real), "EOS table");
+        CheckAllocationBytes(
+          static_cast<size_t>(m_nn), sizeof(Real), "log(nb) axis");
+        CheckAllocationBytes(
+          static_cast<size_t>(m_nt), sizeof(Real), "log(T) axis");
+        CheckAllocationBytes(
+          static_cast<size_t>(m_ny), sizeof(Real), "Yq axis");
+        if (ntable > static_cast<size_t>(numeric_limits<ptrdiff_t>::max()))
         {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECCS, in, iy, it)] =
-              sqrt(scratch[index(0, in, iy, it)]);
-          }
+          TableError("EOS table exceeds index range");
         }
-      }
 
-      ierr = H5LTread_dataset_double(file_id, "Y[n]", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
-        {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECYN, in, iy, it)] = scratch[index(0, in, iy, it)];
-          }
-        }
-      }
-
-      ierr = H5LTread_dataset_double(file_id, "Y[p]", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
-        {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECYP, in, iy, it)] = scratch[index(0, in, iy, it)];
-          }
-        }
-      }
-
-      ierr = H5LTread_dataset_double(file_id, "A[N]", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
-        {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECAN, in, iy, it)] = scratch[index(0, in, iy, it)];
-          }
-        }
-      }
-
-      ierr = H5LTread_dataset_double(file_id, "Z[N]", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
-        {
-          for (int it = 0; it < m_nt; ++it)
-          {
-            m_table[index(ECZN, in, iy, it)] = scratch[index(0, in, iy, it)];
-          }
-        }
-      }
-
-      if (H5Lexists(file_id, "dU", H5P_DEFAULT) > 0)
-      {
-        ierr = H5LTread_dataset_double(file_id, "dU", scratch);
-        MYH5CHECK(ierr);
-        copy(&scratch[0],
-             &scratch[m_nn * m_ny * m_nt],
-             &m_table[index(ECDU, 0, 0, 0)]);
-        m_has_dU = true;
-      }
-      else
-      {
-        // dU dataset absent. Zero-fill as defensive padding; any call into
-        // InteractionPotentialDifference will assert via the m_has_dU guard.
-        fill(&m_table[index(ECDU, 0, 0, 0)],
-             &m_table[index(ECDU, 0, 0, 0)] + m_nn * m_ny * m_nt,
-             0.0);
+        m_log_nb = new Real[m_nn];
+        m_log_t  = new Real[m_nt];
+        m_yq     = new Real[m_ny];
+        m_table  = new Real[ntable];
+        scratch  = new double[ncell];
         m_has_dU = false;
-      }
 
-      // The following requires Abar?:
-      ierr = H5LTread_dataset_double(file_id, "Y[N]", scratch);
-      MYH5CHECK(ierr);
-      for (int in = 0; in < m_nn; ++in)
-      {
-        for (int iy = 0; iy < m_ny; ++iy)
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "nb", scratch),
+                       "cannot read dataset 'nb'");
+        double previous_log_nb = 0.0;
+        for (int in = 0; in < m_nn; ++in)
         {
-          for (int it = 0; it < m_nt; ++it)
+          const double value = scratch[in];
+          if (!isfinite(value) || value <= 0.0)
           {
-            const Real YN = scratch[index(0, in, iy, it)];
-            const Real AN = m_table[index(ECAN, in, iy, it)];
-
-            // X_h = A_N * Y_N (heavy-nucleus mass fraction)
-            m_table[index(ECXH, in, iy, it)] = AN * YN;
+            TableError(AxisError("nb", in, "must be finite and positive"));
           }
+          const double log_value = log(value);
+          if (!isfinite(log_value))
+          {
+            TableError(AxisError("nb", in, "has a nonfinite logarithm"));
+          }
+          if (in > 0 && !(log_value > previous_log_nb))
+          {
+            TableError(
+              AxisError("nb", in, "is not strictly increasing in log(nb)"));
+          }
+          const Real stored = static_cast<Real>(log_value);
+          if (!isfinite(stored) || (in > 0 && !(stored > m_log_nb[in - 1])))
+          {
+            TableError(AxisError(
+              "nb", in, "cannot form a strictly increasing stored log axis"));
+          }
+          m_log_nb[in]    = stored;
+          previous_log_nb = log_value;
         }
-      }
+        min_n = scratch[0];
+        max_n = scratch[m_nn - 1];
 
-      // couple of final constants
-      Real mn;  // neutron mass (note also used as baryonic)
-      ierr = H5LTread_dataset_double(file_id, "mn", scratch);
-      MYH5CHECK(ierr);
-      mn = scratch[0];
-
-      Real mp;
-      ierr = H5LTread_dataset_double(file_id, "mp", scratch);
-      MYH5CHECK(ierr);
-      mp = scratch[0];
-
-      // Mark table as read
-      m_initialized = true;
-
-      // Cleanup
-      // -------------------------------------------------------------------------
-      delete[] scratch;
-      H5Fclose(file_id);
-
-      // Compute minimum enthalpy
-      // -------------------------------------------------------------------------
-      for (int in = 0; in < m_nn; ++in)
-      {
-        Real const nb = exp(m_log_nb[in]);
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "t", scratch),
+                       "cannot read dataset 't'");
+        double previous_log_t = 0.0;
         for (int it = 0; it < m_nt; ++it)
         {
-          Real const t = exp(m_log_t[it]);
+          const double value = scratch[it];
+          if (!isfinite(value) || value <= 0.0)
+          {
+            TableError(AxisError("t", it, "must be finite and positive"));
+          }
+          const double log_value = log(value);
+          if (!isfinite(log_value))
+          {
+            TableError(AxisError("t", it, "has a nonfinite logarithm"));
+          }
+          if (it > 0 && !(log_value > previous_log_t))
+          {
+            TableError(
+              AxisError("t", it, "is not strictly increasing in log(T)"));
+          }
+          const Real stored = static_cast<Real>(log_value);
+          if (!isfinite(stored) || (it > 0 && !(stored > m_log_t[it - 1])))
+          {
+            TableError(AxisError(
+              "t", it, "cannot form a strictly increasing stored log axis"));
+          }
+          m_log_t[it]    = stored;
+          previous_log_t = log_value;
+        }
+        min_T = scratch[0];
+        max_T = scratch[m_nt - 1];
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "yq", scratch),
+                       "cannot read dataset 'yq'");
+        double previous_yq = 0.0;
+        for (int iy = 0; iy < m_ny; ++iy)
+        {
+          const double value = scratch[iy];
+          if (!isfinite(value))
+          {
+            TableError(AxisError("yq", iy, "must be finite"));
+          }
+          if (iy > 0 && !(value > previous_yq))
+          {
+            TableError(AxisError("yq", iy, "is not strictly increasing"));
+          }
+          const Real stored = static_cast<Real>(value);
+          if (!isfinite(stored) || (iy > 0 && !(stored > m_yq[iy - 1])))
+          {
+            TableError(AxisError(
+              "yq", iy, "cannot form a strictly increasing stored axis"));
+          }
+          m_yq[iy]    = stored;
+          previous_yq = value;
+        }
+        min_Y[0] = scratch[0];
+        max_Y[0] = scratch[m_ny - 1];
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "mn", scratch),
+                       "cannot read dataset 'mn'");
+        if (!isfinite(scratch[0]) || scratch[0] <= 0.0)
+        {
+          TableError("dataset 'mn' must be finite and positive");
+        }
+        mb = static_cast<Real>(scratch[0]);
+        if (!isfinite(mb) || mb <= 0.0)
+        {
+          TableError(
+            "dataset 'mn' does not produce a finite positive stored value");
+        }
+        const Real mn = mb;
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "mp", scratch),
+                       "cannot read dataset 'mp'");
+        if (!isfinite(scratch[0]) || scratch[0] <= 0.0)
+        {
+          TableError("dataset 'mp' must be finite and positive");
+        }
+        const Real mp = static_cast<Real>(scratch[0]);
+        if (!isfinite(mp) || mp <= 0.0)
+        {
+          TableError(
+            "dataset 'mp' does not produce a finite positive stored value");
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q1", scratch),
+                       "cannot read dataset 'Q1'");
+        for (int in = 0; in < m_nn; ++in)
+        {
           for (int iy = 0; iy < m_ny; ++iy)
           {
-            m_min_h = min(m_min_h, Enthalpy(nb, t, &m_yq[iy]));
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw) || raw <= 0.0)
+              {
+                TableError(
+                  FieldError("Q1", in, iy, it, "must be finite and positive"));
+              }
+              const Real stored = static_cast<Real>(log(raw) + m_log_nb[in]);
+              CheckStoredFinite(stored, "Q1", in, iy, it);
+              m_table[index(ECLOGP, in, iy, it)] = stored;
+            }
           }
         }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q2", scratch),
+                       "cannot read dataset 'Q2'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw))
+              {
+                TableError(FieldError("Q2", in, iy, it, "must be finite"));
+              }
+              const Real stored = static_cast<Real>(raw);
+              CheckStoredFinite(stored, "Q2", in, iy, it);
+              m_table[index(ECENT, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q3", scratch),
+                       "cannot read dataset 'Q3'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw))
+              {
+                TableError(FieldError("Q3", in, iy, it, "must be finite"));
+              }
+              const Real stored = static_cast<Real>(mb * (raw + 1.0));
+              CheckStoredFinite(stored, "Q3", in, iy, it);
+              m_table[index(ECMUB, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q4", scratch),
+                       "cannot read dataset 'Q4'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw))
+              {
+                TableError(FieldError("Q4", in, iy, it, "must be finite"));
+              }
+              const Real stored = static_cast<Real>(mb * raw);
+              CheckStoredFinite(stored, "Q4", in, iy, it);
+              m_table[index(ECMUQ, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q5", scratch),
+                       "cannot read dataset 'Q5'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw))
+              {
+                TableError(FieldError("Q5", in, iy, it, "must be finite"));
+              }
+              const Real stored = static_cast<Real>(mb * raw);
+              CheckStoredFinite(stored, "Q5", in, iy, it);
+              m_table[index(ECMUL, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Q7", scratch),
+                       "cannot read dataset 'Q7'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw) || raw <= -1.0)
+              {
+                TableError(FieldError(
+                  "Q7", in, iy, it, "must be finite and greater than -1"));
+              }
+              const Real stored =
+                static_cast<Real>(log(mb * (raw + 1.0)) + m_log_nb[in]);
+              CheckStoredFinite(stored, "Q7", in, iy, it);
+              m_table[index(ECLOGE, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "cs2", scratch),
+                       "cannot read dataset 'cs2'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "cs2", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real stored = static_cast<Real>(sqrt(raw));
+              CheckStoredFinite(stored, "cs2", in, iy, it);
+              m_table[index(ECCS, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Y[n]", scratch),
+                       "cannot read dataset 'Y[n]'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "Y[n]", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real stored = static_cast<Real>(raw);
+              CheckStoredFinite(stored, "Y[n]", in, iy, it);
+              m_table[index(ECYN, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Y[p]", scratch),
+                       "cannot read dataset 'Y[p]'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const double raw = scratch[index(0, in, iy, it)];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "Y[p]", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real stored = static_cast<Real>(raw);
+              CheckStoredFinite(stored, "Y[p]", in, iy, it);
+              m_table[index(ECYP, in, iy, it)] = stored;
+            }
+          }
+        }
+
+        vector<double> raw_yn(ncell);
+        vector<double> raw_an(ncell);
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Y[N]", scratch),
+                       "cannot read dataset 'Y[N]'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const ptrdiff_t source = index(0, in, iy, it);
+              const double raw       = scratch[source];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "Y[N]", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real stored = static_cast<Real>(raw);
+              CheckStoredFinite(stored, "Y[N]", in, iy, it);
+              m_table[index(ECXH, in, iy, it)]    = stored;
+              raw_yn[static_cast<size_t>(source)] = raw;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "A[N]", scratch),
+                       "cannot read dataset 'A[N]'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const ptrdiff_t source = index(0, in, iy, it);
+              const double raw       = scratch[source];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "A[N]", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real stored = static_cast<Real>(raw);
+              CheckStoredFinite(stored, "A[N]", in, iy, it);
+              m_table[index(ECAN, in, iy, it)]    = stored;
+              raw_an[static_cast<size_t>(source)] = raw;
+            }
+          }
+        }
+
+        CheckHDFStatus(H5LTread_dataset_double(file_id, "Z[N]", scratch),
+                       "cannot read dataset 'Z[N]'");
+        for (int in = 0; in < m_nn; ++in)
+        {
+          for (int iy = 0; iy < m_ny; ++iy)
+          {
+            for (int it = 0; it < m_nt; ++it)
+            {
+              const ptrdiff_t source = index(0, in, iy, it);
+              const double raw       = scratch[source];
+              if (!isfinite(raw) || raw < 0.0)
+              {
+                TableError(FieldError(
+                  "Z[N]", in, iy, it, "must be finite and nonnegative"));
+              }
+              const Real zn = static_cast<Real>(raw);
+              CheckStoredFinite(zn, "Z[N]", in, iy, it);
+              const Real an = m_table[index(ECAN, in, iy, it)];
+              if (raw_yn[static_cast<size_t>(source)] > 0.0 &&
+                  (!(raw_an[static_cast<size_t>(source)] > 0.0) ||
+                   !(raw <= raw_an[static_cast<size_t>(source)])))
+              {
+                TableError(
+                  FieldError("Z[N]",
+                             in,
+                             iy,
+                             it,
+                             "must satisfy 0 <= Z[N] <= A[N] when Y[N] > 0"));
+              }
+              m_table[index(ECZN, in, iy, it)] = zn;
+              const Real xh =
+                static_cast<Real>(an * raw_yn[static_cast<size_t>(source)]);
+              CheckStoredFinite(xh, "Y[N]", in, iy, it);
+              m_table[index(ECXH, in, iy, it)] = xh;
+            }
+          }
+        }
+
+        vector<double>().swap(raw_yn);
+        vector<double>().swap(raw_an);
+
+        if (dU_exists > 0)
+        {
+          CheckHDFStatus(H5LTread_dataset_double(file_id, "dU", scratch),
+                         "cannot read dataset 'dU'");
+          for (int in = 0; in < m_nn; ++in)
+          {
+            for (int iy = 0; iy < m_ny; ++iy)
+            {
+              for (int it = 0; it < m_nt; ++it)
+              {
+                const double raw = scratch[index(0, in, iy, it)];
+                if (!isfinite(raw))
+                {
+                  TableError(FieldError("dU", in, iy, it, "must be finite"));
+                }
+                const Real stored = static_cast<Real>(raw);
+                CheckStoredFinite(stored, "dU", in, iy, it);
+                m_table[index(ECDU, in, iy, it)] = stored;
+              }
+            }
+          }
+          m_has_dU = true;
+        }
+        else
+        {
+          fill(m_table + index(ECDU, 0, 0, 0),
+               m_table + index(ECDU, 0, 0, 0) + ncell,
+               Real(0.0));
+          m_has_dU = false;
+        }
+
+        delete[] scratch;
+        scratch                   = nullptr;
+        const herr_t close_status = H5Fclose(file_id);
+        file_id                   = H5I_INVALID_HID;
+        CheckHDFStatus(close_status, "cannot close EOS table");
+
+        if (uniformize_axes)
+        {
+          UniformizeAxes();
+        }
+        else
+        {
+          m_id_log_nb = InverseSpacing(m_log_nb[0], m_log_nb[1], "log(nb)");
+          m_id_log_t  = InverseSpacing(m_log_t[0], m_log_t[1], "log(T)");
+          m_id_yq     = InverseSpacing(m_yq[0], m_yq[1], "Yq");
+        }
+
+        m_initialized = true;
+        m_min_h       = numeric_limits<Real>::max();
+        for (int in = 0; in < m_nn; ++in)
+        {
+          Real const nb = exp(m_log_nb[in]);
+          for (int it = 0; it < m_nt; ++it)
+          {
+            Real const t = exp(m_log_t[it]);
+            for (int iy = 0; iy < m_ny; ++iy)
+            {
+              m_min_h = min(m_min_h, Enthalpy(nb, t, &m_yq[iy]));
+            }
+          }
+        }
+
+        sm_id_log_nb = m_id_log_nb;
+        sm_id_log_t  = m_id_log_t;
+        sm_id_yq     = m_id_yq;
+
+        sm_nn = m_nn;
+        sm_nt = m_nt;
+        sm_ny = m_ny;
+
+        sm_min_h = m_min_h;
+
+        s_mb       = mb;
+        s_max_n    = max_n;
+        s_min_n    = min_n;
+        s_max_T    = max_T;
+        s_min_T    = min_T;
+        s_max_Y[0] = max_Y[0];
+        s_min_Y[0] = min_Y[0];
+
+        s_mn = mn;
+        s_mp = mp;
       }
-
-      // Now that we have read everything locally, we must populate
-      // the aux static variables to share this data with other threads
-      sm_id_log_nb = m_id_log_nb;
-      sm_id_log_t  = m_id_log_t;
-      sm_id_yq     = m_id_yq;
-
-      sm_nn = m_nn;
-      sm_nt = m_nt;
-      sm_ny = m_ny;
-
-      sm_min_h = m_min_h;
-
-      s_mb       = mb;
-      s_max_n    = max_n;
-      s_min_n    = min_n;
-      s_max_T    = max_T;
-      s_min_T    = min_T;
-      s_max_Y[0] = max_Y[0];
-      s_min_Y[0] = min_Y[0];
-
-      s_mn = mn;
-      s_mp = mp;
+      catch (...)
+      {
+        if (m_initialized)
+        {
+          throw;
+        }
+        if (scratch != nullptr)
+        {
+          delete[] scratch;
+          scratch = nullptr;
+        }
+        if (file_id != H5I_INVALID_HID)
+        {
+          H5Fclose(file_id);
+          file_id = H5I_INVALID_HID;
+        }
+        delete[] m_log_nb;
+        delete[] m_log_t;
+        delete[] m_yq;
+        delete[] m_table;
+        m_log_nb      = nullptr;
+        m_log_t       = nullptr;
+        m_yq          = nullptr;
+        m_table       = nullptr;
+        m_nn          = 0;
+        m_nt          = 0;
+        m_ny          = 0;
+        m_id_log_nb   = numeric_limits<Real>::quiet_NaN();
+        m_id_log_t    = numeric_limits<Real>::quiet_NaN();
+        m_id_yq       = numeric_limits<Real>::quiet_NaN();
+        m_min_h       = numeric_limits<Real>::max();
+        m_has_dU      = false;
+        m_initialized = false;
+        throw;
+      }
     }  // if (sm_initialized==false)
   }  // omp critical (EOSCompOSE_ReadTable)
 

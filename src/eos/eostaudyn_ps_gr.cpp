@@ -114,7 +114,13 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
   std::string table = pin->GetString("hydro", "table");
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
+#if defined(USE_COMPOSE_EOS)
+  const bool compose_uniformize_axes =
+    pin->GetOrAddBoolean("hydro", "compose_uniformize_axes", true);
+  eos.ReadTableFromFile(table, compose_uniformize_axes);
+#else
   eos.ReadTableFromFile(table);
+#endif
   Real mb           = eos.GetBaryonMass();
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
   eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
@@ -186,7 +192,13 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
       pin->GetOrAddString("hydro", "species" + std::to_string(i + 1), "e");
   }
 
+#if defined(USE_COMPOSE_EOS)
+  const bool compose_uniformize_axes =
+    pin->GetOrAddBoolean("hydro", "compose_uniformize_axes", true);
+  eos->ReadColdSliceFromFile(table, species_names, compose_uniformize_axes);
+#else
   eos->ReadColdSliceFromFile(table, species_names);
+#endif
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
 
 #elif defined(USE_IDEAL_GAS)

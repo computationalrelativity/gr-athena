@@ -8,8 +8,9 @@
 //  Tables should be generated using
 //  <a href="https://bitbucket.org/dradice/pycompose">PyCompOSE</a>
 
-///  \warning This code assumes the table to be uniformly spaced in
-///           log nb, log t, and yq
+/// \warning The O(1) cold-table locator requires an axis uniform in log(nb).
+/// ReadColdSliceFromFile(..., true) explicitly remaps the cold slice in memory
+/// onto a same-size grid uniform in log(nb); false retains the source grid.
 
 #include <cstddef>
 #include <string>
@@ -85,7 +86,8 @@ class ColdEOSCompOSE
   public:
   /// Reads the cold slice table from file.
   void ReadColdSliceFromFile(std::string fname,
-                             std::string species_names[NSCALARS]);
+                             std::string species_names[NSCALARS],
+                             bool uniformize_axes = false);
 
   /// Dumps the eos_akmalpr.d file that lorene routines expect
   void DumpLoreneEOSFile(std::string fname);
@@ -93,7 +95,7 @@ class ColdEOSCompOSE
   // Indexing used to access the data
   inline ptrdiff_t index(int iv, int ix) const
   {
-    return ix + m_np * iv;
+    return ix + static_cast<ptrdiff_t>(m_np) * iv;
   }
 
   /// Get the raw table data
@@ -120,6 +122,7 @@ class ColdEOSCompOSE
 
   Real eval_at_general(int iv_in, int iv_out, Real v) const;
   int D0_x_2(double* f, double* x, int n, double* df);
+  void UniformizeAxis(Real* table, int np, Real* inverse_spacing);
 
   Real linterp1d(Real x, Real* xp, Real* fp) const;
 
