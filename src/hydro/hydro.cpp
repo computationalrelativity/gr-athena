@@ -86,6 +86,17 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
     }
   }
 
+#if MAGNETIC_FIELDS_ENABLED
+  if (solver_method_ == SolverMethod::hllc)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Hydro constructor" << std::endl
+        << "[hydro] rsolver=hllc is not supported in MHD builds."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+#endif
+
   if (pmb->precon->xorder_use_aux_eos_conditioned &&
       solver_method_ == SolverMethod::split_llf)
   {

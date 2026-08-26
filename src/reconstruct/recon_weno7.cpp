@@ -18,7 +18,7 @@
 //   S3 : {i  , i+1, i+2, i+3}
 //
 // FV ideal weights:         {  1/35,  12/35,  18/35,   4/35}
-// PW ideal weights:         {1/256, 25/256, 150/256, 80/256}
+// PW ideal weights:         {  1/64,  21/64,  35/64,   7/64}
 //
 // WENO7-Z:  alpha_k = d_k * (1 + tau/(eps + b_k)),  tau = |b0 - b3|
 // tau is shared between L and R (computed from L betas only).
@@ -40,7 +40,7 @@ static constexpr Real kOneTwelfth    = 1.0 / 12.0;
 static constexpr Real kOneSixteenth  = 1.0 / 16.0;
 
 static constexpr Real ow7_fv[4] = { 1. / 35., 12. / 35., 18. / 35., 4. / 35. };
-static constexpr Real ow7_pw[4] = { 1. / 256., 25. / 256., 150. / 256., 80. / 256. };
+static constexpr Real ow7_pw[4] = { 1. / 64., 21. / 64., 35. / 64., 7. / 64. };
 static constexpr Real EPSL       = 1e-40;
 
 // ---------------------------------------------------------------------------

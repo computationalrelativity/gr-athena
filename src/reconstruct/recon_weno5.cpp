@@ -348,6 +348,23 @@ inline void rec1d_p_weno5zcplus_LR(const Real uimt,
 }
 
 #pragma omp declare simd
+inline Real rec1d_p_weno5z_ns_g2(const Real d)
+{
+  const Real a = std::abs(d);
+  if (a <= 1.0)
+  {
+    const Real a3 = SQR(a) * a;
+    const Real g  = a3 / (1.0 + a3);
+    return SQR(g);
+  }
+
+  const Real oo_a  = 1.0 / a;
+  const Real oo_a3 = SQR(oo_a) * oo_a;
+  const Real g     = 1.0 / (1.0 + oo_a3);
+  return SQR(g);
+}
+
+#pragma omp declare simd
 template <bool pw>
 inline void rec1d_p_weno5z_ns_LR(const Real uimt,
                                  const Real uimo,
@@ -360,15 +377,13 @@ inline void rec1d_p_weno5z_ns_LR(const Real uimt,
   Real bL[3], bR[3];
 
   rec1d_p_NS_smoothness(bL[0], bL[1], bL[2], uimt, uimo, ui, uipo, uipt);
-  const Real L11 = uipo - ui;
+  const Real g2L = rec1d_p_weno5z_ns_g2(uipo - ui);
 
   const auto& ow = pw ? optimw_pw : optimw;
 
   {
     const Real db    = bL[0] - bL[2];
-    const Real L113  = SQR(L11) * L11;
-    const Real g     = L113 / (1.0 + L113);
-    const Real zetaL = 0.5 * (SQR(db) + SQR(g));
+    const Real zetaL = 0.5 * (SQR(db) + g2L);
 
     const Real aL_0 = ow[0] * (1.0 + zetaL / SQR(EPSL + bL[0]));
     const Real aL_1 = ow[1] * (1.0 + zetaL / SQR(EPSL + bL[1]));
@@ -384,12 +399,11 @@ inline void rec1d_p_weno5z_ns_LR(const Real uimt,
   }
 
   rec1d_p_NS_smoothness(bR[0], bR[1], bR[2], uipt, uipo, ui, uimo, uimt);
+  const Real g2R = rec1d_p_weno5z_ns_g2(uimo - ui);
 
   {
     const Real db    = bR[0] - bR[2];
-    const Real L113  = SQR(L11) * L11;
-    const Real g     = L113 / (1.0 + L113);
-    const Real zetaR = 0.5 * (SQR(db) + SQR(g));
+    const Real zetaR = 0.5 * (SQR(db) + g2R);
 
     const Real aR_0 = ow[0] * (1.0 + zetaR / SQR(EPSL + bR[0]));
     const Real aR_1 = ow[1] * (1.0 + zetaR / SQR(EPSL + bR[1]));

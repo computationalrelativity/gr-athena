@@ -592,17 +592,29 @@ void Hydro::RiemannSolverHLLC(
     // ================================================================
     //  CONTACT WAVE SPEED lambda_c (scale-invariant quadratic)
     // ================================================================
-    Real a_q = f_hll(4, i);
-    Real b_q = -(q_hll(4, i) + f_hll(1, i));
-    Real c_q =  q_hll(1, i);
+    const Real a_q = f_hll(4, i);
+    const Real b_q = -(q_hll(4, i) + f_hll(1, i));
+    const Real c_q = q_hll(1, i);
 
     const Real coeff_scale = std::max({ std::abs(a_q), std::abs(b_q), std::abs(c_q) });
-    const Real coeff_tol   = 1e-12 * coeff_scale;
+    if (!std::isfinite(coeff_scale) || coeff_scale <= 0.0) {
+      ++hllc_nfallback_;
+      for (int n = 0; n < NHYDRO; ++n)
+        flux(n, k, j, i) = 0.5 *
+          ((flux_l_(n, i) + flux_r_(n, i)) -
+           lambda(i) * (cons_r_(n, i) - cons_l_(n, i)));
+      continue;
+    }
 
-    if (std::abs(a_q) > coeff_tol) {
+    const Real a = a_q / coeff_scale;
+    const Real b = b_q / coeff_scale;
+    const Real c = c_q / coeff_scale;
+    const Real coeff_tol = 1e-12;
+
+    if (std::abs(a) > coeff_tol) {
       // Quadratic branch
-      Real disc = b_q * b_q - 4.0 * a_q * c_q;
-      const Real disc_scale = b_q * b_q + 4.0 * std::abs(a_q * c_q);
+      Real disc = b * b - 4.0 * a * c;
+      const Real disc_scale = b * b + 4.0 * std::abs(a * c);
       const Real disc_tol   = 1e-12 * disc_scale;
 
       if (!std::isfinite(disc) || disc < -disc_tol) {
@@ -617,13 +629,13 @@ void Hydro::RiemannSolverHLLC(
       disc = std::max(disc, 0.0);
 
       // Cancellation-resistant minus root
-      if (b_q >= 0.0)
-        lambda_c(i) = (-b_q - std::sqrt(disc)) / (2.0 * a_q);
+      if (b >= 0.0)
+        lambda_c(i) = (-b - std::sqrt(disc)) / (2.0 * a);
       else
-        lambda_c(i) = -2.0 * c_q / (b_q - std::sqrt(disc));
-    } else if (std::abs(b_q) > coeff_tol) {
+        lambda_c(i) = -2.0 * c / (b - std::sqrt(disc));
+    } else if (std::abs(b) > coeff_tol) {
       // Linear branch: a ~ 0 but b is resolved
-      lambda_c(i) = -c_q / b_q;
+      lambda_c(i) = -c / b;
     } else {
       // Both a and b are unresolved -- fall back to LLF
       ++hllc_nfallback_;
