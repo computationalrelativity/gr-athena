@@ -85,7 +85,7 @@ M1N0::M1N0(ParameterInput* pin,
 
     Add(SETB, RECV, &M1N0::SetBoundaries);
 
-    Add(UPDATE_COUPLING, SETB, &M1N0::UpdateCoupling);
+    Add(UPDATE_COUPLING, (SETB | CALC_UPDATE), &M1N0::UpdateCoupling);
 
     if (multilevel)
     {
