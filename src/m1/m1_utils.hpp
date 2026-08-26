@@ -1416,8 +1416,9 @@ inline void Jacobian_sc_E_sp_F_d(
   }
 }
 
-// Fused source + residual + Z-Jacobian computation for the custom Newton
-// solver. Computes all three quantities in a single pass, sharing all
+// Fused source + residual + Z-Jacobian computation for the custom
+// lagged-closure quasi-Newton solver. Computes all three quantities in a
+// single pass, sharing all
 // intermediates (d_th/d_tk, opacities, alpha, Lorentz factor, expansion
 // coefficients, etc.) between the source and Jacobian evaluations.
 //
@@ -1432,10 +1433,17 @@ inline void Jacobian_sc_E_sp_F_d(
 // - Separate Z_E_F_d call: residual is formed inline from pre-hoisted
 //   iteration-invariant WE/WF_d constants
 //
+// For state-dependent closures, this differentiates S at fixed sc_chi:
+//   ZJ = I - dt * (dS/dX)|chi.
+// Closure is refreshed after each projected state update, so ZJ omits
+//   (dS/dchi) * dchi/dX,
+// including the implicit xi(X) response for Minerbo and Kershaw. Therefore
+// ZJ is a quasi-Newton matrix, not the total source Jacobian.
+//
 // Outputs:
 //   S_E_out, S_F_d_out[3]  - source terms (for writing to S after convergence)
-//   Z_vec[4]               - residual vector (for Newton linear solve)
-//   ZJ[4][4]               - Z-Jacobian = I - dt * dS/dX (for Newton solve)
+//   Z_vec[4]               - residual vector (for quasi-Newton linear solve)
+//   ZJ[4][4]               - fixed-closure Z-Jacobian
 inline void sources_and_ZJacobian_sc_E_sp_F_d(
   M1 & pm1,
   Real & S_E_out,              // Output: source S_E (scalar)
