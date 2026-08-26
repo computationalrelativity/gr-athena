@@ -222,14 +222,15 @@ void Z4c::Z4cToADM(AthenaArray<Real>& u, AthenaArray<Real>& u_adm)
     {
       GLOOP1(i)
       {
-        adm.psi4(k, j, i) = 1.0 / z4c.chi(k, j, i);
+        adm.psi4(k, j, i) = 1.0 / chiRegularized(z4c.chi(k, j, i));
       }
     }
     else
     {
       GLOOP1(i)
       {
-        adm.psi4(k, j, i) = std::pow(z4c.chi(k, j, i), 4. / opt.chi_psi_power);
+        adm.psi4(k, j, i) =
+          std::pow(chiRegularized(z4c.chi(k, j, i)), 4. / opt.chi_psi_power);
       }
     }
     // g_ab
@@ -311,7 +312,7 @@ void Z4c::Z4cToADM(AA& u,
           {
             continue;
           }
-          adm.psi4(k, j, i) = 1.0 / z4c.chi(k, j, i);
+          adm.psi4(k, j, i) = 1.0 / chiRegularized(z4c.chi(k, j, i));
         }
       }
       else
@@ -324,7 +325,7 @@ void Z4c::Z4cToADM(AA& u,
             continue;
           }
           adm.psi4(k, j, i) =
-            std::pow(z4c.chi(k, j, i), 4. / opt.chi_psi_power);
+            std::pow(chiRegularized(z4c.chi(k, j, i)), 4. / opt.chi_psi_power);
         }
       }
 
@@ -1168,8 +1169,7 @@ void Z4c::PrepareAuxExtended(AA& u_aux_extended, AA& u, AA& u_adm)
   {
     GLOOP3(k, j, i)
     {
-      const Real chi         = std::abs(z4c.chi(k, j, i));
-      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      const Real chi_guarded = pz4c->chiRegularized(z4c.chi(k, j, i));
       aux_extended.gs_sqrt_detgamma(k, j, i) =
         1.0 / (chi_guarded * std::sqrt(chi_guarded));
     }
@@ -1179,8 +1179,7 @@ void Z4c::PrepareAuxExtended(AA& u_aux_extended, AA& u, AA& u_adm)
     const Real chi_pow = 12.0 / pz4c->opt.chi_psi_power;
     GLOOP3(k, j, i)
     {
-      const Real chi         = std::abs(z4c.chi(k, j, i));
-      const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+      const Real chi_guarded = pz4c->chiRegularized(z4c.chi(k, j, i));
       aux_extended.gs_sqrt_detgamma(k, j, i) =
         std::pow(chi_guarded, chi_pow / 2.0);
     }
@@ -1273,8 +1272,7 @@ void Z4c::PrepareAuxExtended(AA& u_aux_extended,
           {
             continue;
           }
-          const Real chi         = std::abs(z4c.chi(k, j, i));
-          const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+          const Real chi_guarded = pz4c->chiRegularized(z4c.chi(k, j, i));
           aux_extended.gs_sqrt_detgamma(k, j, i) =
             1.0 / (chi_guarded * std::sqrt(chi_guarded));
         }
@@ -1289,8 +1287,7 @@ void Z4c::PrepareAuxExtended(AA& u_aux_extended,
           {
             continue;
           }
-          const Real chi         = std::abs(z4c.chi(k, j, i));
-          const Real chi_guarded = std::max(chi, pz4c->opt.chi_div_floor);
+          const Real chi_guarded = pz4c->chiRegularized(z4c.chi(k, j, i));
           aux_extended.gs_sqrt_detgamma(k, j, i) =
             std::pow(chi_guarded, chi_pow / 2.0);
         }
