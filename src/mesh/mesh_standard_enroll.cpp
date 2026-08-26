@@ -266,7 +266,7 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
   EnrollUserHistoryOutput(max_rho, "max_rho", UserHistoryOperation::max);
   EnrollUserHistoryOutput(max_T, "max_T", UserHistoryOperation::max);
   EnrollUserHistoryOutput(
-    num_c2p_fail, "num_c2p_fail", UserHistoryOperation::max);
+    num_c2p_fail, "num_c2p_fail", UserHistoryOperation::sum);
 
   // Enroll all average [windowed] quantities ---------------------------------
   InputBlock* pib = pin->pfirst_block;
