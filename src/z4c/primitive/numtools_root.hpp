@@ -63,17 +63,16 @@ class Root
     last_count         = 0;
     // Get our initial bracket.
     Real flb = f(lb, args...);
-    Real fub = f(ub, args...);
-    Real xold;
-    x = lb;
+    x        = lb;
     // If one of the bounds is already within tolerance of the root, we can
     // skip all of this.
     if (std::fabs(flb) <= tol)
     {
-      x = lb;
       return true;
     }
-    else if (std::fabs(fub) <= tol)
+
+    Real fub = f(ub, args...);
+    if (std::fabs(fub) <= tol)
     {
       x = ub;
       return true;
@@ -84,24 +83,16 @@ class Root
     }
     do
     {
-      xold = x;
       // Calculate the new root position.
       x = (fub * lb - flb * ub) / (fub - flb);
       count++;
 
-      // Robust relative-x tolerance: guard against x -> 0 by adding
-      // tol in the denominator (degenerates to absolute tol when |x|
-      // is small, relative tol when |x| is large).
-      if (std::fabs(x - xold) <= tol * (std::fabs(x) + tol))
-      {
-        return true;
-      }
-
-      // Calculate f at the prospective root.
+      // Calculate f at the prospective root before accepting it. Besides the
+      // residual, f may update caller-owned state for the accepted root.
       ftest = f(x, args...);
 
-      // Functional tolerance: also accept convergence when |f| is
-      // already within tolerance of zero.
+      // Functional tolerance: accept convergence only when the evaluated
+      // residual is within tolerance of zero.
       if (std::fabs(ftest) <= tol)
       {
         return true;
@@ -136,9 +127,8 @@ class Root
     } while (count < iterations);
     last_count = count;
 
-    // Return success if we're below the tolerance, otherwise report failure.
-    return std::fabs(x - xold) <= tol * (std::fabs(x) + tol) ||
-           std::fabs(ftest) <= tol;
+    // Return success only for an evaluated residual within tolerance.
+    return std::fabs(ftest) <= tol;
   }
 
   // }}}
