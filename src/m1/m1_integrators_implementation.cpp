@@ -962,9 +962,6 @@ void StepImplicitCustomN(
       WF_d[a] = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
     }
 
-    Real S_E_final = 0.0;
-    Real S_F_d_final[N] = {};
-
     enum class Failure
     {
       none,
@@ -1076,16 +1073,18 @@ void StepImplicitCustomN(
       return true;
     };
 
-    auto evaluate = [&](Real &S_E, Real (&S_F_d)[N],
-                        Real (&Z)[N_SYS], Real (&ZJ)[N_SYS][N_SYS])
+    auto evaluate = [&](Real (&Z)[N_SYS], Real (&ZJ)[N_SYS][N_SYS])
     {
+      Real S_E_unused = 0.0;
+      Real S_F_d_unused[N] = {};
+
       const auto cache = Assemble::Frames::make_cache(
         pm1, C.sc_E, C.sp_F_d, k, j, i
       );
 
       Assemble::Frames::sources_and_ZJacobian_sc_E_sp_F_d(
         pm1,
-        S_E, S_F_d,
+        S_E_unused, S_F_d_unused,
         Z, ZJ,
         dt, WE, WF_d,
         C.sc_chi, C.sc_E, C.sp_F_d,
@@ -1097,7 +1096,7 @@ void StepImplicitCustomN(
 
     Real Z_vec[N_SYS];
     Real ZJ[N_SYS][N_SYS];
-    evaluate(S_E_final, S_F_d_final, Z_vec, ZJ);
+    evaluate(Z_vec, ZJ);
 
     int iter = 0;
     bool converged = false;
@@ -1179,11 +1178,9 @@ void StepImplicitCustomN(
         }
         CL_C.Closure(k, j, i);
 
-        Real S_E_trial = 0.0;
-        Real S_F_d_trial[N] = {};
         Real Z_trial[N_SYS];
         Real ZJ_trial[N_SYS][N_SYS];
-        evaluate(S_E_trial, S_F_d_trial, Z_trial, ZJ_trial);
+        evaluate(Z_trial, ZJ_trial);
 
         if (!system_is_finite(Z_trial, ZJ_trial))
         {
@@ -1203,12 +1200,6 @@ void StepImplicitCustomN(
           {
             ZJ[a][b] = ZJ_trial[a][b];
           }
-        }
-
-        S_E_final = S_E_trial;
-        for (int a = 0; a < N; ++a)
-        {
-          S_F_d_final[a] = S_F_d_trial[a];
         }
 
         accepted = true;
@@ -1254,11 +1245,13 @@ void StepImplicitCustomN(
       failure = Failure::max_iterations;
     }
 
-    // Publish source values evaluated at the last accepted physical state.
-    S.sc_E(k,j,i) = S_E_final;
+    // Publish the source implied by the accepted physical state.
+    const Real oo_dt = OO(dt);
+    S.sc_E(k,j,i) = oo_dt * (C.sc_E(k,j,i) - WE);
     for (int a = 0; a < N; ++a)
     {
-      S.sp_F_d(a,k,j,i) = S_F_d_final[a];
+      S.sp_F_d(a,k,j,i) =
+        oo_dt * (C.sp_F_d(a,k,j,i) - WF_d[a]);
     }
 
     const auto failure_name = [&]()
