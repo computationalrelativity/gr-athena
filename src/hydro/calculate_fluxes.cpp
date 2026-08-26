@@ -10,6 +10,7 @@
 // C headers
 
 // C++ headers
+#include <cmath>
 
 // Athena++ headers
 #include "../athena.hpp"
@@ -97,16 +98,18 @@ void InterpolateGeometry(MeshBlock* pmb,
 #pragma omp simd
   for (int i = il; i <= iu; ++i)
   {
-    const Real detgamma_i    = SQR(sqrt_detgamma_(i));
-    const Real oo_detgamma_i = OO(detgamma_i);
-    gamma_uu_(d, d, i)       = Inv3MetricDiag(oo_detgamma_i,
-                                        gamma_dd_(0, 0, i),
-                                        gamma_dd_(0, 1, i),
-                                        gamma_dd_(0, 2, i),
-                                        gamma_dd_(1, 1, i),
-                                        gamma_dd_(1, 2, i),
-                                        gamma_dd_(2, 2, i),
-                                        d);
+    // The tetrad must use the inverse of the separately interpolated face
+    // metric.
+    const Real detgamma_face    = Det3Metric(gamma_dd_, i);
+    const Real oo_detgamma_face = OO(detgamma_face);
+    gamma_uu_(d, d, i)          = Inv3MetricDiag(oo_detgamma_face,
+                                                 gamma_dd_(0, 0, i),
+                                                 gamma_dd_(0, 1, i),
+                                                 gamma_dd_(0, 2, i),
+                                                 gamma_dd_(1, 1, i),
+                                                 gamma_dd_(1, 2, i),
+                                                 gamma_dd_(2, 2, i),
+                                                 d);
   }
 }
 
@@ -115,15 +118,15 @@ void ReconstructFields(MeshBlock* pmb,
                        Reconstruction::ReconstructionVariant rv_a,
                        Reconstruction::ReconstructionVariant rv_b,
                        AA& wl_,
-                       AA& wr_,  // rec. primitive hydro
+                       AA& wr_,
                        AA& rl_,
-                       AA& rr_,  // rec. passive scalars
+                       AA& rr_,
                        AA& al_,
-                       AA& ar_,  // rec. auxiliary quantities
-                       AA& w,    // CC: primitive hydro
-                       AA& r,    // CC: passive scalars
-                       AA& bcc,  // CC: magnetic fields
-                       AA& aux,  // CC: auxiliary quantities
+                       AA& ar_,
+                       AA& w,
+                       AA& r,
+                       AA& bcc,
+                       AA& aux,
                        const int ivx,
                        const int k,
                        const int j,
@@ -134,111 +137,122 @@ void ReconstructFields(MeshBlock* pmb,
   Hydro* ph             = pmb->phydro;
   PassiveScalars* ps    = pmb->pscalars;
   EquationOfState* peos = pmb->peos;
+#if EOS_POLICY_CODE == 2
+  const bool xorder_use_aux_eos_conditioned =
+    pr->xorder_use_aux_eos_conditioned;
+#else
+  const bool xorder_use_aux_eos_conditioned = false;
+#endif
 
-  const int os_il = (ivx == 1) ? 1 : 0;  // l_ populated at i+1 on Recon. call
+  const int os_il = (ivx == 1) ? 1 : 0;
 
-  // hydro primitives -------------------------------------
   for (int n = 0; n < NHYDRO; ++n)
-  {
-    pr->ReconstructFieldXd(rv_w, w, wl_, wr_, ivx, n, n, k, j, il - os_il, iu);
-  }
+    if (!xorder_use_aux_eos_conditioned || n != IPR)
+      pr->ReconstructFieldXd(rv_w, w, wl_, wr_, ivx, n, n, k, j, il - os_il, iu);
 
-  // magnetic fields --------------------------------------
+  if (xorder_use_aux_eos_conditioned)
+    pr->ReconstructFieldXd(
+      rv_a, w, wl_, wr_, ivx, IPR, IPR, k, j, il - os_il, iu);
+
   if (MAGNETIC_FIELDS_ENABLED)
   {
     int ISA, ISB;
-
     switch (ivx)
     {
       case 1:
-      {
         ISA = IB2;
         ISB = IB3;
         break;
-      }
       case 2:
-      {
         ISA = IB3;
         ISB = IB1;
         break;
-      }
       case 3:
-      {
         ISA = IB1;
         ISB = IB2;
         break;
-      }
     }
-
     pr->ReconstructFieldXd(
       rv_b, bcc, wl_, wr_, ivx, IBY, ISA, k, j, il - os_il, iu);
     pr->ReconstructFieldXd(
       rv_b, bcc, wl_, wr_, ivx, IBZ, ISB, k, j, il - os_il, iu);
   }
 
-  // passive scalars --------------------------------------
   for (int n = 0; n < NSCALARS; ++n)
-  {
     pr->ReconstructFieldXd(rv_w, r, rl_, rr_, ivx, n, n, k, j, il - os_il, iu);
-  }
 
-  // auxiliary quantities ---------------------------------
   if (pr->xorder_use_auxiliaries)
-  {
     for (int n = 0; n < NDRV_HYDRO; ++n)
-    {
       if (((n == IX_T) && pr->xorder_use_aux_T) ||
           (n == IX_ETH && pr->xorder_use_aux_h) ||
           (n == IX_LOR && pr->xorder_use_aux_W) ||
           (n == IX_CS2 && pr->xorder_use_aux_cs2) ||
-          (n == IX_SPB && pr->xorder_use_aux_s))
-      {
+          (n == IX_SPB && pr->xorder_use_aux_s) ||
+          (n == IX_SEN && xorder_use_aux_eos_conditioned))
         pr->ReconstructFieldXd(
           rv_a, aux, al_, ar_, ivx, n, n, k, j, il - os_il, iu);
-      }
-    }
-  }
-
-  // impose whatever limits are required --------------------------------------
-  // Only supporting PrimitiveSolver, proceed as follows:
-  //
-  // - Impose density limits
-  // - Limit species first if they exist
-  // - If we reconstructed T:
-  //   - Limit
-  //   - Recompute from P
-  // - Apply primitive floors
-  // - Limit W, h, cs2 if they are also reconstructed
-  //
-  // Note: When xorder_use_aux_T is set, T is reconstructed to faces and
-  // pressure recomputed for consistency.
-  //
-  // The reconstructed T is needed by ApplyPrimitiveFloor below.
 
 #if !FLUID_ENABLED
-  // only support operation with PrimitiveSolver
   assert(false);
 #endif
 
-  Real mb = peos->GetEOS().GetBaryonMass();
-
-  const Real min_ETH = peos->GetEOS().GetMinimumEnthalpy();
-
+  Real mb                = peos->GetEOS().GetBaryonMass();
+  const Real min_ETH     = peos->GetEOS().GetMinimumEnthalpy();
   Real Yl__[MAX_SPECIES] = { 0.0 };
   Real Yr__[MAX_SPECIES] = { 0.0 };
-
-  Real Wvul__[NDIM] = { 0.0 };
-  Real Wvur__[NDIM] = { 0.0 };
+  Real Wvul__[NDIM]      = { 0.0 };
+  Real Wvur__[NDIM]      = { 0.0 };
   Real Wvul_before__[NDIM] = { 0.0 };
   Real Wvur_before__[NDIM] = { 0.0 };
-
   Real nl__, nr__;
+
+#if EOS_POLICY_CODE == 2
+  auto GetConditionedTemperature = [peos, mb](Real n,
+                                              Real P,
+                                              Real epsilon,
+                                              Real* Y) {
+    auto& eos = peos->GetEOS();
+    const Real T_P = eos.GetTemperatureFromP(n, P, Y);
+    const Real E   = mb * n * (1.0 + epsilon);
+    const Real T_E = eos.GetTemperatureFromE(n, E, Y);
+
+    Real kappa_P, kappa_E_unused;
+    Real kappa_P_unused, kappa_E;
+    const bool P_condition =
+      n >= eos.GetDensityFloor() &&
+      eos.GetTemperatureInversionCondition(
+        n, T_P, Y, &kappa_P, &kappa_E_unused);
+    const bool E_condition =
+      std::isfinite(E) && E > 0.0 &&
+      eos.GetTemperatureInversionCondition(
+        n, T_E, Y, &kappa_P_unused, &kappa_E);
+    const bool P_usable =
+      P_condition && std::isfinite(kappa_P) && kappa_P > 0.0;
+    const bool E_usable =
+      E_condition && std::isfinite(kappa_E) && kappa_E > 0.0;
+    if (!P_usable)
+    {
+      return E_usable ? T_E : T_P;
+    }
+    if (!E_usable)
+    {
+      return T_P;
+    }
+
+    const Real kappa_max = std::max(kappa_P, kappa_E);
+    const Real kappa_P_scaled = kappa_P / kappa_max;
+    const Real kappa_E_scaled = kappa_E / kappa_max;
+    const Real w_P = SQR(kappa_E_scaled) /
+                     (SQR(kappa_P_scaled) + SQR(kappa_E_scaled));
+    return std::exp(w_P * std::log(T_P) +
+                    (1.0 - w_P) * std::log(T_E));
+  };
+#endif
 
   for (int i = il - os_il; i <= iu; ++i)
   {
     nl__ = wl_(IDN, i) / mb;
     nr__ = wr_(IDN, i) / mb;
-
     const bool nl_limited = peos->GetEOS().ApplyDensityLimits(nl__);
     const bool nr_limited = peos->GetEOS().ApplyDensityLimits(nr__);
 
@@ -247,13 +261,11 @@ void ReconstructFields(MeshBlock* pmb,
       Wvul_before__[n] = Wvul__[n] = wl_(IVX + n, i);
       Wvur_before__[n] = Wvur__[n] = wr_(IVX + n, i);
     }
-
     for (int n = 0; n < NSCALARS; ++n)
     {
       Yl__[n] = rl_(n, i);
       Yr__[n] = rr_(n, i);
     }
-
     bool yl_limited = false;
     bool yr_limited = false;
     if (NSCALARS > 0)
@@ -266,23 +278,30 @@ void ReconstructFields(MeshBlock* pmb,
     bool sr_limited = false;
     bool Pl_limited = false;
     bool Pr_limited = false;
+
+#if EOS_POLICY_CODE == 2
+    if (xorder_use_aux_eos_conditioned)
+    {
+      al_(IX_T, i) = GetConditionedTemperature(
+        nl__, wl_(IPR, i), al_(IX_SEN, i), Yl__);
+      ar_(IX_T, i) = GetConditionedTemperature(
+        nr__, wr_(IPR, i), ar_(IX_SEN, i), Yr__);
+    }
+    else
+#endif
     if (pr->xorder_use_aux_s)
     {
-      // Clamp reconstructed entropy per baryon to the EOS-supported range.
       sl_limited = peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
       sr_limited = peos->GetEOS().ApplyEntropyLimits(ar_(IX_SPB, i), nr__, Yr__);
-      // Invert entropy -> temperature.
       al_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nl__, al_(IX_SPB, i), Yl__);
       ar_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nr__, ar_(IX_SPB, i), Yr__);
-      // Recompute pressure from (n,T,Y) before ApplyPrimitiveFloor.
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
     else if (pr->xorder_use_aux_T)
     {
-      // Recompute pressure from (n,T,Y) before ApplyPrimitiveFloor.
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
@@ -349,6 +368,23 @@ void ReconstructFields(MeshBlock* pmb,
       }
     }
 
+#if EOS_POLICY_CODE == 2
+    if (xorder_use_aux_eos_conditioned)
+    {
+      peos->GetEOS().GetPressureEnthalpyAndSoundSpeed(
+        nl__, al_(IX_T, i), Yl__, &wl_(IPR, i), &al_(IX_ETH, i),
+        &al_(IX_CS2, i));
+      peos->GetEOS().GetPressureEnthalpyAndSoundSpeed(
+        nr__, ar_(IX_T, i), Yr__, &wr_(IPR, i), &ar_(IX_ETH, i),
+        &ar_(IX_CS2, i));
+      if (peos->restrict_cs2)
+      {
+        al_(IX_CS2, i) = std::min(al_(IX_CS2, i), peos->max_cs2);
+        ar_(IX_CS2, i) = std::min(ar_(IX_CS2, i), peos->max_cs2);
+      }
+    }
+    else
+#endif
     if (!pr->xorder_use_aux_h || left_limited)
     {
       peos->GetEOS().GetPressureAndEnthalpy(
@@ -361,15 +397,20 @@ void ReconstructFields(MeshBlock* pmb,
     }
 
     if (pr->xorder_limit_species)
-    {
       for (int n = 0; n < NSCALARS; ++n)
       {
         rl_(n, i) = Yl__[n];
         rr_(n, i) = Yr__[n];
       }
-    }
 
-    if (pr->xorder_floor_primitives)
+    if (xorder_use_aux_eos_conditioned)
+    {
+      al_(IX_SEN, i) =
+        al_(IX_ETH, i) - 1.0 - wl_(IPR, i) / wl_(IDN, i);
+      ar_(IX_SEN, i) =
+        ar_(IX_ETH, i) - 1.0 - wr_(IPR, i) / wr_(IDN, i);
+    }
+    else if (pr->xorder_floor_primitives)
     {
       al_(IX_ETH, i) = std::max(al_(IX_ETH, i), min_ETH);
       ar_(IX_ETH, i) = std::max(ar_(IX_ETH, i), min_ETH);
@@ -398,6 +439,15 @@ void ReconstructFields(MeshBlock* pmb,
   }
 }
 
+// forward declaration (defined below; called by Hydro member functions)
+void ReconstructSwap(MeshBlock* pmb,
+                     AA& wl_,
+                     AA& wlb_,
+                     AA& rl_,
+                     AA& rlb_,
+                     AA& al_,
+                     AA& alb_);
+
 void ReconstructSwap(MeshBlock* pmb,
                      AA& wl_,
                      AA& wlb_,
@@ -406,12 +456,10 @@ void ReconstructSwap(MeshBlock* pmb,
                      AA& al_,
                      AA& alb_)
 {
-  Reconstruction* pr = pmb->precon;
   wl_.SwapAthenaArray(wlb_);
-
-  if (NSCALARS > 0)
-    rl_.SwapAthenaArray(rlb_);
-
+#if NSCALARS > 0
+  rl_.SwapAthenaArray(rlb_);
+#endif
   al_.SwapAthenaArray(alb_);
 }
 
@@ -429,6 +477,13 @@ void Hydro::CalculateFluxes(AA& w,
                             const int num_enlarge_layer,
                             ThreadCache* cache)
 {
+  if (solver_method_ == SolverMethod::split_llf)
+  {
+    CalculateFluxesSplit(
+      w, r, b, bcc, hflux, sflux, rv, num_enlarge_layer, cache);
+    return;
+  }
+
   CalculateFluxesCombined(
     w, r, b, bcc, hflux, sflux, rv, num_enlarge_layer, cache);
   return;
@@ -589,6 +644,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                     lambda_rescaling);
 
 #endif
+      if (pr->xorder_flux_correction)
+      {
+        CorrectFluxX1(x1flux, w, derived_ms, r, s_x1flux, k, j, il, iu);
+      }
     }
   //---------------------------------------------------------------------------
 
@@ -729,6 +788,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
+        if (pr->xorder_flux_correction)
+        {
+          CorrectFluxX2(x2flux, w, derived_ms, r, s_x2flux, k, j, il, iu);
+        }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
@@ -874,6 +937,10 @@ void Hydro::CalculateFluxesCombined(AA& w,
                       dxw_,
                       lambda_rescaling);
 #endif
+        if (pr->xorder_flux_correction)
+        {
+          CorrectFluxX3(x3flux, w, derived_ms, r, s_x3flux, k, j, il, iu);
+        }
 
         // swap the arrays for the next step (l<->lb)
         ReconstructSwap(pmb, wl_, wlb_, rl_, rlb_, al_, alb_);
@@ -902,6 +969,13 @@ void Hydro::CalculateFluxesCachedGeometry(
   ThreadCache& cache,
   const AA_B& mask)
 {
+  if (solver_method_ == SolverMethod::split_llf)
+  {
+    CalculateFluxesSplitCached(
+      w, r, b, bcc, hflux, sflux, rv, num_enlarge_layer, cache, mask);
+    return;
+  }
+
   MeshBlock* pmb = pmy_block;
 
   Reconstruction* pr = pmb->precon;

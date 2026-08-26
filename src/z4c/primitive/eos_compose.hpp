@@ -55,6 +55,16 @@ class EOSCompOSE : public EOSPolicyInterface
   /// Calculate the temperature from the pressure
   Real TemperatureFromP(Real n, Real p, Real* Y);
 
+  /// Return table-interior inverse-temperature conditioning.  The returned
+  /// values are kappa_q = 1 / |d log(q) / d log(T)| for pressure and energy;
+  /// an unavailable slope is returned as NaN.  False denotes no interior
+  /// temperature bracket.
+  bool TemperatureInversionCondition(Real n,
+                                     Real T,
+                                     Real* Y,
+                                     Real* kappa_P,
+                                     Real* kappa_E);
+
   /// Calculate the temperature from the entropy
   Real TemperatureFromEntropy(Real n, Real s, Real* Y);
 
@@ -89,6 +99,10 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Fused pressure + enthalpy: single weight computation for both P and h.
   void PressureAndEnthalpy(Real n, Real T, Real* Y, Real* P, Real* h);
+
+  /// Fused pressure + enthalpy + sound speed from one table interpolation.
+  void PressureEnthalpyAndSoundSpeed(
+    Real n, Real T, Real* Y, Real* P, Real* h, Real* cs);
 
   /// Calculate the sound speed.
   Real SoundSpeed(Real n, Real T, Real* Y);
@@ -184,17 +198,14 @@ class EOSCompOSE : public EOSPolicyInterface
 
   /// Set the maxium density.
   /// Values higher than the max of the table will lead to extrapolation
-  void SetMaximumDensity(Real n_max)
-  {
-    max_n = n_max;
-  }
+  void SetMaximumDensity(Real n_max);
 
   /// Set the maxium termperature.
   /// Values higher than the max of the table will lead to extrapolation
-  void SetMaximumTemperature(Real T_max)
-  {
-    max_T = T_max;
-  }
+  void SetMaximumTemperature(Real T_max);
+
+  /// Set both maximum thermodynamic coordinates.
+  void SetMaximumDomain(Real n_max, Real T_max);
 
   // N.B. non-converted
   Real GetTableProtonMass()
@@ -225,6 +236,11 @@ class EOSCompOSE : public EOSPolicyInterface
   Real eval_at_nty(int vi, Real n, Real T, Real Yq) const;
   /// Low level evaluation function, not intended for outside use
   Real eval_at_lnty(int vi, Real ln, Real lT, Real Yq) const;
+
+  /// Compute a lower enthalpy bound over the active EOS domain.
+  Real ComputeMinimumEnthalpyBound() const;
+  /// Refresh the shared bound for the active EOS domain.
+  void RefreshMinimumEnthalpyBound();
 
   /// Evaluate interpolation weight for density
   void weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const;
@@ -284,7 +300,7 @@ class EOSCompOSE : public EOSPolicyInterface
   Real m_id_log_nb, m_id_log_t, m_id_yq;
   // Table size
   int m_nn, m_nt, m_ny;
-  // Minimum enthalpy per baryon
+  // Lower enthalpy bound per baryon
   Real m_min_h;
 
   // Table storage, care should be made to store these data on the GPU later
@@ -301,13 +317,14 @@ class EOSCompOSE : public EOSPolicyInterface
 
   // Whether the optional dU dataset was present in the loaded HDF5 table.
   // When false, InteractionPotentialDifference asserts on call.
-  bool m_has_dU = false;
+  static bool m_has_dU;
 
   // Auxiliary static variables to share data only available when table is open
   // to those threads that do not open it variables from EOSCompOSE
   static Real sm_id_log_nb, sm_id_log_t, sm_id_yq;
   static int sm_nn, sm_nt, sm_ny;
   static Real sm_min_h;
+  static Real sm_active_min_h, sm_active_max_n, sm_active_max_T;
 
   // variables from EOSPolicy
   static Real s_mb, s_max_n, s_min_n, s_max_T, s_min_T, s_max_Y[MAX_SPECIES],

@@ -8,17 +8,6 @@
 // ----------------------------------------------------------------------------
 namespace {
 
-/*
-// BAM conventions (e.g.):
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_m_weno5(zimt,zimo,zi,zipo,zipt);
-//
-// or- flip the arguments and write one function
-//
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_p_weno5(zipt,zipo,zi,zimo,zimt);
-*/
-
 // monotonized central
 #pragma omp declare simd
 Real rec1d_p_lin_mc2(const Real uimo, const Real ui, const Real uipo);
@@ -38,7 +27,7 @@ void Reconstruction::ReconstructLinearVLX1(AthenaArray<Real> &z,
                                            const int j,
                                            const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k,j,i-1);
@@ -59,7 +48,7 @@ void Reconstruction::ReconstructLinearVLX2(AthenaArray<Real> &z,
                                            const int j,
                                            const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k,j-1,i);
@@ -80,7 +69,7 @@ void Reconstruction::ReconstructLinearVLX3(AthenaArray<Real> &z,
                                            const int j,
                                            const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k-1,j,i);
@@ -103,7 +92,7 @@ void Reconstruction::ReconstructLinearMC2X1(AthenaArray<Real> &z,
                                             const int j,
                                             const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k,j,i-1);
@@ -124,7 +113,7 @@ void Reconstruction::ReconstructLinearMC2X2(AthenaArray<Real> &z,
                                             const int j,
                                             const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k,j-1,i);
@@ -145,7 +134,7 @@ void Reconstruction::ReconstructLinearMC2X3(AthenaArray<Real> &z,
                                             const int j,
                                             const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimo = z(n_src,k-1,j,i);

@@ -348,6 +348,24 @@ MeshRefinement::MeshRefinement(MeshBlock* pmb, ParameterInput* pin)
       uc_h2_           = (pmb->block_size.nx2 > 1) ? pco->dx2f(0) : 0.0;
       uc_h3_           = (pmb->block_size.nx3 > 1) ? pco->dx3f(0) : 0.0;
     }
+
+    if (pm->hydro_prolong_op == comm::ProlongOp::WenoZ)
+    {
+      const bool supported_coordinate =
+        std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0 ||
+        std::strcmp(COORDINATE_SYSTEM, "gr_dynamical") == 0;
+      if (!uniform_cart_ || !supported_coordinate)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in MeshRefinement::MeshRefinement\n";
+        if (!uniform_cart_)
+          msg << "hydro_prolongation = wenoz requires a uniform mesh generator\n";
+        if (!supported_coordinate)
+          msg << "hydro_prolongation = wenoz requires cartesian or gr_dynamical "
+              << "coordinates" << std::endl;
+        ATHENA_ERROR(msg);
+      }
+    }
   }
 }
 

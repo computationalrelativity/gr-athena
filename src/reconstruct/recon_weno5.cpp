@@ -22,19 +22,26 @@ namespace
 */
 
 // ---------------------------------------------------------------------------
-// File-scope constexpr constants (Change 1 & 2)
+// File-scope constexpr constants
 // ---------------------------------------------------------------------------
 
 // Smoothness indicator coefficients (Jiang & Shu '96)
 static constexpr Real kThreeHalves = 3.0 / 2.0;
 static constexpr Real kOneQuarter  = 1.0 / 4.0;
+static constexpr Real kThirteenTwelfths = 13.0 / 12.0;
 
 // Stencil polynomial coefficients
 static constexpr Real kOneSixth = 1.0 / 6.0;
 
 // WENO5 optimal weights & epsilon
 static constexpr Real optimw[3] = { 1. / 10., 3. / 5., 3. / 10. };
-static constexpr Real EPSL      = 1e-40;  // 1e-6
+static constexpr Real EPSL      = 1e-40;
+
+// WENO5-ZC+ centering coefficients
+static constexpr Real c_zcp[3] = { 9. / 8., 9. / 4., 9. / 8. };
+
+// Pointwise optimal weights
+static constexpr Real optimw_pw[3] = { 1. / 16., 5. / 8., 5. / 16. };
 
 // See:
 // A novel and robust scale-invariant WENO scheme for hyperbolic conservation
@@ -46,9 +53,10 @@ static constexpr int W5D_SI_p     = 2;
 static constexpr int W5D_SI_s     = 1;
 static constexpr Real W5D_SI_mu_0 = 1e-40;
 
-// Constexpr integer power -- resolves at compile time.
-// For W5D_SI_p=2: ipow<2>(x) -> x*x  (eliminates std::pow)
-// For W5D_SI_s=1: ipow<1>(x) -> x    (eliminates std::pow)
+// WENO5-NS (Ha et al. 2013) xi parameter for L1-based smoothness (formula 3.6)
+static constexpr Real kNSxi = 0.4;
+
+// Constexpr integer power
 template <int N>
 inline Real ipow(Real x)
 {
@@ -64,9 +72,10 @@ inline Real ipow(Real x)
 }
 
 // ---------------------------------------------------------------------------
-// Forward declarations
+// Shared building blocks (defined before template LR functions)
 // ---------------------------------------------------------------------------
 
+// JS smoothness indicators (Jiang & Shu '96)
 #pragma omp declare simd
 inline void rec1d_p_JS_smoothness(Real& b_0,
                                   Real& b_1,
@@ -75,8 +84,17 @@ inline void rec1d_p_JS_smoothness(Real& b_0,
                                   const Real uimo,
                                   const Real ui,
                                   const Real uipo,
-                                  const Real uipt);
+                                  const Real uipt)
+{
+  b_0 = kThirteenTwelfths * SQR((uimt - 2.0 * uimo + ui)) +
+        kOneQuarter * SQR((uimt - 4.0 * uimo + 3.0 * ui));
+  b_1 = kThirteenTwelfths * SQR((uimo - 2.0 * ui + uipo)) +
+        kOneQuarter * SQR((uimo - uipo));
+  b_2 = kThirteenTwelfths * SQR((ui - 2.0 * uipo + uipt)) +
+        kOneQuarter * SQR((3.0 * ui - 4.0 * uipo + uipt));
+}
 
+// FV (cell-average) stencil polynomials
 #pragma omp declare simd
 inline void rec1d_p_weno5stencils(Real& u_0,
                                   Real& u_1,
@@ -85,57 +103,321 @@ inline void rec1d_p_weno5stencils(Real& u_0,
                                   const Real uimo,
                                   const Real ui,
                                   const Real uipo,
-                                  const Real uipt);
+                                  const Real uipt)
+{
+  u_0 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
+  u_1 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
+  u_2 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
+}
 
-// Single-directional functions (kept for reference / standalone use)
+// PW (pointwise) stencil polynomials
 #pragma omp declare simd
-Real rec1d_p_weno5(const Real uimt,
-                   const Real uimo,
-                   const Real ui,
-                   const Real uipo,
-                   const Real uipt);
+inline void rec1d_p_weno5stencils_pw(Real& u_0,
+                                     Real& u_1,
+                                     Real& u_2,
+                                     const Real uimt,
+                                     const Real uimo,
+                                     const Real ui,
+                                     const Real uipo,
+                                     const Real uipt)
+{
+  u_0 = (3.0 * uimt - 10.0 * uimo + 15.0 * ui) * (1.0 / 8.0);
+  u_1 = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+  u_2 = (3.0 * ui + 6.0 * uipo - uipt) * (1.0 / 8.0);
+}
+
+// NS smoothness indicators (Ha et al. 2013, formula 3.6)
+#pragma omp declare simd
+inline void rec1d_p_NS_smoothness(Real& b_0,
+                                  Real& b_1,
+                                  Real& b_2,
+                                  const Real uimt,
+                                  const Real uimo,
+                                  const Real ui,
+                                  const Real uipo,
+                                  const Real uipt)
+{
+  b_0 = kNSxi * std::abs(uimt - 3.0 * uimo + 2.0 * ui) +
+        std::abs(uimt - 2.0 * uimo + ui);
+  b_1 = kNSxi * std::abs(uipo - ui) +
+        std::abs(uimo - 2.0 * ui + uipo);
+  b_2 = kNSxi * std::abs(uipo - ui) +
+        std::abs(ui - 2.0 * uipo + uipt);
+}
+
+// ---------------------------------------------------------------------------
+// Paired L+R functions — templated on <bool pw>
+//
+// pw = false : cell-average (FV) stencils + optimw
+// pw = true  : pointwise (PW) stencils + optimw_pw
+// Smoothness indicators and weighting formulas are identical.
+// ---------------------------------------------------------------------------
 
 #pragma omp declare simd
-Real rec1d_p_weno5z(const Real uimt,
-                    const Real uimo,
-                    const Real ui,
-                    const Real uipo,
-                    const Real uipt);
-
-#pragma omp declare simd
-Real rec1d_p_weno5d_si(const Real uimt,
-                       const Real uimo,
-                       const Real ui,
-                       const Real uipo,
-                       const Real uipt);
-
-// Paired L+R functions (optimized: single beta computation per cell)
-#pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_weno5_LR(const Real uimt,
                              const Real uimo,
                              const Real ui,
                              const Real uipo,
                              const Real uipt,
                              Real& uL,
-                             Real& uR);
+                             Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  const Real aL_0 = ow[0] / SQR((EPSL + b[0]));
+  const Real aL_1 = ow[1] / SQR((EPSL + b[1]));
+  const Real aL_2 = ow[2] / SQR((EPSL + b[2]));
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  else
+    rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 = ow[0] / SQR((EPSL + b[2]));
+  const Real aR_1 = ow[1] / SQR((EPSL + b[1]));
+  const Real aR_2 = ow[2] / SQR((EPSL + b[0]));
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  else
+    rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
 
 #pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_weno5z_LR(const Real uimt,
                               const Real uimo,
                               const Real ui,
                               const Real uipo,
                               const Real uipt,
                               Real& uL,
-                              Real& uR);
+                              Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+  const Real db = std::abs(b[0] - b[2]);
+
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  const Real aL_0 = ow[0] * (1.0 + db / (EPSL + b[0]));
+  const Real aL_1 = ow[1] * (1.0 + db / (EPSL + b[1]));
+  const Real aL_2 = ow[2] * (1.0 + db / (EPSL + b[2]));
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  else
+    rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 = ow[0] * (1.0 + db / (EPSL + b[2]));
+  const Real aR_1 = ow[1] * (1.0 + db / (EPSL + b[1]));
+  const Real aR_2 = ow[2] * (1.0 + db / (EPSL + b[0]));
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  else
+    rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
 
 #pragma omp declare simd
+template <bool pw>
 inline void rec1d_p_weno5d_si_LR(const Real uimt,
                                  const Real uimo,
                                  const Real ui,
                                  const Real uipo,
                                  const Real uipt,
                                  Real& uL,
-                                 Real& uR);
+                                 Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const Real phi = std::sqrt(std::abs(b[0] - 2. * b[1] + b[2]));
+  const Real tau = std::abs(b[0] - b[2]);
+
+  const int r   = 3;
+  const Real xi = (std::abs(uimt) + std::abs(uimo) + std::abs(ui) +
+                   std::abs(uipo) + std::abs(uipt)) /
+                  (2. * (r)-1.);
+
+  const Real mu  = xi + W5D_SI_mu_0;
+  const Real mu2 = SQR(mu);
+  const Real Phi = std::min(1., phi / mu);
+  const Real eps_mu2 = W5D_SI_EPSL * mu2;
+
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  const Real ZL_0 = ipow<W5D_SI_p>(tau / (b[0] + eps_mu2));
+  const Real ZL_1 = ipow<W5D_SI_p>(tau / (b[1] + eps_mu2));
+  const Real ZL_2 = ipow<W5D_SI_p>(tau / (b[2] + eps_mu2));
+  const Real aL_0 = ow[0] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
+  const Real aL_1 = ow[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
+  const Real aL_2 = ow[2] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  else
+    rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 = ow[0] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
+  const Real aR_1 = ow[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
+  const Real aR_2 = ow[2] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  else
+    rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
+
+#pragma omp declare simd
+template <bool pw>
+inline void rec1d_p_weno5zcplus_LR(const Real uimt,
+                                   const Real uimo,
+                                   const Real ui,
+                                   const Real uipo,
+                                   const Real uipt,
+                                   Real& uL,
+                                   Real& uR)
+{
+  Real b[3];
+  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
+
+  const Real tau        = std::abs(b[0] - b[2]);
+  const Real bbar       = (b[0] + b[1] + b[2]) * (1.0 / 3.0);
+  const Real d_plus     = tau + bbar + EPSL;
+  const Real tau_factor = tau / d_plus;
+
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  const Real aL_0 =
+    ow[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real aL_1 =
+    ow[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aL_2 =
+    ow[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+  Real ukL[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  else
+    rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+
+  const Real aR_0 =
+    ow[0] *
+    (1.0 + c_zcp[0] * (tau / (EPSL + b[2])) * tau_factor + b[2] / d_plus);
+  const Real aR_1 =
+    ow[1] *
+    (1.0 + c_zcp[1] * (tau / (EPSL + b[1])) * tau_factor + b[1] / d_plus);
+  const Real aR_2 =
+    ow[2] *
+    (1.0 + c_zcp[2] * (tau / (EPSL + b[0])) * tau_factor + b[0] / d_plus);
+  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+  Real ukR[3];
+  if constexpr (pw)
+    rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  else
+    rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+}
+
+#pragma omp declare simd
+inline Real rec1d_p_weno5z_ns_g2(const Real d)
+{
+  const Real a = std::abs(d);
+  if (a <= 1.0)
+  {
+    const Real a3 = SQR(a) * a;
+    const Real g  = a3 / (1.0 + a3);
+    return SQR(g);
+  }
+
+  const Real oo_a  = 1.0 / a;
+  const Real oo_a3 = SQR(oo_a) * oo_a;
+  const Real g     = 1.0 / (1.0 + oo_a3);
+  return SQR(g);
+}
+
+#pragma omp declare simd
+template <bool pw>
+inline void rec1d_p_weno5z_ns_LR(const Real uimt,
+                                 const Real uimo,
+                                 const Real ui,
+                                 const Real uipo,
+                                 const Real uipt,
+                                 Real& uL,
+                                 Real& uR)
+{
+  Real bL[3], bR[3];
+
+  rec1d_p_NS_smoothness(bL[0], bL[1], bL[2], uimt, uimo, ui, uipo, uipt);
+  const Real g2L = rec1d_p_weno5z_ns_g2(uipo - ui);
+
+  const auto& ow = pw ? optimw_pw : optimw;
+
+  {
+    const Real db    = bL[0] - bL[2];
+    const Real zetaL = 0.5 * (SQR(db) + g2L);
+
+    const Real aL_0 = ow[0] * (1.0 + zetaL / SQR(EPSL + bL[0]));
+    const Real aL_1 = ow[1] * (1.0 + zetaL / SQR(EPSL + bL[1]));
+    const Real aL_2 = ow[2] * (1.0 + zetaL / SQR(EPSL + bL[2]));
+    const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
+
+    Real ukL[3];
+    if constexpr (pw)
+      rec1d_p_weno5stencils_pw(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+    else
+      rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
+    uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
+  }
+
+  rec1d_p_NS_smoothness(bR[0], bR[1], bR[2], uipt, uipo, ui, uimo, uimt);
+  const Real g2R = rec1d_p_weno5z_ns_g2(uimo - ui);
+
+  {
+    const Real db    = bR[0] - bR[2];
+    const Real zetaR = 0.5 * (SQR(db) + g2R);
+
+    const Real aR_0 = ow[0] * (1.0 + zetaR / SQR(EPSL + bR[0]));
+    const Real aR_1 = ow[1] * (1.0 + zetaR / SQR(EPSL + bR[1]));
+    const Real aR_2 = ow[2] * (1.0 + zetaR / SQR(EPSL + bR[2]));
+    const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
+
+    Real ukR[3];
+    if constexpr (pw)
+      rec1d_p_weno5stencils_pw(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+    else
+      rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
+    uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
+  }
+}
 
 }  // namespace
 // ----------------------------------------------------------------------------
@@ -164,7 +446,10 @@ void Reconstruction::ReconstructWeno5X1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_weno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -190,7 +475,10 @@ void Reconstruction::ReconstructWeno5X2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_weno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -216,7 +504,10 @@ void Reconstruction::ReconstructWeno5X3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_weno5_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -246,7 +537,10 @@ void Reconstruction::ReconstructWeno5ZX1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_weno5z_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5z_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -272,7 +566,10 @@ void Reconstruction::ReconstructWeno5ZX2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_weno5z_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5z_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -298,7 +595,10 @@ void Reconstruction::ReconstructWeno5ZX3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_weno5z_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5z_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -328,7 +628,10 @@ void Reconstruction::ReconstructWeno5dsiX1(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j, i + 2);
 
     Real uL, uR;
-    rec1d_p_weno5d_si_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5d_si_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5d_si_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i + 1) = uL;
     zr_(n_tar, i)     = uR;
   }
@@ -354,7 +657,10 @@ void Reconstruction::ReconstructWeno5dsiX2(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k, j + 2, i);
 
     Real uL, uR;
-    rec1d_p_weno5d_si_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5d_si_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5d_si_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
@@ -380,57 +686,202 @@ void Reconstruction::ReconstructWeno5dsiX3(AthenaArray<Real>& z,
     const Real zipt = z(n_src, k + 2, j, i);
 
     Real uL, uR;
-    rec1d_p_weno5d_si_LR(zimt, zimo, zi, zipo, zipt, uL, uR);
+    if (xorder_pointwise)
+      rec1d_p_weno5d_si_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5d_si_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
     zl_(n_tar, i) = uL;
     zr_(n_tar, i) = uR;
   }
 }
 
-// impl -----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// WENO5-ZC+ (Barreto et al.)
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructWeno5zcplusX1(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5zcplus_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5zcplus_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusX2(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5zcplus_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5zcplus_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zcplusX3(AthenaArray<Real>& z,
+                                              AthenaArray<Real>& zl_,
+                                              AthenaArray<Real>& zr_,
+                                              const int n_tar,
+                                              const int n_src,
+                                              const int k,
+                                              const int j,
+                                              const int il,
+                                              const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5zcplus_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5zcplus_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// WENO5-NS (Ha et al. 2013): L1-norm smoothness + NS-type nonlinear weights
+// ----------------------------------------------------------------------------
+
+void Reconstruction::ReconstructWeno5zNsX1(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j, i - 2);
+    const Real zimo = z(n_src, k, j, i - 1);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j, i + 1);
+    const Real zipt = z(n_src, k, j, i + 2);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5z_ns_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_ns_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i + 1) = uL;
+    zr_(n_tar, i)     = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zNsX2(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k, j - 2, i);
+    const Real zimo = z(n_src, k, j - 1, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k, j + 1, i);
+    const Real zipt = z(n_src, k, j + 2, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5z_ns_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_ns_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+void Reconstruction::ReconstructWeno5zNsX3(AthenaArray<Real>& z,
+                                           AthenaArray<Real>& zl_,
+                                           AthenaArray<Real>& zr_,
+                                           const int n_tar,
+                                           const int n_src,
+                                           const int k,
+                                           const int j,
+                                           const int il,
+                                           const int iu)
+{
+#pragma omp simd simdlen(SIMD_WIDTH)
+  for (int i = il; i <= iu; ++i)
+  {
+    const Real zimt = z(n_src, k - 2, j, i);
+    const Real zimo = z(n_src, k - 1, j, i);
+    const Real zi   = z(n_src, k, j, i);
+    const Real zipo = z(n_src, k + 1, j, i);
+    const Real zipt = z(n_src, k + 2, j, i);
+
+    Real uL, uR;
+    if (xorder_pointwise)
+      rec1d_p_weno5z_ns_LR<true>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    else
+      rec1d_p_weno5z_ns_LR<false>(zimt, zimo, zi, zipo, zipt, uL, uR);
+    zl_(n_tar, i) = uL;
+    zr_(n_tar, i) = uR;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single-direction reference functions (standalone, not used in production)
+// ---------------------------------------------------------------------------
 namespace
 {
-
-// ---------------------------------------------------------------------------
-// Shared building blocks
-// ---------------------------------------------------------------------------
-
-#pragma omp declare simd
-inline void rec1d_p_JS_smoothness(Real& b_0,
-                                  Real& b_1,
-                                  Real& b_2,
-                                  const Real uimt,
-                                  const Real uimo,
-                                  const Real ui,
-                                  const Real uipo,
-                                  const Real uipt)
-{
-  // Smoothness coefficients, Jiang & Shu '96
-  b_0 = kThreeHalves * SQR((uimt - 2.0 * uimo + ui)) +
-        kOneQuarter * SQR((uimt - 4.0 * uimo + 3.0 * ui));
-  b_1 = kThreeHalves * SQR((uimo - 2.0 * ui + uipo)) +
-        kOneQuarter * SQR((uimo - uipo));
-  b_2 = kThreeHalves * SQR((ui - 2.0 * uipo + uipt)) +
-        kOneQuarter * SQR((3.0 * ui - 4.0 * uipo + uipt));
-}
-
-#pragma omp declare simd
-inline void rec1d_p_weno5stencils(Real& u_0,
-                                  Real& u_1,
-                                  Real& u_2,
-                                  const Real uimt,
-                                  const Real uimo,
-                                  const Real ui,
-                                  const Real uipo,
-                                  const Real uipt)
-{
-  u_0 = kOneSixth * (2.0 * uimt - 7.0 * uimo + 11.0 * ui);
-  u_1 = kOneSixth * (-uimo + 5.0 * ui + 2.0 * uipo);
-  u_2 = kOneSixth * (2.0 * ui + 5.0 * uipo - uipt);
-}
-
-// ---------------------------------------------------------------------------
-// Single-directional functions (kept for reference / standalone use)
-// ---------------------------------------------------------------------------
 
 #pragma omp declare simd
 Real rec1d_p_weno5(const Real uimt,
@@ -439,14 +890,6 @@ Real rec1d_p_weno5(const Real uimt,
                    const Real uipo,
                    const Real uipt)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
-  Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
-  */
   Real uk[3], b[3];
   rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
 
@@ -467,14 +910,6 @@ Real rec1d_p_weno5z(const Real uimt,
                     const Real uipo,
                     const Real uipt)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
-  Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
-  */
   Real uk[3], b[3];
   rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
 
@@ -497,14 +932,6 @@ Real rec1d_p_weno5d_si(const Real uimt,
                        const Real uipo,
                        const Real uipt)
 {
-  /*
-    // Computes u[i + 1/2]
-    Real uimt = u [i-2];
-    Real uimo = u [i-1];
-    Real ui   = u [i];
-    Real uipo = u [i+1];
-    Real uipt = u [i+2];
-  */
   Real uk[3], a[3], b[3];
 
   rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
@@ -512,7 +939,6 @@ Real rec1d_p_weno5d_si(const Real uimt,
   const Real phi = std::sqrt(std::abs(b[0] - 2. * b[1] + b[2]));
   const Real tau = std::abs(b[0] - b[2]);
 
-  // local descaling function
   const int r   = 3;
   const Real xi = (std::abs(uimt) + std::abs(uimo) + std::abs(ui) +
                    std::abs(uipo) + std::abs(uipt)) /
@@ -524,7 +950,6 @@ Real rec1d_p_weno5d_si(const Real uimt,
 
   const Real eps_mu2 = W5D_SI_EPSL * mu2;
 
-  // Unrolled (was for j=0..2); uses ipow to eliminate std::pow
   {
     const Real Z_0   = ipow<W5D_SI_p>(tau / (b[0] + eps_mu2));
     const Real Gam_0 = Phi * Z_0;
@@ -547,150 +972,4 @@ Real rec1d_p_weno5d_si(const Real uimt,
   return dsa * (a[0] * uk[0] + a[1] * uk[1] + a[2] * uk[2]);
 }
 
-// ---------------------------------------------------------------------------
-// Paired L+R functions (optimized: single beta computation per cell)
-//
-// Exploits the Jiang-Shu smoothness indicator symmetry under argument
-// reversal:
-//   b_0(uipt,uipo,ui,uimo,uimt) = b_2(uimt,uimo,ui,uipo,uipt)
-//   b_1(uipt,uipo,ui,uimo,uimt) = b_1(uimt,uimo,ui,uipo,uipt)
-//   b_2(uipt,uipo,ui,uimo,uimt) = b_0(uimt,uimo,ui,uipo,uipt)
-//
-// So we compute betas once (forward) and derive L weights from (b0,b1,b2),
-// R weights from (b2,b1,b0). Stencil polynomials do NOT share this symmetry
-// and are computed separately for L and R.
-// ---------------------------------------------------------------------------
-
-#pragma omp declare simd
-inline void rec1d_p_weno5_LR(const Real uimt,
-                             const Real uimo,
-                             const Real ui,
-                             const Real uipo,
-                             const Real uipt,
-                             Real& uL,
-                             Real& uR)
-{
-  Real b[3];
-  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
-
-  // --- Left state: weights from (b[0], b[1], b[2]) ---
-  const Real aL_0 = optimw[0] / SQR((EPSL + b[0]));
-  const Real aL_1 = optimw[1] / SQR((EPSL + b[1]));
-  const Real aL_2 = optimw[2] / SQR((EPSL + b[2]));
-  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
-
-  Real ukL[3];
-  rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
-  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
-
-  // --- Right state: weights from (b[2], b[1], b[0]) (symmetry) ---
-  const Real aR_0 = optimw[0] / SQR((EPSL + b[2]));
-  const Real aR_1 = optimw[1] / SQR((EPSL + b[1]));
-  const Real aR_2 = optimw[2] / SQR((EPSL + b[0]));
-  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
-
-  Real ukR[3];
-  rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
-  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
-}
-
-#pragma omp declare simd
-inline void rec1d_p_weno5z_LR(const Real uimt,
-                              const Real uimo,
-                              const Real ui,
-                              const Real uipo,
-                              const Real uipt,
-                              Real& uL,
-                              Real& uR)
-{
-  Real b[3];
-  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
-
-  // tau = |b0 - b2| is invariant under the L/R swap
-  const Real db = std::abs(b[0] - b[2]);
-
-  // --- Left state: weights from (b[0], b[1], b[2]) ---
-  const Real aL_0 = optimw[0] * (1.0 + db / (EPSL + b[0]));
-  const Real aL_1 = optimw[1] * (1.0 + db / (EPSL + b[1]));
-  const Real aL_2 = optimw[2] * (1.0 + db / (EPSL + b[2]));
-  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
-
-  Real ukL[3];
-  rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
-  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
-
-  // --- Right state: weights from (b[2], b[1], b[0]) (symmetry) ---
-  const Real aR_0 = optimw[0] * (1.0 + db / (EPSL + b[2]));
-  const Real aR_1 = optimw[1] * (1.0 + db / (EPSL + b[1]));
-  const Real aR_2 = optimw[2] * (1.0 + db / (EPSL + b[0]));
-  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
-
-  Real ukR[3];
-  rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
-  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
-}
-
-#pragma omp declare simd
-inline void rec1d_p_weno5d_si_LR(const Real uimt,
-                                 const Real uimo,
-                                 const Real ui,
-                                 const Real uipo,
-                                 const Real uipt,
-                                 Real& uL,
-                                 Real& uR)
-{
-  Real b[3];
-  rec1d_p_JS_smoothness(b[0], b[1], b[2], uimt, uimo, ui, uipo, uipt);
-
-  // All of the following are invariant under the L/R argument swap:
-  //   phi = sqrt(|b0 - 2*b1 + b2|)  -- symmetric in b0,b2
-  //   tau = |b0 - b2|               -- symmetric
-  //   xi  = (sum |u_k|) / 5         -- symmetric (same stencil values)
-  //   mu, mu2, Phi, eps_mu2          -- derived from the above
-  const Real phi = std::sqrt(std::abs(b[0] - 2. * b[1] + b[2]));
-  const Real tau = std::abs(b[0] - b[2]);
-
-  // local descaling function
-  const int r   = 3;
-  const Real xi = (std::abs(uimt) + std::abs(uimo) + std::abs(ui) +
-                   std::abs(uipo) + std::abs(uipt)) /
-                  (2. * (r)-1.);
-
-  const Real mu  = xi + W5D_SI_mu_0;
-  const Real mu2 = SQR(mu);
-  const Real Phi = std::min(1., phi / mu);
-
-  const Real eps_mu2 = W5D_SI_EPSL * mu2;
-
-  // --- Left state: weights from (b[0], b[1], b[2]) ---
-  // Unrolled, with ipow to eliminate std::pow
-  const Real ZL_0 = ipow<W5D_SI_p>(tau / (b[0] + eps_mu2));
-  const Real ZL_1 = ipow<W5D_SI_p>(tau / (b[1] + eps_mu2));
-  const Real ZL_2 = ipow<W5D_SI_p>(tau / (b[2] + eps_mu2));
-  const Real aL_0 = optimw[0] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
-  const Real aL_1 = optimw[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
-  const Real aL_2 = optimw[2] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
-  const Real dsaL = 1.0 / (aL_0 + aL_1 + aL_2);
-
-  Real ukL[3];
-  rec1d_p_weno5stencils(ukL[0], ukL[1], ukL[2], uimt, uimo, ui, uipo, uipt);
-  uL = dsaL * (aL_0 * ukL[0] + aL_1 * ukL[1] + aL_2 * ukL[2]);
-
-  // --- Right state: weights from (b[2], b[1], b[0]) (symmetry) ---
-  // Z values reuse those already computed (just swapped indices)
-  const Real aR_0 = optimw[0] * ipow<W5D_SI_s>(1. + Phi * ZL_2);
-  const Real aR_1 = optimw[1] * ipow<W5D_SI_s>(1. + Phi * ZL_1);
-  const Real aR_2 = optimw[2] * ipow<W5D_SI_s>(1. + Phi * ZL_0);
-  const Real dsaR = 1.0 / (aR_0 + aR_1 + aR_2);
-
-  Real ukR[3];
-  rec1d_p_weno5stencils(ukR[0], ukR[1], ukR[2], uipt, uipo, ui, uimo, uimt);
-  uR = dsaR * (aR_0 * ukR[0] + aR_1 * ukR[1] + aR_2 * ukR[2]);
-}
-
 }  // namespace
-// ----------------------------------------------------------------------------
-
-//
-// :D
-//

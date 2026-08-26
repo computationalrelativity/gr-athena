@@ -72,6 +72,38 @@
 #include <mpi.h>
 #endif
 
+namespace {
+
+comm::ProlongOp ParseHydroProlongation(ParameterInput* pin)
+{
+  const std::string prolongation =
+    pin->GetOrAddString("amr", "hydro_prolongation", "minmod");
+  if (prolongation == "minmod")
+    return comm::ProlongOp::MinmodLinear;
+  if (prolongation == "wenoz")
+  {
+    const int weno_cnghost = (NGHOST + 1) / 2 + 2;
+    if (NGHOST < 4 || NCGHOST < weno_cnghost)
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in ParseHydroProlongation\n"
+          << "hydro_prolongation = wenoz requires NGHOST >= 4 and NCGHOST >= "
+          << weno_cnghost << std::endl;
+      ATHENA_ERROR(msg);
+    }
+    return comm::ProlongOp::WenoZ;
+  }
+
+  std::stringstream msg;
+  msg << "### FATAL ERROR in ParseHydroProlongation\n"
+      << "hydro_prolongation = " << prolongation
+      << " is invalid; allowed values are minmod and wenoz" << std::endl;
+  ATHENA_ERROR(msg);
+  return comm::ProlongOp::MinmodLinear;
+}
+
+}  // namespace
+
 //----------------------------------------------------------------------------------------
 // Mesh constructor, builds mesh at start of calculation using parameters in
 // input file
@@ -112,6 +144,7 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
          pin->GetOrAddString("mesh", "refinement", "none") == "static")
           ? true
           : false),
+      hydro_prolong_op(ParseHydroProlongation(pin)),
       start_time(pin->GetOrAddReal("time", "start_time", 0.0)),
       time(start_time),
       tlim(pin->GetReal("time", "tlim")),
@@ -269,7 +302,11 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
       tc.AllocateFCGeom(nc1, nc2, nc3);
       if (FLUID_ENABLED &&
           pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+      {
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+        if (pin->GetOrAddString("hydro", "rsolver", "llf") == "split_llf")
+          tc.AllocateSplitFluxCache(nc1, nc2, nc3);
+      }
       if (M1_ENABLED)
       {
         bool m1_fb_E = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E", false);
@@ -820,6 +857,7 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
          pin->GetOrAddString("mesh", "refinement", "none") == "static")
           ? true
           : false),
+      hydro_prolong_op(ParseHydroProlongation(pin)),
       start_time(pin->GetOrAddReal("time", "start_time", 0.0)),
       time(start_time),
       tlim(pin->GetReal("time", "tlim")),
@@ -939,7 +977,11 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
       tc.AllocateFCGeom(nc1, nc2, nc3);
       if (FLUID_ENABLED &&
           pin->GetOrAddBoolean("time", "xorder_use_fb", false))
+      {
         tc.AllocateLOFlux(nc1, nc2, nc3, f2, f3);
+        if (pin->GetOrAddString("hydro", "rsolver", "llf") == "split_llf")
+          tc.AllocateSplitFluxCache(nc1, nc2, nc3);
+      }
       if (M1_ENABLED)
       {
         bool m1_fb_E = pin->GetOrAddBoolean("M1", "flux_lo_fallback_E", false);

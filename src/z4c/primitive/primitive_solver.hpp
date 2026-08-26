@@ -192,6 +192,16 @@ class PrimitiveSolver
   };
   // }}}
   private:
+  static constexpr RetainedFailureMode retained_failure_mode =
+    EOS<EOSPolicy, ErrorPolicy>::GetRetainedFailureMode();
+
+  struct FailureSnapshot
+  {
+    Real D;
+    Real tau;
+    Real DY[MAX_SPECIES];
+  };
+
   /// A constant pointer to the EOS.
   /// We make this constant because the
   /// possibility of changing the EOS
@@ -228,6 +238,132 @@ class PrimitiveSolver
                           Real rsq,
                           Real rbsq,
                           Real h_min);
+
+  bool TryRetainedFailure(Real prim[NPRIM],
+                          Real cons[NCONS],
+                          Real bu[NMAG],
+                          Real g3d[NSPMETRIC],
+                          const FailureSnapshot& snapshot,
+                          SolverResult& solver_result)
+  {
+    static_assert(retained_failure_mode != RetainedFailureMode::none,
+                  "Retained recovery requires a retained-state policy.");
+
+    const Real mb          = peos->GetBaryonMass();
+    const Real n_min       = peos->GetMinimumDensity();
+    const Real n_max       = peos->GetMaximumDensity();
+    const Real n_atm       = peos->GetDensityFloor();
+    const Real n_threshold = peos->GetThreshold();
+    if (!std::isfinite(snapshot.D) || snapshot.D <= 0.0 ||
+        !std::isfinite(mb) || mb <= 0.0 || !std::isfinite(n_min) ||
+        !std::isfinite(n_max) || !std::isfinite(n_atm) ||
+        !std::isfinite(n_threshold))
+    {
+      return false;
+    }
+
+    const Real n       = snapshot.D / mb;
+    const Real n_lower = std::max(n_min, n_atm * n_threshold);
+    if (!std::isfinite(n) || !std::isfinite(n_lower) || n < n_lower ||
+        n > n_max)
+    {
+      return false;
+    }
+
+    const int n_species = peos->GetNSpecies();
+    Real Y[MAX_SPECIES] = { 0.0 };
+    bool valid_species[MAX_SPECIES] = { false };
+    bool species_adjusted           = false;
+    for (int s = 0; s < n_species; ++s)
+    {
+      const Real candidate = snapshot.DY[s] / snapshot.D;
+      const Real Y_min     = peos->GetMinimumSpeciesFraction(s);
+      const Real Y_max     = peos->GetMaximumSpeciesFraction(s);
+      if (std::isfinite(candidate) && std::isfinite(Y_min) &&
+          std::isfinite(Y_max) && candidate >= Y_min && candidate <= Y_max)
+      {
+        Y[s]             = candidate;
+        valid_species[s] = true;
+      }
+      else
+      {
+        Y[s]             = peos->GetSpeciesAtmosphere(s);
+        species_adjusted = true;
+        if (!std::isfinite(Y[s]) || Y[s] < Y_min || Y[s] > Y_max)
+        {
+          return false;
+        }
+      }
+    }
+
+    RetainedThermalState thermal =
+      peos->GetColdRetainedThermalState(n, Y);
+    if constexpr (retained_failure_mode == RetainedFailureMode::state_tau)
+    {
+      const Real Bsq      = SquareVector(bu, g3d);
+      const Real e_target = snapshot.tau + snapshot.D - Bsq / 2.0;
+      thermal             = peos->GetRetainedThermalState(n, e_target, Y);
+    }
+    if (thermal.mode == RetainedThermalMode::invalid ||
+        !peos->DoRetainedFailureResponse(prim, n, thermal, Y))
+    {
+      return false;
+    }
+
+    if (PrimToCon(prim, cons, bu, g3d) != Error::SUCCESS)
+    {
+      return false;
+    }
+    for (int c = IDN; c <= IEN; ++c)
+    {
+      if (!std::isfinite(cons[c]))
+      {
+        return false;
+      }
+    }
+    for (int s = 0; s < n_species; ++s)
+    {
+      if (!std::isfinite(cons[IYD + s]))
+      {
+        return false;
+      }
+    }
+
+    cons[IDN] = snapshot.D;
+    for (int s = 0; s < n_species; ++s)
+    {
+      cons[IYD + s] =
+        valid_species[s] ? snapshot.DY[s] : snapshot.D * Y[s];
+    }
+    if constexpr (retained_failure_mode == RetainedFailureMode::state_tau)
+    {
+      if (thermal.mode == RetainedThermalMode::preserved)
+      {
+        cons[IEN] = snapshot.tau;
+      }
+    }
+
+    for (int c = IDN; c <= IEN; ++c)
+    {
+      if (!std::isfinite(cons[c]))
+      {
+        return false;
+      }
+    }
+    for (int s = 0; s < n_species; ++s)
+    {
+      if (!std::isfinite(cons[IYD + s]))
+      {
+        return false;
+      }
+    }
+
+    solver_result.write_D          = true;
+    solver_result.write_S          = true;
+    solver_result.write_tau        = true;
+    solver_result.scalars_adjusted = species_adjusted;
+    return true;
+  }
 
   public:
   Real tol;
@@ -345,9 +481,19 @@ class PrimitiveSolver
                      Real cons[NCONS],
                      Real bu[NMAG],
                      Real g3d[NSPMETRIC],
+                     const FailureSnapshot& snapshot,
                      SolverResult& solver_result)
   {
-    bool result = peos->DoFailureResponse(prim);
+    if constexpr (retained_failure_mode != RetainedFailureMode::none)
+    {
+      if (TryRetainedFailure(
+            prim, cons, bu, g3d, snapshot, solver_result))
+      {
+        return;
+      }
+    }
+
+    const bool result = peos->DoFailureResponse(prim);
     if (result)
     {
       PrimToCon(prim, cons, bu, g3d);
@@ -356,6 +502,15 @@ class PrimitiveSolver
       solver_result.write_tau        = true;
       solver_result.scalars_adjusted = true;
     }
+  }
+
+  void HandleFailure(Real prim[NPRIM],
+                     Real cons[NCONS],
+                     Real bu[NMAG],
+                     Real g3d[NSPMETRIC],
+                     SolverResult& solver_result)
+  {
+    HandleFailure(prim, cons, bu, g3d, FailureSnapshot{}, solver_result);
   }
 };
 
@@ -464,6 +619,15 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   SolverResult solver_result{
     Error::SUCCESS, 0, false, false, false, false, false, false
   };
+  FailureSnapshot failure_snapshot{};
+  if constexpr (retained_failure_mode != RetainedFailureMode::none)
+  {
+    failure_snapshot.D = cons[IDN];
+    if constexpr (retained_failure_mode == RetainedFailureMode::state_tau)
+    {
+      failure_snapshot.tau = cons[IEN];
+    }
+  }
 
   // Extract the undensitized conserved variables.
   Real D      = cons[IDN];
@@ -472,6 +636,13 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Real B_u[3] = { b[IB1], b[IB2], b[IB3] };
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
+  if constexpr (retained_failure_mode != RetainedFailureMode::none)
+  {
+    for (int s = 0; s < n_species; ++s)
+    {
+      failure_snapshot.DY[s] = cons[IYD + s];
+    }
+  }
   Real Y[MAX_SPECIES] = { 0.0 };
   bool Y_adjusted     = false;
   bool floored        = false;
@@ -482,7 +653,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
 
   if (!std::isfinite(D))
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::NANS_IN_CONS;
     return solver_result;
   }
@@ -499,7 +670,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   {
     if (D <= 0.0)
     {
-      HandleFailure(prim, cons, b, g3d, solver_result);
+      HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
       solver_result.error = Error::RHO_TOO_SMALL;
       return solver_result;
     }
@@ -518,7 +689,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   solver_result.cons_floor = floored;
   if (floored && peos->IsConservedFlooringFailure())
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
   }
@@ -564,7 +735,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   //     !std::isfinite(rbsqr) || !std::isfinite(bsqr))
   if (!std::isfinite(D + rsqr + q + rbsqr + bsqr))
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::NANS_IN_CONS;
     return solver_result;
   }
@@ -573,7 +744,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   {
     if (!std::isfinite(Y[s]))
     {
-      HandleFailure(prim, cons, b, g3d, solver_result);
+      HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
       solver_result.error = Error::NANS_IN_CONS;
       return solver_result;
     }
@@ -583,7 +754,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Error error = peos->DoMagnetizationResponse(bsqr, b_u);
   if (error == Error::MAG_TOO_BIG)
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::MAG_TOO_BIG;
     return solver_result;
   }
@@ -673,7 +844,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
       // Scream if the bracketing failed.
       if (!result)
       {
-        HandleFailure(prim, cons, b, g3d, solver_result);
+        HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
         solver_result.error = Error::BRACKETING_FAILED;
         return solver_result;
       }
@@ -696,7 +867,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     // ErrorPolicy.
     if (error != Error::SUCCESS)
     {
-      HandleFailure(prim, cons, b, g3d, solver_result);
+      HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
       solver_result.error = error;
       return solver_result;
     }
@@ -760,7 +931,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   solver_result.iterations = root.iterations;
   if (!result)
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::NO_SOLUTION;
     return solver_result;
   }
@@ -798,7 +969,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   solver_result.prim_floor = floored;
   if (floored && peos->IsPrimitiveFlooringFailure())
   {
-    HandleFailure(prim, cons, b, g3d, solver_result);
+    HandleFailure(prim, cons, b, g3d, failure_snapshot, solver_result);
     solver_result.error = Error::PRIM_FLOOR;
     return solver_result;
   }

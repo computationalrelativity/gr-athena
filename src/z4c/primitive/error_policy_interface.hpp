@@ -12,10 +12,45 @@
 
 namespace Primitive {
 
+enum class RetainedFailureMode
+{
+  none,
+  state,
+  state_tau
+};
+
+enum class RetainedThermalMode
+{
+  preserved,
+  projected,
+  cold_fallback,
+  invalid
+};
+
+struct RetainedThermalState
+{
+  Real T;
+  Real e;
+  Real P;
+  RetainedThermalMode mode;
+};
+
 class ErrorPolicyInterface {
   protected:
     ErrorPolicyInterface() = default;
     ~ErrorPolicyInterface() = default;
+
+    static constexpr RetainedFailureMode retained_failure_mode =
+      RetainedFailureMode::none;
+
+    bool RetainedFailureResponse(Real[NPRIM],
+                                 Real,
+                                 Real,
+                                 const Real*,
+                                 int)
+    {
+      return false;
+    }
 
     Real n_atm;
     Real n_threshold;

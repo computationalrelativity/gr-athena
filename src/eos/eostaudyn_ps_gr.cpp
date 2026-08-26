@@ -123,9 +123,14 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
 #endif
   Real mb           = eos.GetBaryonMass();
   Real n_max_factor = pin->GetOrAddReal("hydro", "n_max_factor", 1.0);
-  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
   Real T_max_factor = pin->GetOrAddReal("hydro", "T_max_factor", 1.0);
+#if defined(USE_COMPOSE_EOS)
+  eos.SetMaximumDomain(eos.GetMaximumDensity() * n_max_factor,
+                       eos.GetMaximumTemperature() * T_max_factor);
+#else
+  eos.SetMaximumDensity(eos.GetMaximumDensity() * n_max_factor);
   eos.SetMaximumTemperature(eos.GetMaximumTemperature() * T_max_factor);
+#endif
 
 #elif defined(USE_IDEAL_GAS)
   // Baryon mass
@@ -293,6 +298,8 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
 
   const bool use_aux_cs2 = pmb->precon->xorder_use_aux_cs2;
   const bool use_aux_s   = pmb->precon->xorder_use_aux_s;
+  const bool use_aux_eos_conditioned =
+    pmb->precon->xorder_use_aux_eos_conditioned;
 
   // sanitize loop limits (coarse / fine auto-switched)
   int IL = il;
@@ -500,9 +507,26 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
         ph->derived_ms(IX_LOR, k, j, i) =
           std::min(max_W, ph->derived_ms(IX_LOR, k, j, i));
 
-        // enthalpy update required at all substeps
-        ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
-          prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
+        // Enthalpy update required at all substeps. Conditioned reconstruction
+        // also needs pressure from the same forward EOS state to close epsilon.
+        if (use_aux_eos_conditioned)
+        {
+          Real pressure_eos;
+          GetEOS().GetPressureAndEnthalpy(
+            prim_pt[IDN],
+            ph->derived_ms(IX_T, k, j, i),
+            &prim_pt[IYF],
+            &pressure_eos,
+            &ph->derived_ms(IX_ETH, k, j, i));
+          ph->derived_ms(IX_SEN, k, j, i) =
+            ph->derived_ms(IX_ETH, k, j, i) - 1.0 -
+            pressure_eos / (mb * prim_pt[IDN]);
+        }
+        else
+        {
+          ph->derived_ms(IX_ETH, k, j, i) = GetEOS().GetEnthalpy(
+            prim_pt[IDN], ph->derived_ms(IX_T, k, j, i), &prim_pt[IYF]);
+        }
 
         // cs2 update required when auxiliary reconstruction of cs2 is active
         if (use_aux_cs2)

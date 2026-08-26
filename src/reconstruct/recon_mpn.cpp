@@ -8,18 +8,8 @@
 // ----------------------------------------------------------------------------
 namespace {
 
-/*
-// BAM conventions (e.g.):
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_m_weno5(zimt,zimo,zi,zipo,zipt);
-//
-// or- flip the arguments and write one function
-//
-// zl(n,i) = rec1d_p_weno5(zimt,zimo,zi,zipo,zipt);
-// zr(n,i) = rec1d_p_weno5(zipt,zipo,zi,zimo,zimt);
-*/
-
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp3(const Real eps,
                  const Real uimt,
                  const Real uimo,
@@ -28,6 +18,7 @@ Real rec1d_p_mp3(const Real eps,
                  const Real uipt);
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp5(const Real eps,
                  const Real uimt,
                  const Real uimo,
@@ -36,6 +27,7 @@ Real rec1d_p_mp5(const Real eps,
                  const Real uipt);
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp5_R(const Real eps,
                    const Real uimt,
                    const Real uimo,
@@ -44,6 +36,7 @@ Real rec1d_p_mp5_R(const Real eps,
                    const Real uipt);
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp7(const Real eps,
                  const Real uim3,
                  const Real uim2,
@@ -66,11 +59,11 @@ Real mpnlimiter(const Real eps_mpn,
 Real mpnlimiter(const Real eps_mpn,
                 const Real u,
                 const Real uim3,
-                const Real uim2,
-                const Real uim1,
+                const Real uimt,
+                const Real uimo,
                 const Real ui,
-                const Real uip1,
-                const Real uip2,
+                const Real uipo,
+                const Real uipt,
                 const Real uip3);
 
 // See:
@@ -99,7 +92,7 @@ void Reconstruction::ReconstructMP3X1(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j,i-2);
@@ -108,8 +101,13 @@ void Reconstruction::ReconstructMP3X1(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j,i+1);
     const Real zipt = z(n_src,k,j,i+2);
 
-    zl_(n_tar,i+1) = rec1d_p_mp3(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i  ) = rec1d_p_mp3(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i+1) = rec1d_p_mp3<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp3<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i+1) = rec1d_p_mp3<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp3<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -122,7 +120,7 @@ void Reconstruction::ReconstructMP3X2(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j-2,i);
@@ -131,8 +129,13 @@ void Reconstruction::ReconstructMP3X2(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j+1,i);
     const Real zipt = z(n_src,k,j+2,i);
 
-    zl_(n_tar,i) = rec1d_p_mp3(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp3(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp3<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp3<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp3<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp3<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -145,7 +148,7 @@ void Reconstruction::ReconstructMP3X3(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k-2,j,i);
@@ -154,8 +157,13 @@ void Reconstruction::ReconstructMP3X3(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k+1,j,i);
     const Real zipt = z(n_src,k+2,j,i);
 
-    zl_(n_tar,i) = rec1d_p_mp3(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp3(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp3<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp3<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp3<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp3<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -170,7 +178,7 @@ void Reconstruction::ReconstructMP5X1(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j,i-2);
@@ -179,8 +187,13 @@ void Reconstruction::ReconstructMP5X1(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j,i+1);
     const Real zipt = z(n_src,k,j,i+2);
 
-    zl_(n_tar,i+1) = rec1d_p_mp5(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i  ) = rec1d_p_mp5(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i+1) = rec1d_p_mp5<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp5<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i+1) = rec1d_p_mp5<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp5<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -193,7 +206,7 @@ void Reconstruction::ReconstructMP5X2(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j-2,i);
@@ -202,8 +215,13 @@ void Reconstruction::ReconstructMP5X2(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j+1,i);
     const Real zipt = z(n_src,k,j+2,i);
 
-    zl_(n_tar,i) = rec1d_p_mp5(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp5(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp5<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp5<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -216,7 +234,7 @@ void Reconstruction::ReconstructMP5X3(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k-2,j,i);
@@ -225,8 +243,13 @@ void Reconstruction::ReconstructMP5X3(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k+1,j,i);
     const Real zipt = z(n_src,k+2,j,i);
 
-    zl_(n_tar,i) = rec1d_p_mp5(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp5(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp5<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp5<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -241,7 +264,7 @@ void Reconstruction::ReconstructMP7X1(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zim3 = z(n_src,k,j,i-3);
@@ -252,10 +275,17 @@ void Reconstruction::ReconstructMP7X1(AthenaArray<Real> &z,
     const Real zip2 = z(n_src,k,j,i+2);
     const Real zip3 = z(n_src,k,j,i+3);
 
-    zl_(n_tar,i+1) = rec1d_p_mp7(xorder_eps,
-                                 zim3,zim2,zim1,zi,zip1,zip2,zip3);
-    zr_(n_tar,i  ) = rec1d_p_mp7(xorder_eps,
-                                 zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    if (xorder_pointwise) {
+      zl_(n_tar,i+1) = rec1d_p_mp7<true>(xorder_eps,
+                                          zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i  ) = rec1d_p_mp7<true>(xorder_eps,
+                                          zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    } else {
+      zl_(n_tar,i+1) = rec1d_p_mp7<false>(xorder_eps,
+                                           zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i  ) = rec1d_p_mp7<false>(xorder_eps,
+                                           zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    }
   }
 }
 
@@ -268,7 +298,7 @@ void Reconstruction::ReconstructMP7X2(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zim3 = z(n_src,k,j-3,i);
@@ -279,10 +309,17 @@ void Reconstruction::ReconstructMP7X2(AthenaArray<Real> &z,
     const Real zip2 = z(n_src,k,j+2,i);
     const Real zip3 = z(n_src,k,j+3,i);
 
-    zl_(n_tar,i) = rec1d_p_mp7(xorder_eps,
-                               zim3,zim2,zim1,zi,zip1,zip2,zip3);
-    zr_(n_tar,i) = rec1d_p_mp7(xorder_eps,
-                               zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp7<true>(xorder_eps,
+                                        zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i) = rec1d_p_mp7<true>(xorder_eps,
+                                        zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp7<false>(xorder_eps,
+                                         zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i) = rec1d_p_mp7<false>(xorder_eps,
+                                         zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    }
   }
 }
 
@@ -295,7 +332,7 @@ void Reconstruction::ReconstructMP7X3(AthenaArray<Real> &z,
                                       const int j,
                                       const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zim3 = z(n_src,k-3,j,i);
@@ -306,10 +343,17 @@ void Reconstruction::ReconstructMP7X3(AthenaArray<Real> &z,
     const Real zip2 = z(n_src,k+2,j,i);
     const Real zip3 = z(n_src,k+3,j,i);
 
-    zl_(n_tar,i) = rec1d_p_mp7(xorder_eps,
-                               zim3,zim2,zim1,zi,zip1,zip2,zip3);
-    zr_(n_tar,i) = rec1d_p_mp7(xorder_eps,
-                               zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp7<true>(xorder_eps,
+                                        zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i) = rec1d_p_mp7<true>(xorder_eps,
+                                        zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp7<false>(xorder_eps,
+                                         zim3,zim2,zim1,zi,zip1,zip2,zip3);
+      zr_(n_tar,i) = rec1d_p_mp7<false>(xorder_eps,
+                                         zip3,zip2,zip1,zi,zim1,zim2,zim3);
+    }
   }
 }
 
@@ -324,7 +368,7 @@ void Reconstruction::ReconstructMP5RX1(AthenaArray<Real> &z,
                                        const int j,
                                        const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j,i-2);
@@ -333,8 +377,13 @@ void Reconstruction::ReconstructMP5RX1(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j,i+1);
     const Real zipt = z(n_src,k,j,i+2);
 
-    zl_(n_tar,i+1) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i  ) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i+1) = rec1d_p_mp5_R<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp5_R<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i+1) = rec1d_p_mp5_R<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i  ) = rec1d_p_mp5_R<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -347,7 +396,7 @@ void Reconstruction::ReconstructMP5RX2(AthenaArray<Real> &z,
                                        const int j,
                                        const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k,j-2,i);
@@ -356,8 +405,13 @@ void Reconstruction::ReconstructMP5RX2(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k,j+1,i);
     const Real zipt = z(n_src,k,j+2,i);
 
-    zl_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp5_R<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5_R<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp5_R<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5_R<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -370,7 +424,7 @@ void Reconstruction::ReconstructMP5RX3(AthenaArray<Real> &z,
                                        const int j,
                                        const int il, const int iu)
 {
-  #pragma omp simd
+  #pragma omp simd simdlen(SIMD_WIDTH)
   for (int i=il; i<=iu; ++i)
   {
     const Real zimt = z(n_src,k-2,j,i);
@@ -379,8 +433,13 @@ void Reconstruction::ReconstructMP5RX3(AthenaArray<Real> &z,
     const Real zipo = z(n_src,k+1,j,i);
     const Real zipt = z(n_src,k+2,j,i);
 
-    zl_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zimt,zimo,zi,zipo,zipt);
-    zr_(n_tar,i) = rec1d_p_mp5_R(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    if (xorder_pointwise) {
+      zl_(n_tar,i) = rec1d_p_mp5_R<true>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5_R<true>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    } else {
+      zl_(n_tar,i) = rec1d_p_mp5_R<false>(xorder_eps,zimt,zimo,zi,zipo,zipt);
+      zr_(n_tar,i) = rec1d_p_mp5_R<false>(xorder_eps,zipt,zipo,zi,zimo,zimt);
+    }
   }
 }
 
@@ -388,6 +447,7 @@ void Reconstruction::ReconstructMP5RX3(AthenaArray<Real> &z,
 namespace {
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp3(const Real eps,
                  const Real uimt,
                  const Real uimo,
@@ -395,24 +455,17 @@ Real rec1d_p_mp3(const Real eps,
                  const Real uipo,
                  const Real uipt)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
-  Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
-  */
+  Real ulim;
+  if constexpr (pw)
+    ulim = (-uimo + 6.0 * ui + 3.0 * uipo) * (1.0 / 8.0);
+  else
+    ulim = (-1.0/6.0)*uimo + (5.0/6.0)*ui + (2.0/6.0)*uipo;
 
-  static const Real cl3_0 = -1./6.;
-  static const Real cl3_1 = 5./6.;
-  static const Real cl3_2 = 2./6.;
-
-  const Real ulim  = cl3_0*uimo + cl3_1*ui + cl3_2*uipo;
   return mpnlimiter(eps,ulim,uimt,uimo,ui,uipo,uipt);
 }
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp5(const Real eps,
                  const Real uimt,
                  const Real uimo,
@@ -420,31 +473,18 @@ Real rec1d_p_mp5(const Real eps,
                  const Real uipo,
                  const Real uipt)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
-  Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
-  */
-
-  static const Real cl5_0 = 2./60.;
-  static const Real cl5_1 = -13./60.;
-  static const Real cl5_2 = 47./60.;
-  static const Real cl5_3 = 27./60.;
-  static const Real cl5_4 = -3./60.;
-
-  const Real ulim  = (cl5_0*uimt +
-                      cl5_1*uimo +
-                      cl5_2*ui +
-                      cl5_3*uipo +
-                      cl5_4*uipt);
+  Real ulim;
+  if constexpr (pw)
+    ulim = ( 3.0*uimt - 20.0*uimo + 90.0*ui + 60.0*uipo -  5.0*uipt) * (1.0 / 128.0);
+  else
+    ulim = (2.0/60.0)*uimt + (-13.0/60.0)*uimo + (47.0/60.0)*ui +
+           (27.0/60.0)*uipo + (-3.0/60.0)*uipt;
 
   return mpnlimiter(eps,ulim,uimt,uimo,ui,uipo,uipt);
 }
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp7(const Real eps,
                  const Real uim3,
                  const Real uim2,
@@ -456,33 +496,29 @@ Real rec1d_p_mp7(const Real eps,
 {
   /*
   // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
+  Real uim3 = u [i-3];
+  Real uim2 = u [i-2];
+  Real uim1 = u [i-1];
   Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
+  Real uip1 = u [i+1];
+  Real uip2 = u [i+2];
+  Real uip3 = u [i+3];
   */
 
-  static const Real cl7_0 = -3./420.;
-  static const Real cl7_1 =  25./420.;
-  static const Real cl7_2 = -101./420.;
-  static const Real cl7_3 =  319./420.;
-  static const Real cl7_4 =  214./420.;
-  static const Real cl7_5 = -38./420.;
-  static const Real cl7_6 =  4./420.;
+  Real ulim;
+  if constexpr (pw)
+    ulim = (-5.0*uim3 +  42.0*uim2 - 175.0*uim1 + 700.0*ui +
+             525.0*uip1 - 70.0*uip2 +   7.0*uip3) * (1.0 / 1024.0);
+  else
+    ulim = (-3.0/420.0)*uim3 + (25.0/420.0)*uim2 + (-101.0/420.0)*uim1 +
+           (319.0/420.0)*ui + (214.0/420.0)*uip1 + (-38.0/420.0)*uip2 +
+           (4.0/420.0)*uip3;
 
-  const Real ulim  = (cl7_0*uim3 +
-                      cl7_1*uim2 +
-                      cl7_2*uim1 +
-                      cl7_3*ui +
-                      cl7_4*uip1 +
-                      cl7_5*uip2 +
-                      cl7_6*uip3);
-
-  return mpnlimiter(eps,ulim,uim2,uim1,ui,uip1,uip2);
+  return mpnlimiter(eps,ulim,uim3,uim2,uim1,ui,uip1,uip2,uip3);
 }
 
 #pragma omp declare simd
+template <bool pw>
 Real rec1d_p_mp5_R(const Real eps,
                    const Real uimt,
                    const Real uimo,
@@ -490,26 +526,12 @@ Real rec1d_p_mp5_R(const Real eps,
                    const Real uipo,
                    const Real uipt)
 {
-  /*
-  // Computes u[i + 1/2]
-  Real uimt = u [i-2];
-  Real uimo = u [i-1];
-  Real ui   = u [i];
-  Real uipo = u [i+1];
-  Real uipt = u [i+2];
-  */
-
-  static const Real cl5_0 = 2./60.;
-  static const Real cl5_1 = -13./60.;
-  static const Real cl5_2 = 47./60.;
-  static const Real cl5_3 = 27./60.;
-  static const Real cl5_4 = -3./60.;
-
-  const Real ulim  = (cl5_0*uimt +
-                      cl5_1*uimo +
-                      cl5_2*ui +
-                      cl5_3*uipo +
-                      cl5_4*uipt);
+  Real ulim;
+  if constexpr (pw)
+    ulim = ( 3.0*uimt - 20.0*uimo + 90.0*ui + 60.0*uipo -  5.0*uipt) * (1.0 / 128.0);
+  else
+    ulim = (2.0/60.0)*uimt + (-13.0/60.0)*uimo + (47.0/60.0)*ui +
+           (27.0/60.0)*uipo + (-3.0/60.0)*uipt;
 
   return mpnlimiter_R(eps,ulim,uimt,uimo,ui,uipo,uipt);
 }
@@ -579,9 +601,9 @@ Real mpnlimiter(const Real eps_mpn,
 
   if (eps_mpn > 0)
   {
-    const Real U_L2 = std::sqrt(SQR(uimt) + SQR(uimo) +
+    const Real U_L2 = std::sqrt(SQR(uim3) + SQR(uimt) + SQR(uimo) +
                                 SQR(ui) +
-                                SQR(uipo) + SQR(uipt));
+                                SQR(uipo) + SQR(uipt) + SQR(uip3));
     const Real u_MP = ui + minmod(uipo-ui, alphatil * (ui-uimo));
 
     // check whether we should apply limiter
@@ -625,6 +647,17 @@ Real mpnlimiter_R(const Real eps_mpn,
   static const Real fot = 4./3.;
   static const Real alphatil = 4.;
 
+  if (eps_mpn > 0)
+  {
+    const Real U_L2 = std::sqrt(SQR(uimt) + SQR(uimo) +
+                                SQR(ui) +
+                                SQR(uipo) + SQR(uipt));
+    const Real u_MP = ui + minmod(uipo-ui, alphatil * (ui-uimo));
+
+    if ((u-ui)*(u-u_MP) <= eps_mpn * U_L2)
+      return u;
+  }
+
   const Real dm = uimt - 2.*uimo + ui;
   const Real d0 = uimo - 2.*ui   + uipo;
   const Real dp = ui   - 2.*uipo + uipt;
@@ -648,8 +681,8 @@ Real mpnlimiter_R(const Real eps_mpn,
 
   const Real u_mp = ui + minmod(uipo-ui, alphatil * (ui - uimo));
 
-  if ((u_max-u_min) > (std::max(ui, u_mp)) - std::min(ui, u_mp))
-  if ((u < u_min ) || (u_max < u))
+  if ((u_max-u_min) > (std::max(ui, u_mp) - std::min(ui, u_mp)) &&
+      (u < u_min || u_max < u))
   {
     static const Real phi_c = 2.0;
 

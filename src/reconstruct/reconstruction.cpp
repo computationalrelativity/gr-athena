@@ -51,9 +51,17 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::lin_mc2;
   }
+  else if (str_xorder_style == "koren")
+  {
+    xorder_style = ReconVar::koren;
+  }
   else if (str_xorder_style == "ppm")
   {
     xorder_style = ReconVar::ppm;
+  }
+  else if (str_xorder_style == "ppmx")
+  {
+    xorder_style = ReconVar::ppmx;
   }
   else if (str_xorder_style == "ceno3")
   {
@@ -79,6 +87,22 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::mp5_R;
   }
+  else if (str_xorder_style == "weno3")
+  {
+    xorder_style = ReconVar::weno3;
+  }
+  else if (str_xorder_style == "weno3z")
+  {
+    xorder_style = ReconVar::weno3z;
+  }
+  else if (str_xorder_style == "weno7")
+  {
+    xorder_style = ReconVar::weno7;
+  }
+  else if (str_xorder_style == "weno7z")
+  {
+    xorder_style = ReconVar::weno7z;
+  }
   else if (str_xorder_style == "weno5")
   {
     xorder_style = ReconVar::weno5;
@@ -91,9 +115,29 @@ void GetVariant(MeshBlock* pmb,
   {
     xorder_style = ReconVar::weno5d_si;
   }
+  else if (str_xorder_style == "weno5zcplus")
+  {
+    xorder_style = ReconVar::weno5zcplus;
+  }
+  else if (str_xorder_style == "weno5z_ns")
+  {
+    xorder_style = ReconVar::weno5z_ns;
+  }
   else if (str_xorder_style == "lag6")
   {
     xorder_style = ReconVar::lag6;
+  }
+  else if (str_xorder_style == "teno5")
+  {
+    xorder_style = ReconVar::teno5;
+  }
+  else if (str_xorder_style == "teno5_mc2")
+  {
+    xorder_style = ReconVar::teno5_mc2;
+  }
+  else if (str_xorder_style == "teno5_koren")
+  {
+    xorder_style = ReconVar::teno5_koren;
   }
   else
   {
@@ -114,6 +158,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   GetVariant(pmb, pin, "xorder", "xorder_eps", xorder_style, xorder_eps);
 
   xorder_use_fb = pin->GetOrAddBoolean("time", "xorder_use_fb", false);
+
+  xorder_pointwise =
+    pin->GetOrAddBoolean("time", "xorder_pointwise", false);
 
   if (xorder_use_fb)
   {
@@ -142,9 +189,31 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
   xorder_use_dmp_scalars = pin->GetOrAddBoolean(
     "time", "xorder_use_dmp_scalars", (xorder_use_dmp) ? true : false);
 
+  xorder_use_dmp_momenta =
+    pin->GetOrAddBoolean("time", "xorder_use_dmp_momenta", false);
+
   xorder_dmp_min = pin->GetOrAddReal("time", "xorder_dmp_min", 0.9);
 
   xorder_dmp_max = pin->GetOrAddReal("time", "xorder_dmp_max", 1.1);
+
+  xorder_dmp_max_rat_D =
+    pin->GetOrAddReal("time", "xorder_dmp_max_rat_D", 0.0);
+
+  xorder_fb_max_rel_D =
+    pin->GetOrAddReal("time", "xorder_fb_max_rel_D", 0.0);
+
+  xorder_fb_max_rel_momentum_flux =
+    pin->GetOrAddReal("time", "xorder_fb_max_rel_momentum_flux", 0.0);
+
+  if (!std::isfinite(xorder_fb_max_rel_momentum_flux) ||
+      xorder_fb_max_rel_momentum_flux < 0.0)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_fb_max_rel_momentum_flux must be finite and nonnegative."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
 
   if (xorder_use_dmp && !xorder_use_fb)
   {
@@ -168,6 +237,9 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
 
   xorder_use_aux_s = pin->GetOrAddBoolean("time", "xorder_use_aux_s", false);
 
+  xorder_use_aux_eos_conditioned = pin->GetOrAddBoolean(
+    "time", "xorder_use_aux_eos_conditioned", false);
+
   if (xorder_use_aux_s && xorder_use_aux_T)
   {
     std::stringstream msg;
@@ -176,6 +248,33 @@ Reconstruction::Reconstruction(MeshBlock* pmb, ParameterInput* pin)
         << std::endl;
     ATHENA_ERROR(msg);
   }
+
+  if (xorder_use_aux_eos_conditioned &&
+      (xorder_use_aux_T || xorder_use_aux_h || xorder_use_aux_cs2 ||
+       xorder_use_aux_s))
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_aux_eos_conditioned is incompatible with "
+           "xorder_use_aux_{T,h,cs2,s}."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
+#if EOS_POLICY_CODE != 2
+  if (xorder_use_aux_eos_conditioned)
+  {
+    std::stringstream msg;
+    msg << "### FATAL ERROR in Reconstruction constructor" << std::endl
+        << "xorder_use_aux_eos_conditioned requires EOS_POLICY_CODE == 2 "
+           "(CompOSE)."
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
+#endif
+
+  xorder_flux_correction =
+    pin->GetOrAddBoolean("time", "xorder_flux_correction", false);
 
   xorder_limit_fluxes =
     pin->GetOrAddBoolean("time", "xorder_limit_fluxes", false);
@@ -434,9 +533,19 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructLinearMC2X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ppm):
     {
       ReconstructPPMX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ceno3):
@@ -449,6 +558,26 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructCeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5):
     {
       ReconstructWeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -459,9 +588,19 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructWeno5ZX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):
@@ -489,6 +628,21 @@ void Reconstruction::ReconstructFieldX1(const ReconstructionVariant rv,
       ReconstructLag6X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+     {
+       ReconstructTeno5korenX1(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+       break;
+     }
     default:
     {
       assert(false);
@@ -526,9 +680,19 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructLinearMC2X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ppm):
     {
       ReconstructPPMX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ceno3):
@@ -541,6 +705,26 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructCeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5):
     {
       ReconstructWeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -551,9 +735,19 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
       ReconstructWeno5ZX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):
@@ -579,6 +773,21 @@ void Reconstruction::ReconstructFieldX2(const ReconstructionVariant rv,
     case (ReconVar::lag6):
     {
       ReconstructLag6X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+    {
+      ReconstructTeno5korenX2(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:
@@ -618,9 +827,19 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
       ReconstructLinearMC2X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::koren):
+    {
+      ReconstructKorenX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::ppm):
     {
       ReconstructPPMX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::ppmx):
+    {
+      ReconstructPPMXX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::ceno3):
@@ -633,6 +852,26 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
       ReconstructCeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno3):
+    {
+      ReconstructWeno3X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno3z):
+    {
+      ReconstructWeno3ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7):
+    {
+      ReconstructWeno7X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno7z):
+    {
+      ReconstructWeno7ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5):
     {
       ReconstructWeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
@@ -643,9 +882,19 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
       ReconstructWeno5ZX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
+    case (ReconVar::weno5zcplus):
+    {
+      ReconstructWeno5zcplusX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
     case (ReconVar::weno5d_si):
     {
       ReconstructWeno5dsiX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::weno5z_ns):
+    {
+      ReconstructWeno5zNsX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     case (ReconVar::mp3):
@@ -671,6 +920,21 @@ void Reconstruction::ReconstructFieldX3(const ReconstructionVariant rv,
     case (ReconVar::lag6):
     {
       ReconstructLag6X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5):
+    {
+      ReconstructTeno5X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_mc2):
+    {
+      ReconstructTeno5mc2X3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
+      break;
+    }
+    case (ReconVar::teno5_koren):
+    {
+      ReconstructTeno5korenX3(z, zl_, zr_, n_tar, n_src, k, j, il, iu);
       break;
     }
     default:

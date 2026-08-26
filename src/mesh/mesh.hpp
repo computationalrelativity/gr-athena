@@ -27,6 +27,7 @@
 
 // Athena++ headers
 #include "../athena_aliases.hpp"
+#include "../comm/comm_enums.hpp"
 #include "../comm/neighbor_connectivity.hpp"
 #include "../hydro/rescaling.hpp"
 #include "../outputs/io_wrapper.hpp"
@@ -521,6 +522,7 @@ class Mesh
   const bool f2, f3;  // flags indicating (at least) 2D or 3D Mesh
   const int ndim;     // number of dimensions
   const bool adaptive, multilevel;
+  const comm::ProlongOp hydro_prolong_op;
   Real start_time, time, tlim, dt, dt_hyperbolic, dt_parabolic, dt_user,
     cfl_number;
   Real evo_rate;

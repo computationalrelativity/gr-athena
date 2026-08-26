@@ -46,7 +46,7 @@ using namespace gra::aliases;
 // Here we use the D, S, tau variable choice for conservatives, and assume a
 // dynamically evolving spacetime so a factor of sqrt(detgamma) is included
 
-void Hydro::RiemannSolver(const int ivx,
+void Hydro::RiemannSolverLLF(const int ivx,
                           const int k,
                           const int j,
                           const int il,
@@ -108,6 +108,7 @@ void Hydro::RiemannSolver(const int ivx,
 
   T_min = peos->GetEOS().GetTemperatureFloor();
   h_min = peos->GetEOS().GetMinimumEnthalpy();
+
 
   // deal with excision -------------------------------------------------------
   auto excise = [&](const int i)
@@ -359,7 +360,8 @@ void Hydro::RiemannSolver(const int ivx,
 
     // Compute sound speed squared
     Real cs2l, cs2r;
-    if (precon->xorder_use_aux_cs2)
+    if (precon->xorder_use_aux_cs2 ||
+        precon->xorder_use_aux_eos_conditioned)
     {
       cs2l = aux_l_(IX_CS2, i);
       cs2r = aux_r_(IX_CS2, i);
@@ -544,7 +546,7 @@ void Hydro::RiemannSolver(const int ivx,
   }
 
   // Set fluxes ---------------------------------------------------------------
-  const bool use_hlle = (rsolver_method_ == RSolverMethod::hlle);
+  const bool use_hlle = (solver_method_ == SolverMethod::hlle);
 
   // probably cleaner to condense into single block, but verbose also works
 
@@ -757,4 +759,34 @@ void Hydro::RiemannSolver(const int ivx,
         }
       }
   }
+}
+
+void Hydro::RiemannSolver(const int ivx,
+                          const int k,
+                          const int j,
+                          const int il,
+                          const int iu,
+                          const AA& B,
+                          AA& prim_l_,
+                          AA& prim_r_,
+                          AA& pscalars_l_,
+                          AA& pscalars_r_,
+                          AA& aux_l_,
+                          AA& aux_r_,
+                          AT_N_sca& alpha_,
+                          AT_N_vec& beta_u_,
+                          AT_N_sym& gamma_dd_,
+                          AT_N_sca& sqrt_detgamma_,
+                          AA& flux,
+                          AA& s_flux,
+                          AA& ey,
+                          AA& ez,
+                          AA& wct,
+                          const AA& dxw_,
+                          const Real lambda_rescaling)
+{
+  RiemannSolverLLF(ivx, k, j, il, iu, B, prim_l_, prim_r_,
+                   pscalars_l_, pscalars_r_, aux_l_, aux_r_,
+                   alpha_, beta_u_, gamma_dd_, sqrt_detgamma_,
+                   flux, s_flux, ey, ez, wct, dxw_, lambda_rescaling);
 }
