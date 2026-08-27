@@ -240,10 +240,10 @@ namespace custom
 // - Inline 4x4 LU decomposition with partial pivoting
 //
 // Note:
-// - Internally U* is enforced via `EnforcePhysical_E_F_d`
-// - Closures are internally updated
-// - Sources are internally updated
-// - Same convergence criteria and fallback logic as StepImplicitHybridsJ
+// - Internally U* is accepted only when its E/F state is physical
+// - Closures and sources are updated from the accepted state
+// - thick_tol retries a tolerance/iteration-limit failure; thick_npg retries
+//   all other failures; terminal thick accepted-step stagnation is propagated
 void StepImplicitCustomN(
   M1& pm1,
   const Real dt,

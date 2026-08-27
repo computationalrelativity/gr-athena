@@ -13,6 +13,8 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_multiroots.h>
 #include <gsl/gsl_vector.h>
+#include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <limits>
 
@@ -795,24 +797,45 @@ namespace custom {
 // A is modified (overwritten with L\U factors); diagonal entries are
 // replaced by their reciprocals during factorization so back-substitution
 // uses only multiplications (no divisions).
-// Returns true on success, false if the matrix is singular.
-//
-// Singularity criterion: a pivot is treated as zero when
-//   |pivot| < eps_mach * max_abs
-// where max_abs tracks the largest absolute element seen during
-// factorization. This is much more robust than an exact == 0.0 test
-// when the Jacobian has O(1e+8) entries alongside O(1e-8) entries.
-static inline bool solve_4x4_LU_pp(
+enum class LU4Result
+{
+  success,
+  nonfinite,
+  singular
+};
+
+// A pivot is unusable when
+//   |pivot| <= eps_mach * max_{a,b}|A_ab|.
+static inline LU4Result solve_4x4_LU_pp(
   Real (&A)[4][4],
   Real (&b)[4])
 {
   constexpr int n = 4;
   constexpr Real eps_mach = std::numeric_limits<Real>::epsilon();
-  int piv[n]; // pivot indices
+  Real matrix_scale = 0.0;
+  for (int r = 0; r < n; ++r)
+  {
+    if (!std::isfinite(b[r]))
+    {
+      return LU4Result::nonfinite;
+    }
 
-  // Track the largest absolute element seen during factorization for
-  // relative singularity threshold
-  Real max_abs = 0.0;
+    for (int c = 0; c < n; ++c)
+    {
+      if (!std::isfinite(A[r][c]))
+      {
+        return LU4Result::nonfinite;
+      }
+
+      const Real abs_A = std::abs(A[r][c]);
+      if (abs_A > matrix_scale) matrix_scale = abs_A;
+    }
+  }
+
+  if (matrix_scale == 0.0)
+  {
+    return LU4Result::singular;
+  }
 
   // LU factorization with partial pivoting -----------------------------------
   for (int k = 0; k < n; ++k)
@@ -830,15 +853,10 @@ static inline bool solve_4x4_LU_pp(
       }
     }
 
-    piv[k] = p;
-
-    // Update running max of all absolute values seen
-    if (max_val > max_abs) max_abs = max_val;
-
-    // Singular check: pivot is effectively zero relative to matrix scale
-    if (max_val < eps_mach * max_abs)
+    if (!std::isfinite(max_val) ||
+        max_val <= eps_mach * matrix_scale)
     {
-      return false;
+      return LU4Result::singular;
     }
 
     // Swap rows k and p (in both A and b)
@@ -860,12 +878,22 @@ static inline bool solve_4x4_LU_pp(
     for (int r = k + 1; r < n; ++r)
     {
       const Real factor = A[r][k] * inv_pivot;
+      if (!std::isfinite(factor))
+      {
+        return LU4Result::nonfinite;
+      }
+
       A[r][k] = factor;  // store L factor in lower triangle
       for (int c = k + 1; c < n; ++c)
       {
         A[r][c] -= factor * A[k][c];
       }
       b[r] -= factor * b[k];
+
+      if (!std::isfinite(b[r]))
+      {
+        return LU4Result::nonfinite;
+      }
     }
   }
 
@@ -878,25 +906,23 @@ static inline bool solve_4x4_LU_pp(
       b[k] -= A[k][c] * b[c];
     }
     b[k] *= A[k][k];  // A[k][k] holds reciprocal pivot
+
+    if (!std::isfinite(b[k]))
+    {
+      return LU4Result::nonfinite;
+    }
   }
 
-  return true;
+  return LU4Result::success;
 }
 
-// Hand-written 4x4 Newton solver for the M1 implicit system (E, F_x, F_y, F_z).
+// Hand-written 4x4 lagged-closure quasi-Newton solver for the M1 implicit
+// system (E, F_x, F_y, F_z). The source Jacobian holds C.sc_chi fixed; closure
+// is recomputed after each accepted feasible update.
 //
-// This is a drop-in replacement for StepImplicitHybridsJ that eliminates:
-// - Per-cell heap allocation (AA J -> stack Real[4][4])
-// - GSL function pointer dispatch overhead
-// - GSL data marshalling between gsl_vector/gsl_matrix and native types
-// - Redundant dot product / Lorentz factor computations via DotProductCache
-//
-// Convergence criterion matches gsl_multiroot_test_delta:
-//   |dU[a]| < eps_a + eps_r * |U[a]|  for all a in {E, F_x, F_y, F_z}
-//
-// Fallback logic is identical to StepImplicitHybridsJ:
-//   1. On max iterations / stagnation -> revert to thick-limit closure
-//   2. On thick-limit failure -> fatal error with StatePrintPoint
+// This replaces StepImplicitHybridsJ without per-cell heap allocation or GSL
+// vector/matrix marshalling. A state is accepted only when it is physical and
+// reduces the residual. A residual root is accepted at the causal boundary.
 void StepImplicitCustomN(
   M1 & pm1,
   const Real dt,
@@ -924,11 +950,11 @@ void StepImplicitCustomN(
     const Real eps_r = pm1.opt_solver.eps_r_tol;
     const int iter_max = pm1.opt_solver.iter_max;
 
-    // Hoist iteration-invariant constants outside the Newton loop:
+    // Hoist iteration-invariant constants outside the quasi-Newton loop:
     //   WE    = P.sc_E  + dt * I.sc_E    (scalar)
     //   WF_d  = P.sp_F_d + dt * I.sp_F_d (3-vector)
     // These are the "previous + inhomogeneity" terms that don't change
-    // between Newton iterations (only C changes).
+    // between quasi-Newton iterations (only C changes).
     const Real WE = P.sc_E(k,j,i) + dt * I.sc_E(k,j,i);
     Real WF_d[N];
     for (int a = 0; a < N; ++a)
@@ -936,158 +962,348 @@ void StepImplicitCustomN(
       WF_d[a] = P.sp_F_d(a,k,j,i) + dt * I.sp_F_d(a,k,j,i);
     }
 
-    // Source values from the last Newton iteration - needed by downstream
-    // code (Limiter::Apply, CheckPhysicalFallback, GR coupling) which
-    // reads S.sc_E / S.sp_F_d after this solver returns.
     Real S_E_final = 0.0;
-    Real S_F_d_final[N] = {0.0, 0.0, 0.0};
+    Real S_F_d_final[N] = {};
 
-    // Newton iteration -------------------------------------------------------
-    int iter = 0;
-    bool converged = false;
-    bool solver_failed = false;
-
-    do
+    enum class Failure
     {
-      iter++;
+      none,
+      nonfinite_system,
+      singular_jacobian,
+      no_feasible_step,
+      no_feasible_descent,
+      no_progress,
+      max_iterations
+    };
 
-      // Build DotProductCache once per iteration - shared between source
-      // and Jacobian evaluations, eliminating ~27 redundant loads and
-      // ~31 redundant FLOPs per iteration.
-      auto cache = Assemble::Frames::make_cache(
-        pm1, C.sc_E, C.sp_F_d, k, j, i
-      );
-
-      // Fused evaluation: sources + residual + Z-Jacobian in a single pass.
-      // This replaces the old 3-call sequence:
-      //   1. PrepareMatterSource_E_F_d (sources)
-      //   2. System::Z_E_F_d (residual)
-      //   3. ZJacobian_sc_E_sp_F_d_raw (Jacobian)
-      // All intermediates (d_th/d_tk, opacities, alpha, expansion coefficients,
-      // F^a raised with metric) are computed once and shared.
-      Real Z_vec[N_SYS];
-      Real ZJ[N_SYS][N_SYS];
-
-      switch (pm1.opt_closure.variety)
+    auto is_physical = [&](const Real E, const Real (&F_d)[N])
+    {
+      if (!std::isfinite(E) || E < pm1.opt.fl_E)
       {
-        default:
-        {
-          Assemble::Frames::sources_and_ZJacobian_sc_E_sp_F_d(
-            pm1,
-            S_E_final, S_F_d_final,  // output: source terms
-            Z_vec,                     // output: residual
-            ZJ,                        // output: Z-Jacobian
-            dt,
-            WE, WF_d,                 // pre-hoisted iteration-invariant terms
-            C.sc_chi, C.sc_E, C.sp_F_d,
-            C.sc_eta, C.sc_kap_a, C.sc_kap_s,
-            cache,
-            k, j, i
-          );
-        }
+        return false;
       }
 
-      // Solve ZJ * dU = Z via 4x4 LU with partial pivoting.
-      // On return, Z_vec contains the Newton step dU.
-      const bool lu_ok = solve_4x4_LU_pp(ZJ, Z_vec);
-
-      if (!lu_ok)
-      {
-        // Singular Jacobian - cannot proceed
-        solver_failed = true;
-        break;
-      }
-
-      // Apply Newton update: U <- U - dU
-      C.sc_E(k,j,i) -= Z_vec[0];
+      Real norm2F_over_E2 = 0.0;
       for (int a = 0; a < N; ++a)
       {
-        C.sp_F_d(a,k,j,i) -= Z_vec[1 + a];
-      }
-
-      // Enforce physicality (non-negative energy, causality)
-      EnforcePhysical_E_F_d(pm1, C, k, j, i);
-
-      // Recompute closure with updated state
-      CL_C.Closure(k, j, i);
-
-      // Convergence test (matches gsl_multiroot_test_delta semantics):
-      //   |dU[a]| < eps_a + eps_r * |U[a]|  for all a
-      converged = true;
-      {
-        // Check energy component
-        const Real U_0 = C.sc_E(k,j,i);
-        if (std::abs(Z_vec[0]) >= eps_a + eps_r * std::abs(U_0))
+        if (!std::isfinite(F_d[a]))
         {
-          converged = false;
+          return false;
         }
 
-        // Check flux components
-        for (int a = 0; a < N; ++a)
+        const Real Fhat_a = F_d[a] / E;
+        for (int b = 0; b < N; ++b)
         {
-          const Real U_a = C.sp_F_d(a,k,j,i);
-          if (std::abs(Z_vec[1 + a]) >= eps_a + eps_r * std::abs(U_a))
+          const Real Fhat_b = F_d[b] / E;
+          norm2F_over_E2 +=
+            Fhat_a * pm1.geom.sp_g_uu(a,b,k,j,i) * Fhat_b;
+        }
+      }
+
+      return std::isfinite(norm2F_over_E2) &&
+             norm2F_over_E2 >= 0.0 &&
+             norm2F_over_E2 <= 1.0;
+    };
+
+    auto system_is_finite =
+      [&](const Real (&Z)[N_SYS], const Real (&ZJ)[N_SYS][N_SYS])
+    {
+      for (int a = 0; a < N_SYS; ++a)
+      {
+        if (!std::isfinite(Z[a]))
+        {
+          return false;
+        }
+
+        for (int b = 0; b < N_SYS; ++b)
+        {
+          if (!std::isfinite(ZJ[a][b]))
           {
-            converged = false;
+            return false;
           }
         }
       }
 
-    }
-    while (!converged && !solver_failed && iter < iter_max);
+      return true;
+    };
 
-    // Write source values from the last Newton iteration to S so that
-    // downstream code (Limiter::Apply, CheckPhysicalFallback, GR-evolution
-    // coupling) can read them. This is required: those routines access
-    // S.sc_E and S.sp_F_d after this solver returns.
+    auto residual_norm = [&](const Real (&Z)[N_SYS])
+    {
+      Real norm = 0.0;
+      for (int a = 0; a < N_SYS; ++a)
+      {
+        norm = std::max(norm, std::abs(Z[a]));
+      }
+      return norm;
+    };
+
+    auto residual_small = [&](const Real (&Z)[N_SYS])
+    {
+      const Real E = C.sc_E(k,j,i);
+      if (std::abs(Z[0]) >= eps_a + eps_r * std::abs(E))
+      {
+        return false;
+      }
+
+      for (int a = 0; a < N; ++a)
+      {
+        const Real F_a = C.sp_F_d(a,k,j,i);
+        if (std::abs(Z[1+a]) >= eps_a + eps_r * std::abs(F_a))
+        {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    auto step_small = [&](const Real dE, const Real (&dF_d)[N])
+    {
+      if (std::abs(dE) >= eps_a + eps_r * std::abs(C.sc_E(k,j,i)))
+      {
+        return false;
+      }
+
+      for (int a = 0; a < N; ++a)
+      {
+        if (std::abs(dF_d[a]) >=
+            eps_a + eps_r * std::abs(C.sp_F_d(a,k,j,i)))
+        {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    auto evaluate = [&](Real &S_E, Real (&S_F_d)[N],
+                        Real (&Z)[N_SYS], Real (&ZJ)[N_SYS][N_SYS])
+    {
+      const auto cache = Assemble::Frames::make_cache(
+        pm1, C.sc_E, C.sp_F_d, k, j, i
+      );
+
+      Assemble::Frames::sources_and_ZJacobian_sc_E_sp_F_d(
+        pm1,
+        S_E, S_F_d,
+        Z, ZJ,
+        dt, WE, WF_d,
+        C.sc_chi, C.sc_E, C.sp_F_d,
+        C.sc_eta, C.sc_kap_a, C.sc_kap_s,
+        cache,
+        k, j, i
+      );
+    };
+
+    Real Z_vec[N_SYS];
+    Real ZJ[N_SYS][N_SYS];
+    evaluate(S_E_final, S_F_d_final, Z_vec, ZJ);
+
+    int iter = 0;
+    bool converged = false;
+    Failure failure = Failure::none;
+
+    while (!converged && failure == Failure::none && iter < iter_max)
+    {
+      ++iter;
+
+      if (!system_is_finite(Z_vec, ZJ))
+      {
+        failure = Failure::nonfinite_system;
+        break;
+      }
+
+      // A residual root is valid even when it lies on |F|_gamma = E.
+      if (residual_small(Z_vec))
+      {
+        converged = true;
+        break;
+      }
+
+      Real dU[N_SYS];
+      Real ZJ_work[N_SYS][N_SYS];
+      for (int a = 0; a < N_SYS; ++a)
+      {
+        dU[a] = Z_vec[a];
+        for (int b = 0; b < N_SYS; ++b)
+        {
+          ZJ_work[a][b] = ZJ[a][b];
+        }
+      }
+
+      const LU4Result lu_result = solve_4x4_LU_pp(ZJ_work, dU);
+      if (lu_result == LU4Result::nonfinite)
+      {
+        failure = Failure::nonfinite_system;
+        break;
+      }
+      if (lu_result == LU4Result::singular)
+      {
+        failure = Failure::singular_jacobian;
+        break;
+      }
+
+      const Real E_old = C.sc_E(k,j,i);
+      Real F_d_old[N];
+      for (int a = 0; a < N; ++a)
+      {
+        F_d_old[a] = C.sp_F_d(a,k,j,i);
+      }
+
+      const Real old_residual_norm = residual_norm(Z_vec);
+      bool saw_feasible_trial = false;
+      bool accepted = false;
+      Real lambda = 1.0;
+
+      for (int ls = 0;
+           ls < std::numeric_limits<Real>::digits;
+           ++ls, lambda *= 0.5)
+      {
+        const Real E_trial = E_old - lambda * dU[0];
+        Real F_d_trial[N];
+        for (int a = 0; a < N; ++a)
+        {
+          F_d_trial[a] = F_d_old[a] - lambda * dU[1+a];
+        }
+
+        if (!is_physical(E_trial, F_d_trial))
+        {
+          continue;
+        }
+
+        saw_feasible_trial = true;
+        C.sc_E(k,j,i) = E_trial;
+        for (int a = 0; a < N; ++a)
+        {
+          C.sp_F_d(a,k,j,i) = F_d_trial[a];
+        }
+        CL_C.Closure(k, j, i);
+
+        Real S_E_trial = 0.0;
+        Real S_F_d_trial[N] = {};
+        Real Z_trial[N_SYS];
+        Real ZJ_trial[N_SYS][N_SYS];
+        evaluate(S_E_trial, S_F_d_trial, Z_trial, ZJ_trial);
+
+        if (!system_is_finite(Z_trial, ZJ_trial))
+        {
+          continue;
+        }
+
+        if (!residual_small(Z_trial) &&
+            residual_norm(Z_trial) >= old_residual_norm)
+        {
+          continue;
+        }
+
+        for (int a = 0; a < N_SYS; ++a)
+        {
+          Z_vec[a] = Z_trial[a];
+          for (int b = 0; b < N_SYS; ++b)
+          {
+            ZJ[a][b] = ZJ_trial[a][b];
+          }
+        }
+
+        S_E_final = S_E_trial;
+        for (int a = 0; a < N; ++a)
+        {
+          S_F_d_final[a] = S_F_d_trial[a];
+        }
+
+        accepted = true;
+        break;
+      }
+
+      if (!accepted)
+      {
+        C.sc_E(k,j,i) = E_old;
+        for (int a = 0; a < N; ++a)
+        {
+          C.sp_F_d(a,k,j,i) = F_d_old[a];
+        }
+        CL_C.Closure(k, j, i);
+
+        failure = saw_feasible_trial
+          ? Failure::no_feasible_descent
+          : Failure::no_feasible_step;
+        break;
+      }
+
+      Real accepted_dF_d[N];
+      for (int a = 0; a < N; ++a)
+      {
+        accepted_dF_d[a] = F_d_old[a] - C.sp_F_d(a,k,j,i);
+      }
+
+      if (residual_small(Z_vec))
+      {
+        converged = true;
+        break;
+      }
+
+      if (step_small(E_old - C.sc_E(k,j,i), accepted_dF_d))
+      {
+        failure = Failure::no_progress;
+        break;
+      }
+    }
+
+    if (!converged && failure == Failure::none)
+    {
+      failure = Failure::max_iterations;
+    }
+
+    // Publish source values evaluated at the last accepted physical state.
     S.sc_E(k,j,i) = S_E_final;
     for (int a = 0; a < N; ++a)
     {
       S.sp_F_d(a,k,j,i) = S_F_d_final[a];
     }
 
-    // Failure handling (mirrors StepImplicitHybridsJ) ------------------------
+    const auto failure_name = [&]()
+    {
+      switch (failure)
+      {
+        case Failure::nonfinite_system:
+          return "nonfinite residual/Jacobian";
+        case Failure::singular_jacobian:
+          return "singular Jacobian";
+        case Failure::no_feasible_step:
+          return "no feasible step";
+        case Failure::no_feasible_descent:
+          return "no feasible residual-decreasing step";
+        case Failure::no_progress:
+          return "accepted-step stagnation";
+        case Failure::max_iterations:
+          return "iteration limit";
+        case Failure::none:
+          return "unknown";
+      }
+
+      return "unknown";
+    };
+
     bool revert_thick = false;
-
-    if (!converged && !solver_failed && iter >= iter_max)
+    if (!converged)
     {
-      // Max iterations reached without convergence
+      const bool tolerance_failure = failure == Failure::max_iterations;
+
       if (pm1.opt_solver.verbose)
       #pragma omp critical
       {
-        std::cout << "Warning: StepImplicitCustomN: ";
-        std::cout << "MAXITER (iter=" << iter << ")\n";
-        std::cout << "sc_chi : " << C.sc_chi(k,j,i) << "\n";
+        std::cout << "Warning: StepImplicitCustomN: "
+                  << failure_name()
+                  << " at iter " << iter
+                  << " @ (k, j, i): " << k << ", " << j << ", " << i << "\n";
       }
 
-      revert_thick = pm1.opt_solver.thick_tol;
-    }
-    else if (solver_failed)
-    {
-      // Singular Jacobian or other solver breakdown
-      if (pm1.opt_solver.verbose)
-      #pragma omp critical
-      {
-        std::cout << "Warning: StepImplicitCustomN: ";
-        std::cout << "solver failure (singular Jacobian or stagnation)";
-        std::cout << ": iter " << iter << " \n";
-        std::cout << "sc_chi : " << C.sc_chi(k,j,i) << " ";
-        std::printf("|.-1/3|=%.3g ", std::abs(C.sc_chi(k,j,i) - ONE_3RD));
-        std::cout << "@ (k, j, i): " << k << ", " << j << ", " << i << "\n";
-      }
-
-      if (pm1.opt_solver.verbose)
-      if (pm1.opt_closure.variety == M1::opt_closure_variety::thick)
-      {
-        std::ostringstream msg;
-        msg << "StepImplicitCustomN failure: ";
-        msg << "singular " << iter;
-
-        pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, false);
-      }
-
-      // retry thick
-      revert_thick = pm1.opt_solver.thick_npg;
+      // Match the established implicit-solver policy: thick_tol retries an
+      // iteration/tolerance failure; thick_npg retries all no-progress and
+      // linear-breakdown failures. Enabling both retries thick on every failure.
+      revert_thick = tolerance_failure
+        ? pm1.opt_solver.thick_tol
+        : pm1.opt_solver.thick_npg;
     }
 
     if (revert_thick &&
@@ -1113,29 +1329,24 @@ void StepImplicitCustomN(
 
       pm1.opt_closure.variety = opt_cl;
     }
-    else if (!converged && !revert_thick && !solver_failed)
+    else if (!converged &&
+             failure == Failure::no_progress &&
+             pm1.opt_closure.variety == M1::opt_closure_variety::thick)
     {
-      // Non-convergence without revert option: fatal error
-      std::ostringstream msg;
-      msg << "StepImplicitCustomN failure: ";
-      msg << "no convergence " << iter;
-
-      pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
+      // The last thick iterate is physical and residual-decreasing, although
+      // its residual is not converged. Carry it and the source above forward.
     }
     else if (!converged)
     {
-      // No remaining fallback
       std::ostringstream msg;
-      msg << "StepImplicitCustomN failure: ";
-      msg << "no remaining fallback " << iter;
+      msg << "StepImplicitCustomN failure: "
+          << failure_name()
+          << " iter " << iter;
 
       pm1.StatePrintPoint(msg.str(), C.ix_g, C.ix_s, k, j, i, true);
     }
 
-    // Note: No final EnforcePhysical_E_F_d needed here. The last Newton
-    // iteration already called EnforcePhysical_E_F_d (line above closure
-    // recomputation), and the revert_thick path handles its own enforcement
-    // via the recursive StepImplicitCustomN call.
+    // Every accepted trial has passed the physical-state predicate.
   }
 }
 
