@@ -597,17 +597,26 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
   // One-time rescale factor computation from the PrimitiveSolver EOS.
   // peos is a MeshBlock member not available during InitUserMeshData.
-  if (g_rescale_enabled && !g_rescale_initialized) {
-    // CompOSE baryon mass in GeometricSolar mass units:
-    Real mb_geo = peos->GetEOS().GetRawBaryonMass();
-    // Same for the atomic mass unit (Kadath convention):
-    Real mamu_geo = Margherita_constants::mnuc_MeV
-                  * Primitive::Nuclear.MassConversion(Primitive::GeometricSolar);
-    g_fuka_rho_rescale = mb_geo / mamu_geo;
-    g_rescale_initialized = true;
-    if (Globals::my_rank == 0) {
-      std::printf("FUKA density rescaling enabled: factor = %.6f\n",
-                  g_fuka_rho_rescale);
+  if (g_rescale_enabled)
+  {
+#pragma omp critical(fuka_density_rescale_initialization)
+    {
+      if (!g_rescale_initialized)
+      {
+        // CompOSE baryon mass in GeometricSolar mass units:
+        const Real mb_geo = peos->GetEOS().GetRawBaryonMass();
+        // Same for the atomic mass unit (Kadath convention):
+        const Real mamu_geo =
+          Margherita_constants::mnuc_MeV *
+          Primitive::Nuclear.MassConversion(Primitive::GeometricSolar);
+        g_fuka_rho_rescale = mb_geo / mamu_geo;
+        g_rescale_initialized = true;
+        if (Globals::my_rank == 0)
+        {
+          std::printf("FUKA density rescaling enabled: factor = %.6f\n",
+                      g_fuka_rho_rescale);
+        }
+      }
     }
   }
 
