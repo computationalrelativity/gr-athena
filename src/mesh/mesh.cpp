@@ -62,6 +62,7 @@
 
 #include "../comm/amr_registry.hpp"
 #include "../comm/comm_registry.hpp"
+#include "../comm/mpi_guard.hpp"
 #include "../comm/reconcile_faces.hpp"
 #include "../m1/m1.hpp"
 #include "../wave/wave.hpp"
@@ -2202,6 +2203,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
     for (int i = 0; i < nmb; ++i)
     {
       MeshBlock* pmb = pmb_array[i];
+#ifdef MPI_PARALLEL
+      gra::mpi_guard::lock();
+#endif
       if (pmb->pcomm->is_finalized())
       {
         pmb->pcomm->Reinitialize();
@@ -2210,6 +2214,9 @@ void Mesh::Initialize(initialize_style init_style, ParameterInput* pin)
       {
         pmb->pcomm->Finalize();
       }
+#ifdef MPI_PARALLEL
+      gra::mpi_guard::unlock();
+#endif
       // AMRRegistry: freeze registration and compute buffer sizes.
       // Unlike CommRegistry, AMRRegistry owns no MPI state, so surviving
       // blocks need no tear-down - just skip if already finalized.
