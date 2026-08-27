@@ -143,11 +143,13 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
   // --- Barrier-free work-stealing loop ---
 
-  // Per-block completion flags (plain char, only written under lock).
-  // NOTE: std::vector<bool> is a packed bitfield; concurrent writes to
-  // different indices sharing the same word would be a data race.
-  // std::vector<char> avoids this by giving each flag its own byte.
-  std::vector<char> completed(nmb, 0);
+  // Per-block completion flags. A completed block is skipped without taking
+  // its lock, so this state must be atomic.
+  using CompletionFlag = std::atomic<unsigned char>;
+  static_assert(CompletionFlag::is_always_lock_free);
+  std::vector<CompletionFlag> completed(nmb);
+  for (auto& flag : completed)
+    flag.store(0, std::memory_order_relaxed);
 
   // Per-block try-lock: false = unlocked, true = locked.
   std::vector<PaddedFlag> block_lock(nmb);
@@ -179,7 +181,7 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
         // Round-robin index selection via shared atomic counter.
         int idx = next_idx.fetch_add(1, std::memory_order_relaxed) % nmb;
 
-        if (completed[idx])
+        if (completed[idx].load(std::memory_order_relaxed))
           continue;
 
         // Try to acquire the per-block lock (non-blocking).
@@ -192,7 +194,7 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
         // Double-check completion under lock (another thread may have
         // completed it between our check above and lock acquisition).
-        if (completed[idx])
+        if (completed[idx].load(std::memory_order_relaxed))
         {
           block_lock[idx].locked.store(false, std::memory_order_release);
           continue;
@@ -204,7 +206,7 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 
         if (status == TaskListStatus::complete)
         {
-          completed[idx] = true;
+          completed[idx].store(1, std::memory_order_relaxed);
           nmb_left.fetch_sub(1, std::memory_order_relaxed);
 #ifdef DBG_TASKLIST_HANG
           progress_gen.fetch_add(1, std::memory_order_relaxed);
@@ -249,7 +251,7 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 // Only one thread should print the diagnostic.
 #pragma omp critical
           {
-            DumpHangDiagnostic(pmesh, stage, pmb_array, completed, nmb);
+            DumpHangDiagnostic(pmesh, stage, pmb_array, completed.data(), nmb);
           }
         }
       }
@@ -270,7 +272,7 @@ void TaskList::DoTaskListOneStage(Mesh* pmesh, int stage)
 void TaskList::DumpHangDiagnostic(Mesh* pmesh,
                                   int stage,
                                   MeshBlock** pmb_array,
-                                  const std::vector<char>& completed,
+                                  const std::atomic<unsigned char>* completed,
                                   int nmb) const
 {
   std::printf(
@@ -284,7 +286,7 @@ void TaskList::DumpHangDiagnostic(Mesh* pmesh,
 
   for (int i = 0; i < nmb; ++i)
   {
-    if (completed[i])
+    if (completed[i].load(std::memory_order_relaxed))
       continue;
 
     MeshBlock* pmb = pmb_array[i];

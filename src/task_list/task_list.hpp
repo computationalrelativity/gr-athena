@@ -12,6 +12,7 @@
 // C headers
 
 // C++ headers
+#include <atomic>   // std::atomic
 #include <cstdint>  // std::uint64_t
 #include <string>   // std::string
 #include <vector>   // std::vector
@@ -162,7 +163,7 @@ class TaskList
   void DumpHangDiagnostic(Mesh* pmesh,
                           int stage,
                           MeshBlock** pmb_array,
-                          const std::vector<char>& completed,
+                          const std::atomic<unsigned char>* completed,
                           int nmb) const;
 };
 
