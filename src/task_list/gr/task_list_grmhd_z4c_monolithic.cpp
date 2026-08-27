@@ -177,12 +177,8 @@ GRMHD_Z4c_Monolithic::GRMHD_Z4c_Monolithic(ParameterInput* pin,
 #endif
 
   // =========================================================================
-  // MHD ghost-zone send + C2P (send conserved BEFORE C2P!)
+  // MHD C2P + ghost-zone send
   // =========================================================================
-
-  // Conserved-variable ghost send fires as soon as MHD integration completes.
-  // MainInt channels pack u/b/s (conserved), so no dependency on C2P.
-  Add(SEND_HYD, FIN_MHD, &GRMHD_Z4c_Monolithic::SendHydro);
 
   // Wait on flux-correction sends and reset channel flags (multilevel only).
   if (multilevel)
@@ -195,6 +191,9 @@ GRMHD_Z4c_Monolithic::GRMHD_Z4c_Monolithic(ParameterInput* pin,
   Add(CONS2PRIMP,
       (FIN_MHD | Z4C_TO_ADM),
       &GRMHD_Z4c_Monolithic::PrimitivesPhysical);
+
+  // MainInt packs u/b/s after C2P, which may adjust conserved fields.
+  Add(SEND_HYD, CONS2PRIMP, &GRMHD_Z4c_Monolithic::SendHydro);
 
   // Ghost-zone receive polls from NONE (non-blocking MPI_Test)
   Add(RECV_HYD, NONE, &GRMHD_Z4c_Monolithic::ReceiveHydro);
