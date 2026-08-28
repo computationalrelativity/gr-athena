@@ -1255,11 +1255,9 @@ bool MeshBlock::SphereIntersects(Real const Sx0,
                                  Real const Sz0,
                                  Real const radius)
 {
-  // Check if center is contained in MeshBlock
   if (PointContained(Sx0, Sy0, Sz0))
     return true;
 
-  // We require the MeshBlock vertices
   Real const mb_mi_x1 = block_size.x1min;
   Real const mb_ma_x1 = block_size.x1max;
 
@@ -1269,33 +1267,13 @@ bool MeshBlock::SphereIntersects(Real const Sx0,
   Real const mb_mi_x3 = block_size.x3min;
   Real const mb_ma_x3 = block_size.x3max;
 
-  Real const Srad = SQR(radius);
+  // Sphere-AABB test.
+  Real const x1_nearest = std::min(std::max(Sx0, mb_mi_x1), mb_ma_x1);
+  Real const x2_nearest = std::min(std::max(Sy0, mb_mi_x2), mb_ma_x2);
+  Real const x3_nearest = std::min(std::max(Sz0, mb_mi_x3), mb_ma_x3);
 
-  if ((SQR(mb_mi_x1 - Sx0) + SQR(mb_mi_x2 - Sy0) + SQR(mb_mi_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_ma_x1 - Sx0) + SQR(mb_mi_x2 - Sy0) + SQR(mb_mi_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_mi_x1 - Sx0) + SQR(mb_ma_x2 - Sy0) + SQR(mb_mi_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_mi_x1 - Sx0) + SQR(mb_mi_x2 - Sy0) + SQR(mb_ma_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_ma_x1 - Sx0) + SQR(mb_ma_x2 - Sy0) + SQR(mb_ma_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_mi_x1 - Sx0) + SQR(mb_ma_x2 - Sy0) + SQR(mb_ma_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_ma_x1 - Sx0) + SQR(mb_mi_x2 - Sy0) + SQR(mb_ma_x3 - Sz0)) < Srad)
-    return true;
-
-  if ((SQR(mb_ma_x1 - Sx0) + SQR(mb_ma_x2 - Sy0) + SQR(mb_mi_x3 - Sz0)) < Srad)
-    return true;
-
-  return false;
+  return (SQR(x1_nearest - Sx0) + SQR(x2_nearest - Sy0) +
+          SQR(x3_nearest - Sz0)) <= SQR(radius);
 }
 
 void MeshBlock::DebugMeshBlock(const Real x,
