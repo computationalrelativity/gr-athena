@@ -94,7 +94,7 @@ int Mesh::StandardRefinementCondition(MeshBlock* pmb)
 
       for (auto pah_f : pmesh->pah_finder)
       {
-        if (not pah_f->IsFound())
+        if (not pah_f->HasCurrentHorizon())
           continue;
 
         if (pah_f->GetHorizonMinRadius() < horizon_radius)

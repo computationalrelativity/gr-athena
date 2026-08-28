@@ -68,6 +68,10 @@ class AHF
   {
     return ah_found;
   }
+  bool HasCurrentHorizon() const
+  {
+    return ah_found && (rr_min > 0.0);
+  }
   Real TimeFound() const
   {
     return time_first_found;

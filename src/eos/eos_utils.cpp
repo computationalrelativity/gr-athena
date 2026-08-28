@@ -173,7 +173,7 @@ bool EquationOfState::CanExcisePoint(const bool is_slice,
     Real horizon_radius;
     for (auto pah_f : pm->pah_finder)
     {
-      if (not pah_f->IsFound())
+      if (not pah_f->HasCurrentHorizon())
         continue;
       horizon_radius = pah_f->GetHorizonMinRadius();
       horizon_radius *= ph->opt_excision.horizon_factor;
@@ -234,7 +234,7 @@ bool EquationOfState::CanExcisePoint(Real& excision_factor,
 
     for (auto pah_f : pm->pah_finder)
     {
-      if (not pah_f->IsFound())
+      if (not pah_f->HasCurrentHorizon())
         continue;
 
       horizon_radius = pah_f->GetHorizonMinRadius();
