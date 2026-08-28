@@ -321,7 +321,7 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
 
         // Check if the state is admissible; if not we reset to atmo.
         bool is_admissible =
-          IsAdmissiblePoint(cons, prim, SQR(sqrt_det_gamma_(i)), k, j, i);
+          IsAdmissiblePoint(cons, SQR(sqrt_det_gamma_(i)), k, j, i);
 
         if (ph->opt_excision.excise_c2p)
         {

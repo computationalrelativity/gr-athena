@@ -121,7 +121,6 @@ class EquationOfState
   // --------------------------------------------------------------------------
   // Check state vector at a point makes sense & we are not
   bool IsAdmissiblePoint(const AA& cons,
-                         const AA& prim,
                          const Real adm_detgamma,
                          const int k,
                          const int j,

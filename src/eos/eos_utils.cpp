@@ -112,7 +112,6 @@ void EquationOfState::StatePrintPoint(const std::string& tag,
 
 // ----------------------------------------------------------------------------
 bool EquationOfState::IsAdmissiblePoint(const AA& cons,
-                                        const AA& prim,
                                         const Real adm_detgamma,
                                         const int k,
                                         const int j,
@@ -125,28 +124,19 @@ bool EquationOfState::IsAdmissiblePoint(const AA& cons,
   const Real &S_2g__ = cons(IVY,k,j,i);
   const Real &S_3g__ = cons(IVZ,k,j,i);
   */
-  const Real& w_rho__ = prim(IDN, k, j, i);
-  /*
-  const Real &w_p__   = prim(IPR,k,j,i);
-  const Real &uu1__   = prim(IVX,k,j,i);
-  const Real &uu2__   = prim(IVY,k,j,i);
-  const Real &uu3__   = prim(IVZ,k,j,i);
-  */
-
   bool is_admissible = true;
 
-  // Check if nan, faster to sum all values and then check if result is nan
+  // Check C2P inputs for NaN.
   Real sum = 0;
   for (int n = 0; n < NHYDRO; ++n)
   {
-    sum += cons(n, k, j, i) + prim(n, k, j, i);
+    sum += cons(n, k, j, i);
   }
   is_admissible = is_admissible && std::isfinite(sum);
 
   // Now check for positivity
   is_admissible = is_admissible && (adm_detgamma >= 0);
   is_admissible = is_admissible && (Dg__ >= 0);
-  is_admissible = is_admissible && (w_rho__ >= 0);
 
   return is_admissible;
 }
