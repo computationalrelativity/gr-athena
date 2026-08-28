@@ -640,6 +640,11 @@ static void PrimitiveToConservedSingle(AA& prim,
       ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
     const bool primitive_floored = ps.GetEOS()->ApplyPrimitiveFloor(
       prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+    if (!primitive_floored)
+    {
+      prim_pt[IPR] =
+        ps.GetEOS()->GetPressure(prim_pt[IDN], prim_pt[ITM], Y);
+    }
     result = density_limited || species_limited || primitive_floored;
 
     for (int n = 0; n < NSCALARS; n++)
@@ -720,10 +725,14 @@ static void PrimitiveToConservedSingle(AA& prim,
   PrimHelper::ScatterConsHydro(cons_pt, cons, k, j, i, sdetg);
   PrimHelper::ScatterConsScalars(cons_pt, cons_scalar, k, j, i, sdetg);
 
-  // If we floored things, we'll need to readjust the primitives.
+  // Publish adjusted primitives or the canonical pressure.
   if (result)
   {
     PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
+  }
+  else
+  {
+    prim(IPR, k, j, i) = prim_pt[IPR];
   }
 
   // PrimToCon constructs D = n * mb * W.

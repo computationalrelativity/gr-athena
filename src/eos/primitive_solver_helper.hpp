@@ -344,8 +344,13 @@ inline void ApplyPrimitiveFloors(EOS_t& eos,
     eos.ApplySpeciesLimits(&prim_pt[IYF]);
     Real T = eos.GetTemperatureFromP(
       prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]);
-    eos.ApplyPrimitiveFloor(
+    const bool primitive_floored = eos.ApplyPrimitiveFloor(
       prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], T, &prim_pt[IYF]);
+    if (!primitive_floored)
+    {
+      prim_pt[IPR] = eos.GetPressure(
+        prim_pt[IDN], T, &prim_pt[IYF]);
+    }
   }
 
   // Push updated quantities back to Athena arrays.
