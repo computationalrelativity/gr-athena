@@ -448,6 +448,15 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
 #endif
           }
 
+          if (result.error != Primitive::Error::SUCCESS &&
+              !result.cons_adjusted)
+          {
+            std::stringstream msg;
+            msg << "### FATAL ERROR in ConservedToPrimitive\n"
+                << "C2P failure response did not produce a replacement state.\n";
+            ATHENA_ERROR(msg);
+          }
+
           // Update the primitive variables.
           PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
 
@@ -618,21 +627,25 @@ static void PrimitiveToConservedSingle(AA& prim,
   PrimHelper::GatherPrim(prim, prim_scalar, prim_pt, k, j, i, mb);
   PrimHelper::GatherScalars(prim_scalar, Y, k, j, i);
 
-  // Get temperature and apply floor
-  const bool density_limited =
-    ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
-  const bool species_limited =
-    ps.GetEOS()->ApplySpeciesLimits(Y);
-  prim_pt[ITM] =
-    ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
-  const bool primitive_floored = ps.GetEOS()->ApplyPrimitiveFloor(
-    prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+  // Apply the raw primitive atmosphere response before table limits.
   bool result =
-    density_limited || species_limited || primitive_floored;
-
-  for (int n = 0; n < NSCALARS; n++)
+    PrimHelper::ApplyRawPrimitiveAtmosphereFloor(*ps.GetEOS(), prim_pt);
+  if (!result)
   {
-    prim_pt[IYF + n] = Y[n];
+    const bool density_limited =
+      ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+    const bool species_limited =
+      ps.GetEOS()->ApplySpeciesLimits(Y);
+    prim_pt[ITM] =
+      ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
+    const bool primitive_floored = ps.GetEOS()->ApplyPrimitiveFloor(
+      prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+    result = density_limited || species_limited || primitive_floored;
+
+    for (int n = 0; n < NSCALARS; n++)
+    {
+      prim_pt[IYF + n] = Y[n];
+    }
   }
 
   // Extract the metric and calculate the determinant..

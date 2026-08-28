@@ -307,6 +307,16 @@ inline void SetPrimAtmo(EOS_t& eos,
 //   automatically via prim.GetDim4().
 // -------------------------------------------------------------------------
 
+inline bool ApplyRawPrimitiveAtmosphereFloor(EOS_t& eos,
+                                             Real prim_pt[NPRIM])
+{
+  if (prim_pt[IDN] >= eos.GetDensityFloor() * eos.GetThreshold())
+  {
+    return false;
+  }
+  return eos.DoFailureResponse(prim_pt);
+}
+
 /// Apply primitive floors at grid point (k, j, i) - or at pencil index i
 /// when the array is 1-D (prim.GetDim4()==1).
 inline void ApplyPrimitiveFloors(EOS_t& eos,
@@ -316,53 +326,36 @@ inline void ApplyPrimitiveFloors(EOS_t& eos,
                                  int j,
                                  int i)
 {
-  Real Y[MAX_SPECIES] = { 0.0 };
-  Real Wvu[3]         = {};
-  Real P;
-  Real n;
-
   Real mb = eos.GetBaryonMass();
+  Real prim_pt[NPRIM] = { 0.0 };
 
   if (prim.GetDim4() == 1)
   {
-    GatherScalars(prim_scalar, Y, i);
-    n = prim(IDN, i) / mb;
-    P = prim(IPR, i);
-    for (int a = 0; a < 3; ++a)
-      Wvu[a] = prim(IVX + a, i);
+    GatherPrim(prim, prim_scalar, prim_pt, i, mb);
   }
   else
   {
-    GatherScalars(prim_scalar, Y, k, j, i);
-    n = prim(IDN, k, j, i) / mb;
-    P = prim(IPR, k, j, i);
-    for (int a = 0; a < 3; ++a)
-      Wvu[a] = prim(IVX + a, k, j, i);
+    GatherPrim(prim, prim_scalar, prim_pt, k, j, i, mb);
   }
 
-  eos.ApplyDensityLimits(n);
-  eos.ApplySpeciesLimits(Y);
-  Real T = eos.GetTemperatureFromP(n, P, Y);
-  eos.ApplyPrimitiveFloor(n, Wvu, P, T, Y);
+  if (!ApplyRawPrimitiveAtmosphereFloor(eos, prim_pt))
+  {
+    eos.ApplyDensityLimits(prim_pt[IDN]);
+    eos.ApplySpeciesLimits(&prim_pt[IYF]);
+    Real T = eos.GetTemperatureFromP(
+      prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]);
+    eos.ApplyPrimitiveFloor(
+      prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], T, &prim_pt[IYF]);
+  }
 
   // Push updated quantities back to Athena arrays.
   if (prim.GetDim4() == 1)
   {
-    prim(IDN, i) = n * mb;
-    prim(IVX, i) = Wvu[0];
-    prim(IVY, i) = Wvu[1];
-    prim(IVZ, i) = Wvu[2];
-    prim(IPR, i) = P;
-    ScatterScalars(Y, prim_scalar, i);
+    ScatterPrim(prim_pt, prim, prim_scalar, i, mb);
   }
   else
   {
-    prim(IDN, k, j, i) = n * mb;
-    prim(IVX, k, j, i) = Wvu[0];
-    prim(IVY, k, j, i) = Wvu[1];
-    prim(IVZ, k, j, i) = Wvu[2];
-    prim(IPR, k, j, i) = P;
-    ScatterScalars(Y, prim_scalar, k, j, i);
+    ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
   }
 }
 

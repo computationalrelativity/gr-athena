@@ -467,17 +467,44 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   // Extract the particle fractions.
   const int n_species = peos->GetNSpecies();
   Real Y[MAX_SPECIES] = { 0.0 };
-  for (int s = 0; s < n_species; s++)
-  {
-    Y[s] = cons[IYD + s] / cons[IDN];
-  }
-  // Apply limits to Y to ensure a physical state
-  bool Y_adjusted = peos->ApplySpeciesLimits(Y);
+  bool Y_adjusted     = false;
+  bool floored        = false;
+  const Real Bsq      = SquareVector(B_u, g3d);
 
-  // Check the conserved variables for consistency and do whatever
-  // the EOSPolicy wants us to.
-  bool floored =
-    peos->ApplyConservedFloor(D, S_d, tau, Y, SquareVector(B_u, g3d));
+  if (!std::isfinite(D))
+  {
+    HandleFailure(prim, cons, b, g3d, solver_result);
+    solver_result.error = Error::NANS_IN_CONS;
+    return solver_result;
+  }
+
+  const Real D_threshold = peos->GetDensityFloor() *
+                           peos->GetBaryonMass() * peos->GetThreshold();
+  if (D < D_threshold)
+  {
+    floored = peos->ApplyConservedFloor(D, S_d, tau, Y, Bsq);
+  }
+
+  if (!floored)
+  {
+    if (D <= 0.0)
+    {
+      HandleFailure(prim, cons, b, g3d, solver_result);
+      solver_result.error = Error::RHO_TOO_SMALL;
+      return solver_result;
+    }
+
+    for (int s = 0; s < n_species; s++)
+    {
+      Y[s] = cons[IYD + s] / D;
+    }
+    // Apply limits to Y to ensure a physical state.
+    Y_adjusted = peos->ApplySpeciesLimits(Y);
+
+    // Check the conserved variables for consistency and do whatever
+    // the EOSPolicy wants us to.
+    floored = peos->ApplyConservedFloor(D, S_d, tau, Y, Bsq);
+  }
   solver_result.cons_floor = floored;
   if (floored && peos->IsConservedFlooringFailure())
   {
