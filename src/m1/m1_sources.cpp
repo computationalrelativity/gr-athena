@@ -316,6 +316,18 @@ void Apply(
       EnforcePhysical_E_F_d(*pm1, C, k, j, i);
       EnforcePhysical_nG(*pm1, C, k, j, i);
 
+      // Reform source after potential projection
+      S.sc_E(k, j, i) =
+        (C.sc_E(k, j, i) - (P.sc_E(k, j, i) + dt * I.sc_E(k, j, i))) / dt;
+      S.sc_nG(k, j, i) =
+        (C.sc_nG(k, j, i) - (P.sc_nG(k, j, i) + dt * I.sc_nG(k, j, i))) / dt;
+      for (int a = 0; a < N; ++a)
+      {
+        S.sp_F_d(a, k, j, i) =
+          (C.sp_F_d(a, k, j, i) -
+           (P.sp_F_d(a, k, j, i) + dt * I.sp_F_d(a, k, j, i))) / dt;
+      }
+
       // Compute closure based on limited (sc_E, sp_F_d)
       if (pm1->opt_solver.equilibrium_use_thick &&
           pm1->IsEquilibrium(ix_s,k,j,i))
