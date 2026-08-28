@@ -314,7 +314,7 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   for (int i = 0; i < npt_interp - 1; ++i)
   {
     xcrd_p[i + 1]              = xcrd_p[i] + dx_interp;
-    xcrd_m[npt_interp - i - 1] = xcrd_m[npt_interp - i] - dx_interp;
+    xcrd_m[npt_interp - i - 2] = xcrd_m[npt_interp - i - 1] - dx_interp;
     ycrd[i]                    = 0.0;
     zcrd[i]                    = 0.0;
   }
