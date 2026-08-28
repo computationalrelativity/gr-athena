@@ -711,9 +711,11 @@ static void PrimitiveToConservedSingle(AA& prim,
   if (result)
   {
     PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
-
-    derived_ms(IX_LOR, k, j, i) = 1;
   }
+
+  // PrimToCon constructs D = n * mb * W.
+  derived_ms(IX_LOR, k, j, i) =
+    cons_pt[IDN] / (prim_pt[IDN] * mb);
 
   derived_ms(IX_T, k, j, i) = prim_pt[ITM];
 }
