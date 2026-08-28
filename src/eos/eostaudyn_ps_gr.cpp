@@ -650,10 +650,14 @@ static void PrimitiveToConservedSingle(AA& prim,
 
   ps.PrimToCon(prim_pt, cons_pt, bu, g3d);
 
-  // DEBUG ONLY
-  if (!std::isfinite(cons_pt[IEN]))
+  bool finite_cons = true;
+  for (int n = 0; n < NCONS; ++n)
   {
-    std::cerr << "Tau is not finite!\n";
+    finite_cons = finite_cons && std::isfinite(cons_pt[n]);
+  }
+  if (!finite_cons)
+  {
+    std::cerr << "P2C produced non-finite conserved variables!\n";
     std::cerr << "  Error occurred at (" << i << ", " << j << ", " << k
               << ")\n";
     std::cerr << "  Primitive variables:\n";
@@ -674,6 +678,25 @@ static void PrimitiveToConservedSingle(AA& prim,
               << g3d[S33] << "}\n";
     std::cerr << "    detg  = " << detg << "\n";
     std::cerr << "    sdetg = " << sdetg << "\n";
+
+    Primitive::SolverResult failure_result{
+      Primitive::Error::NANS_IN_CONS, 0, false, false, false, false
+    };
+    ps.HandleFailure(prim_pt, cons_pt, bu, g3d, failure_result);
+
+    finite_cons = true;
+    for (int n = 0; n < NCONS; ++n)
+    {
+      finite_cons = finite_cons && std::isfinite(cons_pt[n]);
+    }
+    if (!failure_result.cons_adjusted || !finite_cons)
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in PrimitiveToConservedSingle\n"
+          << "P2C failure response did not produce finite conserveds.\n";
+      ATHENA_ERROR(msg);
+    }
+    result = true;
   }
 
   // Push the densitized conserved variables to Athena.
