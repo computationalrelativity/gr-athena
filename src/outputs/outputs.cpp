@@ -1403,6 +1403,7 @@ void OutputType::ClearOutputData()
 void Outputs::MakeOutputs(Mesh* pm, ParameterInput* pin, bool wtflag)
 {
   bool first        = true;
+  bool wrote_output = false;
   OutputType* ptype = pfirst_type_;
   while (ptype != nullptr)
   {
@@ -1418,16 +1419,17 @@ void Outputs::MakeOutputs(Mesh* pm, ParameterInput* pin, bool wtflag)
       }
 
       ptype->WriteOutputFile(pm, pin, wtflag);
-
-      // all outputs processed, post-hook
-      if (ptype->pnext_type == nullptr)
-      {
-        pm->ApplyUserWorkAfterOutput(pin);
-      }
+      wrote_output = true;
     }
 
     ptype =
       ptype->pnext_type;  // move to next OutputType node in signly linked list
+  }
+
+  if (wrote_output)
+  {
+    // all outputs processed, post-hook
+    pm->ApplyUserWorkAfterOutput(pin);
   }
 }
 
