@@ -625,7 +625,6 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
 
 #if FLUID_ENABLED
   const Real oo_mb    = OO(GetEOS().GetBaryonMass());
-  Real Y[MAX_SPECIES] = { 0.0 };
 
   const bool sp_kj = (skip_physical && (pmb->js <= j) && (j <= pmb->je) &&
                       (pmb->ks <= k) && (k <= pmb->ke));
@@ -641,6 +640,7 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
       continue;
     }
 
+    Real Y[MAX_SPECIES] = { 0.0 };
     for (int l = 0; l < NSCALARS; ++l)
     {
       Y[l] = prim_scalar(l, k, j, i);
