@@ -683,7 +683,10 @@ Real EOSCompOSE::ZN(Real n, Real T, Real* Y)
 
 Real EOSCompOSE::SpecificInternalEnergy(Real n, Real T, Real* Y)
 {
-  return Energy(n, T, Y) / (mb * n) - 1;
+  // return Energy(n, T, Y) / (mb * n) - 1;
+  assert(m_initialized);
+  return expm1(
+    eval_at_nty(ECLOGE, n, T, Y[0]) - log(mb) - log(n));
 }
 
 Real EOSCompOSE::BaryonChemicalPotential(Real n, Real T, Real* Y)

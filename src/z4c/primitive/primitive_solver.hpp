@@ -836,6 +836,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
 
   // Set the conserved quantities.
   // Total enthalpy density
+  Real const rho = n * mb;
   Real H    = n * peos->GetEnthalpy(n, t, Y) * mb;
   Real HWsq = H * Wsq;
   D         = n * mb * W;
@@ -847,7 +848,11 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
   Sx          = (HWsqpb * v_d[0] - Bv * B_d[0]);
   Sy          = (HWsqpb * v_d[1] - Bv * B_d[1]);
   Sz          = (HWsqpb * v_d[2] - Bv * B_d[2]);
-  tau         = (HWsqpb - p - 0.5 * (Bv * Bv + Bsq / Wsq)) - D;
+  // tau = (HWsqpb - p - 0.5 * (Bv * Bv + Bsq / Wsq)) - D;
+  Real const eps     = peos->GetSpecificInternalEnergy(n, t, Y);
+  Real const Wminus1 = Wvsq / (W + 1.0);
+  tau = rho * (eps * Wsq + W * Wminus1) + p * Wvsq +
+        Bsq - 0.5 * (Bv * Bv + Bsq / Wsq);
 
   return Error::SUCCESS;
 }
