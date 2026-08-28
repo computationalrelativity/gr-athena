@@ -619,12 +619,16 @@ static void PrimitiveToConservedSingle(AA& prim,
   PrimHelper::GatherScalars(prim_scalar, Y, k, j, i);
 
   // Get temperature and apply floor
-  ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
-  ps.GetEOS()->ApplySpeciesLimits(Y);
+  const bool density_limited =
+    ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
+  const bool species_limited =
+    ps.GetEOS()->ApplySpeciesLimits(Y);
   prim_pt[ITM] =
     ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
-  bool result = ps.GetEOS()->ApplyPrimitiveFloor(
+  const bool primitive_floored = ps.GetEOS()->ApplyPrimitiveFloor(
     prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
+  bool result =
+    density_limited || species_limited || primitive_floored;
 
   for (int n = 0; n < NSCALARS; n++)
   {
