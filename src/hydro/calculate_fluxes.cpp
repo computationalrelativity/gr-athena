@@ -309,6 +309,12 @@ void ReconstructFields(MeshBlock* pmb,
         wl_(IVX + n, i) = Wvul__[n];
         wr_(IVX + n, i) = Wvur__[n];
       }
+
+      if (!pr->xorder_use_aux_s && !pr->xorder_use_aux_T)
+      {
+        wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
+        wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
+      }
     }
 
     if (!pr->xorder_use_aux_h)
