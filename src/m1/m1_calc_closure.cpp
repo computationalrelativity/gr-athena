@@ -793,7 +793,7 @@ status custom_NB(M1& pm1,
 
   // We also have a point from the prior iter
   Real c  = xi;
-  Real fc = Z;
+  Real fc = Z_xi(c, pm1, C, cache, k, j, i);
 
   // Check short-circuit
   Real fa = Z_xi(a, pm1, C, cache, k, j, i);
@@ -825,6 +825,7 @@ status custom_NB(M1& pm1,
 
   if (std::abs(b - a) < abs_tol)
   {
+    xi = 0.5 * (a + b);
     return status::success;
   }
 
@@ -946,7 +947,7 @@ status custom_NAB(M1& pm1,
 
   // We also have a point from the prior iter
   Real c  = xi;
-  Real fc = Z;
+  Real fc = Z_xi(c, pm1, C, cache, k, j, i);
 
   // Check short-circuit
   Real fa = Z_xi(a, pm1, C, cache, k, j, i);
@@ -978,6 +979,7 @@ status custom_NAB(M1& pm1,
 
   if (std::abs(b - a) < abs_tol)
   {
+    xi = 0.5 * (a + b);
     return status::success;
   }
 
