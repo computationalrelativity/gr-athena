@@ -6,6 +6,7 @@
 #include "../../field/field.hpp"
 #include "../../hydro/hydro.hpp"
 #include "../../m1/m1.hpp"
+#include "../../m1/m1_calc_update.hpp"
 #include "../../scalars/scalars.hpp"
 #include "../task_list.hpp"
 #include "task_list.hpp"
@@ -64,6 +65,26 @@ TaskStatus PostAMR_M1N0::CalcFiducialVelocity(MeshBlock* pmb, int stage)
 TaskStatus PostAMR_M1N0::CalcClosure(MeshBlock* pmb, int stage)
 {
   ::M1::M1* pm1 = pmb->pm1;
+
+  // AMR interpolation can violate the M1 causal cone; repair it before closure.
+  if (pm1->opt.enforce_causality)
+  {
+    for (int ix_g = 0; ix_g < pm1->N_GRPS; ++ix_g)
+    for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
+    {
+      ::M1::Update::StateMetaVector U =
+        ::M1::Update::ConstructStateMetaVector(
+          *pm1, pm1->lab, ix_g, ix_s
+        );
+
+      M1_ILOOP3(k, j, i)
+      if (pm1->MaskGet(k, j, i))
+      {
+        ::M1::Update::EnforceCausality(*pm1, U, k, j, i);
+      }
+    }
+  }
+
   pm1->CalcClosure(pm1->storage.u);
   return TaskStatus::next;
 }
