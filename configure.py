@@ -646,6 +646,7 @@ cxx_choices = [
   "g++",
   "g++-simd",
   "g++-simd_O2",
+  "g++-simd_O3",
   "icpc",
   "icpc-debug",
   "icpc-phi",
@@ -1182,6 +1183,20 @@ if args["cxx"] == "g++-simd_O2":
   makefile_options["LINKER_FLAGS"] = ""  # '-Wunknown-pragmas '
   makefile_options["LIBRARY_FLAGS"] = ""
 
+if args["cxx"] == "g++-simd_O3":
+  definitions["COMPILER_CHOICE"] = "g++"
+  definitions["COMPILER_COMMAND"] = makefile_options["COMPILER_COMMAND"] = "g++"
+  makefile_options["PREPROCESSOR_FLAGS"] = ""
+  makefile_options["COMPILER_FLAGS"] = (
+    "-O3 -std=c++17 -flto=auto "
+    "-fno-strict-aliasing "
+    "-fprefetch-loop-arrays -march=native "
+    "-ffp-contract=off "  # disables FMA
+    "-fopenmp-simd "
+  )
+  makefile_options["LINKER_FLAGS"] = ""  # '-Wunknown-pragmas '
+  makefile_options["LIBRARY_FLAGS"] = ""
+
 if args["cxx"] == "g++-simd":
   # GCC version >= 4.9, for OpenMP 4.0; version >= 6.1 for OpenMP 4.5 support
   definitions["COMPILER_CHOICE"] = "g++-simd"
@@ -1350,6 +1365,7 @@ if args["debug"]:
     args["cxx"] == "g++"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
     or args["cxx"] == "icpc"
     or args["cxx"] == "icpc-debug"
     or args["cxx"] == "clang++"
@@ -1380,6 +1396,7 @@ if args["coverage"]:
     args["cxx"] == "g++"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
   ):
     makefile_options["COMPILER_FLAGS"] += (
       " -O0 -fprofile-arcs -ftest-coverage"
@@ -1433,6 +1450,7 @@ if args["mpi"]:
     or args["cxx"] == "icpc-phi"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
     or args["cxx"] == "clang++"
     or args["cxx"] == "clang++-simd"
     or args["cxx"] == "clang++-apple"
@@ -1467,6 +1485,7 @@ if args["omp"]:
     args["cxx"] == "g++"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
     or args["cxx"] == "clang++"
     or args["cxx"] == "clang++-simd"
     or args["cxx"] == "cray"
@@ -1520,6 +1539,7 @@ if args["hdf5"]:
     args["cxx"] == "g++"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
     or args["cxx"] == "cray"
     or args["cxx"] == "icpc"
     or args["cxx"] == "icpc-debug"
@@ -1716,6 +1736,7 @@ if args["prob"] == "gr_rns":
     args["cxx"] == "g++"
     or args["cxx"] == "g++-simd"
     or args["cxx"] == "g++-simd_O2"
+    or args["cxx"] == "g++-simd_O3"
     or args["cxx"] == "icc"
     or args["cxx"] == "cray"
     or args["cxx"] == "icc-debug"
