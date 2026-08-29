@@ -744,6 +744,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Wv_u[2]      = Wmux * (r_u[2] + rbmu * b_u[2]);
 
   // Compute final temperature
+  const bool energy_projected = peos->ApplyEnergyLimits(e, n, Y);
   T = peos->GetTemperatureFromE(n, e, Y);
   peos->ApplyTemperatureLimits(T);
 
@@ -757,7 +758,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     return solver_result;
   }
   solver_result.cons_adjusted =
-    solver_result.cons_adjusted || floored || solver_result.cons_floor;
+    solver_result.cons_adjusted || energy_projected || floored ||
+    solver_result.cons_floor;
 
   prim[IDN] = n;
   prim[IPR] = P;
