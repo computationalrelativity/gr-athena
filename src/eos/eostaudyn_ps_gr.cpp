@@ -627,9 +627,16 @@ static void PrimitiveToConservedSingle(AA& prim,
   PrimHelper::GatherPrim(prim, prim_scalar, prim_pt, k, j, i, mb);
   PrimHelper::GatherScalars(prim_scalar, Y, k, j, i);
 
+  bool finite_prim = true;
+  for (int n = 0; n < NPRIM; ++n)
+  {
+    finite_prim = finite_prim && std::isfinite(prim_pt[n]);
+  }
+
   // Apply the raw primitive atmosphere response before table limits.
-  bool result =
-    PrimHelper::ApplyRawPrimitiveAtmosphereFloor(*ps.GetEOS(), prim_pt);
+  bool result = finite_prim
+                  ? PrimHelper::ApplyRawPrimitiveAtmosphereFloor(*ps.GetEOS(), prim_pt)
+                  : ps.GetEOS()->DoFailureResponse(prim_pt);
   if (!result)
   {
     const bool density_limited =
