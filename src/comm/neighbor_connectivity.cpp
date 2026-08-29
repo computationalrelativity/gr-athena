@@ -15,7 +15,11 @@ namespace comm {
 
 NeighborConnectivity::NeighborConnectivity()
     : nneighbor_(0) {
-  std::fill(&nblevel_[0][0][0], &nblevel_[0][0][0] + 27, -1);
+  for (auto& plane : nblevel_) {
+    for (auto& row : plane) {
+      std::fill(row, row + 3, -1);
+    }
+  }
   std::fill(block_bcs_, block_bcs_ + 6, BoundaryFlag::undef);
 }
 
@@ -33,7 +37,11 @@ void NeighborConnectivity::InitBoundaryFlags(const BoundaryFlag input_bcs[6]) {
 
 void NeighborConnectivity::ResetForSearch(int my_level) {
   nneighbor_ = 0;
-  std::fill(&nblevel_[0][0][0], &nblevel_[0][0][0] + 27, -1);
+  for (auto& plane : nblevel_) {
+    for (auto& row : plane) {
+      std::fill(row, row + 3, -1);
+    }
+  }
   nblevel_[1][1][1] = my_level;
 }
 

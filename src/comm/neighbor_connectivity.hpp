@@ -79,7 +79,7 @@ class NeighborConnectivity {
   }
 
  private:
-  NeighborBlock neighbor_[kMaxNeighbor];  // sparse, indexed by bufid slot
+  NeighborBlock neighbor_[kMaxNeighbor]{};  // sparse, indexed by bufid slot
   int nneighbor_;
   int nblevel_[3][3][3];                  // indexed [k+1][j+1][i+1]
   BoundaryFlag block_bcs_[6];            // one per BoundaryFace
