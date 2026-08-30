@@ -13,6 +13,7 @@
 #include "../globals.hpp"
 #include "../hydro/hydro.hpp"
 #include "../m1/m1.hpp"
+#include "../m1/m1_calc_update.hpp"
 #include "../scalars/scalars.hpp"
 #include "../wave/wave.hpp"
 #include "../z4c/z4c.hpp"
@@ -257,6 +258,26 @@ void Mesh::FinalizeM1(const std::vector<MeshBlock*>& pmb_array)
     pm1->UpdateHydro(pm1->hydro, pm1->geom, pm1->scratch);
     // Need the reference velocity & closure
     pm1->CalcFiducialVelocity();
+
+    // AMR interpolation can violate the M1 causal cone. Repair before closure.
+    if (pm1->opt.enforce_causality)
+    {
+      for (int ix_g = 0; ix_g < pm1->N_GRPS; ++ix_g)
+      for (int ix_s = 0; ix_s < pm1->N_SPCS; ++ix_s)
+      {
+        ::M1::Update::StateMetaVector U =
+          ::M1::Update::ConstructStateMetaVector(
+            *pm1, pm1->lab, ix_g, ix_s
+          );
+
+        M1_ILOOP3(k, j, i)
+        if (pm1->MaskGet(k, j, i))
+        {
+          ::M1::Update::EnforceCausality(*pm1, U, k, j, i);
+        }
+      }
+    }
+
     pm1->CalcClosure(pm1->storage.u);
   }
 #endif  // M1_ENABLED
