@@ -111,6 +111,7 @@ class PrimitiveSolver
                            EOS<EOSPolicy, ErrorPolicy>* const peos,
                            Real* n,
                            Real* e,
+                           Real* T,
                            Real* P,
                            int* guess_it,
                            bool* density_projected,
@@ -158,10 +159,10 @@ class PrimitiveSolver
       Real ehat   = D * eoverD;
       *energy_projected = peos->ApplyEnergyLimits(ehat, nhat, Y);
 
-      // Now we can get an estimate of the pressure and enthalpy.
-      Real Phat, hhat;
-      peos->GetPressureAndEnthalpyFromE(
-        nhat, ehat, Y, &Phat, &hhat, guess_it);
+      // Now we can get an estimate of the temperature, pressure, and enthalpy.
+      Real That, Phat, hhat;
+      peos->GetTemperaturePressureAndEnthalpyFromE(
+        nhat, ehat, Y, &That, &Phat, &hhat, guess_it);
 
       // Now we can get two different estimates for nu = h/W.
       Real nu_a = hhat * iWhat;
@@ -176,6 +177,7 @@ class PrimitiveSolver
 
       *n = nhat;
       *e = ehat;
+      *T = That;
       *P = Phat;
 
       // FIXME: Debug only!
@@ -703,8 +705,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   // Do the root solve.
   // TODO: This should be done with something like TOMS748 once it's
   // available.
-  Real n, P, e, mu;
-  Real T;
+  Real n, P, e, T, mu;
   int guess_it = -1;
   bool density_projected = false;
   bool energy_projected = false;
@@ -724,6 +725,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                             peos,
                             &n,
                             &e,
+                            &T,
                             &P,
                             &guess_it,
                             &density_projected,
@@ -746,6 +748,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                                 peos,
                                 &n,
                                 &e,
+                                &T,
                                 &P,
                                 &guess_it,
                                 &density_projected,
@@ -765,7 +768,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   // The root solver's last callback is not necessarily the accepted root.
   // Carry the EOS-limited energy state evaluated at mu into primitive assembly.
   RootFunction(mu, D, q, bsqr, rsqr, rbsqr, Y, peos,
-               &n, &e, &P, &guess_it, &density_projected, &energy_projected);
+               &n, &e, &T, &P, &guess_it, &density_projected, &energy_projected);
 
   // Retrieve the primitive variables.
   Real rho  = n * peos->GetBaryonMass();
@@ -781,8 +784,11 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Wv_u[1]      = Wmux * (r_u[1] + rbmu * b_u[1]);
   Wv_u[2]      = Wmux * (r_u[2] + rbmu * b_u[2]);
 
-  // Compute the final temperature from the EOS-limited root state.
-  T = peos->GetTemperatureFromE(n, e, Y);
+  // Preserve the existing inverse query after an energy projection.
+  if (energy_projected)
+  {
+    T = peos->GetTemperatureFromE(n, e, Y);
+  }
   const bool temperature_projected = peos->ApplyTemperatureLimits(T);
 
   // Apply the flooring policy to the primitive variables.
