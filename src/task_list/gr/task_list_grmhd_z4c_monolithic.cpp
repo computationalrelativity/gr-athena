@@ -167,8 +167,9 @@ GRMHD_Z4c_Monolithic::GRMHD_Z4c_Monolithic(ParameterInput* pin,
   Add(ALG_CONSTR, PHY_BVAL_Z4C, &GRMHD_Z4c_Monolithic::EnforceAlgConstr);
 
   // Pre-compute conformal derivative 3D arrays from post-comm z4c.u
-  Add(
-    PREP_Z4C_DERIV, ALG_CONSTR, &GRMHD_Z4c_Monolithic::PrepareZ4cDerivatives);
+  Add(PREP_Z4C_DERIV,
+      (ALG_CONSTR | SRCTERM_HYD),
+      &GRMHD_Z4c_Monolithic::PrepareZ4cDerivatives);
 
   Add(Z4C_TO_ADM, PREP_Z4C_DERIV, &GRMHD_Z4c_Monolithic::Z4cToADM);
 
