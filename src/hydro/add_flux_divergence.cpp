@@ -21,7 +21,9 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
+#include "../field/field.hpp"
 #include "../mesh/mesh.hpp"
+#include "../mesh/thread_cache.hpp"
 #include "hydro.hpp"
 
 // OpenMP header
@@ -368,9 +370,14 @@ void Hydro::HybridizeFluxes(AA (&hflux)[3],
                             AA (&sflux)[3],
                             AA (&lo_hflux)[3],
                             AA (&lo_sflux)[3],
-                            const AA_B& mask)
+                            const AA_B& mask,
+                            ThreadCache& cache)
 {
   MeshBlock* pmb = pmy_block;
+
+#if MAGNETIC_FIELDS_ENABLED
+  Field* pf = pmb->pfield;
+#endif
 
   int is = pmb->is, js = pmb->js, ks = pmb->ks;
   int ie = pmb->ie, je = pmb->je, ke = pmb->ke;
@@ -393,6 +400,11 @@ void Hydro::HybridizeFluxes(AA (&hflux)[3],
           {
             sflux[0](n, k, j, i) = lo_sflux[0](n, k, j, i);
           }
+#if MAGNETIC_FIELDS_ENABLED
+          pf->e2_x1f(k, j, i)   = cache.lo_e2_x1f(k, j, i);
+          pf->e3_x1f(k, j, i)   = cache.lo_e3_x1f(k, j, i);
+          pf->wght.x1f(k, j, i) = cache.lo_wght_x1f(k, j, i);
+#endif
         }
       }
 
@@ -410,6 +422,11 @@ void Hydro::HybridizeFluxes(AA (&hflux)[3],
           {
             sflux[1](n, k, j, i) = lo_sflux[1](n, k, j, i);
           }
+#if MAGNETIC_FIELDS_ENABLED
+          pf->e1_x2f(k, j, i)   = cache.lo_e1_x2f(k, j, i);
+          pf->e3_x2f(k, j, i)   = cache.lo_e3_x2f(k, j, i);
+          pf->wght.x2f(k, j, i) = cache.lo_wght_x2f(k, j, i);
+#endif
         }
       }
 
@@ -427,6 +444,11 @@ void Hydro::HybridizeFluxes(AA (&hflux)[3],
           {
             sflux[2](n, k, j, i) = lo_sflux[2](n, k, j, i);
           }
+#if MAGNETIC_FIELDS_ENABLED
+          pf->e1_x3f(k, j, i)   = cache.lo_e1_x3f(k, j, i);
+          pf->e2_x3f(k, j, i)   = cache.lo_e2_x3f(k, j, i);
+          pf->wght.x3f(k, j, i) = cache.lo_wght_x3f(k, j, i);
+#endif
         }
       }
 }

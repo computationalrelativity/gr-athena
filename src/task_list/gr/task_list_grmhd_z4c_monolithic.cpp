@@ -484,7 +484,7 @@ TaskStatus GRMHD_Z4c_Monolithic::CalculateHydroScalarFlux(MeshBlock* pmb,
                                           *cache,
                                           mask);
 
-        ph->HybridizeFluxes(hflux, sflux, lo_hflux, lo_sflux, mask);
+        ph->HybridizeFluxes(hflux, sflux, lo_hflux, lo_sflux, mask, *cache);
       }
 
       CC_GLOOP3(k, j, i)

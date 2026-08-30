@@ -927,14 +927,14 @@ void Hydro::CalculateFluxesCachedGeometry(
 #if MAGNETIC_FIELDS_ENABLED
   // used only to pass to (up-to) 2x RiemannSolver() calls per dimension:
   // x1:
-  AA &b1 = b.x1f, &w_x1f = pmb->pfield->wght.x1f, &e3x1 = pmb->pfield->e3_x1f,
-     &e2x1 = pmb->pfield->e2_x1f;
+  AA &b1 = b.x1f, &w_x1f = cache.lo_wght_x1f, &e3x1 = cache.lo_e3_x1f,
+     &e2x1 = cache.lo_e2_x1f;
   // x2:
-  AA &b2 = b.x2f, &w_x2f = pmb->pfield->wght.x2f, &e1x2 = pmb->pfield->e1_x2f,
-     &e3x2 = pmb->pfield->e3_x2f;
+  AA &b2 = b.x2f, &w_x2f = cache.lo_wght_x2f, &e1x2 = cache.lo_e1_x2f,
+     &e3x2 = cache.lo_e3_x2f;
   // x3:
-  AA &b3 = b.x3f, &w_x3f = pmb->pfield->wght.x3f, &e1x3 = pmb->pfield->e1_x3f,
-     &e2x3 = pmb->pfield->e2_x3f;
+  AA &b3 = b.x3f, &w_x3f = cache.lo_wght_x3f, &e1x3 = cache.lo_e1_x3f,
+     &e2x3 = cache.lo_e2_x3f;
 #endif
 
   const Real lambda_rescaling = 1.0;

@@ -296,7 +296,8 @@ class Hydro
                        AA (&sflux)[3],
                        AA (&lo_hflux)[3],
                        AA (&lo_sflux)[3],
-                       const AA_B& mask);
+                       const AA_B& mask,
+                       ThreadCache& cache);
 
   void LimitMaskFluxDivergence(const Real wght,
                                AA& u,

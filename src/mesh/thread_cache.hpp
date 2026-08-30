@@ -80,6 +80,12 @@ struct ThreadCache
   AthenaArray<Real>
     lo_sflux[3];  // (NSCALARS, ncells3, ncells2, ncells1+1) etc.
 
+#if MAGNETIC_FIELDS_ENABLED
+  AthenaArray<Real> lo_e2_x1f, lo_e3_x1f, lo_wght_x1f;
+  AthenaArray<Real> lo_e1_x2f, lo_e3_x2f, lo_wght_x2f;
+  AthenaArray<Real> lo_e1_x3f, lo_e2_x3f, lo_wght_x3f;
+#endif
+
   // Per-thread scratch for M1 radiation low-order fallback fluxes.
   // Face-centered arrays, one per spatial direction.  Left default-constructed
   // (empty) unless AllocateM1LOFlux() is called.
@@ -140,6 +146,26 @@ struct ThreadCache
                                       ncells1,
                                       (f3 ? DS::allocated : DS::empty));
     }
+
+#if MAGNETIC_FIELDS_ENABLED
+    lo_e2_x1f.NewAthenaArray(ncells3, ncells2, ncells1 + 1);
+    lo_e3_x1f.NewAthenaArray(ncells3, ncells2, ncells1 + 1);
+    lo_wght_x1f.NewAthenaArray(ncells3, ncells2, ncells1 + 1);
+
+    lo_e1_x2f = AthenaArray<Real>(
+      ncells3, ncells2 + 1, ncells1, (f2 ? DS::allocated : DS::empty));
+    lo_e3_x2f = AthenaArray<Real>(
+      ncells3, ncells2 + 1, ncells1, (f2 ? DS::allocated : DS::empty));
+    lo_wght_x2f = AthenaArray<Real>(
+      ncells3, ncells2 + 1, ncells1, (f2 ? DS::allocated : DS::empty));
+
+    lo_e1_x3f = AthenaArray<Real>(
+      ncells3 + 1, ncells2, ncells1, (f3 ? DS::allocated : DS::empty));
+    lo_e2_x3f = AthenaArray<Real>(
+      ncells3 + 1, ncells2, ncells1, (f3 ? DS::allocated : DS::empty));
+    lo_wght_x3f = AthenaArray<Real>(
+      ncells3 + 1, ncells2, ncells1, (f3 ? DS::allocated : DS::empty));
+#endif
   }
 
   //--------------------------------------------------------------------------------------
