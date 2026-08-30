@@ -180,13 +180,13 @@ void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin)
     {
       if (x > 0)
       {
-        Real amp = A_amp_2 * std::max(std::pow(p - pcut_2, ns_2), 0.0);
+        Real amp = A_amp_2 * std::pow(std::max(p - pcut_2, 0.0), ns_2);
         Ax       = -y * amp;
         Ay       = (x - cp) * amp;
       }
       else
       {
-        Real amp = A_amp_1 * std::max(std::pow(p - pcut_1, ns_1), 0.0);
+        Real amp = A_amp_1 * std::pow(std::max(p - pcut_1, 0.0), ns_1);
         Ax       = -y * amp;
         Ay       = (x - cm) * amp;
       }
