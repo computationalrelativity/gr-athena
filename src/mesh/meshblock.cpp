@@ -183,6 +183,10 @@ MeshBlock::MeshBlock(int igid,
   {
     pfield = new Field(this, pin);
   }
+  else if (FLUID_ENABLED)
+  {
+    pfield = new Field();
+  }
 
   if (NSCALARS > 0)
   {
@@ -339,6 +343,10 @@ MeshBlock::MeshBlock(int igid,
   if (MAGNETIC_FIELDS_ENABLED)
   {
     pfield = new Field(this, pin);
+  }
+  else if (FLUID_ENABLED)
+  {
+    pfield = new Field();
   }
 
   if (NSCALARS > 0)
@@ -497,7 +505,7 @@ MeshBlock::~MeshBlock()
 
   if (FLUID_ENABLED)
     delete phydro;
-  if (MAGNETIC_FIELDS_ENABLED)
+  if (MAGNETIC_FIELDS_ENABLED || FLUID_ENABLED)
     delete pfield;
   if (FLUID_ENABLED)
     delete peos;

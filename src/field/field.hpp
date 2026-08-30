@@ -31,6 +31,7 @@ class Field
   friend class Hydro;
 
   public:
+  Field() : pmy_block(nullptr) {}
   Field(MeshBlock* pmb, ParameterInput* pin);
 
   MeshBlock* pmy_block;  // ptr to MeshBlock containing this Field
