@@ -824,9 +824,9 @@ inline void PopulateCollection(Collection& ptlc, Mesh* pm, ParameterInput* pin)
       using namespace TaskLists::M1;
 
       // When the monolithic GRMHD path is active (use_split_grmhd_z4c=false),
-      // embed MHD re-scatter tasks directly in the M1N0 DAG so that MHD
-      // ghost exchange overlaps with M1 analysis/userwork.  When the split
-      // path is active, the M1N0 driver calls MHD_com + Finalize externally.
+      // embed MHD re-scatter tasks directly in the M1N0 DAG so hydro
+      // primitives are refreshed before M1 fluid-frame diagnostics. When the
+      // split path is active, the M1N0 driver calls MHD_com + Finalize externally.
       const bool embed_mhd =
         (Z4C_ENABLED && FLUID_ENABLED) ? !ptlc.use_split_grmhd_z4c : false;
 

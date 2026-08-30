@@ -97,7 +97,14 @@ M1N0::M1N0(ParameterInput* pin,
       Add(PHY_BVAL, SETB, &M1N0::PhysicalBoundary);
     }
 
-    Add(ANALYSIS, PHY_BVAL, &M1N0::Analysis);
+    TaskID analysis_dependency = PHY_BVAL;
+#if Z4C_ENABLED && FLUID_ENABLED
+    if (embed_mhd_rescatter_)
+    {
+      analysis_dependency = analysis_dependency | CONS2PRIMG_HYD;
+    }
+#endif
+    Add(ANALYSIS, analysis_dependency, &M1N0::Analysis);
 
     Add(USERWORK, ANALYSIS, &M1N0::UserWork);
     Add(NEW_DT, USERWORK, &M1N0::NewBlockTimeStep);
@@ -123,8 +130,8 @@ M1N0::M1N0(ParameterInput* pin,
     //  5. Recouple ADM matter sources from fresh primitives (UPDATE_SRC_HYD)
     //  6. Clear MPI send state (CLEAR_MAININT)
     //
-    // RECV_HYD fires from NONE so that receive polling overlaps with M1's
-    // ANALYSIS, USERWORK, and NEW_DT tasks.
+    // RECV_HYD fires from NONE so hydro re-scatter can progress while M1
+    // diagnostics wait for refreshed fluid primitives.
     // -----------------------------------------------------------------------
 #if Z4C_ENABLED && FLUID_ENABLED
     if (embed_mhd_rescatter_)
@@ -748,6 +755,14 @@ TaskStatus M1N0::Analysis(MeshBlock* pmb, int stage)
   if (stage != nstages)
     return TaskStatus::next;  // only do on last stage
 
+#if Z4C_ENABLED && FLUID_ENABLED
+  if (embed_mhd_rescatter_ &&
+      pmb->pm1->opt.fiducial_velocity ==
+        ::M1::M1::opt_fiducial_velocity::fluid)
+  {
+    pmb->pm1->CalcFiducialVelocity();
+  }
+#endif
   pmb->pm1->PerformAnalysis();
 
   return TaskStatus::next;

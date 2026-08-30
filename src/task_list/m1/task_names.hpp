@@ -45,7 +45,8 @@ const TaskID FLAG_AMR(21);
 const TaskID UPDATE_COUPLING(22);
 
 // MHD re-scatter tasks (active when Z4C_ENABLED && FLUID_ENABLED).
-// Embedded in the M1N0 DAG so MHD ghost exchange overlaps M1 analysis.
+// Embedded in the M1N0 DAG so hydro primitives are refreshed before M1
+// fluid-frame diagnostics.
 // Only wired when the monolithic GRMHD path is selected (embed_mhd_rescatter).
 #if Z4C_ENABLED && FLUID_ENABLED
 const TaskID CONS2PRIMP_HYD(23);

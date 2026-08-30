@@ -56,8 +56,8 @@ public:
 
   // MHD re-scatter tasks embedded in the M1N0 DAG.
   // Active only when monolithic GRMHD path is selected (embed_mhd_rescatter).
-  // These replace the external MHD_com + Finalize DoTaskListOneStage calls,
-  // allowing MHD ghost exchange to overlap with M1 analysis/userwork.
+  // These replace the external MHD_com + Finalize DoTaskListOneStage calls
+  // and refresh hydro primitives before M1 fluid-frame diagnostics.
 #if Z4C_ENABLED && FLUID_ENABLED
   TaskStatus PrimitivesPhysicalHyd(MeshBlock *pmb, int stage);
   TaskStatus SendHydro(MeshBlock *pmb, int stage);
