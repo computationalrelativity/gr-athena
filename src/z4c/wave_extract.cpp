@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -95,7 +96,7 @@ WaveExtract::~WaveExtract()
   }
 }
 
-void WaveExtract::ReduceMultipole()
+void WaveExtract::AccumulateMultipole()
 {
   const auto& pmb_array = pmesh->GetMeshBlocksCached();
   psi.ZeroClear();
@@ -112,15 +113,37 @@ void WaveExtract::ReduceMultipole()
       }
     }
   }
+}
+
+void WaveExtract::ReduceAll(std::vector<WaveExtract*>& wave_extractions)
+{
+  if (wave_extractions.empty())
+  {
+    return;
+  }
+
+  for (auto* pwextr : wave_extractions)
+  {
+    pwextr->AccumulateMultipole();
+  }
+
 #ifdef MPI_PARALLEL
-  // Batch all (l,m) modes into a single MPI_Reduce over the contiguous psi
-  // array.  The array is laid out as (lmax-1) x (2*lmax+1) x 2 and includes
-  // zero-padded entries for |m|>l which are harmless under MPI_SUM.
-  const int total_size = psi.GetSize();
+  const int nrad       = static_cast<int>(wave_extractions.size());
+  const int psi_size   = wave_extractions.front()->psi.GetSize();
+  const int total_size = nrad * psi_size;
+  std::vector<Real> psi_all(total_size);
+
+  for (int r = 0; r < nrad; ++r)
+  {
+    std::memcpy(psi_all.data() + r * psi_size,
+                wave_extractions[r]->psi.data(),
+                psi_size * sizeof(Real));
+  }
+
   if (0 == Globals::my_rank)
   {
     MPI_Reduce(MPI_IN_PLACE,
-               psi.data(),
+               psi_all.data(),
                total_size,
                MPI_ATHENA_REAL,
                MPI_SUM,
@@ -129,13 +152,23 @@ void WaveExtract::ReduceMultipole()
   }
   else
   {
-    MPI_Reduce(psi.data(),
+    MPI_Reduce(psi_all.data(),
                nullptr,
                total_size,
                MPI_ATHENA_REAL,
                MPI_SUM,
                0,
                MPI_COMM_WORLD);
+  }
+
+  if (0 == Globals::my_rank)
+  {
+    for (int r = 0; r < nrad; ++r)
+    {
+      std::memcpy(wave_extractions[r]->psi.data(),
+                  psi_all.data() + r * psi_size,
+                  psi_size * sizeof(Real));
+    }
   }
 #endif
 }

@@ -1034,9 +1034,9 @@ inline void Z4c_DerivedQuantities(gra::tasklist::Collection& ptlc,
 
   if (trgs.IsSatisfied(tvar::Z4c_Weyl, ovar::user))
   {
+    WaveExtract::ReduceAll(pmesh->pwave_extr);
     for (auto pwextr : pmesh->pwave_extr)
     {
-      pwextr->ReduceMultipole();
       pwextr->Write(ncycle_end_stage, time_end_stage);
     }
   }

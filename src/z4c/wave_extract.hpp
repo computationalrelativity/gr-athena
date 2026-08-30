@@ -10,6 +10,7 @@
 //  \brief definitions for the WaveExtract class
 
 #include <string>
+#include <vector>
 
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -31,8 +32,10 @@ class WaveExtract
   WaveExtract(Mesh* pmesh, ParameterInput* pin, int n);
   //! Destructor (will close output file)
   ~WaveExtract();
-  //! Reduces the data from all of the SphericalPatches
-  void ReduceMultipole();
+  //! Accumulates the local data from all SphericalPatches.
+  void AccumulateMultipole();
+  //! Reduces all extraction radii to rank zero.
+  static void ReduceAll(std::vector<WaveExtract*>& wave_extractions);
   //! Write data to file
   void Write(int iter, Real time) const;
 
