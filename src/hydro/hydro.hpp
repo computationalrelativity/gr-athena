@@ -77,8 +77,6 @@ class Hydro
     1.0e-6
   };  // relative tolerance for HLLE denominator guard
 
-  bool flux_reconstruction = false;
-
   struct
   {
     Real alpha_threshold;       // excise hydro if alpha < alpha_excision
@@ -311,12 +309,6 @@ class Hydro
 
   void EnforceFloorsLimits(AA& u, AA& s, const int num_enlarge_layer);
 
-  // BD: TODO- To remove
-  void CalculateFluxes_FluxReconstruction(AA& w,
-                                          FaceField& b,
-                                          AA& bcc,
-                                          const int order);
-
 #if !MAGNETIC_FIELDS_ENABLED  // Hydro:
   void RiemannSolver(const int ivx,
                      const int k,
@@ -403,57 +395,5 @@ class Hydro
     return 0.5 + std::max(static_cast<Real>(-0.5), tmp_min);
   }
 };
-
-namespace fluxes
-{
-
-// Split flux based on local eigenvalues
-//
-// Takes max over all lambda cpts & directional (ivx-aligned) faces
-void SplitFluxLLFMax(MeshBlock* pmb,
-                     const int k,
-                     const int j,
-                     const int il,
-                     const int iu,
-                     const int ivx,
-                     AA& u,
-                     AA& flux,
-                     AA& lambda,
-                     AA& flux_m,
-                     AA& flux_p);
-
-}  // namespace fluxes
-
-namespace fluxes::grhd
-{
-
-// Dense assembly of fluxes
-void AssembleFluxes(MeshBlock* pmb,
-                    const int k,
-                    const int j,
-                    const int il,
-                    const int iu,
-                    const int ivx,
-                    AA& f,
-                    AA& w,
-                    AA& u);
-
-}  // namespace fluxes::grhd
-
-namespace characteristic::grhd
-{
-
-// Dense assembly of lambda
-void AssembleEigenvalues(MeshBlock* pmb,
-                         const int k,
-                         const int j,
-                         const int il,
-                         const int iu,
-                         const int ivx,
-                         AA& lambda,
-                         AA& w,
-                         AA& u);
-
-}  // namespace characteristic::grhd
 
 #endif  // HYDRO_HYDRO_HPP_

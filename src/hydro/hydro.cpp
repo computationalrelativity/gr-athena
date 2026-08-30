@@ -65,9 +65,6 @@ Hydro::Hydro(MeshBlock* pmb, ParameterInput* pin)
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   Mesh* pm = pmy_block->pmy_mesh;
 
-  flux_reconstruction =
-    pin->GetOrAddBoolean("hydro", "flux_reconstruction", false);
-
   // Riemann solver method (runtime selection)
   {
     std::string rsolver_str = pin->GetOrAddString("hydro", "rsolver", "llf");
