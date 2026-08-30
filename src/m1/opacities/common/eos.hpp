@@ -405,8 +405,8 @@ class EoSWrapper
     // eta takes into account the nucleon final state blocking
     // (at high density)
 
-    eta_np = nb * (xp - xn) / (std::exp(-eta_hat) - 1.0);
-    eta_pn = nb * (xn - xp) / (std::exp(eta_hat) - 1.0);
+    eta_np = nb * (xp - xn) / std::expm1(-eta_hat);
+    eta_pn = nb * (xn - xp) / std::expm1(eta_hat);
 
     // !There is no significant defferences between Rosswog (prev. formula)
     // !and Janka's prescriptions
