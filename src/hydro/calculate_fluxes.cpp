@@ -229,6 +229,8 @@ void ReconstructFields(MeshBlock* pmb,
 
   Real Wvul__[NDIM] = { 0.0 };
   Real Wvur__[NDIM] = { 0.0 };
+  Real Wvul_before__[NDIM] = { 0.0 };
+  Real Wvur_before__[NDIM] = { 0.0 };
 
   Real nl__, nr__;
 
@@ -237,13 +239,13 @@ void ReconstructFields(MeshBlock* pmb,
     nl__ = wl_(IDN, i) / mb;
     nr__ = wr_(IDN, i) / mb;
 
-    peos->GetEOS().ApplyDensityLimits(nl__);
-    peos->GetEOS().ApplyDensityLimits(nr__);
+    const bool nl_limited = peos->GetEOS().ApplyDensityLimits(nl__);
+    const bool nr_limited = peos->GetEOS().ApplyDensityLimits(nr__);
 
     for (int n = 0; n < NDIM; ++n)
     {
-      Wvul__[n] = wl_(IVX + n, i);
-      Wvur__[n] = wr_(IVX + n, i);
+      Wvul_before__[n] = Wvul__[n] = wl_(IVX + n, i);
+      Wvur_before__[n] = Wvur__[n] = wr_(IVX + n, i);
     }
 
     for (int n = 0; n < NSCALARS; ++n)
@@ -252,75 +254,110 @@ void ReconstructFields(MeshBlock* pmb,
       Yr__[n] = rr_(n, i);
     }
 
+    bool yl_limited = false;
+    bool yr_limited = false;
     if (NSCALARS > 0)
     {
-      const bool ll__ = peos->GetEOS().ApplySpeciesLimits(Yl__);
-      const bool lr__ = peos->GetEOS().ApplySpeciesLimits(Yr__);
+      yl_limited = peos->GetEOS().ApplySpeciesLimits(Yl__);
+      yr_limited = peos->GetEOS().ApplySpeciesLimits(Yr__);
     }
 
+    bool sl_limited = false;
+    bool sr_limited = false;
+    bool Pl_limited = false;
+    bool Pr_limited = false;
     if (pr->xorder_use_aux_s)
     {
-      // Clamp reconstructed entropy per baryon to the EOS-supported range
-      peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
-      peos->GetEOS().ApplyEntropyLimits(ar_(IX_SPB, i), nr__, Yr__);
-      // Invert entropy -> temperature
+      // Clamp reconstructed entropy per baryon to the EOS-supported range.
+      sl_limited = peos->GetEOS().ApplyEntropyLimits(al_(IX_SPB, i), nl__, Yl__);
+      sr_limited = peos->GetEOS().ApplyEntropyLimits(ar_(IX_SPB, i), nr__, Yr__);
+      // Invert entropy -> temperature.
       al_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nl__, al_(IX_SPB, i), Yl__);
       ar_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromEntropy(nr__, ar_(IX_SPB, i), Yr__);
-      // Recompute pressure from (n,T,Y) for thermodynamic consistency
-      // (must happen before ApplyPrimitiveFloor, which enforces joint
-      // consistency of (n,Wvu,p,T,Y)).
+      // Recompute pressure from (n,T,Y) before ApplyPrimitiveFloor.
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
     else if (pr->xorder_use_aux_T)
     {
-      // Recompute pressure from (n,T,Y) so p and T are mutually consistent
-      // before ApplyPrimitiveFloor.
+      // Recompute pressure from (n,T,Y) before ApplyPrimitiveFloor.
       wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
       wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
     }
     else
     {
+      Pl_limited = peos->GetEOS().ApplyPressureLimits(wl_(IPR, i), nl__, Yl__);
+      Pr_limited = peos->GetEOS().ApplyPressureLimits(wr_(IPR, i), nr__, Yr__);
       al_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromP(nl__, wl_(IPR, i), Yl__);
       ar_(IX_T, i) =
         peos->GetEOS().GetTemperatureFromP(nr__, wr_(IPR, i), Yr__);
     }
 
-    // now depending on settings unpack limited / floored
+    const bool Tl_limited = peos->GetEOS().ApplyTemperatureLimits(al_(IX_T, i));
+    const bool Tr_limited = peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T, i));
+
+    bool fll__ = false;
+    bool flr__ = false;
     if (pr->xorder_floor_primitives)
     {
-      peos->GetEOS().ApplyTemperatureLimits(al_(IX_T, i));
-      peos->GetEOS().ApplyTemperatureLimits(ar_(IX_T, i));
-
-      const bool fll__ = peos->GetEOS().ApplyPrimitiveFloor(
+      fll__ = peos->GetEOS().ApplyPrimitiveFloor(
         nl__, Wvul__, wl_(IPR, i), al_(IX_T, i), Yl__);
-      const bool flr__ = peos->GetEOS().ApplyPrimitiveFloor(
+      flr__ = peos->GetEOS().ApplyPrimitiveFloor(
         nr__, Wvur__, wr_(IPR, i), ar_(IX_T, i), Yr__);
+    }
 
-      // propagate floored density and velocity back
+    bool left_velocity_limited = false;
+    bool right_velocity_limited = false;
+    for (int n = 0; n < NDIM; ++n)
+    {
+      left_velocity_limited = left_velocity_limited ||
+        Wvul__[n] != Wvul_before__[n];
+      right_velocity_limited = right_velocity_limited ||
+        Wvur__[n] != Wvur_before__[n];
+    }
+
+    const bool left_limited =
+      nl_limited || yl_limited || sl_limited || Pl_limited || Tl_limited || fll__;
+    const bool right_limited =
+      nr_limited || yr_limited || sr_limited || Pr_limited || Tr_limited || flr__;
+
+    if (left_limited)
+    {
       wl_(IDN, i) = mb * nl__;
-      wr_(IDN, i) = mb * nr__;
-
       for (int n = 0; n < NDIM; ++n)
       {
         wl_(IVX + n, i) = Wvul__[n];
+      }
+      for (int n = 0; n < NSCALARS; ++n)
+      {
+        rl_(n, i) = Yl__[n];
+      }
+    }
+    if (right_limited)
+    {
+      wr_(IDN, i) = mb * nr__;
+      for (int n = 0; n < NDIM; ++n)
+      {
         wr_(IVX + n, i) = Wvur__[n];
       }
-
-      if (!pr->xorder_use_aux_s && !pr->xorder_use_aux_T)
+      for (int n = 0; n < NSCALARS; ++n)
       {
-        wl_(IPR, i) = peos->GetEOS().GetPressure(nl__, al_(IX_T, i), Yl__);
-        wr_(IPR, i) = peos->GetEOS().GetPressure(nr__, ar_(IX_T, i), Yr__);
+        rr_(n, i) = Yr__[n];
       }
     }
 
-    if (!pr->xorder_use_aux_h)
+    if (!pr->xorder_use_aux_h || left_limited)
     {
-      al_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nl__, al_(IX_T, i), Yl__);
-      ar_(IX_ETH, i) = peos->GetEOS().GetEnthalpy(nr__, ar_(IX_T, i), Yr__);
+      peos->GetEOS().GetPressureAndEnthalpy(
+        nl__, al_(IX_T, i), Yl__, &wl_(IPR, i), &al_(IX_ETH, i));
+    }
+    if (!pr->xorder_use_aux_h || right_limited)
+    {
+      peos->GetEOS().GetPressureAndEnthalpy(
+        nr__, ar_(IX_T, i), Yr__, &wr_(IPR, i), &ar_(IX_ETH, i));
     }
 
     if (pr->xorder_limit_species)
@@ -340,15 +377,23 @@ void ReconstructFields(MeshBlock* pmb,
 
     if (pr->xorder_use_aux_W)
     {
-      al_(IX_LOR, i) = std::max(al_(IX_LOR, i), 1.0);
-      ar_(IX_LOR, i) = std::max(ar_(IX_LOR, i), 1.0);
+      al_(IX_LOR, i) = left_velocity_limited
+        ? 1.0 : std::max(al_(IX_LOR, i), 1.0);
+      ar_(IX_LOR, i) = right_velocity_limited
+        ? 1.0 : std::max(ar_(IX_LOR, i), 1.0);
     }
 
     if (pr->xorder_use_aux_cs2)
     {
       const Real max_cs2 = peos->max_cs2;
-      al_(IX_CS2, i)     = std::max(0.0, std::min(al_(IX_CS2, i), max_cs2));
-      ar_(IX_CS2, i)     = std::max(0.0, std::min(ar_(IX_CS2, i), max_cs2));
+      al_(IX_CS2, i) = left_limited
+        ? std::max(0.0, std::min(
+            SQR(peos->GetEOS().GetSoundSpeed(nl__, al_(IX_T, i), Yl__)), max_cs2))
+        : std::max(0.0, std::min(al_(IX_CS2, i), max_cs2));
+      ar_(IX_CS2, i) = right_limited
+        ? std::max(0.0, std::min(
+            SQR(peos->GetEOS().GetSoundSpeed(nr__, ar_(IX_T, i), Yr__)), max_cs2))
+        : std::max(0.0, std::min(ar_(IX_CS2, i), max_cs2));
     }
   }
 }

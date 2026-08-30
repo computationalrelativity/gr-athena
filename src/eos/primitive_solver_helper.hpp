@@ -189,7 +189,7 @@ inline void GatherMetric(const AT_N_sym& g, Real g3[NSPMETRIC], int i)
 //   Scatter redensitizes (flat -> grid):  cons    = cons_pt * sqrt_detgamma
 //
 //   Scatter is split into Hydro (D, S_i, tau) and Scalars so that callers
-//   can honour the separate cons_adjusted / scalars_adjusted flags from the
+//   can honour selected hydro writes and separate scalar adjustments from the
 //   PrimitiveSolver without an extra branch inside the helper.
 // -------------------------------------------------------------------------
 
@@ -214,19 +214,31 @@ inline void GatherCons(const AthenaArray<Real>& cons,
 }
 
 /// 3-D scatter (hydro only): cons_pt --> cons, redensitized.
-/// Writes D, S_i, tau.  Does NOT touch scalar conserved variables.
+/// Writes the selected subset of D, S_i, tau. Does NOT touch scalar conserveds.
 inline void ScatterConsHydro(const Real cons_pt[NCONS],
                              AthenaArray<Real>& cons,
                              int k,
                              int j,
                              int i,
-                             Real sqrt_detgamma)
+                             Real sqrt_detgamma,
+                             bool write_D,
+                             bool write_S,
+                             bool write_tau)
 {
-  cons(IDN, k, j, i) = cons_pt[IDN] * sqrt_detgamma;
-  cons(IM1, k, j, i) = cons_pt[IM1] * sqrt_detgamma;
-  cons(IM2, k, j, i) = cons_pt[IM2] * sqrt_detgamma;
-  cons(IM3, k, j, i) = cons_pt[IM3] * sqrt_detgamma;
-  cons(IEN, k, j, i) = cons_pt[IEN] * sqrt_detgamma;
+  if (write_D)
+  {
+    cons(IDN, k, j, i) = cons_pt[IDN] * sqrt_detgamma;
+  }
+  if (write_S)
+  {
+    cons(IM1, k, j, i) = cons_pt[IM1] * sqrt_detgamma;
+    cons(IM2, k, j, i) = cons_pt[IM2] * sqrt_detgamma;
+    cons(IM3, k, j, i) = cons_pt[IM3] * sqrt_detgamma;
+  }
+  if (write_tau)
+  {
+    cons(IEN, k, j, i) = cons_pt[IEN] * sqrt_detgamma;
+  }
 }
 
 /// 3-D scatter (scalars only): cons_pt --> cons_scalar, redensitized.
@@ -344,13 +356,11 @@ inline void ApplyPrimitiveFloors(EOS_t& eos,
     eos.ApplySpeciesLimits(&prim_pt[IYF]);
     Real T = eos.GetTemperatureFromP(
       prim_pt[IDN], prim_pt[IPR], &prim_pt[IYF]);
-    const bool primitive_floored = eos.ApplyPrimitiveFloor(
+    eos.ApplyPrimitiveFloor(
       prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], T, &prim_pt[IYF]);
-    if (!primitive_floored)
-    {
-      prim_pt[IPR] = eos.GetPressure(
-        prim_pt[IDN], T, &prim_pt[IYF]);
-    }
+    prim_pt[ITM] = T;
+    prim_pt[IPR] = eos.GetPressure(
+      prim_pt[IDN], prim_pt[ITM], &prim_pt[IYF]);
   }
 
   // Push updated quantities back to Athena arrays.

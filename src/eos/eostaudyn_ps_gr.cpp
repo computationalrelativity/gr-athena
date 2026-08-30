@@ -449,7 +449,7 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           }
 
           if (result.error != Primitive::Error::SUCCESS &&
-              !result.cons_adjusted)
+              !(result.write_D || result.write_S || result.write_tau))
           {
             std::stringstream msg;
             msg << "### FATAL ERROR in ConservedToPrimitive\n"
@@ -461,12 +461,13 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
           PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
 
           // Write back conserved variables only if they were modified.
-          if (result.cons_adjusted)
+          if (result.write_D || result.write_S || result.write_tau)
           {
             PrimHelper::ScatterConsHydro(
-              cons_pt, cons, k, j, i, sqrt_detgamma);
+              cons_pt, cons, k, j, i, sqrt_detgamma,
+              result.write_D, result.write_S, result.write_tau);
           }
-          if (result.cons_adjusted || result.scalars_adjusted)
+          if (result.scalars_adjusted)
           {
             PrimHelper::ScatterConsScalars(
               cons_pt, cons_scalar, k, j, i, sqrt_detgamma);
@@ -643,16 +644,16 @@ static void PrimitiveToConservedSingle(AA& prim,
       ps.GetEOS()->ApplyDensityLimits(prim_pt[IDN]);
     const bool species_limited =
       ps.GetEOS()->ApplySpeciesLimits(Y);
+    const Real P_before = prim_pt[IPR];
     prim_pt[ITM] =
       ps.GetEOS()->GetTemperatureFromP(prim_pt[IDN], prim_pt[IPR], Y);
     const bool primitive_floored = ps.GetEOS()->ApplyPrimitiveFloor(
       prim_pt[IDN], &prim_pt[IVX], prim_pt[IPR], prim_pt[ITM], Y);
-    if (!primitive_floored)
-    {
-      prim_pt[IPR] =
-        ps.GetEOS()->GetPressure(prim_pt[IDN], prim_pt[ITM], Y);
-    }
-    result = density_limited || species_limited || primitive_floored;
+    prim_pt[IPR] =
+      ps.GetEOS()->GetPressure(prim_pt[IDN], prim_pt[ITM], Y);
+    const bool pressure_adjusted = prim_pt[IPR] != P_before;
+    result = density_limited || species_limited || primitive_floored ||
+             pressure_adjusted;
 
     for (int n = 0; n < NSCALARS; n++)
     {
@@ -709,7 +710,8 @@ static void PrimitiveToConservedSingle(AA& prim,
     std::cerr << "    sdetg = " << sdetg << "\n";
 
     Primitive::SolverResult failure_result{
-      Primitive::Error::NANS_IN_CONS, 0, false, false, false, false
+      Primitive::Error::NANS_IN_CONS, 0, false, false,
+      false, false, false, false
     };
     ps.HandleFailure(prim_pt, cons_pt, bu, g3d, failure_result);
 
@@ -718,7 +720,8 @@ static void PrimitiveToConservedSingle(AA& prim,
     {
       finite_cons = finite_cons && std::isfinite(cons_pt[n]);
     }
-    if (!failure_result.cons_adjusted || !finite_cons)
+    if (!(failure_result.write_D || failure_result.write_S ||
+          failure_result.write_tau) || !finite_cons)
     {
       std::stringstream msg;
       msg << "### FATAL ERROR in PrimitiveToConservedSingle\n"
@@ -729,7 +732,8 @@ static void PrimitiveToConservedSingle(AA& prim,
   }
 
   // Push the densitized conserved variables to Athena.
-  PrimHelper::ScatterConsHydro(cons_pt, cons, k, j, i, sdetg);
+  PrimHelper::ScatterConsHydro(
+    cons_pt, cons, k, j, i, sdetg, true, true, true);
   PrimHelper::ScatterConsScalars(cons_pt, cons_scalar, k, j, i, sdetg);
 
   // Publish adjusted primitives or the canonical pressure.

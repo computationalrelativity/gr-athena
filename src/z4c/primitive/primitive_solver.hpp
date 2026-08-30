@@ -112,7 +112,9 @@ class PrimitiveSolver
                            Real* n,
                            Real* e,
                            Real* P,
-                           int* guess_it)
+                           int* guess_it,
+                           bool* density_projected,
+                           bool* energy_projected)
     {
       // We need to get some utility quantities first.
       const Real x    = 1.0 / (1.0 + mu * bsq);
@@ -149,14 +151,12 @@ class PrimitiveSolver
       // Now estimate the number density.
       Real rhohat = D * iWhat;
       Real nhat   = rhohat / mb;
-      peos->ApplyDensityLimits(nhat);
+      *density_projected = peos->ApplyDensityLimits(nhat);
 
       // Estimate the energy density.
       Real eoverD = qbar - mu * rbarsq + 1.0;
       Real ehat   = D * eoverD;
-      // Note: ApplyEnergyLimits is not needed here because
-      // GetTemperatureFromE already clamps to min_T/max_T when
-      // the energy falls outside the table bounds.
+      *energy_projected = peos->ApplyEnergyLimits(ehat, nhat, Y);
 
       // Now we can get an estimate of the pressure and enthalpy.
       Real Phat, hhat;
@@ -166,7 +166,7 @@ class PrimitiveSolver
       // Now we can get two different estimates for nu = h/W.
       Real nu_a = hhat * iWhat;
       // Real ahat = Phat / ehat;
-      Real nu_b = eoverD + Phat / D;
+      Real nu_b = ehat / D + Phat / D;
       // Real nu_b = (1.0 + ahat)*eoverD;
       // Real nu_b = (1.0 + ahat)*eoverD;
       Real nuhat = std::max(nu_a, nu_b);
@@ -349,7 +349,9 @@ class PrimitiveSolver
     if (result)
     {
       PrimToCon(prim, cons, bu, g3d);
-      solver_result.cons_adjusted    = true;
+      solver_result.write_D          = true;
+      solver_result.write_S          = true;
+      solver_result.write_tau        = true;
       solver_result.scalars_adjusted = true;
     }
   }
@@ -457,7 +459,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Real g3d[NSPMETRIC],
   Real g3u[NSPMETRIC])
 {
-  SolverResult solver_result{ Error::SUCCESS, 0, false, false, false, false };
+  SolverResult solver_result{
+    Error::SUCCESS, 0, false, false, false, false, false, false
+  };
 
   // Extract the undensitized conserved variables.
   Real D      = cons[IDN];
@@ -469,6 +473,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Real Y[MAX_SPECIES] = { 0.0 };
   bool Y_adjusted     = false;
   bool floored        = false;
+  bool conserved_atmosphere = false;
+  bool rebuild_from_prim    = false;
+  bool full_writeback       = false;
   const Real Bsq      = SquareVector(B_u, g3d);
 
   if (!std::isfinite(D))
@@ -483,6 +490,7 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   if (D < D_threshold)
   {
     floored = peos->ApplyConservedFloor(D, S_d, tau, Y, Bsq);
+    conserved_atmosphere = floored;
   }
 
   if (!floored)
@@ -512,9 +520,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     solver_result.error = Error::CONS_FLOOR;
     return solver_result;
   }
-  // If a floor is applied or Y is adjusted, we need to propagate the changes
-  // back to DYe.
-  if (floored || Y_adjusted)
+  // Propagate species changes, and the full conserved-atmosphere replacement,
+  // back to DYe. A tau-only floor must not resample passive scalars.
+  if (Y_adjusted || conserved_atmosphere)
     if (peos->KeepPrimAndConConsistent())
     {
       for (int s = 0; s < n_species; s++)
@@ -523,6 +531,19 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
       }
       solver_result.scalars_adjusted = true;
     }
+
+  if (conserved_atmosphere)
+  {
+    solver_result.write_D   = true;
+    solver_result.write_S   = true;
+    solver_result.write_tau = true;
+    rebuild_from_prim       = true;
+    full_writeback          = true;
+  }
+  else if (floored)
+  {
+    solver_result.write_tau = true;
+  }
 
   // Calculate some utility quantities.
   Real sqrtD  = std::sqrt(D);
@@ -566,7 +587,12 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   }
   else if (error == Error::CONS_ADJUSTED)
   {
-    solver_result.cons_adjusted = true;
+    solver_result.write_D          = true;
+    solver_result.write_S          = true;
+    solver_result.write_tau        = true;
+    solver_result.scalars_adjusted = true;
+    rebuild_from_prim               = true;
+    full_writeback                   = true;
     // If b_u is rescaled, we also need to adjust D, which means we'll
     // have to adjust all our other rescalings, too.
     Real Bsq = SquareVector(B_u, g3d);
@@ -588,10 +614,10 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     Real Ssq = SquareForm(S_d, g3u);
     if (peos->ApplyMomentumLimits(S_d, Ssq, tau, D))
     {
-      solver_result.cons_adjusted = true;
-      r_d[0]                      = S_d[0] / D;
-      r_d[1]                      = S_d[1] / D;
-      r_d[2]                      = S_d[2] / D;
+      solver_result.write_S = true;
+      r_d[0]                = S_d[0] / D;
+      r_d[1]                = S_d[1] / D;
+      r_d[2]                = S_d[2] / D;
       RaiseForm(r_u, r_d, g3u);
       rsqr  = Contract(r_u, r_d);
       rb    = Contract(b_u, r_d);
@@ -611,7 +637,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     for (int s = 0; s < n_species; s++) {
       prim[IYF + s] = Y[s];
     }
-    if (solver_result.cons_floor || solver_result.cons_adjusted) {
+    if (solver_result.cons_floor || solver_result.write_D ||
+        solver_result.write_S || solver_result.write_tau) {
       cons[IDN] = D;
       cons[IM1] = S_d[0];
       cons[IM2] = S_d[1];
@@ -679,6 +706,8 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Real n, P, e, mu;
   Real T;
   int guess_it = -1;
+  bool density_projected = false;
+  bool energy_projected = false;
   bool result;
   if (use_toms_748)
   {
@@ -696,7 +725,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                             &n,
                             &e,
                             &P,
-                            &guess_it);
+                            &guess_it,
+                            &density_projected,
+                            &energy_projected);
     result = true;
   }
   else
@@ -716,7 +747,9 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
                                 &n,
                                 &e,
                                 &P,
-                                &guess_it);
+                                &guess_it,
+                                &density_projected,
+                                &energy_projected);
   }
 
   // WARNING: the reported number of iterations is not thread-safe and should
@@ -728,6 +761,11 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     solver_result.error = Error::NO_SOLUTION;
     return solver_result;
   }
+
+  // The root solver's last callback is not necessarily the accepted root.
+  // Carry the EOS-limited energy state evaluated at mu into primitive assembly.
+  RootFunction(mu, D, q, bsqr, rsqr, rbsqr, Y, peos,
+               &n, &e, &P, &guess_it, &density_projected, &energy_projected);
 
   // Retrieve the primitive variables.
   Real rho  = n * peos->GetBaryonMass();
@@ -743,12 +781,13 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
   Wv_u[1]      = Wmux * (r_u[1] + rbmu * b_u[1]);
   Wv_u[2]      = Wmux * (r_u[2] + rbmu * b_u[2]);
 
-  // Compute final temperature
-  const bool energy_projected = peos->ApplyEnergyLimits(e, n, Y);
+  // Compute the final temperature from the EOS-limited root state.
   T = peos->GetTemperatureFromE(n, e, Y);
-  peos->ApplyTemperatureLimits(T);
+  const bool temperature_projected = peos->ApplyTemperatureLimits(T);
 
   // Apply the flooring policy to the primitive variables.
+  const bool primitive_atmosphere =
+    n < peos->GetDensityFloor() * peos->GetThreshold();
   floored                  = peos->ApplyPrimitiveFloor(n, Wv_u, P, T, Y);
   solver_result.prim_floor = floored;
   if (floored && peos->IsPrimitiveFlooringFailure())
@@ -757,9 +796,38 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     solver_result.error = Error::PRIM_FLOOR;
     return solver_result;
   }
-  solver_result.cons_adjusted =
-    solver_result.cons_adjusted || energy_projected || floored ||
-    solver_result.cons_floor;
+
+  const bool thermal_projection =
+    energy_projected || temperature_projected ||
+    (floored && !primitive_atmosphere);
+  if (energy_projected || temperature_projected || floored)
+  {
+    P = peos->GetPressure(n, T, Y);
+  }
+  if (density_projected)
+  {
+    solver_result.write_D          = true;
+    solver_result.write_S          = true;
+    solver_result.write_tau        = true;
+    solver_result.scalars_adjusted = true;
+    rebuild_from_prim               = true;
+    full_writeback                   = true;
+  }
+  if (thermal_projection)
+  {
+    solver_result.write_S   = true;
+    solver_result.write_tau = true;
+    rebuild_from_prim       = true;
+  }
+  if (primitive_atmosphere)
+  {
+    solver_result.write_D          = true;
+    solver_result.write_S          = true;
+    solver_result.write_tau        = true;
+    solver_result.scalars_adjusted = true;
+    rebuild_from_prim               = true;
+    full_writeback                   = true;
+  }
 
   prim[IDN] = n;
   prim[IPR] = P;
@@ -772,16 +840,45 @@ inline SolverResult PrimitiveSolver<EOSPolicy, ErrorPolicy>::ConToPrim(
     prim[IYF + s] = Y[s];
   }
 
-  // If we floored the primitive variables, we should check
-  // if the EOS wants us to adjust the conserved variables back
-  // in bounds. If that's the case, then we'll do it.
-  if (solver_result.cons_adjusted && peos->KeepPrimAndConConsistent())
+  if (peos->KeepPrimAndConConsistent())
   {
-    PrimToCon(prim, cons, b, g3d);
+    if (rebuild_from_prim)
+    {
+      PrimToCon(prim, cons, b, g3d);
+      // Preserve a species-only correction if a thermal projection rebuilt the
+      // local state. The selected hydro scatter retains the original D.
+      if (Y_adjusted && !full_writeback)
+      {
+        for (int s = 0; s < n_species; s++)
+        {
+          cons[IYD + s] = D * Y[s];
+        }
+      }
+    }
+    else
+    {
+      if (solver_result.write_D)
+      {
+        cons[IDN] = D;
+      }
+      if (solver_result.write_S)
+      {
+        cons[IM1] = S_d[0];
+        cons[IM2] = S_d[1];
+        cons[IM3] = S_d[2];
+      }
+      if (solver_result.write_tau)
+      {
+        cons[IEN] = tau;
+      }
+    }
   }
   else
   {
-    solver_result.cons_adjusted = false;
+    solver_result.write_D          = false;
+    solver_result.write_S          = false;
+    solver_result.write_tau        = false;
+    solver_result.scalars_adjusted = false;
   }
 
   return solver_result;
@@ -799,7 +896,6 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
   // Extract the primitive variables
   const Real& n       = prim[IDN];  // number density
   const Real Wv_u[3]  = { prim[IVX], prim[IVY], prim[IVZ] };
-  const Real& p       = prim[IPR];  // pressure
   const Real& t       = prim[ITM];  // temperature
   const Real B_u[3]   = { bu[IB1], bu[IB2], bu[IB3] };
   const int n_species = peos->GetNSpecies();
@@ -808,6 +904,9 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
   {
     Y[s] = prim[IYF + s];
   }
+  Real p, h;
+  peos->GetPressureAndEnthalpy(n, t, Y, &p, &h);
+  prim[IPR] = p;
 
   // Note that Athena passes in Wv, not v.
   // Lower u.
@@ -839,7 +938,7 @@ inline Error PrimitiveSolver<EOSPolicy, ErrorPolicy>::PrimToCon(
   // Set the conserved quantities.
   // Total enthalpy density
   Real const rho = n * mb;
-  Real H    = n * peos->GetEnthalpy(n, t, Y) * mb;
+  Real H    = n * h * mb;
   Real HWsq = H * Wsq;
   D         = n * mb * W;
   for (int s = 0; s < n_species; s++)

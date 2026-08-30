@@ -25,7 +25,9 @@ struct SolverResult {
   int  iterations;
   bool cons_floor;
   bool prim_floor;
-  bool cons_adjusted;
+  bool write_D;
+  bool write_S;
+  bool write_tau;
   bool scalars_adjusted;
 };
 
