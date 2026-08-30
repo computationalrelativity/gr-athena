@@ -534,6 +534,24 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
     ku += NGHOST;
   }
 
+#if MAGNETIC_FIELDS_ENABLED
+  // Regularize prims (needed for some boosted data)
+  for (int k = 0; k < ncells3; k++)
+    for (int j = 0; j < ncells2; j++)
+      for (int i = 0; i < ncells1; i++)
+      {
+        for (int n = 0; n < NHYDRO; ++n)
+          if (!std::isfinite(phydro->w(n, k, j, i)))
+          {
+            PrimHelper::ApplyPrimitiveFloors(
+              peos->GetEOS(), phydro->w, r_scalar, k, j, i);
+            continue;
+          }
+      }
+
+  SeedMagneticFields(this, pin);
+#endif
+
   peos->PrimitiveToConserved(phydro->w,
                              r_scalar,
                              pfield->bcc,
@@ -578,24 +596,6 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   pz4c->assert_is_finite_con();
   pz4c->assert_is_finite_mat();
   pz4c->assert_is_finite_z4c();
-#endif
-
-#if MAGNETIC_FIELDS_ENABLED
-  // Regularize prims (needed for some boosted data)
-  for (int k = 0; k < ncells3; k++)
-    for (int j = 0; j < ncells2; j++)
-      for (int i = 0; i < ncells1; i++)
-      {
-        for (int n = 0; n < NHYDRO; ++n)
-          if (!std::isfinite(phydro->w(n, k, j, i)))
-          {
-            PrimHelper::ApplyPrimitiveFloors(
-              peos->GetEOS(), phydro->w, r_scalar, k, j, i);
-            continue;
-          }
-      }
-
-  SeedMagneticFields(this, pin);
 #endif
 
   return;
