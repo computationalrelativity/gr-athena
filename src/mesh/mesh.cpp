@@ -397,6 +397,10 @@ Mesh::Mesh(ParameterInput* pin, int mesh_test)
       {
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
+      const int lmax = pin->GetOrAddInteger("psi4_extraction", "lmax", 2);
+      const bool bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
+      pwave_harmonics = new WaveExtractHarmonics(
+        pwave_extr.front()->psphere, lmax, bitant);
     }
     int nrad_rwz = pin->GetOrAddInteger("rwz_extraction", "num_radii", 0);
     if (nrad_rwz > 0)
@@ -1017,6 +1021,10 @@ Mesh::Mesh(ParameterInput* pin, IOWrapper& resfile, int mesh_test)
       {
         pwave_extr.push_back(new WaveExtract(this, pin, n));
       }
+      const int lmax = pin->GetOrAddInteger("psi4_extraction", "lmax", 2);
+      const bool bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
+      pwave_harmonics = new WaveExtractHarmonics(
+        pwave_extr.front()->psphere, lmax, bitant);
     }
     int nrad_rwz = pin->GetOrAddInteger("rwz_extraction", "num_radii", 0);
     if (nrad_rwz > 0)
@@ -1467,6 +1475,7 @@ Mesh::~Mesh()
 
   if (Z4C_ENABLED)
   {
+    delete pwave_harmonics;
     for (auto pwextr : pwave_extr)
     {
       delete pwextr;

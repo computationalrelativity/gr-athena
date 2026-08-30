@@ -204,7 +204,8 @@ MeshBlock::MeshBlock(int igid,
       for (int n = 0; n < nrad; ++n)
       {
         pwave_extr_loc.push_back(new WaveExtractLocal(
-          this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
+          this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n,
+          this->pmy_mesh->pwave_harmonics));
       }
     }
   }
@@ -360,7 +361,8 @@ MeshBlock::MeshBlock(int igid,
       for (int n = 0; n < nrad; ++n)
       {
         pwave_extr_loc.push_back(new WaveExtractLocal(
-          this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n));
+          this->pmy_mesh->pwave_extr[n]->psphere, this, pin, n,
+          this->pmy_mesh->pwave_harmonics));
       }
     }
   }

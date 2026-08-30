@@ -30,6 +30,41 @@
 #include "wave_extract.hpp"
 #include "z4c.hpp"
 
+WaveExtractHarmonics::WaveExtractHarmonics(SphericalGrid const* psphere,
+                                           int lmax,
+                                           bool bitant)
+{
+  num_vertices_ = psphere->NumVertices();
+  const int nmodes = (lmax + 1) * (lmax + 1) - 4;
+  ylm_.resize(2 * nmodes * num_vertices_);
+  bitant_z_fac_.resize(num_vertices_);
+
+  for (int ic = 0; ic < num_vertices_; ++ic)
+  {
+    Real theta, phi;
+    psphere->GeodesicGrid::PositionPolar(ic, &theta, &phi);
+
+    // For bitant reflection,
+    // _sY_l^m(pi - theta, phi) =
+    // (-1)^(l+s) conj(_sY_l^(-m)(theta, phi)).
+    // PositionPolar returns theta in [0,pi]. The existing Weyl extraction
+    // flips its imaginary contribution in the southern hemisphere; cache
+    // that fixed per-vertex factor here.
+    bitant_z_fac_[ic] = (bitant && theta > PI / 2) ? -1.0 : 1.0;
+
+    for (int l = 2; l <= lmax; ++l)
+    {
+      for (int m = -l; m <= l; ++m)
+      {
+        const int mode = l*l - 4 + (m + l);
+        const int idx = 2 * (mode * num_vertices_ + ic);
+        gra::sph_harm::sYlm(
+          -2, l, m, theta, phi, &ylm_[idx], &ylm_[idx + 1]);
+      }
+    }
+  }
+}
+
 WaveExtract::WaveExtract(Mesh* pmesh, ParameterInput* pin, int n)
     : pmesh(pmesh), pofile(NULL)
 {
@@ -198,7 +233,9 @@ void WaveExtract::Write(int iter, Real time) const
 WaveExtractLocal::WaveExtractLocal(SphericalGrid* psphere,
                                    MeshBlock* pmb,
                                    ParameterInput* pin,
-                                   int n)
+                                   int n,
+                                   WaveExtractHarmonics const* pwave_harmonics)
+    : pwave_harmonics(pwave_harmonics)
 {
   std::string rad_parname;
   rad_parname       = "radius_";
@@ -208,7 +245,6 @@ WaveExtractLocal::WaveExtractLocal(SphericalGrid* psphere,
   lmax = pin->GetOrAddInteger("psi4_extraction", "lmax", 2);
   psi.NewAthenaArray(lmax - 1, 2 * (lmax) + 1, 2);
   psi.ZeroClear();
-  bitant = pin->GetOrAddBoolean("mesh", "bitant", false);
 #if defined(Z4C_VC_ENABLED)
   ppatch = new SphericalPatch(psphere, pmb, SphericalPatch::vertex);
 #else
@@ -234,7 +270,7 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const& u_R,
 {
   ppatch->InterpToSpherical(u_R, &datareal);
   ppatch->InterpToSpherical(u_I, &dataim);
-  Real theta, phi, ylmR, ylmI;  //,x,y,z;
+  Real ylmR, ylmI;
   psi.ZeroClear();
   for (int l = 2; l < lmax + 1; ++l)
   {
@@ -244,17 +280,11 @@ void WaveExtractLocal::Decompose_multipole(AthenaArray<Real> const& u_R,
       Real psilmI = 0.0;
       for (int ip = 0; ip < ppatch->NumPoints(); ++ip)
       {
-        ppatch->psphere->GeodesicGrid::PositionPolar(
-          ppatch->idxMap(ip), &theta, &phi);
-
-          gra::sph_harm::sYlm(-2, l, m, theta, phi, &ylmR, &ylmI);
-
-        // The spherical harmonics transform as Y^s_{l m}( Pi-th, ph ) =
-        // (-1)^{l+s} Y^s_{l -m}(th, ph) but the PoisitionPolar function
-        // returns theta \in [0,\pi], so these are correct for bitant. With
-        // bitant, under reflection the imaginary part of the weyl scalar
-        // should pick a - sign, which is accounted for here.
-        Real bitant_z_fac = (bitant && theta > PI / 2) ? -1 : 1;
+        const int ic = ppatch->idxMap(ip);
+        Real const* ylm = pwave_harmonics->Ylm(l, m, ic);
+        ylmR = ylm[0];
+        ylmI = ylm[1];
+        Real bitant_z_fac = pwave_harmonics->BitantZFac(ic);
         psilmR += datareal(ip) * weight(ip) * ylmR +
                   bitant_z_fac * dataim(ip) * weight(ip) * ylmI;
         psilmI += bitant_z_fac * dataim(ip) * weight(ip) * ylmR -

@@ -22,6 +22,30 @@ class SphericalGrid;
 class SphericalPatch;
 class ParameterInput;
 
+//! \class WaveExtractHarmonics
+//! \brief Fixed spin-weighted harmonics for one geodesic grid
+class WaveExtractHarmonics
+{
+  public:
+  WaveExtractHarmonics(SphericalGrid const* psphere, int lmax, bool bitant);
+
+  inline Real const* Ylm(int l, int m, int vertex) const
+  {
+    const int mode = l*l - 4 + (m + l);
+    return &ylm_[2 * (mode * num_vertices_ + vertex)];
+  }
+
+  inline Real BitantZFac(int vertex) const
+  {
+    return bitant_z_fac_[vertex];
+  }
+
+  private:
+  int num_vertices_;
+  std::vector<Real> ylm_;
+  std::vector<Real> bitant_z_fac_;
+};
+
 //! \class WaveExtract
 //! \brief Extracts the l m  components of the wave on a unit sphere
 //! This class performs the global reduction
@@ -63,7 +87,8 @@ class WaveExtractLocal
   WaveExtractLocal(SphericalGrid* psphere,
                    MeshBlock* pmb,
                    ParameterInput* pin,
-                   int n);
+                   int n,
+                   WaveExtractHarmonics const* pwave_harmonics);
   ~WaveExtractLocal();
   //! Computes the l m modes of the given grid function
   void Decompose_multipole(AthenaArray<Real> const& u_R,
@@ -76,7 +101,7 @@ class WaveExtractLocal
   SphericalPatch* ppatch;
 
   private:
-  bool bitant;
+  WaveExtractHarmonics const* pwave_harmonics;
   AthenaArray<Real> datareal;
   AthenaArray<Real> dataim;
   AthenaArray<Real> weight;

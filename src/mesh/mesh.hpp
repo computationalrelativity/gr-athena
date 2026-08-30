@@ -56,6 +56,7 @@ class Wave;
 class Z4c;
 class WaveExtract;
 class WaveExtractRWZ;
+class WaveExtractHarmonics;
 class AHF;
 #ifdef EJECTA_ENABLED
 class Ejecta;
@@ -541,6 +542,7 @@ class Mesh
   MeshBlock* pblock = nullptr;
 
   std::vector<WaveExtract*> pwave_extr;
+  WaveExtractHarmonics* pwave_harmonics = nullptr;
   std::vector<WaveExtractRWZ*> pwave_extr_rwz;
   std::vector<AHF*> pah_finder;
 #ifdef EJECTA_ENABLED
