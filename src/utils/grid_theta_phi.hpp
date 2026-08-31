@@ -41,6 +41,52 @@ namespace gra::grids::theta_phi
 {
 
 // ============================================================================
+// Free function: Gauss-Legendre quadrature nodes and weights on [a, b].
+//
+// Exposed at namespace scope (rather than as a private static method of
+// Grid<...>) so that other consumers - e.g. surfaces::SurfaceSpherical,
+// which builds its own (th, ph) grid rather than going through Grid<...> -
+// can share the same quadrature without duplicating the Newton iteration.
+// ============================================================================
+inline void GLQuadNodesWeights(const Real a,
+                               const Real b,
+                               Real* x,
+                               Real* w,
+                               const int n)
+{
+  constexpr Real tol = 1e-14;
+
+  const int m   = (n + 1) / 2;
+  const Real xm = 0.5 * (b + a);
+  const Real xl = 0.5 * (b - a);
+
+  for (int i = 1; i <= m; ++i)
+  {
+    Real z = std::cos(PI * (i - 0.25) / (n + 0.5));
+    Real z1, pp;
+    do
+    {
+      Real p1 = 1.0;
+      Real p2 = 0.0;
+      for (int j = 1; j <= n; ++j)
+      {
+        Real p3 = p2;
+        p2      = p1;
+        p1      = ((2.0 * j - 1.0) * z * p2 - (j - 1.0) * p3) / j;
+      }
+      pp = n * (z * p1 - p2) / (z * z - 1.0);
+      z1 = z;
+      z  = z1 - p1 / pp;
+    } while (std::fabs(z - z1) > tol);
+
+    x[i - 1] = xm - xl * z;
+    x[n - i] = xm + xl * z;
+    w[i - 1] = 2.0 * xl / ((1.0 - z * z) * pp * pp);
+    w[n - i] = w[i - 1];
+  }
+}
+
+// ============================================================================
 // Free function: compute the determinant of the induced 2-metric on a
 // surface embedded in 3D, at a single point.
 //
@@ -222,7 +268,7 @@ class Grid
       std::vector<Real> gl_nodes(ntheta);
       std::vector<Real> gl_weights(ntheta);
 
-      GLQuadNodesWeights(
+      gra::grids::theta_phi::GLQuadNodesWeights(
         -1.0, 1.0, gl_nodes.data(), gl_weights.data(), ntheta);
 
       for (int i = 0; i < ntheta; ++i)
@@ -634,48 +680,6 @@ class Grid
       }
     }
     return true;
-  }
-
-  private:
-  // ==========================================================================
-  // Gauss-Legendre quadrature nodes and weights on [a, b].
-  // ==========================================================================
-  static void GLQuadNodesWeights(const Real a,
-                                 const Real b,
-                                 Real* x,
-                                 Real* w,
-                                 const int n)
-  {
-    constexpr Real tol = 1e-14;
-
-    const int m   = (n + 1) / 2;
-    const Real xm = 0.5 * (b + a);
-    const Real xl = 0.5 * (b - a);
-
-    for (int i = 1; i <= m; ++i)
-    {
-      Real z = std::cos(PI * (i - 0.25) / (n + 0.5));
-      Real z1, pp;
-      do
-      {
-        Real p1 = 1.0;
-        Real p2 = 0.0;
-        for (int j = 1; j <= n; ++j)
-        {
-          Real p3 = p2;
-          p2      = p1;
-          p1      = ((2.0 * j - 1.0) * z * p2 - (j - 1.0) * p3) / j;
-        }
-        pp = n * (z * p1 - p2) / (z * z - 1.0);
-        z1 = z;
-        z  = z1 - p1 / pp;
-      } while (std::fabs(z - z1) > tol);
-
-      x[i - 1] = xm - xl * z;
-      x[n - i] = xm + xl * z;
-      w[i - 1] = 2.0 * xl / ((1.0 - z * z) * pp * pp);
-      w[n - i] = w[i - 1];
-    }
   }
 };
 

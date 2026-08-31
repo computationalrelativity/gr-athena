@@ -1,9 +1,11 @@
 #include "surfaces.hpp"
 #include <algorithm> // std::min
+#include <array>     // std::array (SH channel table in write_hdf5)
 #include <cstring>   // std::memcpy
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>   // std::pair
 
 #include "../coordinates/coordinates.hpp"
 #include "../utils/linear_algebra.hpp"
@@ -213,6 +215,39 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
 
   }
 
+  // extract (optional) variables to project onto scalar spherical harmonics --
+  // Only meaningful for spherical surfaces; absent/empty simply disables it.
+  AthenaArray<std::string> str_vars_sh = pin->GetOrAddStringArray(
+    par_block_name, "variables_sh", "", 0
+  );
+
+  const int N_vars_sh = str_vars_sh.GetSize();
+  variables_sh.NewAthenaArray(N_vars_sh);
+  variable_sh_sampling.NewAthenaArray(N_vars_sh);
+
+  for (int v=0; v<N_vars_sh; ++v)
+  {
+    auto itr = map_to_variety_data.find(str_vars_sh(v));
+
+    if (itr != map_to_variety_data.end())
+    {
+      variables_sh(v) = itr->second;
+      variable_sh_sampling(v) = GetDataBaseGrid(variables_sh(v));
+    }
+    else
+    {
+      std::ostringstream msg;
+      msg << par_block_name
+          << "/variables_sh/" << str_vars_sh(v) << " unknown" << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  }
+
+  // lmax_sh < 0 (default) disables SH projection even if variables_sh is set
+  lmax_sh = (N_vars_sh > 0)
+    ? pin->GetOrAddInteger(par_block_name, "lmax_sh", -1)
+    : -1;
+
 }
 
 Surfaces::~Surfaces()
@@ -299,23 +334,38 @@ void Surfaces::Reduce(const int ncycle, const Real time,
   // Phase 2: batched MPI_Allreduce across all surfaces -----------------------
 #ifdef MPI_PARALLEL
   {
+    // Per-surface contribution: interpolated field values, then (optionally)
+    // scalar spherical-harmonic projection coefficients.
+    auto surf_elems = [](Surface * s) -> size_t
+    {
+      return static_cast<size_t>(s->u_vars.GetSize())
+           + static_cast<size_t>(s->a_lm.GetSize());
+    };
+
     // compute total element count across all surfaces
     size_t total_elems = 0;
     for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
     {
-      total_elems += static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
+      total_elems += surf_elems(psurf[surf_ix]);
     }
 
-    // pack all u_vars into one contiguous buffer
+    // pack all u_vars (+ a_lm, if present) into one contiguous buffer
     std::vector<Real> buf(total_elems);
     size_t offset = 0;
     for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
     {
-      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
-      std::memcpy(buf.data() + offset,
-                  psurf[surf_ix]->u_vars.data(),
-                  n * sizeof(Real));
-      offset += n;
+      Surface * s = psurf[surf_ix];
+
+      auto pack = [&](aliases::AA & arr)
+      {
+        const size_t n = static_cast<size_t>(arr.GetSize());
+        if (n == 0) return;
+        std::memcpy(buf.data() + offset, arr.data(), n * sizeof(Real));
+        offset += n;
+      };
+
+      pack(s->u_vars);
+      pack(s->a_lm);
     }
 
     // single chunked MPI_Allreduce on the contiguous buffer
@@ -340,15 +390,22 @@ void Surfaces::Reduce(const int ncycle, const Real time,
       start_byte += count * sizeof(Real);
     }
 
-    // scatter results back to each surface's u_vars
+    // scatter results back to each surface's u_vars (+ a_lm)
     offset = 0;
     for (int surf_ix = 0; surf_ix < num_surf; ++surf_ix)
     {
-      const size_t n = static_cast<size_t>(psurf[surf_ix]->u_vars.GetSize());
-      std::memcpy(psurf[surf_ix]->u_vars.data(),
-                  buf.data() + offset,
-                  n * sizeof(Real));
-      offset += n;
+      Surface * s = psurf[surf_ix];
+
+      auto unpack = [&](aliases::AA & arr)
+      {
+        const size_t n = static_cast<size_t>(arr.GetSize());
+        if (n == 0) return;
+        std::memcpy(arr.data(), buf.data() + offset, n * sizeof(Real));
+        offset += n;
+      };
+
+      unpack(s->u_vars);
+      unpack(s->a_lm);
     }
   }
 #endif
@@ -422,6 +479,15 @@ Surface::Surface(
   for (int v=0; v<num_vars; ++v)
   {
     N_cpts(v) = GetNumFieldComponents(psurfs->variables(v));
+  }
+
+  // Same, for the (optional) scalar spherical-harmonics projection list
+  const int num_vars_sh = psurfs->variables_sh.GetSize();
+  N_cpts_sh.NewAthenaArray(num_vars_sh);
+
+  for (int v=0; v<num_vars_sh; ++v)
+  {
+    N_cpts_sh(v) = GetNumFieldComponents(psurfs->variables_sh(v));
   }
 }
 
@@ -1076,6 +1142,54 @@ void Surface::write_hdf5(const Real T)
       }
     }
 
+    // scalar spherical-harmonic projection coefficients -------------------------
+    // (a_lm is unallocated, size 0, when SH projection is not in use for
+    // this surface - the loop below is then a no-op)
+    if (a_lm.GetSize() > 0)
+    {
+      std::string full_path_sh_base { "/spectral/" + six };
+
+      // length, along the trailing (lm) dimension, of a_lm's middle slice
+      const int lmpoints = lmpoints_sh;
+
+      int ix_dump_sh = 0;
+      for (int v=0; v<psurfs->variables_sh.GetSize(); ++v)
+      {
+        Surfaces::variety_data vd = psurfs->variables_sh(v);
+
+        const std::string & var_type =
+          psurfs->map_to_variety_prefix.at(vd);
+
+        for (int n=0; n<N_cpts_sh(v); ++n)
+        {
+          std::string var_name = GetNameFieldComponent(vd, n);
+          std::string full_path = full_path_sh_base + "/" + var_type + "/";
+          full_path += var_name;
+
+          // copy each channel out of the shared a_lm array into a small
+          // contiguous scratch buffer before handing it to the writer
+          AA sh_scratch;
+          sh_scratch.NewAthenaArray(lmpoints);
+
+          static const std::array<std::pair<int, const char *>, 3> channels{{
+            { Surface::sh_a0, "a0" },
+            { Surface::sh_ac, "ac" },
+            { Surface::sh_as, "as" }
+          }};
+
+          for (const auto & [channel, name] : channels)
+          {
+            std::memcpy(sh_scratch.data(),
+                        &a_lm(ix_dump_sh, channel, 0),
+                        lmpoints * sizeof(Real));
+            hdf5_write_arr_nd(id_file, full_path + "/" + name, sh_scratch);
+          }
+
+          ix_dump_sh++;
+        }
+      }
+    }
+
     // Finally close
     hdf5_close_file(id_file);
   }
@@ -1154,6 +1268,9 @@ void Surface::Reduce_Compute()
 
   // use pre-allocated interpolators on desired data --------------------------
   DoInterpolations();
+
+  // project (optional) scalar-harmonic variable list onto Y_lm ---------------
+  DoProjections();
 }
 
 void Surface::Reduce_Communicate()
@@ -1180,23 +1297,27 @@ void Surface::Reduce(const int ncycle, const Real time)
   // --------------------------------------------------------------------------
 }
 
-void Surface::MPI_Reduce()
-{
-#ifdef MPI_PARALLEL
-  size_t total_bytes = u_vars.GetSizeInBytes();
+namespace {
 
-  // max chunk size in bytes
-  size_t max_chunk_bytes = DBG_SURF_CHUNK * 1024 * 1024;
+// Chunked MPI_Allreduce (MPI_SUM) helper shared by Surface::MPI_Reduce() for
+// u_vars and the (optional) a_lm_0/a_lm_c/a_lm_s buffers.
+#ifdef MPI_PARALLEL
+void ChunkedAllreduceSum(Real* data_ptr, const size_t total_bytes)
+{
+  if (total_bytes == 0)
+  {
+    return;
+  }
+
+  const size_t max_chunk_bytes =
+    static_cast<size_t>(DBG_SURF_CHUNK) * 1024 * 1024;
   size_t start_byte = 0;
 
-  // Pointer to the contiguous data
-  Real* data_ptr = u_vars.data();
-
-  while (start_byte < total_bytes) {
-    // Compute number of elements for this chunk
-    size_t bytes_left = total_bytes - start_byte;
-    size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
-    int count = static_cast<int>(chunk_bytes / sizeof(Real));
+  while (start_byte < total_bytes)
+  {
+    const size_t bytes_left = total_bytes - start_byte;
+    const size_t chunk_bytes = std::min(bytes_left, max_chunk_bytes);
+    const int count = static_cast<int>(chunk_bytes / sizeof(Real));
 
     MPI_Allreduce(MPI_IN_PLACE,
                   data_ptr + start_byte / sizeof(Real),
@@ -1207,6 +1328,22 @@ void Surface::MPI_Reduce()
 
     start_byte += count * sizeof(Real);
   }
+}
+#endif
+
+} // anonymous namespace
+
+void Surface::MPI_Reduce()
+{
+#ifdef MPI_PARALLEL
+  // Interpolated field values
+  ChunkedAllreduceSum(u_vars.data(), u_vars.GetSizeInBytes());
+
+  // Scalar spherical-harmonic projection coefficients (local partial sums
+  // over grid points owned by this rank; summing across ranks gives the
+  // full-sphere projection). No-op if SH projection is not in use, since
+  // a_lm is then left unallocated (size 0).
+  ChunkedAllreduceSum(a_lm.data(), a_lm.GetSizeInBytes());
 #endif
 }
 

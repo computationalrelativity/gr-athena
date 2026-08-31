@@ -54,6 +54,14 @@ void SurfaceSpherical::write_hdf5_coordinates(hid_t& id_file,
   // 1d arrays [grid]
   hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/th", th);
   hdf5_write_arr_nd(id_file, "/coordinates/" + six + "/ph", ph);
+
+  // record lmax used for scalar spherical-harmonic projection, if any, so
+  // that /spectral/{six}/... arrays can be interpreted downstream
+  if (a_lm.GetSize() > 0)
+  {
+    hdf5_write_scalar(id_file, "/coordinates/" + six + "/lmax_sh",
+                      psurfs->lmax_sh);
+  }
 #endif
 }
 
@@ -66,7 +74,8 @@ SurfaceSpherical::SurfaceSpherical(Mesh* pm,
   // extract [target] sampling variety ----------------------------------------
   {
     static const std::map<std::string, variety_sampling> opt_vs{
-      { "uniform", variety_sampling::uniform }
+      { "uniform", variety_sampling::uniform },
+      { "gausslegendre", variety_sampling::gausslegendre }
     };
 
     const std::string par_name = "sampling";
@@ -174,34 +183,47 @@ SurfaceSpherical::SurfaceSpherical(Mesh* pm,
   ph.NewAthenaArray(this->N_ph);
   x_o_th_ph.NewAthenaArray(N, this->N_th, this->N_ph);
 
+  // Quadrature (solid-angle) weights - only actually consumed if this
+  // surface projects a variable onto scalar spherical harmonics (see
+  // DoProjections() below), but cheap enough to always compute.
+  weights.NewAthenaArray(this->N_th, this->N_ph);
+
   switch (vs)
   {
     case variety_sampling::uniform:
     {
       gr_th(th);
       gr_ph(ph);
+      wt_uniform(weights);
 
-      for (int i = 0; i < this->N_th; ++i)
-      {
-        const Real sin_th = std::sin(th(i));
-        const Real cos_th = std::cos(th(i));
-
-        for (int j = 0; j < this->N_ph; ++j)
-        {
-          const Real sin_ph = std::sin(ph(j));
-          const Real cos_ph = std::cos(ph(j));
-
-          x_o_th_ph(0, i, j) = rad * sin_th * cos_ph;
-          x_o_th_ph(1, i, j) = rad * sin_th * sin_ph;
-          x_o_th_ph(2, i, j) = rad * cos_th;
-        }
-      }
+      break;
+    }
+    case variety_sampling::gausslegendre:
+    {
+      gr_wt_gausslegendre(th, weights);
+      gr_ph(ph);
 
       break;
     }
     default:
     {
       assert(false);
+    }
+  }
+
+  for (int i = 0; i < this->N_th; ++i)
+  {
+    const Real sin_th = std::sin(th(i));
+    const Real cos_th = std::cos(th(i));
+
+    for (int j = 0; j < this->N_ph; ++j)
+    {
+      const Real sin_ph = std::sin(ph(j));
+      const Real cos_ph = std::cos(ph(j));
+
+      x_o_th_ph(0, i, j) = rad * sin_th * cos_ph;
+      x_o_th_ph(1, i, j) = rad * sin_th * sin_ph;
+      x_o_th_ph(2, i, j) = rad * cos_th;
     }
   }
 
@@ -222,6 +244,28 @@ SurfaceSpherical::SurfaceSpherical(Mesh* pm,
   }
 
   u_vars.NewAthenaArray(N_cpts_total, N_th, N_ph);
+
+  // allocate storage + harmonic table for scalar SH projection ---------------
+  // (variables_sh may be empty and/or lmax_sh < 0, in which case this is
+  // skipped and a_lm_0/a_lm_c/a_lm_s remain unallocated - MPI_Reduce() and
+  // write_hdf5() both treat that as a no-op via GetSize() == 0 checks)
+  int N_cpts_sh_total = 0;
+  for (int i = 0; i < N_cpts_sh.GetSize(); ++i)
+  {
+    N_cpts_sh_total += N_cpts_sh(i);
+  }
+
+  if ((psurfs->lmax_sh >= 0) && (N_cpts_sh_total > 0))
+  {
+    const int lmax     = psurfs->lmax_sh;
+    lmpoints_sh         = (lmax + 1) * (lmax + 1);
+
+    // single array holding all three coefficient "kinds" (a0/ac/as) for
+    // every projected field component - see Surface::sh_channel
+    a_lm.NewAthenaArray(N_cpts_sh_total, Surface::sh_nch, lmpoints_sh);
+
+    ylm.Initialize(lmax, N_th, N_ph, th, ph);
+  }
 }
 
 void SurfaceSpherical::PrepareInterpolators()
@@ -510,6 +554,72 @@ void SurfaceSpherical::DoInterpolations()
 
   // assemble frame vectors ---------------------------------------------------
   // BD: TODO ...
+}
+
+void SurfaceSpherical::DoProjections()
+{
+  // no-op if this surface doesn't project any variable onto Y_lm
+  // (a_lm is left unallocated by the ctor in that case)
+  if (a_lm.GetSize() == 0)
+  {
+    return;
+  }
+
+  a_lm.Fill(0);
+
+  const int N_vars_sh = N_cpts_sh.GetSize();
+
+  // scratch: interpolated field values on the full (th,ph) grid, reused for
+  // each field component in turn (unowned points left at zero and skipped
+  // by ylm.Project() via is_owned, so they do not pollute the integral)
+  AA field_ij;
+  field_ij.NewAthenaArray(N_th, N_ph);
+
+  auto is_owned = [this](const int i, const int j) -> bool
+  {
+    return mask_mb(i, j) != nullptr;
+  };
+
+  int ix_dump_sh = 0;
+  for (int vix = 0; vix < N_vars_sh; ++vix)
+  {
+    Surfaces::variety_data vd = psurfs->variables_sh(vix);
+    const Surfaces::variety_base_grid vbg = psurfs->variable_sh_sampling(vix);
+
+    for (int cix = 0; cix < N_cpts_sh(vix); ++cix)
+    {
+      const int mapped_cix = GetRemappedFieldIndex(vd, cix);
+
+      field_ij.Fill(0);
+      for (int i = 0; i < N_th; ++i)
+      {
+        for (int j = 0; j < N_ph; ++j)
+        {
+          if (!is_owned(i, j))
+          {
+            continue;
+          }
+
+          // given target (th_i, ph_j) get pointer to data on relevant
+          // MeshBlock, then interpolate the requested component there
+          AA& raw_var = *GetRawData(vd, mask_mb(i, j));
+          AA sl_u(raw_var, mapped_cix, 1);
+
+          field_ij(i, j) = InterpolateAtPoint(sl_u, vbg, i, j);
+        }
+      }
+
+      // local (rank-owned) partial sums; combined across ranks by
+      // Surface::MPI_Reduce() -> ChunkedAllreduceSum(a_lm, ...)
+      Real* buf0 = &a_lm(ix_dump_sh, Surface::sh_a0, 0);
+      Real* bufc = &a_lm(ix_dump_sh, Surface::sh_ac, 0);
+      Real* bufs = &a_lm(ix_dump_sh, Surface::sh_as, 0);
+
+      ylm.Project(weights, field_ij, N_th, N_ph, buf0, bufc, bufs, is_owned);
+
+      ix_dump_sh++;
+    }
+  }
 }
 
 // ============================================================================
