@@ -1323,11 +1323,14 @@ void StepImplicitCustomN(
       pm1.opt_closure.variety = opt_cl;
     }
     else if (!converged &&
-             failure == Failure::no_progress &&
-             pm1.opt_closure.variety == M1::opt_closure_variety::thick)
+             ((failure == Failure::no_progress &&
+               pm1.opt_closure.variety == M1::opt_closure_variety::thick) ||
+              failure == Failure::no_feasible_step ||
+              failure == Failure::no_feasible_descent))
     {
-      // The last thick iterate is physical and residual-decreasing, although
-      // its residual is not converged. Carry it and the source above forward.
+      // Carry a physical inexact state and the source above forward:
+      // - no_progress: the last accepted residual-decreasing iterate;
+      // - no_feasible_*: the restored O(v) approximate state.
     }
     else if (!converged)
     {
