@@ -98,3 +98,11 @@ src/tags
 # temporaries
 *.bak
 *.old
+
+# temporaries 
+eos_tables/
+extern/
+**/*.log
+**/*.out
+**/*.err
+**/RNS_DATA
