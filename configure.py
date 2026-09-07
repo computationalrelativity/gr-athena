@@ -1983,7 +1983,7 @@ files = [
 ]
 if args["eospolicy"] == "eos_transition":
   files.append("eos_compose")
-  files.append("eos_helmholtz")
+  files.append("eos_eir")
 
 if args["eos"] == "eostaudyn_ps":
   aux = [f"        src/z4c/primitive/{f}.cpp \\" for f in files]

@@ -1,9 +1,9 @@
-#ifndef EOS_HELMHOLTZ_H
-#define EOS_HELMHOLTZ_H
+#ifndef EOS_EIR_H
+#define EOS_EIR_H
 
-//! \file eos_helmholtz.hpp
-//  \brief Defines EOSHelmholtz, a thermal EOS policy built on tabulated
-//         Helmholtz electron quantities plus analytic ion/radiation terms.
+//! \file eos_eir.hpp
+//  \brief Defines EOSEIR, a thermal EOS policy built on tabulated
+//         EIR electron quantities plus analytic ion/radiation terms.
 
 ///  \warning This code assumes the table to be uniformly spaced in
 ///           log ne and log t
@@ -18,7 +18,7 @@
 namespace Primitive
 {
 
-class EOSHelmholtz : public EOSPolicyInterface
+class EOSEIR : public EOSPolicyInterface
 {
   friend class EOSTransition;
 
@@ -37,10 +37,10 @@ class EOSHelmholtz : public EOSPolicyInterface
 
   protected:
   /// Constructor
-  EOSHelmholtz();
+  EOSEIR();
 
   /// Destructor
-  ~EOSHelmholtz();
+  ~EOSEIR();
 
   /// Temperature from energy density
   Real TemperatureFromE(Real n, Real e, Real* Y);
@@ -180,7 +180,7 @@ class EOSHelmholtz : public EOSPolicyInterface
     if (abar <= 0.0)
     {
       printf(
-        "EOSHelmholtz::inverse_abar: got invalid mass fractions, sum is "
+        "EOSEIR::inverse_abar: got invalid mass fractions, sum is "
         "%.5e\n",
         abar);
       return 1.0;
@@ -223,7 +223,7 @@ class EOSHelmholtz : public EOSPolicyInterface
   static bool m_initialized;
 
   // Auxiliary static variables to share data only available when table is open
-  // to those threads that do not open it variables from EOSHelmholtz
+  // to those threads that do not open it variables from EOSEIR
   static Real sm_id_log_ne, sm_id_log_t;
   static int sm_nn, sm_nt;
 
@@ -239,7 +239,7 @@ class EOSHelmholtz : public EOSPolicyInterface
   static constexpr Real sac_const = hbarc * hbarc * 2.0 * M_PI;  // (MeV fm)^2
   static constexpr Real me        = 0.5109989461;                // MeV
   // Physical nucleon masses [MeV]. The CODATA values below are the defaults;
-  // when the Helmholtz EOS is driven by EOSTransition these are replaced by
+  // when the EIR EOS is driven by EOSTransition these are replaced by
   // the values carried by the compose table (SetNucleonMasses), since the
   // table energies and chemical potentials were built with them.
   static constexpr Real mn_codata = 939.5654133;                 // MeV

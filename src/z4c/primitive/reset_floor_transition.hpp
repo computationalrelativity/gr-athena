@@ -4,7 +4,7 @@
 //  \brief Error floor for the two-table transition EOS.
 //
 //  Like ResetFloor (including its baryon-conserving c2p failure response),
-//  but aware of the validity edges of the low-density (Helmholtz) and
+//  but aware of the validity edges of the low-density (EIR) and
 //  high-density (compose) branches: PrimitiveFloor pushes states out of
 //  the invalid wedge between the tables, and floors accumulate instead of
 //  early-returning so several adjustments can apply in one call.
