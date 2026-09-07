@@ -1,7 +1,7 @@
-//! \file eos_helmholtz.cpp
-//  \brief Implementation of EOSHelmholtz
+//! \file eos_eir.cpp
+//  \brief Implementation of EOSEIR
 
-#include "eos_helmholtz.hpp"
+#include "eos_eir.hpp"
 
 #include <hdf5.h>
 #include <hdf5_hl.h>
@@ -28,7 +28,7 @@ using namespace std;
     throw runtime_error(ss.str().c_str());                            \
   }
 
-EOSHelmholtz::EOSHelmholtz()
+EOSEIR::EOSEIR()
     : m_id_log_ne(numeric_limits<Real>::quiet_NaN()),
       m_id_log_t(numeric_limits<Real>::quiet_NaN()),
       m_nn(0),
@@ -52,40 +52,40 @@ EOSHelmholtz::EOSHelmholtz()
   max_Y[SCAH] = 500.0;
 }
 
-EOSHelmholtz::~EOSHelmholtz()
+EOSEIR::~EOSEIR()
 {
 }
 
 // Definitions for static members
-Real* EOSHelmholtz::m_log_ne     = nullptr;
-Real* EOSHelmholtz::m_log_t      = nullptr;
-Real* EOSHelmholtz::m_table      = nullptr;
-bool EOSHelmholtz::m_initialized = false;
+Real* EOSEIR::m_log_ne     = nullptr;
+Real* EOSEIR::m_log_t      = nullptr;
+Real* EOSEIR::m_table      = nullptr;
+bool EOSEIR::m_initialized = false;
 
 // Physical nucleon masses, CODATA defaults; EOSTransition overrides these
 // with the compose table values (SetNucleonMasses).
-Real EOSHelmholtz::mn = EOSHelmholtz::mn_codata;
-Real EOSHelmholtz::mp = EOSHelmholtz::mp_codata;
+Real EOSEIR::mn = EOSEIR::mn_codata;
+Real EOSEIR::mp = EOSEIR::mp_codata;
 
-Real EOSHelmholtz::sm_id_log_ne = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::sm_id_log_t  = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::sm_id_log_ne = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::sm_id_log_t  = numeric_limits<Real>::quiet_NaN();
 
-int EOSHelmholtz::sm_nn = 0;
-int EOSHelmholtz::sm_nt = 0;
+int EOSEIR::sm_nn = 0;
+int EOSEIR::sm_nt = 0;
 
-Real EOSHelmholtz::s_mb = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::s_max_n = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::s_min_n = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::s_max_T = numeric_limits<Real>::quiet_NaN();
-Real EOSHelmholtz::s_min_T = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::s_mb = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::s_max_n = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::s_min_n = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::s_max_T = numeric_limits<Real>::quiet_NaN();
+Real EOSEIR::s_min_T = numeric_limits<Real>::quiet_NaN();
 
-Real EOSHelmholtz::TemperatureFromE(Real n, Real e, Real* Y)
+Real EOSEIR::TemperatureFromE(Real n, Real e, Real* Y)
 {
   assert(m_initialized);
   return TemperatureFromEps(n, e / (mb * n) - 1, Y);
 }
 
-Real EOSHelmholtz::TemperatureFromEps(Real n, Real eps, Real* Y,
+Real EOSEIR::TemperatureFromEps(Real n, Real eps, Real* Y,
                                       int* guess_it)
 {
   // Lazy bounds: floor-clamped states hit the min early-out and never
@@ -99,7 +99,7 @@ Real EOSHelmholtz::TemperatureFromEps(Real n, Real eps, Real* Y,
   return temperature_from_var(ECLOGEPS, log(eps), n, Y, guess_it);
 }
 
-Real EOSHelmholtz::TemperatureFromP(Real n, Real p, Real* Y)
+Real EOSEIR::TemperatureFromP(Real n, Real p, Real* Y)
 {
   assert(m_initialized);
   // Lazy bounds, as in TemperatureFromEps.
@@ -112,7 +112,7 @@ Real EOSHelmholtz::TemperatureFromP(Real n, Real p, Real* Y)
   return temperature_from_var(ECLOGP, log(p), n, Y);
 }
 
-Real EOSHelmholtz::TemperatureFromEntropy(Real n, Real s, Real* Y)
+Real EOSEIR::TemperatureFromEntropy(Real n, Real s, Real* Y)
 {
   assert(m_initialized);
   Real s_min = MinimumEntropy(n, Y);
@@ -123,37 +123,37 @@ Real EOSHelmholtz::TemperatureFromEntropy(Real n, Real s, Real* Y)
                       : temperature_from_var(ECENT, s, n, Y);
 }
 
-Real EOSHelmholtz::SpecificInternalEnergy(Real n, Real T, Real* Y)
+Real EOSEIR::SpecificInternalEnergy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return exp(eval_at_nty(ECLOGEPS, n, T, Y));
 }
 
-Real EOSHelmholtz::Energy(Real n, Real T, Real* Y)
+Real EOSEIR::Energy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return (SpecificInternalEnergy(n, T, Y) + 1) * n * mb;
 }
 
-Real EOSHelmholtz::Pressure(Real n, Real T, Real* Y)
+Real EOSEIR::Pressure(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return exp(eval_at_nty(ECLOGP, n, T, Y));
 }
 
-Real EOSHelmholtz::Abar(Real n, Real T, Real* Y)
+Real EOSEIR::Abar(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return 1.0 / inverse_abar(Y);
 }
 
-Real EOSHelmholtz::Entropy(Real n, Real T, Real* Y)
+Real EOSEIR::Entropy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return eval_at_nty(ECENT, n, T, Y);
 }
 
-Real EOSHelmholtz::Enthalpy(Real n, Real T, Real* Y)
+Real EOSEIR::Enthalpy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   Real const P = Pressure(n, T, Y);
@@ -161,7 +161,7 @@ Real EOSHelmholtz::Enthalpy(Real n, Real T, Real* Y)
   return (P + e) / n;
 }
 
-Real EOSHelmholtz::SoundSpeed(Real n, Real T, Real* Y)
+Real EOSEIR::SoundSpeed(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   // Timmes & Arnett (1999) Gamma_1 from the (n, T) derivatives, translated
@@ -186,7 +186,7 @@ Real EOSHelmholtz::SoundSpeed(Real n, Real T, Real* Y)
   return sqrt(gam1 / z);
 }
 
-Real EOSHelmholtz::NeutronChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::NeutronChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   // NSE can drive the free-nucleon fraction to exactly zero (or a tiny
@@ -199,7 +199,7 @@ Real EOSHelmholtz::NeutronChemicalPotential(Real n, Real T, Real* Y)
   return mn + T * log(n * Yn / 2 * pow(sac_const / (mn * T), 1.5));
 }
 
-Real EOSHelmholtz::ProtonChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::ProtonChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   // Same floor as NeutronChemicalPotential.
@@ -208,72 +208,72 @@ Real EOSHelmholtz::ProtonChemicalPotential(Real n, Real T, Real* Y)
   return mp + T * log(n * Yp / 2 * pow(sac_const / (mp * T), 1.5));
 }
 
-Real EOSHelmholtz::ElectronChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::ElectronChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   Real etaele = eval_at_nty(ECETA, n, T, Y);
   return etaele * T + me;
 }
 
-Real EOSHelmholtz::BaryonChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::BaryonChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return NeutronChemicalPotential(n, T, Y);
 }
 
-Real EOSHelmholtz::ChargeChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::ChargeChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return ProtonChemicalPotential(n, T, Y) - NeutronChemicalPotential(n, T, Y);
 }
 
-Real EOSHelmholtz::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
+Real EOSEIR::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
   return ElectronChemicalPotential(n, T, Y) +
          ChargeChemicalPotential(n, T, Y);  // mu_e = mu_l - mu_q
 }
 
-Real EOSHelmholtz::MinimumEnthalpy()
+Real EOSEIR::MinimumEnthalpy()
 {
   return m_min_h;
 }
 
-Real EOSHelmholtz::MinimumPressure(Real n, Real* Y)
+Real EOSEIR::MinimumPressure(Real n, Real* Y)
 {
   return Pressure(n, min_T, Y);
 }
 
-Real EOSHelmholtz::MaximumPressure(Real n, Real* Y)
+Real EOSEIR::MaximumPressure(Real n, Real* Y)
 {
   return Pressure(n, max_T, Y);
 }
 
-Real EOSHelmholtz::MinimumInternalEnergy(Real n, Real* Y)
+Real EOSEIR::MinimumInternalEnergy(Real n, Real* Y)
 {
   return SpecificInternalEnergy(n, min_T, Y);
 }
 
-Real EOSHelmholtz::MaximumInternalEnergy(Real n, Real* Y)
+Real EOSEIR::MaximumInternalEnergy(Real n, Real* Y)
 {
   return SpecificInternalEnergy(n, max_T, Y);
 }
 
-Real EOSHelmholtz::MinimumEntropy(Real n, Real* Y)
+Real EOSEIR::MinimumEntropy(Real n, Real* Y)
 {
   return Entropy(n, min_T, Y);
 }
 
-Real EOSHelmholtz::MaximumEntropy(Real n, Real* Y)
+Real EOSEIR::MaximumEntropy(Real n, Real* Y)
 {
   return Entropy(n, max_T, Y);
 }
 
-void EOSHelmholtz::ReadTableFromFile(std::string fname,
+void EOSEIR::ReadTableFromFile(std::string fname,
                                      Real min_Ye,
                                      Real max_Ye)
 {
-#pragma omp critical(EOSHelmholtz_ReadTable)
+#pragma omp critical(EOSEIR_ReadTable)
   {
     if (m_initialized == false)
     {
@@ -324,7 +324,7 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname,
       }
       m_id_log_t = 1.0 / (m_log_t[1] - m_log_t[0]);
 
-      // the atomic mass unit is used as the baryon mass in the Helmholtz
+      // the atomic mass unit is used as the baryon mass in the EIR
       // EOS; the table stores it in MeV (eos units)
       ierr = H5LTread_dataset_double(file_id, "mb", scratch);
       MYH5CHECK(ierr);
@@ -407,7 +407,7 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname,
       s_min_T = min_T;
 
     }  // if (m_initialized==false)
-  }  // omp critical (EOSHelmholtz_ReadTable)
+  }  // omp critical (EOSEIR_ReadTable)
 
   // Disseminate applicable static variables to local memory
   m_id_log_ne = sm_id_log_ne;
@@ -425,28 +425,28 @@ void EOSHelmholtz::ReadTableFromFile(std::string fname,
   min_Y[SCYE] = min_Ye;
 }
 
-void EOSHelmholtz::SetBaryonMass(Real new_mb)
+void EOSEIR::SetBaryonMass(Real new_mb)
 {
   mb = new_mb;
 }
 
-void EOSHelmholtz::SetNucleonMasses(Real new_mn, Real new_mp)
+void EOSEIR::SetNucleonMasses(Real new_mn, Real new_mp)
 {
   mn = new_mn;
   mp = new_mp;
 }
 
-void EOSHelmholtz::SetNSpecies(int n)
+void EOSEIR::SetNSpecies(int n)
 {
   if (n > MAX_SPECIES || n < 0)
   {
     throw std::out_of_range(
-      "EOSHelmholtz::SetNSpecies - n cannot exceed MAX_SPECIES.");
+      "EOSEIR::SetNSpecies - n cannot exceed MAX_SPECIES.");
   }
   n_species = n;
 }
 
-Real EOSHelmholtz::temperature_from_var(int iv,
+Real EOSEIR::temperature_from_var(int iv,
                                         Real var,
                                         Real n,
                                         Real* Y,
@@ -472,7 +472,7 @@ Real EOSHelmholtz::temperature_from_var(int iv,
   // EOSCompOSE::FindTBracketAndWeights). f = var - var_pt decreases with
   // it for the monotone channels, so f < 0 means the root lies to the
   // left. A miss (stale index, or an index from the compose grid when the
-  // c2p iterate crossed the Helmholtz cutoff) falls through to the full
+  // c2p iterate crossed the EIR cutoff) falls through to the full
   // search below.
   if (guess_it && *guess_it >= 0 && *guess_it < m_nt - 1)
   {
@@ -534,7 +534,7 @@ Real EOSHelmholtz::temperature_from_var(int iv,
   }
   if (!(flo * fhi <= 0))
   {
-    std::cout << "EOSHelmholtz::temperature_from_var failed to bracket root."
+    std::cout << "EOSEIR::temperature_from_var failed to bracket root."
               << std::endl;
     std::cout << "iv: " << iv << std::endl;
     std::cout << "var: " << var << std::endl;
@@ -637,7 +637,7 @@ Real EOSHelmholtz::temperature_from_var(int iv,
   return exp(lt);
 }
 
-Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
+Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
 {
   // The buffers store the electron gas PER ELECTRON (eps/depsdt in MeV,
   // converted at read time; s in kB). Converting to the per-baryon(-mass)
@@ -725,13 +725,13 @@ Real EOSHelmholtz::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
   throw std::logic_error("Invalid variable index in add_rad_ion");
 }
 
-Real EOSHelmholtz::eval_at_nty(int vi, Real n, Real T, Real* Y) const
+Real EOSEIR::eval_at_nty(int vi, Real n, Real T, Real* Y) const
 {
   Real var = eval_at_lnty(vi, log(n * Y[SCYE]), log(T));
   return add_rad_ion(vi, var, n, T, Y);
 }
 
-void EOSHelmholtz::weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const
+void EOSEIR::weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const
 {
   *in = (log_n - m_log_ne[0]) * m_id_log_ne;
   // if outside table limits, linearly extrapolate
@@ -748,7 +748,7 @@ void EOSHelmholtz::weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const
   *w0 = 1.0 - (*w1);
 }
 
-void EOSHelmholtz::weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const
+void EOSEIR::weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const
 {
   *it = (log_t - m_log_t[0]) * m_id_log_t;
   // if outside table limits, linearly extrapolate
@@ -764,7 +764,7 @@ void EOSHelmholtz::weight_idx_lt(Real* w0, Real* w1, int* it, Real log_t) const
   *w0 = 1.0 - (*w1);
 }
 
-Real EOSHelmholtz::eval_at_lnty(int iv, Real log_n, Real log_t) const
+Real EOSEIR::eval_at_lnty(int iv, Real log_n, Real log_t) const
 {
   // This only returns the electron part
   int in, it;

@@ -3,7 +3,7 @@
 
 //! \file eos_transition.hpp
 //  \brief Defines EOSTransition, which is used to implement a transition
-//  between EOSCompose and EOSHelmholtz.
+//  between EOSCompose and EOSEIR.
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +13,7 @@
 #include "../../athena.hpp"
 #include "../../globals.hpp"
 #include "eos_compose.hpp"
-#include "eos_helmholtz.hpp"
+#include "eos_eir.hpp"
 #include "eos_policy_interface.hpp"
 #include "numtools_root.hpp"
 
@@ -103,14 +103,14 @@ class EOSTransition : public EOSPolicyInterface
   Real MinimumEnthalpy();
 
   /// The lowest valid temperature depends on density: inside the validity
-  /// ramp toward the Helmholtz density cutoff the compose table
+  /// ramp toward the EIR density cutoff the compose table
   /// participates for every T, so its grid minimum applies.
   Real MinimumValidTemperature(Real n) const
   {
     return (log(n) >= m_ln_n_h0) ? compose_eos->min_T : min_T;
   }
 
-  /// Interior fast-path guard. For n above the Helmholtz density cutoff the
+  /// Interior fast-path guard. For n above the EIR density cutoff the
   /// transition weight is identically 1 (TransitionFactor's first branch), so
   /// callers may skip SanitizeMassFractions + TransitionFactor and delegate
   /// straight to the compose table. The compose accessors read only Y[0] = Ye;
@@ -119,7 +119,7 @@ class EOSTransition : public EOSPolicyInterface
   /// Returns true (with yq set) when the fast path applies.
   inline bool InteriorYq(Real n, const Real* Y, Real& yq) const
   {
-    if (n <= m_helm_n_max)
+    if (n <= m_eir_n_max)
       return false;
     yq = std::max(min_Y[SCYE], std::min(Y[SCYE], max_Y[SCYE]));
     return true;
@@ -190,7 +190,7 @@ class EOSTransition : public EOSPolicyInterface
   public:
   /// Calls the individual initialization functions
   void InitializeTables(std::string fname,
-                        std::string helm_fname,
+                        std::string eir_fname,
                         Real baryon_mass);
 
   /// Some setters for parameters
@@ -224,10 +224,10 @@ class EOSTransition : public EOSPolicyInterface
 
   //! \brief Boundaries for the error policy (ResetFloorTransition).
   //
-  //  ld_* are the *effective* upper limits of the low-density (Helmholtz)
+  //  ld_* are the *effective* upper limits of the low-density (EIR)
   //  EOS -- the start of the validity ramps beyond which TransitionFactor
   //  blends toward (and at the cutoff, forces) the compose table -- not
-  //  the raw Helmholtz table limits. Beyond them the state must respect
+  //  the raw EIR table limits. Beyond them the state must respect
   //  the compose table's validity (hd_*): e.g. a state with n > ld_n and
   //  T < hd_t would evaluate the compose table extrapolated below its
   //  temperature grid.
@@ -258,29 +258,29 @@ class EOSTransition : public EOSPolicyInterface
     return compose_eos->GetTableNeutronMass();
   }
 
-  /// Set the upper temperature for using the helmholtz eos at all
-  void SetHelmholtzTMax(Real T_max)
+  /// Set the upper temperature for using the eir eos at all
+  void SetEIRTMax(Real T_max)
   {
-    m_helm_T_max = T_max;
+    m_eir_T_max = T_max;
     if (m_initialized)
       update_bounds();
   }
 
-  /// Set the upper density for using the helmholtz eos at all
-  void SetHelmholtzNMax(Real n_max)
+  /// Set the upper density for using the eir eos at all
+  void SetEIRNMax(Real n_max)
   {
-    m_helm_n_max = n_max;
+    m_eir_n_max = n_max;
     if (m_initialized)
       update_bounds();
   }
 
   /// Set the widths (in decades) of the validity ramps below the
-  /// Helmholtz cutoffs, over which the weight blends toward the compose
+  /// EIR cutoffs, over which the weight blends toward the compose
   /// table instead of jumping there.
-  void SetHelmholtzRampDecades(Real n_decades, Real T_decades)
+  void SetEIRRampDecades(Real n_decades, Real T_decades)
   {
-    m_helm_n_ramp_dec = n_decades;
-    m_helm_T_ramp_dec = T_decades;
+    m_eir_n_ramp_dec = n_decades;
+    m_eir_T_ramp_dec = T_decades;
     if (m_initialized)
       update_bounds();
   }
@@ -295,7 +295,7 @@ class EOSTransition : public EOSPolicyInterface
   /// Adopt the nucleon masses carried by the compose table.
   ///
   /// The table energies and chemical potentials were built with the table's
-  /// own mn, mp, so the Helmholtz half of the blend must use the same pair,
+  /// own mn, mp, so the EIR half of the blend must use the same pair,
   /// otherwise mu_q = mu_p - mu_n (which carries mp - mn explicitly) has a
   /// different zero point on either side of the transition ramp. The table
   /// wins; a deviation from the CODATA defaults of 1e-3 MeV or more is
@@ -319,26 +319,26 @@ class EOSTransition : public EOSPolicyInterface
   Real MaximumPressureSanitized(Real n, Real* Y_norm);
   Real MinimumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
   Real MaximumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
-  /// guess_it warm-starts the Helmholtz-branch bracket across c2p
-  /// iterations (validated in EOSHelmholtz::temperature_from_var, so an
+  /// guess_it warm-starts the EIR-branch bracket across c2p
+  /// iterations (validated in EOSEIR::temperature_from_var, so an
   /// index written by the compose interior path is harmless).
   Real TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm,
                                    int* guess_it = nullptr);
   Real TemperatureFromPSanitized(Real n, Real p, Real* Y_norm);
   void PressureAndEnthalpySanitized(Real n, Real T, Real* Y_norm,
                                     Real* P, Real* h);
-  int comp_it_trans_start, comp_it_trans_end, comp_it_helm_tmax;
+  int comp_it_trans_start, comp_it_trans_end, comp_it_eir_tmax;
 
-  // Physical masses. The nucleon pair lives in EOSHelmholtz (single source
+  // Physical masses. The nucleon pair lives in EOSEIR (single source
   // of truth, table-synced by SyncNucleonMasses); read it as
-  // EOSHelmholtz::mn / ::mp. The remaining masses have no table counterpart.
-  static constexpr Real ma  = EOSHelmholtz::ma;   // alpha mass in MeV
-  static constexpr Real me  = EOSHelmholtz::me;   // electron mass in MeV
+  // EOSEIR::mn / ::mp. The remaining masses have no table counterpart.
+  static constexpr Real ma  = EOSEIR::ma;   // alpha mass in MeV
+  static constexpr Real me  = EOSEIR::me;   // electron mass in MeV
   static constexpr Real mFe = 52103.06261020851;  // ATOMIC mass of 56Fe, MeV
 
   protected:
   EOSCompOSE* compose_eos;
-  EOSHelmholtz* helmholtz_eos;
+  EOSEIR* eir_eos;
 
   Real trans_T_start, trans_T_end, trans_ln_start,
     trans_ln_end;  // Transition parameters
@@ -356,10 +356,10 @@ class EOSTransition : public EOSPolicyInterface
   static bool s_printed_parameters;
   static bool s_printed_nucleon_masses;
 
-  // helmholtz upper bounds
-  Real m_helm_n_max, m_helm_T_max;
-  // widths (in decades) of the validity ramps below the helmholtz bounds
-  Real m_helm_n_ramp_dec, m_helm_T_ramp_dec;
+  // eir upper bounds
+  Real m_eir_n_max, m_eir_T_max;
+  // widths (in decades) of the validity ramps below the eir bounds
+  Real m_eir_n_ramp_dec, m_eir_T_ramp_dec;
   // derived: ramp starts (log) and inverse log-widths
   Real m_ln_n_h0, m_ln_T_h0, m_id_ln_n_ramp, m_id_ln_T_ramp;
 
@@ -385,16 +385,16 @@ class EOSTransition : public EOSPolicyInterface
       Real t       = exp(lt);
       Real f_trans = peos->TransitionFactor(n, t, ln, lt);
       // iv is an EOSCompOSE table index; it must not be passed to the
-      // Helmholtz table, whose variable indexing is different (and which
+      // EIR table, whose variable indexing is different (and which
       // stores log(eps) rather than log(e)).
-      Real var_helm;
+      Real var_eir;
       if (iv == EOSCompOSE::ECLOGP)
       {
-        var_helm = peos->helmholtz_eos->Pressure(n, t, Y);
+        var_eir = peos->eir_eos->Pressure(n, t, Y);
       }
       else if (iv == EOSCompOSE::ECLOGE)
       {
-        var_helm = peos->helmholtz_eos->Energy(n, t, Y);
+        var_eir = peos->eir_eos->Energy(n, t, Y);
       }
       else
       {
@@ -403,7 +403,7 @@ class EOSTransition : public EOSPolicyInterface
           "log(e).");
       }
       Real var_comp = exp(v0 + wt * dv);
-      Real var_pt   = log(var_comp * f_trans + var_helm * (1 - f_trans));
+      Real var_pt   = log(var_comp * f_trans + var_eir * (1 - f_trans));
 
       return (var - var_pt) / var;  // N.B error is expected to be relative
     }

@@ -24,6 +24,7 @@
 #include "../athena_arrays.hpp"
 #include "../coordinates/coordinates.hpp"
 #include "../field/field.hpp"
+#include "../globals.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
@@ -137,8 +138,24 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
 
 #elif defined(USE_TRANSITION_EOS)
   eos.SetCodeUnitSystem(&Primitive::GeometricSolar);
-  std::string compose_table   = pin->GetString("hydro", "table");
-  std::string helmholtz_table = pin->GetString("hydro", "helmholtz_table");
+  std::string compose_table = pin->GetString("hydro", "table");
+  // hydro/helmholtz_table is the deprecated name of hydro/electron_table
+  std::string electron_table;
+  if (!pin->DoesParameterExist("hydro", "electron_table") &&
+      pin->DoesParameterExist("hydro", "helmholtz_table"))
+  {
+    electron_table = pin->GetString("hydro", "helmholtz_table");
+    if (Globals::my_rank == 0)
+    {
+      printf(
+        "### Warning: hydro/helmholtz_table is deprecated, "
+        "use hydro/electron_table\n");
+    }
+  }
+  else
+  {
+    electron_table = pin->GetString("hydro", "electron_table");
+  }
   Real baryon_mass =
     pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
   // Transition strips: optional; if omitted the EOS defaults are used
@@ -158,21 +175,22 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
     "hydro",
     "trans_t_end",
     0.0);  // lower temperature border of transition region
-  Real helm_n_max = pin->GetOrAddReal(
-    "hydro", "helm_n_max", 0.0);  // always use compose above this density
-  Real helm_T_max = pin->GetOrAddReal(
-    "hydro", "helm_T_max", 0.0);  // always use compose above this temperature
+  // always use compose above these; helm_* are the deprecated key names
+  Real eir_n_max = pin->GetOrAddReal(
+    "hydro", "eir_n_max", pin->GetOrAddReal("hydro", "helm_n_max", 0.0));
+  Real eir_T_max = pin->GetOrAddReal(
+    "hydro", "eir_T_max", pin->GetOrAddReal("hydro", "helm_T_max", 0.0));
 
   if (trans_n_start > 0.0 || trans_n_end > 0.0 || trans_T_start > 0.0 ||
       trans_T_end > 0.0)
   {
     eos.SetTransition(trans_n_start, trans_n_end, trans_T_start, trans_T_end);
   }
-  if (helm_n_max > 0.0)
-    eos.SetHelmholtzNMax(helm_n_max);
-  if (helm_T_max > 0.0)
-    eos.SetHelmholtzTMax(helm_T_max);
-  eos.InitializeTables(compose_table, helmholtz_table, baryon_mass);
+  if (eir_n_max > 0.0)
+    eos.SetEIRNMax(eir_n_max);
+  if (eir_T_max > 0.0)
+    eos.SetEIRTMax(eir_T_max);
+  eos.InitializeTables(compose_table, electron_table, baryon_mass);
   Real mb = eos.GetBaryonMass();
   // transfer eos boundaries to ResetFloorTransition
   Real ld_n, hd_n, ld_t, hd_t;
@@ -236,7 +254,10 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
                  ParameterInput* pin)
 {
 #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-  std::string table = pin->GetString("hydro", "table");
+  // hydro/cold_table selects a standalone cold-slice file (datasets at the
+  // file root); the default is the cold_slice group of the 3D table.
+  std::string table = pin->GetOrAddString(
+    "hydro", "cold_table", pin->GetString("hydro", "table"));
 
   // read in species names
   std::string species_names[NSCALARS];
@@ -250,7 +271,10 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);
 
 #elif defined(USE_TRANSITION_EOS)
-  std::string table = pin->GetString("hydro", "table");
+  // hydro/cold_table selects a standalone cold-slice file (datasets at the
+  // file root); the default is the cold_slice group of the 3D table.
+  std::string table = pin->GetOrAddString(
+    "hydro", "cold_table", pin->GetString("hydro", "table"));
 
   eos->ReadColdSliceFromFile(table);
   eos->SetCodeUnitSystem(&Primitive::GeometricSolar);

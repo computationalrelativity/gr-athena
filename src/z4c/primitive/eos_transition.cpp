@@ -20,7 +20,7 @@ using namespace std;
 EOSTransition::EOSTransition()
 {
   compose_eos   = new EOSCompOSE();
-  helmholtz_eos = new EOSHelmholtz();
+  eir_eos = new EOSEIR();
   n_species     = 7;
   eos_units     = &Nuclear;
   min_Y[SCYE]   = 0.0;  // will be overwritten by update_bounds
@@ -46,11 +46,11 @@ EOSTransition::EOSTransition()
   trans_T_end      = numeric_limits<Real>::quiet_NaN();
   trans_ln_start   = numeric_limits<Real>::quiet_NaN();
   trans_ln_end     = numeric_limits<Real>::quiet_NaN();
-  m_helm_n_max     = numeric_limits<Real>::quiet_NaN();
-  m_helm_T_max     = numeric_limits<Real>::quiet_NaN();
-  // validity-ramp widths below the helmholtz cutoffs
-  m_helm_n_ramp_dec = 1.0;
-  m_helm_T_ramp_dec = 0.5;
+  m_eir_n_max     = numeric_limits<Real>::quiet_NaN();
+  m_eir_T_max     = numeric_limits<Real>::quiet_NaN();
+  // validity-ramp widths below the eir cutoffs
+  m_eir_n_ramp_dec = 1.0;
+  m_eir_T_ramp_dec = 0.5;
   m_ln_n_h0         = numeric_limits<Real>::quiet_NaN();
   m_ln_T_h0         = numeric_limits<Real>::quiet_NaN();
   m_id_ln_n_ramp    = numeric_limits<Real>::quiet_NaN();
@@ -65,7 +65,7 @@ bool EOSTransition::s_printed_nucleon_masses  = false;
 EOSTransition::~EOSTransition()
 {
   delete compose_eos;
-  delete helmholtz_eos;
+  delete eir_eos;
 }
 
 Real EOSTransition::TemperatureFromEps(Real n, Real eps, Real* Y)
@@ -84,7 +84,7 @@ Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps,
                                                 Real* Y_norm, int* guess_it)
 {
   if (n < compose_eos->min_n)
-    return helmholtz_eos->TemperatureFromEps(n, eps, Y_norm, guess_it);
+    return eir_eos->TemperatureFromEps(n, eps, Y_norm, guess_it);
   // Bounds are evaluated lazily: floor-clamped states (the atmosphere) hit
   // the eps_min early-out, so the max bound is only computed when needed.
   Real eps_min = MinimumSpecificInternalEnergySanitized(n, Y_norm);
@@ -98,13 +98,13 @@ Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps,
   // it is self-consistent with the transition weight there. (The blended
   // eps(T) coincides with the sub-EOS wherever w is 0 or 1, and eps is
   // monotone in T.) Inside the density-validity ramp the weight is
-  // nonzero for every valid temperature, and a Helmholtz inverse clamped
+  // nonzero for every valid temperature, and a EIR inverse clamped
   // to its table minimum would spuriously pass the w == 0 check through
-  // the compose-validity clause, so the Helmholtz candidate is skipped
+  // the compose-validity clause, so the EIR candidate is skipped
   // there.
   if (log(n) < m_ln_n_h0)
   {
-    Real T_h = helmholtz_eos->TemperatureFromEps(n, eps, Y_norm, guess_it);
+    Real T_h = eir_eos->TemperatureFromEps(n, eps, Y_norm, guess_it);
     if (TransitionFactor(n, T_h) == 0.0)
       return T_h;
   }
@@ -147,7 +147,7 @@ Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real* Y)
 Real EOSTransition::TemperatureFromE(Real n, Real e, Real* Y)
 {
   assert(m_initialized);
-  if (n > m_helm_n_max)
+  if (n > m_eir_n_max)
     return compose_eos->TemperatureFromE(n, e, Y);
   return TemperatureFromEps(n, e / (mb * n) - 1.0, Y);
 }
@@ -167,7 +167,7 @@ Real EOSTransition::TemperatureFromP(Real n, Real p, Real* Y)
 Real EOSTransition::TemperatureFromPSanitized(Real n, Real p, Real* Y_norm)
 {
   if (n < compose_eos->min_n)
-    return helmholtz_eos->TemperatureFromP(n, p, Y_norm);
+    return eir_eos->TemperatureFromP(n, p, Y_norm);
   // Lazy bounds, as in TemperatureFromEpsSanitized.
   Real p_min = MinimumPressureSanitized(n, Y_norm);
   if (p <= p_min)
@@ -179,7 +179,7 @@ Real EOSTransition::TemperatureFromPSanitized(Real n, Real p, Real* Y_norm)
   // Pure-regime candidates and blended search (see TemperatureFromEps).
   if (log(n) < m_ln_n_h0)
   {
-    Real T_h = helmholtz_eos->TemperatureFromP(n, p, Y_norm);
+    Real T_h = eir_eos->TemperatureFromP(n, p, Y_norm);
     if (TransitionFactor(n, T_h) == 0.0)
       return T_h;
   }
@@ -246,7 +246,7 @@ Real EOSTransition::SanitizeMassFractions(Real* Y, Real* Y_norm) const
   // q_h = Ye - X_p - X_a/2 and must lie in [0, X_h/2] (0 <= Z_h <= A_h/2).
   // Advection keeps real states within a few percent; a gross violation is
   // a floor-clamp chimera (e.g. pure alpha at Ye = 0.01) that poisons the
-  // RHINE rates and the Helmholtz abar/zbar. Remap those to free nucleons
+  // RHINE rates and the EIR abar/zbar. Remap those to free nucleons
   // at the cell's Ye.
   const Real q_h = Y_norm[SCYE] - Y_norm[SCXP] - 0.5 * Y_norm[SCXA];
   if (q_h < -0.05 || q_h > 0.5 * Y_norm[SCXH] + 0.05)
@@ -269,7 +269,7 @@ Real EOSTransition::TransitionFactor(Real n, Real T) const
 // ln is loop-invariant) pass them in to avoid recomputing the logs.
 Real EOSTransition::TransitionFactor(Real n, Real T, Real ln, Real lT) const
 {
-  if ((n > m_helm_n_max) or (T > m_helm_T_max))
+  if ((n > m_eir_n_max) or (T > m_eir_T_max))
   {
     return 1.0;
   }
@@ -281,7 +281,7 @@ Real EOSTransition::TransitionFactor(Real n, Real T, Real ln, Real lT) const
   // acting as a fallback at the compose table's low-density edge).
   Real u = min(1.0, max(0.0, (T - trans_T_end) / m_trans_T_width));
   u *= min(1.0, max(0.0, (ln - trans_ln_end) / m_trans_ln_width));
-  // Validity ramps toward the Helmholtz cutoffs: the weight blends
+  // Validity ramps toward the EIR cutoffs: the weight blends
   // continuously to 1 at the cutoffs instead of jumping there ("fuzzy
   // OR" of the strip and the two ramps).
   Real v_n = min(1.0, max(0.0, (ln - m_ln_n_h0) * m_id_ln_n_ramp));
@@ -311,10 +311,10 @@ Real EOSTransition::PressureSanitized(Real n, Real T, Real* Y_norm)
   if (w == 1.0)
     return compose_eos->Pressure(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->Pressure(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->Pressure(n, T, Y_norm);
+    return eir_eos->Pressure(n, T, Y_norm);
+  Real v_eir = eir_eos->Pressure(n, T, Y_norm);
   Real v_compose   = compose_eos->Pressure(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::Entropy(Real n, Real T, Real* Y)
@@ -329,10 +329,10 @@ Real EOSTransition::Entropy(Real n, Real T, Real* Y)
   if (w == 1.0)
     return compose_eos->Entropy(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->Entropy(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->Entropy(n, T, Y_norm);
+    return eir_eos->Entropy(n, T, Y_norm);
+  Real v_eir = eir_eos->Entropy(n, T, Y_norm);
   Real v_compose   = compose_eos->Entropy(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::Enthalpy(Real n, Real T, Real* Y)
@@ -354,10 +354,10 @@ Real EOSTransition::SoundSpeed(Real n, Real T, Real* Y)
   if (w == 1.0)
     return compose_eos->SoundSpeed(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->SoundSpeed(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->SoundSpeed(n, T, Y_norm);
+    return eir_eos->SoundSpeed(n, T, Y_norm);
+  Real v_eir = eir_eos->SoundSpeed(n, T, Y_norm);
   Real v_compose   = compose_eos->SoundSpeed(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::SpecificInternalEnergy(Real n, Real T, Real* Y)
@@ -378,10 +378,10 @@ Real EOSTransition::SpecificInternalEnergySanitized(Real n, Real T,
   if (w == 1.0)
     return compose_eos->SpecificInternalEnergy(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->SpecificInternalEnergy(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->SpecificInternalEnergy(n, T, Y_norm);
+    return eir_eos->SpecificInternalEnergy(n, T, Y_norm);
+  Real v_eir = eir_eos->SpecificInternalEnergy(n, T, Y_norm);
   Real v_compose   = compose_eos->SpecificInternalEnergy(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::BaryonChemicalPotential(Real n, Real T, Real* Y)
@@ -396,10 +396,10 @@ Real EOSTransition::BaryonChemicalPotential(Real n, Real T, Real* Y)
   if (w == 1.0)
     return compose_eos->BaryonChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->BaryonChemicalPotential(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->BaryonChemicalPotential(n, T, Y_norm);
+    return eir_eos->BaryonChemicalPotential(n, T, Y_norm);
+  Real v_eir = eir_eos->BaryonChemicalPotential(n, T, Y_norm);
   Real v_compose   = compose_eos->BaryonChemicalPotential(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::ChargeChemicalPotential(Real n, Real T, Real* Y)
@@ -414,10 +414,10 @@ Real EOSTransition::ChargeChemicalPotential(Real n, Real T, Real* Y)
   if (w == 1.0)
     return compose_eos->ChargeChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->ChargeChemicalPotential(n, T, Y_norm);
-  Real v_helmholtz = helmholtz_eos->ChargeChemicalPotential(n, T, Y_norm);
+    return eir_eos->ChargeChemicalPotential(n, T, Y_norm);
+  Real v_eir = eir_eos->ChargeChemicalPotential(n, T, Y_norm);
   Real v_compose   = compose_eos->ChargeChemicalPotential(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
@@ -432,11 +432,11 @@ Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
   if (w == 1.0)
     return compose_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
-    return helmholtz_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
-  Real v_helmholtz =
-    helmholtz_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
+    return eir_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
+  Real v_eir =
+    eir_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
   Real v_compose = compose_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
-  return v_helmholtz * (1 - w) + v_compose * w;
+  return v_eir * (1 - w) + v_compose * w;
 }
 
 Real EOSTransition::InteractionPotentialDifference(Real n, Real T, Real* Y)
@@ -509,11 +509,11 @@ Real EOSTransition::MinimumEnthalpy()
 }
 
 // The lowest valid temperature is the compose grid minimum once the
-// density enters the validity ramp toward the Helmholtz cutoff (there the
+// density enters the validity ramp toward the EIR cutoff (there the
 // weight is nonzero for every T, so the compose table must be evaluable);
-// below the ramp it is the Helmholtz table minimum. The highest valid
+// below the ramp it is the EIR table minimum. The highest valid
 // temperature is always the compose maximum, since the weight reaches 1
-// at (or above) the Helmholtz temperature cutoff.
+// at (or above) the EIR temperature cutoff.
 Real EOSTransition::MinimumPressure(Real n, Real* Y)
 {
   if (log(n) >= m_ln_n_h0)
@@ -643,23 +643,23 @@ void EOSTransition::PrintParameters()
       printf("  Xa min, max = %e %e\n", min_Y[SCXA], max_Y[SCXA]);
       printf("  Xh min, max = %e %e\n", min_Y[SCXH], max_Y[SCXH]);
       printf("  Ah min, max = %e %e\n", min_Y[SCAH], max_Y[SCAH]);
-      printf("  helm n_max, t_max = %e %e\n", m_helm_n_max, m_helm_T_max);
+      printf("  eir n_max, t_max = %e %e\n", m_eir_n_max, m_eir_T_max);
       printf("  comp n_min, t_min = %e %e\n",
              compose_eos->min_n,
              compose_eos->min_T);
       printf("  min_h = %.15e\n", m_min_h);
       printf("  mb = %.15e MeV\n", mb);
       printf("  mn, mp = %.7f %.7f MeV (Qnp = %.7f)\n",
-             EOSHelmholtz::mn,
-             EOSHelmholtz::mp,
-             EOSHelmholtz::mn - EOSHelmholtz::mp);
+             EOSEIR::mn,
+             EOSEIR::mp,
+             EOSEIR::mn - EOSEIR::mp);
       printf(
         "  T transition start, end = %e %e\n", trans_T_start, trans_T_end);
       printf("  n transition start, end = %e %e\n",
              exp(trans_ln_start),
              exp(trans_ln_end));
-      printf("  i_t helm_tmax, trans_start, trans_end = %d %d %d\n",
-             comp_it_helm_tmax,
+      printf("  i_t eir_tmax, trans_start, trans_end = %d %d %d\n",
+             comp_it_eir_tmax,
              comp_it_trans_start,
              comp_it_trans_end);
       s_printed_parameters = true;
@@ -669,10 +669,10 @@ void EOSTransition::PrintParameters()
 
 void EOSTransition::SetBaryonMass(Real new_mb)
 {
-  helmholtz_eos->SetBaryonMass(new_mb);
+  eir_eos->SetBaryonMass(new_mb);
   compose_eos->SetBaryonMass(new_mb);
   min_Y[SCEB] = mFe / (56.0 * new_mb) - 1.0;  // most bound nucleus is Fe-56
-  max_Y[SCEB] = EOSHelmholtz::mn / new_mb - 1.0;  // free neutron limit
+  max_Y[SCEB] = EOSEIR::mn / new_mb - 1.0;  // free neutron limit
   // Minimum enthalpy per baryon (in MeV, converted to per-mass by the
   // EOS wrapper): cold, pressureless Fe-56, h = e/n = m(Fe56)/56.
   // N.B. not min_Y[SCEB], which is the binding *excess* (h/mb - 1).
@@ -685,30 +685,30 @@ void EOSTransition::update_bounds()
   // Check and update bounds
   // -------------------------------------------------------------------------
 
-  min_n       = helmholtz_eos->min_n;
-  min_T       = helmholtz_eos->min_T;
+  min_n       = eir_eos->min_n;
+  min_T       = eir_eos->min_T;
   max_n       = compose_eos->max_n;
   max_T       = compose_eos->max_T;
   min_Y[SCYE] = compose_eos->min_Y[SCYE];
   max_Y[SCYE] = compose_eos->max_Y[SCYE];
 
-  // If not set by the user, choose the Helmholtz cutoffs. The density
+  // If not set by the user, choose the EIR cutoffs. The density
   // cutoff protects the high-density regime (star, disk), which must use
   // the NSE table regardless of temperature; 1e-6 fm^-3 (~1.6e9 g/cc) is
   // about an order of magnitude above typical NSE freeze-out densities
   // and well below the crust. It is a modeling choice and can be
-  // overridden with SetHelmholtzNMax.
-  if (isnan(m_helm_n_max))
-    m_helm_n_max = min(helmholtz_eos->max_n, 1e-6);
-  if (isnan(m_helm_T_max))
-    m_helm_T_max = min(helmholtz_eos->max_T, compose_eos->max_T);
+  // overridden with SetEIRNMax.
+  if (isnan(m_eir_n_max))
+    m_eir_n_max = min(eir_eos->max_n, 1e-6);
+  if (isnan(m_eir_T_max))
+    m_eir_T_max = min(eir_eos->max_T, compose_eos->max_T);
 
   // Validity ramps toward the cutoffs (see TransitionFactor).
   Real const ln10 = log(10.0);
-  m_ln_n_h0       = log(m_helm_n_max) - m_helm_n_ramp_dec * ln10;
-  m_id_ln_n_ramp  = 1.0 / (m_helm_n_ramp_dec * ln10);
-  m_ln_T_h0       = log(m_helm_T_max) - m_helm_T_ramp_dec * ln10;
-  m_id_ln_T_ramp  = 1.0 / (m_helm_T_ramp_dec * ln10);
+  m_ln_n_h0       = log(m_eir_n_max) - m_eir_n_ramp_dec * ln10;
+  m_id_ln_n_ramp  = 1.0 / (m_eir_n_ramp_dec * ln10);
+  m_ln_T_h0       = log(m_eir_T_max) - m_eir_T_ramp_dec * ln10;
+  m_id_ln_T_ramp  = 1.0 / (m_eir_T_ramp_dec * ln10);
 
   // The transition strips must lie inside the domain where both tables
   // are evaluable, otherwise the blended weight is discontinuous at the
@@ -722,12 +722,12 @@ void EOSTransition::update_bounds()
         << compose_eos->min_T << std::endl;
     throw std::runtime_error(msg.str());
   }
-  if (trans_T_start > min(compose_eos->max_T, helmholtz_eos->max_T))
+  if (trans_T_start > min(compose_eos->max_T, eir_eos->max_T))
   {
     std::stringstream msg;
     msg << "### EOSTransition: trans_T_start = " << trans_T_start
         << " lies above the joint table maximum temperature "
-        << min(compose_eos->max_T, helmholtz_eos->max_T) << std::endl;
+        << min(compose_eos->max_T, eir_eos->max_T) << std::endl;
     throw std::runtime_error(msg.str());
   }
   if (exp(trans_ln_end) < compose_eos->min_n * edge_tol)
@@ -738,38 +738,38 @@ void EOSTransition::update_bounds()
         << compose_eos->min_n << std::endl;
     throw std::runtime_error(msg.str());
   }
-  if (exp(trans_ln_start) > min(compose_eos->max_n, helmholtz_eos->max_n))
+  if (exp(trans_ln_start) > min(compose_eos->max_n, eir_eos->max_n))
   {
     std::stringstream msg;
     msg << "### EOSTransition: trans_n_start = " << exp(trans_ln_start)
         << " lies above the joint table maximum density "
-        << min(compose_eos->max_n, helmholtz_eos->max_n) << std::endl;
+        << min(compose_eos->max_n, eir_eos->max_n) << std::endl;
     throw std::runtime_error(msg.str());
   }
-  if (m_helm_n_max > helmholtz_eos->max_n)
+  if (m_eir_n_max > eir_eos->max_n)
   {
     std::stringstream msg;
-    msg << "### EOSTransition: helm_n_max = " << m_helm_n_max
-        << " lies above the helmholtz table maximum density "
-        << helmholtz_eos->max_n << std::endl;
+    msg << "### EOSTransition: eir_n_max = " << m_eir_n_max
+        << " lies above the eir table maximum density "
+        << eir_eos->max_n << std::endl;
     throw std::runtime_error(msg.str());
   }
-  if (m_helm_n_max < exp(trans_ln_start))
+  if (m_eir_n_max < exp(trans_ln_start))
     printf(
-      "EOSTransition::update_bounds: warning: helmholtz density cutoff = "
+      "EOSTransition::update_bounds: warning: eir density cutoff = "
       "%.5e is less than the transition density start = %.5e; the "
       "density strip is cut short\n",
-      m_helm_n_max,
+      m_eir_n_max,
       exp(trans_ln_start));
 
-  // indices for transition and helmholtz max in compose table
+  // indices for transition and eir max in compose table
   comp_it_trans_start =
     (log(trans_T_start) - compose_eos->m_log_t[0]) * compose_eos->m_id_log_t +
     1;
   comp_it_trans_end =
     (log(trans_T_end) - compose_eos->m_log_t[0]) * compose_eos->m_id_log_t;
-  comp_it_helm_tmax =
-    (log(m_helm_T_max) - compose_eos->m_log_t[0]) * compose_eos->m_id_log_t +
+  comp_it_eir_tmax =
+    (log(m_eir_T_max) - compose_eos->m_log_t[0]) * compose_eos->m_id_log_t +
     1;
 
   // The transition boundaries may lie outside the compose table (e.g.
@@ -780,8 +780,8 @@ void EOSTransition::update_bounds()
   comp_it_trans_end   = max(0, min(comp_it_trans_end, it_max - 1));
   comp_it_trans_start = max(comp_it_trans_end + 1,
                             min(comp_it_trans_start, it_max));
-  comp_it_helm_tmax   = max(comp_it_trans_end + 1,
-                            min(comp_it_helm_tmax, it_max));
+  comp_it_eir_tmax   = max(comp_it_trans_end + 1,
+                            min(comp_it_eir_tmax, it_max));
 }
 
 /// Fused temperature + pressure + enthalpy from energy: avoiding redundant
@@ -794,7 +794,7 @@ void EOSTransition::TemperaturePressureAndEnthalpyFromE(Real n,
                                                         Real* h,
                                                         int* guess_it)
 {
-  // Pure-NSE interior (n above the Helmholtz cutoff => weight == 1 for every
+  // Pure-NSE interior (n above the EIR cutoff => weight == 1 for every
   // T): the star bulk. Use the fused compose path, which inverts T and looks
   // up P/e with shared interpolation weights and a guess_it-warm-started
   // bracket -- instead of inverting T, discarding the weights, then
@@ -807,7 +807,7 @@ void EOSTransition::TemperaturePressureAndEnthalpyFromE(Real n,
       n, e, &yq, T, P, h, guess_it);
     return;
   }
-  // Below the cutoff (InteriorYq false <=> n <= m_helm_n_max, the same
+  // Below the cutoff (InteriorYq false <=> n <= m_eir_n_max, the same
   // branch TemperatureFromE takes): guard the composition once and reuse it
   // for both the inversion and the P/h evaluation.
   Real Y_fb__[SCNVAR];
@@ -874,14 +874,14 @@ void EOSTransition::PressureAndEnthalpySanitized(Real n, Real T,
   Real P_pt, e_pt;
   if (w == 0.0)
   {
-    P_pt = helmholtz_eos->Pressure(n, T, Y_norm);
-    e_pt = helmholtz_eos->Energy(n, T, Y_norm);
+    P_pt = eir_eos->Pressure(n, T, Y_norm);
+    e_pt = eir_eos->Energy(n, T, Y_norm);
   }
   else
   {
-    Real P_h   = helmholtz_eos->Pressure(n, T, Y_norm);
+    Real P_h   = eir_eos->Pressure(n, T, Y_norm);
     Real P_c   = compose_eos->Pressure(n, T, Y_norm);
-    Real eps_h = helmholtz_eos->SpecificInternalEnergy(n, T, Y_norm);
+    Real eps_h = eir_eos->SpecificInternalEnergy(n, T, Y_norm);
     Real eps_c = compose_eos->SpecificInternalEnergy(n, T, Y_norm);
     P_pt       = P_h * (1 - w) + P_c * w;
     e_pt       = (eps_h * (1 - w) + eps_c * w + 1.0) * mb * n;
@@ -892,7 +892,7 @@ void EOSTransition::PressureAndEnthalpySanitized(Real n, Real T,
 
 Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
 {
-  if (n > helmholtz_eos->max_n or T > helmholtz_eos->max_T)
+  if (n > eir_eos->max_n or T > eir_eos->max_T)
   {
     return 0.0;
   }
@@ -911,7 +911,7 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
     Y_NSE[SCAH] = compose_eos->AN(n, T, Y);
     Y_NSE[SCEB] = 0.0;
 
-    Real eps_helm = helmholtz_eos->SpecificInternalEnergy(n, T, Y_NSE);
+    Real eps_eir = eir_eos->SpecificInternalEnergy(n, T, Y_NSE);
     Real eps_comp = compose_eos->SpecificInternalEnergy(n, T, Y);
 
     Real Zh = (Y_NSE[SCXH] > 0)
@@ -924,8 +924,8 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
     // atomic hydrogen/helium masses for the light species; mFe is already
     // the atomic 56Fe mass. Both bounds are mass fractions times mass per
     // BARYON of each species.
-    Real const mn   = EOSHelmholtz::mn;
-    Real const mH   = EOSHelmholtz::mp + me;  // atomic 1H
+    Real const mn   = EOSEIR::mn;
+    Real const mH   = EOSEIR::mp + me;  // atomic 1H
     Real const yq_h = (Ah > 0) ? Zh / Ah : 0.5;
     Real min_EB = (Y_NSE[SCXN] * mn + Y_NSE[SCXP] * mH +
                    Y_NSE[SCXA] * (ma + 2 * me) / 4 +
@@ -938,7 +938,7 @@ Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
                    Y_NSE[SCXH] * ((1 - yq_h) * mn + yq_h * mH)) /
                     mb -
                   1;
-    Real eb     = max(min_EB, min(eps_comp - eps_helm, max_EB));
+    Real eb     = max(min_EB, min(eps_comp - eps_eir, max_EB));
     return eb;
   }
 }
@@ -955,8 +955,8 @@ void EOSTransition::SyncNucleonMasses()
 
   bool const no_table_masses = std::isnan(table_mn) or std::isnan(table_mp);
   bool const deviates =
-    (std::abs(table_mn - EOSHelmholtz::mn_codata) >= tol) or
-    (std::abs(table_mp - EOSHelmholtz::mp_codata) >= tol);
+    (std::abs(table_mn - EOSEIR::mn_codata) >= tol) or
+    (std::abs(table_mp - EOSEIR::mp_codata) >= tol);
 
   // One EOSTransition is constructed per MeshBlock, report at most once.
 #pragma omp critical
@@ -968,8 +968,8 @@ void EOSTransition::SyncNucleonMasses()
         printf(
           "EOSTransition: compose table carries no nucleon masses, "
           "keeping CODATA (mn = %.7f, mp = %.7f MeV)\n",
-          EOSHelmholtz::mn_codata,
-          EOSHelmholtz::mp_codata);
+          EOSEIR::mn_codata,
+          EOSEIR::mp_codata);
         s_printed_nucleon_masses = true;
       }
       else if (deviates)
@@ -982,11 +982,11 @@ void EOSTransition::SyncNucleonMasses()
           "  Qnp = mn - mp: table %.7f vs CODATA %.7f MeV\n",
           tol,
           table_mn,
-          EOSHelmholtz::mn_codata,
+          EOSEIR::mn_codata,
           table_mp,
-          EOSHelmholtz::mp_codata,
+          EOSEIR::mp_codata,
           table_mn - table_mp,
-          EOSHelmholtz::mn_codata - EOSHelmholtz::mp_codata);
+          EOSEIR::mn_codata - EOSEIR::mp_codata);
         s_printed_nucleon_masses = true;
       }
     }
@@ -997,18 +997,18 @@ void EOSTransition::SyncNucleonMasses()
     return;
   }
 
-  helmholtz_eos->SetNucleonMasses(table_mn, table_mp);
+  eir_eos->SetNucleonMasses(table_mn, table_mp);
 }
 
 void EOSTransition::InitializeTables(std::string fname,
-                                     std::string helm_fname,
+                                     std::string eir_fname,
                                      Real baryon_mass)
 {
   if (not m_initialized)
   {
     compose_eos->ReadTableFromFile(fname);
-    helmholtz_eos->ReadTableFromFile(
-      helm_fname, compose_eos->min_Y[SCYE], compose_eos->max_Y[SCYE]);
+    eir_eos->ReadTableFromFile(
+      eir_fname, compose_eos->min_Y[SCYE], compose_eos->max_Y[SCYE]);
     // Default transition strips if the user did not call SetTransition:
     //  - Temperature: 0.5 -> 0.6 MeV, just below the NSE-dropout condition
     //    used by RHINE and most nucleosynthesis tools (T9 = 7, i.e.
@@ -1054,11 +1054,11 @@ Real EOSTransition::temperature_from_var_trans(int iv,
     Real lT = compose_eos->m_log_t[it];
     Real T  = exp(lT);
     Real w  = TransitionFactor(n, T, ln_n, lT);
-    Real var_helm;
+    Real var_eir;
     if (iv == compose_eos->ECLOGP)
-      var_helm = helmholtz_eos->Pressure(n, T, Y);
+      var_eir = eir_eos->Pressure(n, T, Y);
     else if (iv == compose_eos->ECLOGE)
-      var_helm = helmholtz_eos->Energy(n, T, Y);
+      var_eir = eir_eos->Energy(n, T, Y);
     else
       throw std::logic_error(
         "EOSTransition::temperature_from_var_trans only implemented for "
@@ -1076,7 +1076,7 @@ Real EOSTransition::temperature_from_var_trans(int iv,
          wy1 *
            compose_eos->m_table[compose_eos->index(iv, in + 1, iy + 1, it)]);
 
-    return var - log(var_helm * (1 - w) + exp(var_comp) * w);
+    return var - log(var_eir * (1 - w) + exp(var_comp) * w);
   };
 
   // Inside the density-validity ramp (n >= n_h0) the blend extends in
@@ -1084,10 +1084,10 @@ Real EOSTransition::temperature_from_var_trans(int iv,
   // at the lower edge of the temperature strip.
   int ilo_0 = (ln_n >= m_ln_n_h0) ? 0 : comp_it_trans_end;
   // Below trans_ln_start the blend extends in temperature up to the
-  // Helmholtz temperature cutoff; otherwise only the temperature strip
+  // EIR temperature cutoff; otherwise only the temperature strip
   // matters.
   int ihi_0 = (ln_n < trans_ln_start)
-              ? min(comp_it_helm_tmax, compose_eos->m_nt - 1)
+              ? min(comp_it_eir_tmax, compose_eos->m_nt - 1)
               : comp_it_trans_start;
   ihi_0 = max(ihi_0, ilo_0 + 1);
 
@@ -1095,7 +1095,7 @@ Real EOSTransition::temperature_from_var_trans(int iv,
   // releases the difference between the advected and the NSE binding
   // energy, so the blended e(T) need not be monotone and the inversion
   // can have several roots; the lowest one is continuous with the
-  // low-temperature (Helmholtz) side and is the deterministic choice.
+  // low-temperature (EIR) side and is the deterministic choice.
   int ilo  = ilo_0;
   int ihi  = ihi_0;
   Real flo = f(ilo);
@@ -1168,9 +1168,9 @@ Real EOSTransition::temperature_from_var_trans(int iv,
                                            Y,
                                            var,
                                            this);
-  // The diagnostic below recomputes the Helmholtz endpoints and weights only
+  // The diagnostic below recomputes the EIR endpoints and weights only
   // to print them; gate the whole block on a warn-once flag so a
-  // non-converged corner state does not cost two Helmholtz evaluations plus
+  // non-converged corner state does not cost two EIR evaluations plus
   // an stdout write on every cell/substep/rank.
   static bool warned_conv = false;
   if (!result && !warned_conv)
@@ -1179,13 +1179,13 @@ Real EOSTransition::temperature_from_var_trans(int iv,
     Real vh0, vh1;
     if (iv == compose_eos->ECLOGP)
     {
-      vh0 = log(helmholtz_eos->Pressure(n, exp(lt0), Y));
-      vh1 = log(helmholtz_eos->Pressure(n, exp(lt0 + dlt), Y));
+      vh0 = log(eir_eos->Pressure(n, exp(lt0), Y));
+      vh1 = log(eir_eos->Pressure(n, exp(lt0 + dlt), Y));
     }
     else if (iv == compose_eos->ECLOGE)
     {
-      vh0 = log(helmholtz_eos->Energy(n, exp(lt0), Y));
-      vh1 = log(helmholtz_eos->Energy(n, exp(lt0 + dlt), Y));
+      vh0 = log(eir_eos->Energy(n, exp(lt0), Y));
+      vh1 = log(eir_eos->Energy(n, exp(lt0 + dlt), Y));
     }
     else
     {
@@ -1201,7 +1201,7 @@ Real EOSTransition::temperature_from_var_trans(int iv,
       "further reports):"
       "n, Ye, iv, var: %e, %e, %d, %e\n"
       "temperature: [%e, %e]\n"
-      "var_helm: [%e, %e]\n"
+      "var_eir: [%e, %e]\n"
       "var_comp: [%e, %e]\n"
       "w: [%e, %e]\n"
       "combined: [%e, %e]\n"
