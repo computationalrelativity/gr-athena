@@ -19,6 +19,7 @@
 #include "../coordinates/coordinates.hpp"
 #include "../eos/eos.hpp"
 #include "../field/field.hpp"
+#include "../globals.hpp"
 #include "../field/seed_magnetic_field.hpp"
 #include "../hydro/hydro.hpp"
 #include "../mesh/mesh.hpp"
@@ -470,17 +471,31 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 #if NSCALARS > 0
         for (int l = 0; l < NSCALARS; ++l)
         {
-#if defined(USE_TRANSITION_EOS)
-          // SCEB has no cold-slice entry (ColdEOSTransition stops at SCAH);
-          // the EOS sets the binding energy at runtime, as in gr_tov.
-          if (l == SCEB)
-          {
-            pscalars->r(l, k, j, i) = 0.0;
-            continue;
-          }
-#endif
+          // SCEB comes from the slice's optional Y[EB] dataset; legacy
+          // slices without it yield 0 and the NSE resync sets the binding
+          // energy at runtime, as in gr_tov.
           pscalars->r(l, k, j, i) = ceos->GetY(rho[flat_ix], l);
         }
+#if defined(USE_TRANSITION_EOS)
+        {
+          // renormalize the mass fractions to 1, as in gr_tov
+          Real sumX =
+            pscalars->r(SCXN, k, j, i) + pscalars->r(SCXP, k, j, i) +
+            pscalars->r(SCXA, k, j, i) + pscalars->r(SCXH, k, j, i);
+          if (std::abs(sumX - 1.0) > 1e-2 && Globals::my_rank == 0)
+          {
+            printf(
+              "gr_rns: sum of mass fractions %.5e at rho %.5e, "
+              "renormalizing\n",
+              sumX,
+              rho[flat_ix]);
+          }
+          pscalars->r(SCXN, k, j, i) /= sumX;
+          pscalars->r(SCXP, k, j, i) /= sumX;
+          pscalars->r(SCXA, k, j, i) /= sumX;
+          pscalars->r(SCXH, k, j, i) /= sumX;
+        }
+#endif
 #endif
 
         phydro->w(IDN, k, j, i) = rho[flat_ix];

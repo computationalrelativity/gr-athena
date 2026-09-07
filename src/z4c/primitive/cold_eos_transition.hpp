@@ -32,8 +32,8 @@ class ColdEOSTransition
     ECDPDN = 3,  //! Derivative of pressure wrt. number density
     ECH    = 4,  //! enthapy per baryon [MeV]
     ECY = 5,  //! Passive scalars, available are ECY + {SCYE, SCXN, SCXP, SCXA,
-              //! SCXH, SCAH}
-    ECNVARS = 11
+              //! SCXH, SCAH, SCEB}
+    ECNVARS = 12
   };
 
   protected:

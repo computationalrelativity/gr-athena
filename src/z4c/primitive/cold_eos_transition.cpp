@@ -99,9 +99,17 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
   file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
   MYH5CHECK(file_id);
 
-  // Open the cold_slice group
-  grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
-  MYH5CHECK(grp_id);
+  // Open the cold_slice group when present; a standalone cold-slice file
+  // stores the same datasets at the file root.
+  if (H5Lexists(file_id, "cold_slice", H5P_DEFAULT) > 0)
+  {
+    grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
+    MYH5CHECK(grp_id);
+  }
+  else
+  {
+    grp_id = file_id;
+  }
 
   // Get dataset sizes
   // -------------------------------------------------------------------------
@@ -199,9 +207,10 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
     m_table[index(ECY + SCXA, in)] = max(0.0, min(scratch[in] * 4.0, 1.0));
   }
 
-  ierr = H5LTread_dataset_double(grp_id, "Y[H2]", scratch);
-  if (ierr == 0)
+  if (H5LTfind_dataset(grp_id, "Y[H2]"))
   {
+    ierr = H5LTread_dataset_double(grp_id, "Y[H2]", scratch);
+    MYH5CHECK(ierr);
     for (int in = 0; in < m_np; ++in)
     {
       // convert from abundance to mass fraction
@@ -209,9 +218,10 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
     }
   }
 
-  ierr = H5LTread_dataset_double(grp_id, "Y[H3]", scratch);
-  if (ierr == 0)
+  if (H5LTfind_dataset(grp_id, "Y[H3]"))
   {
+    ierr = H5LTread_dataset_double(grp_id, "Y[H3]", scratch);
+    MYH5CHECK(ierr);
     for (int in = 0; in < m_np; ++in)
     {
       // convert from abundance to mass fraction
@@ -219,9 +229,10 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
     }
   }
 
-  ierr = H5LTread_dataset_double(grp_id, "Y[He3]", scratch);
-  if (ierr == 0)
+  if (H5LTfind_dataset(grp_id, "Y[He3]"))
   {
+    ierr = H5LTread_dataset_double(grp_id, "Y[He3]", scratch);
+    MYH5CHECK(ierr);
     for (int in = 0; in < m_np; ++in)
     {
       // convert from abundance to mass fraction
@@ -243,6 +254,26 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
     // convert from abundance to mass fraction
     Real Xh = scratch[in] * m_table[index(ECY + SCAH, in)];
     m_table[index(ECY + SCXH, in)] = max(0.0, min(Xh, 1.0));
+  }
+
+  // Y[EB] (binding energy per baryon relative to mb) is optional; slices
+  // without it (NSE beta-eq slices) get SCEB = 0 and rely on the runtime
+  // NSE resync to set the binding energy instead.
+  if (H5LTfind_dataset(grp_id, "Y[EB]"))
+  {
+    ierr = H5LTread_dataset_double(grp_id, "Y[EB]", scratch);
+    MYH5CHECK(ierr);
+    for (int in = 0; in < m_np; ++in)
+    {
+      m_table[index(ECY + SCEB, in)] = scratch[in];
+    }
+  }
+  else
+  {
+    for (int in = 0; in < m_np; ++in)
+    {
+      m_table[index(ECY + SCEB, in)] = 0.0;
+    }
   }
 
   //  fill enthalpy per baryon, h = (e + P) / n
@@ -298,7 +329,10 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
   // Cleanup
   // -------------------------------------------------------------------------
   delete[] scratch;
-  H5Gclose(grp_id);
+  if (grp_id != file_id)
+  {
+    H5Gclose(grp_id);
+  }
   H5Fclose(file_id);
 
   m_initialized = true;

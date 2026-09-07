@@ -98,9 +98,17 @@ void ColdEOSCompOSE::ReadColdSliceFromFile(std::string fname,
   file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
   MYH5CHECK(file_id);
 
-  // Open the cold_slice group
-  grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
-  MYH5CHECK(grp_id);
+  // Open the cold_slice group when present; a standalone cold-slice file
+  // stores the same datasets at the file root.
+  if (H5Lexists(file_id, "cold_slice", H5P_DEFAULT) > 0)
+  {
+    grp_id = H5Gopen(file_id, "cold_slice", H5P_DEFAULT);
+    MYH5CHECK(grp_id);
+  }
+  else
+  {
+    grp_id = file_id;
+  }
 
   // Get dataset sizes
   // -------------------------------------------------------------------------
