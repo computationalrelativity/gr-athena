@@ -190,6 +190,9 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
     eos.SetEIRNMax(eir_n_max);
   if (eir_T_max > 0.0)
     eos.SetEIRTMax(eir_T_max);
+  // ion Coulomb (OCP) correction of the EIR branch; must match the setting
+  // the cold-slice/initial-data tables were built with
+  eos.SetEIRCoulomb(pin->GetOrAddBoolean("hydro", "eir_coulomb", true));
   eos.InitializeTables(compose_table, electron_table, baryon_mass);
   Real mb = eos.GetBaryonMass();
   // transfer eos boundaries to ResetFloorTransition
@@ -281,6 +284,20 @@ void InitColdEOS(Primitive::ColdEOS<Primitive::COLDEOS_POLICY>* eos,
   Real baryon_mass =
     pin->GetOrAddReal("hydro", "bmass", 930.4117);  // Fe56 mass/baryon in MeV
   eos->UpdateBaryonMass(baryon_mass);
+  // the slice builder records whether the OCP Coulomb correction was
+  // included; a mismatch with the runtime EIR setting means the initial
+  // data is out of hydrostatic balance at the few-percent pressure level
+  int slice_coulomb = eos->GetCoulombFlag();
+  bool run_coulomb  = pin->GetOrAddBoolean("hydro", "eir_coulomb", true);
+  if (slice_coulomb >= 0 && (slice_coulomb != 0) != run_coulomb &&
+      Globals::my_rank == 0)
+  {
+    printf(
+      "### Warning: cold slice %s was built with eir_coulomb=%d but the "
+      "run uses hydro/eir_coulomb=%d; P and eps of the initial data are "
+      "inconsistent with the runtime EOS\n",
+      table.c_str(), slice_coulomb, static_cast<int>(run_coulomb));
+  }
 
 #elif defined(USE_IDEAL_GAS)
   Real k_adi = pin->GetReal("hydro", "k_adi");

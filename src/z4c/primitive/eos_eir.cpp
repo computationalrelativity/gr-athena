@@ -170,11 +170,7 @@ Real EOSEIR::SoundSpeed(Real n, Real T, Real* Y)
   Real pres    = Pressure(n, T, Y);
   Real eps     = SpecificInternalEnergy(n, T, Y);
   Real dpresdt = eval_at_nty(ECDPDT, n, T, Y);   // dP/dT  [fm^-3]
-  // The dpdn table channel is dP_ele/dn_e; converting to a baryon-density
-  // derivative requires a factor Ye (n_e = Ye * n_b) before the ion term
-  // is added.
-  Real dpele_dne = eval_at_lnty(ECDPDN, log(n * Y[SCYE]), log(T));
-  Real dpresdn   = Y[SCYE] * dpele_dne + T * inverse_abar(Y); // dP/dn [MeV]
+  Real dpresdn = eval_at_nty(ECDPDN, n, T, Y);   // dP/dn  [MeV]
   Real cv      = eval_at_nty(ECDEPSDT, n, T, Y); // deps/dT [1/MeV]
   Real chit    = T / pres * dpresdt;
   Real chin    = n / pres * dpresdn;
@@ -653,7 +649,19 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
     {
       Real prad = asol / 3.0 * T * T * T * T;
       Real pion = n * inverse_abar(Y) * T;
-      return log(exp(var) + prad + pion);
+      Real ptot = exp(var) + prad + pion;
+      if (use_coulomb)
+      {
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        Real pcoul = n * c.y_chg * T * c.u / 3.0;
+        // helmeos-style guard: drop the (negative) correction rather than
+        // take the log of a non-positive pressure
+        if (ptot + pcoul > 0.0)
+        {
+          ptot += pcoul;
+        }
+      }
+      return log(ptot);
     }
     case ECENT:
     {
@@ -688,34 +696,72 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
           sh = Yh * (2.5 - log(n * Yh / g_h * pow(sac_const / (mh * T), 1.5)));
         }
       }
-      return Ye * var + srad + sn + sp + sa + sh;
+      Real scoul = 0.0;
+      if (use_coulomb)
+      {
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        scoul                = c.y_chg * c.s;
+      }
+      return Ye * var + srad + sn + sp + sa + sh + scoul;
     }
     case ECLOGEPS:
     {
       Real erad  = asol * T * T * T * T / (n * mb);
       Real eion  = 1.5 * T * inverse_abar(Y) / mb;
       Real ebind = Y[SCEB];
-      return log(eps_fac * exp(var) + erad + eion + ebind);
+      Real etot  = eps_fac * exp(var) + erad + eion + ebind;
+      if (use_coulomb)
+      {
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        Real ecoul = c.y_chg * T * c.u / mb;
+        // same guard as the pressure channel (the eps channel stores a log)
+        if (etot + ecoul > 0.0)
+        {
+          etot += ecoul;
+        }
+      }
+      return log(etot);
     }
     case ECDEPSDT:
     {
       // per unit mass, consistent with the eps channel above
       Real deraddt = 4.0 * asol * T * T * T / (n * mb);
       Real deiondt = 1.5 * inverse_abar(Y) / mb;
-      return eps_fac * var + deraddt + deiondt;
+      Real decouldt = 0.0;
+      if (use_coulomb)
+      {
+        // d/dT of y_chg*T*u(Gamma)/mb with dGamma/dT = -Gamma/T
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        decouldt             = c.y_chg * (c.u - c.gamma * c.du) / mb;
+      }
+      return eps_fac * var + deraddt + deiondt + decouldt;
     }
     case ECDPDN:
     {
       // table channel is dP_ele/dn_e; chain rule to d/dn_b needs Ye
       Real dpraddn = 0.0;
       Real dpiondn = T * inverse_abar(Y);
-      return Ye * var + dpraddn + dpiondn;
+      Real dpcouldn = 0.0;
+      if (use_coulomb)
+      {
+        // d/dn of n*y_chg*T*u(Gamma)/3 with dGamma/dn = Gamma/(3n)
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        dpcouldn             = c.y_chg * T * (c.u + c.gamma * c.du / 3.0) / 3.0;
+      }
+      return Ye * var + dpraddn + dpiondn + dpcouldn;
     }
     case ECDPDT:
     {
       Real dpraddt = 4.0 / 3.0 * asol * T * T * T;
       Real dpiondt = n * inverse_abar(Y);
-      return var + dpraddt + dpiondt;
+      Real dpcouldt = 0.0;
+      if (use_coulomb)
+      {
+        // d/dT of n*y_chg*T*u(Gamma)/3 with dGamma/dT = -Gamma/T
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        dpcouldt             = n * c.y_chg * (c.u - c.gamma * c.du) / 3.0;
+      }
+      return var + dpraddt + dpiondt + dpcouldt;
     }
     case ECETA:
     {

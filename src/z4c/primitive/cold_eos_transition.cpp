@@ -157,6 +157,18 @@ void ColdEOSTransition::ReadColdSliceFromFile(std::string fname)
     i_lorene_cut = 0;
   }
 
+  // provenance flag written by the slice builder; used only for a
+  // consistency warning against the runtime eir_coulomb choice
+  if (H5LTfind_dataset(grp_id, "coulomb"))
+  {
+    ierr = H5LTread_dataset_int(grp_id, "coulomb", &m_coulomb_flag);
+    MYH5CHECK(ierr);
+  }
+  else
+  {
+    m_coulomb_flag = -1;
+  }
+
   // Read other thermodynamics quantities
   // -------------------------------------------------------------------------
   ierr = H5LTread_dataset_double(grp_id, "Q1", scratch);
