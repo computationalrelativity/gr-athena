@@ -140,6 +140,16 @@ class EOSEIR : public EOSPolicyInterface
   /// table, so no rebuild is needed.
   void SetNucleonMasses(Real new_mn, Real new_mp);
 
+  /// Enable/disable the ion Coulomb (OCP) correction to P, eps and s.
+  inline void SetCoulomb(bool use)
+  {
+    use_coulomb = use;
+  }
+  inline bool GetCoulomb() const
+  {
+    return use_coulomb;
+  }
+
   /// Get the raw number density
   Real const* GetRawLogNumberDensity() const
   {
@@ -188,6 +198,61 @@ class EOSEIR : public EOSPolicyInterface
     return abar;
   }
 
+  // Classical one-component-plasma Coulomb correction for a single mean
+  // ion averaged over the charged species (free neutrons keep their ideal
+  // terms but carry no charge). Fit expressions and coefficients are the
+  // Yakovlev & Shalybkov (1989) forms exactly as used in the Timmes
+  // Helmholtz EOS, so helmeos serves as a reference implementation.
+  // Returns the per-ion energy u = E_C/(N_i T), its Gamma derivative and
+  // the per-ion entropy s [kB]; y_chg = 0 signals "no correction".
+  // Deliberately NOT applied to the chemical potentials: those feed only
+  // the neutrino transport, negligible for matter in the EIR regime.
+  // ponytail: single mean ion, no linear mixing rule; refine if mixed-Z
+  // compositions in the EIR regime ever matter.
+  struct CoulombTerms
+  {
+    Real y_chg;  // charged ions per baryon
+    Real gamma;  // plasma coupling parameter
+    Real u;      // E_C per ion in units of T
+    Real du;     // du/dGamma
+    Real s;      // S_C per ion in kB
+  };
+  inline CoulombTerms coulomb_terms(Real n, Real T, Real* Y) const
+  {
+    CoulombTerms c = {0.0, 0.0, 0.0, 0.0, 0.0};
+    Real y_chg = Y[SCXP] + Y[SCXA] / 4 +
+                 ((Y[SCXH] > 0.0) ? Y[SCXH] / Y[SCAH] : 0.0);
+    if (!(y_chg > 1e-30) || !(Y[SCYE] > 0.0) || !(T > 0.0))
+    {
+      return c;
+    }
+    Real zbar  = Y[SCYE] / y_chg;  // charge neutrality
+    Real n_i   = n * y_chg;
+    Real a_i   = cbrt(3.0 / (4.0 * M_PI * n_i));
+    Real gamma = zbar * zbar * esqu / (a_i * T);
+    constexpr Real a1 = -0.898004, b1 = 0.96786, c1 = 0.220703,
+                   d1 = -0.86097, e1 = 2.5269;
+    constexpr Real a2 = 0.29561, b2 = 1.9885, c2 = 0.288675;
+    if (gamma >= 1.0)
+    {
+      Real x = sqrt(sqrt(gamma));  // gamma^(1/4)
+      c.u    = a1 * gamma + b1 * x + c1 / x + d1;
+      c.du   = a1 + 0.25 * (b1 * x - c1 / x) / gamma;
+      c.s    = -(3.0 * b1 * x - 5.0 * c1 / x + d1 * (log(gamma) - 1.0) - e1);
+    }
+    else
+    {
+      Real x = gamma * sqrt(gamma);  // gamma^(3/2)
+      Real y = pow(gamma, b2);
+      c.u    = -3.0 * c2 * x + a2 * y;
+      c.du   = (-4.5 * c2 * x + a2 * b2 * y) / gamma;
+      c.s    = -(c2 * x - a2 * (b2 - 1.0) / b2 * y);
+    }
+    c.y_chg = y_chg;
+    c.gamma = gamma;
+    return c;
+  }
+
   /// Low level function, not intended for outside use
   Real temperature_from_var(int vi, Real var, Real n, Real* Y,
                             int* guess_it = nullptr) const;
@@ -222,6 +287,9 @@ class EOSEIR : public EOSPolicyInterface
   // repeated reading of table
   static bool m_initialized;
 
+  // ion Coulomb (OCP) correction switch, per instance like mb
+  bool use_coulomb = true;
+
   // Auxiliary static variables to share data only available when table is open
   // to those threads that do not open it variables from EOSEIR
   static Real sm_id_log_ne, sm_id_log_t;
@@ -237,6 +305,7 @@ class EOSEIR : public EOSPolicyInterface
     M_PI * M_PI / (15.0 * hbarc * hbarc * hbarc);  // (MeV fm)^-3
   // const Real sac_const = 244654.27090035815; // h^2/(2*pi) in (MeV fm)^2
   static constexpr Real sac_const = hbarc * hbarc * 2.0 * M_PI;  // (MeV fm)^2
+  static constexpr Real esqu      = 1.4399764;                   // e^2, MeV fm
   static constexpr Real me        = 0.5109989461;                // MeV
   // Physical nucleon masses [MeV]. The CODATA values below are the defaults;
   // when the EIR EOS is driven by EOSTransition these are replaced by

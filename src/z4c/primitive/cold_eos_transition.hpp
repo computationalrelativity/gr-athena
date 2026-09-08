@@ -141,6 +141,16 @@ class ColdEOSTransition
   Real m_id_log_nb;
 
   int i_lorene_cut;
+
+  // Coulomb-correction flag recorded by the slice builder:
+  // 1/0 = built with/without the OCP term, -1 = absent (legacy file)
+  int m_coulomb_flag;
+
+  public:
+  inline int GetCoulombFlag() const
+  {
+    return m_coulomb_flag;
+  }
 };
 
 }  // namespace Primitive

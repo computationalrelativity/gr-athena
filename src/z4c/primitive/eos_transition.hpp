@@ -258,6 +258,16 @@ class EOSTransition : public EOSPolicyInterface
     return compose_eos->GetTableNeutronMass();
   }
 
+  /// Enable/disable the ion Coulomb (OCP) correction of the EIR branch
+  void SetEIRCoulomb(bool use)
+  {
+    eir_eos->SetCoulomb(use);
+  }
+  bool GetEIRCoulomb() const
+  {
+    return eir_eos->GetCoulomb();
+  }
+
   /// Set the upper temperature for using the eir eos at all
   void SetEIRTMax(Real T_max)
   {
