@@ -178,17 +178,26 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
   dump_data = pin->GetOrAddBoolean(par_block_name, "dump_data", false);
   prepared = false;
 
-  // extract variables that are to be reduced ---------------------------------
+  // extract variables that are to be reduced (interpolated onto the grid) ----
+  // and/or projected onto scalar spherical harmonics. Either list may be
+  // empty on its own (e.g. variables_sh-only surfaces are fine), but at
+  // least one of the two must be given.
   AthenaArray<std::string> str_vars = pin->GetOrAddStringArray(
     par_block_name, "variables", "", 0
   );
+  AthenaArray<std::string> str_vars_sh = pin->GetOrAddStringArray(
+    par_block_name, "variables_sh", "", 0
+  );
 
-  const int N_vars = str_vars.GetSize();
-  if (N_vars == 0)
+  const int N_vars    = str_vars.GetSize();
+  const int N_vars_sh = str_vars_sh.GetSize();
+
+  if ((N_vars == 0) && (N_vars_sh == 0))
   {
     std::ostringstream msg;
     msg << par_block_name
-        << "/variables" << " not specified" << std::endl;
+        << "/variables and " << par_block_name << "/variables_sh"
+        << " both not specified; need at least one" << std::endl;
     ATHENA_ERROR(msg);
   }
 
@@ -217,11 +226,6 @@ Surfaces::Surfaces(Mesh *pm, ParameterInput *pin, const int par_ix)
 
   // extract (optional) variables to project onto scalar spherical harmonics --
   // Only meaningful for spherical surfaces; absent/empty simply disables it.
-  AthenaArray<std::string> str_vars_sh = pin->GetOrAddStringArray(
-    par_block_name, "variables_sh", "", 0
-  );
-
-  const int N_vars_sh = str_vars_sh.GetSize();
   variables_sh.NewAthenaArray(N_vars_sh);
   variable_sh_sampling.NewAthenaArray(N_vars_sh);
 
