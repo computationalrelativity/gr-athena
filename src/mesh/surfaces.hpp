@@ -61,6 +61,11 @@ class Surfaces
       tracer_aux_U_d_0,
       tracer_aux_HU_d_0,
       tracer_aux_SPB,
+#if EOS_POLICY_CODE == 4
+      // RHINE diagnostics on tracer surfaces (transition EOS only)
+      tracer_aux_heating_rate,
+      tracer_aux_rhine_dye,
+#endif
       // scalars
       passive_scalars_cons,
       passive_scalars_prim,
@@ -120,6 +125,10 @@ class Surfaces
       {"tracer.aux.U_d_0",   variety_data::tracer_aux_U_d_0},
       {"tracer.aux.HU_d_0",  variety_data::tracer_aux_HU_d_0},
       {"tracer.aux.SPB",     variety_data::tracer_aux_SPB},
+#if EOS_POLICY_CODE == 4
+      {"tracer.aux.heating_rate", variety_data::tracer_aux_heating_rate},
+      {"tracer.aux.rhine_dye",    variety_data::tracer_aux_rhine_dye},
+#endif
 #endif
 #if NSCALARS > 0
       {"tracer.ye",  variety_data::tracer_ye},

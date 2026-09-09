@@ -539,6 +539,10 @@ AA * Surface::GetRawData(Surfaces::variety_data vd, MeshBlock * pmb)
     case variety_data::tracer_aux_U_d_0:
     case variety_data::tracer_aux_HU_d_0:
     case variety_data::tracer_aux_SPB:
+#if EOS_POLICY_CODE == 4
+    case variety_data::tracer_aux_heating_rate:
+    case variety_data::tracer_aux_rhine_dye:
+#endif
     {
       return &pmb->phydro->derived_ms;
     }
@@ -687,6 +691,13 @@ int Surface::GetNumFieldComponents(Surfaces::variety_data vd)
     {
       return 1;
     }
+#if EOS_POLICY_CODE == 4
+    case variety_data::tracer_aux_heating_rate:
+    case variety_data::tracer_aux_rhine_dye:
+    {
+      return 1;
+    }
+#endif
     default:
     {
       assert(false);
@@ -782,6 +793,20 @@ int Surface::GetRemappedFieldIndex(Surfaces::variety_data vd, const int nix)
       ret = IX_SPB;
       break;
     }
+#if EOS_POLICY_CODE == 4
+    case variety_data::tracer_aux_heating_rate:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_HEAT;
+      break;
+    }
+    case variety_data::tracer_aux_rhine_dye:
+    {
+      // slot of hydro->derived_ms
+      ret = IX_DYE;
+      break;
+    }
+#endif
     default:
     {
       ret = nix;
@@ -1033,6 +1058,22 @@ std::string Surface::GetNameFieldComponent(Surfaces::variety_data vd,
       );
       break;
     }
+#if EOS_POLICY_CODE == 4
+    case variety_data::tracer_aux_heating_rate:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_ms::names[IX_HEAT]
+      );
+      break;
+    }
+    case variety_data::tracer_aux_rhine_dye:
+    {
+      ret = "tracer." + std::string(
+        Hydro::ixn_derived_ms::names[IX_DYE]
+      );
+      break;
+    }
+#endif
     default:
     {
       assert(false);
