@@ -861,7 +861,9 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         }
       }
 
-      ierr = H5LTread_dataset_double(file_id, "Y[H2]", scratch);
+      ierr = H5LTfind_dataset(file_id, "Y[H2]")
+               ? H5LTread_dataset_double(file_id, "Y[H2]", scratch)
+               : -1;
       if (ierr == 0)
       {
         for (int in = 0; in < m_nn; ++in)
@@ -878,7 +880,9 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         }
       }
 
-      ierr = H5LTread_dataset_double(file_id, "Y[H3]", scratch);
+      ierr = H5LTfind_dataset(file_id, "Y[H3]")
+               ? H5LTread_dataset_double(file_id, "Y[H3]", scratch)
+               : -1;
       if (ierr == 0)
       {
         for (int in = 0; in < m_nn; ++in)
@@ -895,7 +899,9 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
         }
       }
 
-      ierr = H5LTread_dataset_double(file_id, "Y[He3]", scratch);
+      ierr = H5LTfind_dataset(file_id, "Y[He3]")
+               ? H5LTread_dataset_double(file_id, "Y[He3]", scratch)
+               : -1;
       if (ierr == 0)
       {
         for (int in = 0; in < m_nn; ++in)
