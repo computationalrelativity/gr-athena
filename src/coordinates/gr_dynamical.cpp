@@ -7,6 +7,7 @@
 #include "../athena_aliases.hpp"
 #include "../eos/eos.hpp"
 #include "../hydro/hydro.hpp"
+#include "../scalars/scalars.hpp"
 #include "../mesh/mesh.hpp"
 #include "../parameter_input.hpp"
 #include "../utils/floating_point.hpp"
@@ -793,6 +794,26 @@ void GRDynamical::AddCoordTermsDivergence(const Real dt,
             cons(IM2, k, j, i) -= gam_w_vol * ph->u(IM2, k, j, i);
             cons(IM3, k, j, i) -= gam_w_vol * ph->u(IM3, k, j, i);
             cons(IEN, k, j, i) -= gam_w_vol * ph->u(IEN, k, j, i);
+
+            // Damp the conserved passive scalars by the same (clamped)
+            // factor so s/D is preserved: otherwise the species keep their
+            // pre-excision mass while D decays and sum(X) drifts to
+            // several times D inside the horizon.
+            if (NSCALARS > 0)
+            {
+              PassiveScalars* ps = pmb->pscalars;
+              for (int n = 0; n < NSCALARS; ++n)
+              {
+                ps->s(n, k, j, i) -= gam_w_vol * ps->s(n, k, j, i);
+              }
+#if EOS_POLICY_CODE == 4
+              // Once D sits at the floor gam_w_vol is 0 and nothing can
+              // repair species that were inflated before this damping
+              // existed (restarts from older checkpoints): rescale them
+              // to sum to D, a no-op for cells damped consistently.
+              ps->EnforceSpeciesSum(cons, i, i, j, j, k, k);
+#endif
+            }
           }
         }
       }
