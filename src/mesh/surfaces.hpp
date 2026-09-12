@@ -4,6 +4,7 @@
 #include <future>
 #include <iomanip>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <numeric>
@@ -16,6 +17,8 @@
 
 #include "../utils/lagrange_interp.hpp"
 #include "../utils/interp_barycentric.hpp"
+#include "../utils/grid_theta_phi.hpp"
+#include "../utils/spherical_harmonics.hpp"
 #include "../main_triggers.hpp"
 
 // ============================================================================
@@ -202,6 +205,18 @@ class Surfaces
     // their associated samplings
     AthenaArray<variety_base_grid> variable_sampling;
 
+    // variables that are (additionally, independently) to be projected onto
+    // scalar spherical harmonics, producing a_lm coefficients.
+    // Populated from the optional "variables_sh" input list; only meaningful
+    // for spherical surfaces. Empty (default) disables SH projection.
+    AthenaArray<variety_data>      variables_sh;
+    // their associated samplings
+    AthenaArray<variety_base_grid> variable_sh_sampling;
+
+    // maximum angular momentum number for scalar spherical-harmonic
+    // projection of variables_sh; < 0 disables projection entirely.
+    int lmax_sh = -1;
+
     // only use asynchronous writes with thread-safe library
     const bool can_async = is_hdf5_threadsafe();
 
@@ -289,6 +304,31 @@ class Surface
     // collective array storing all interpolated data
     aliases::AA u_vars;
 
+    // Number of field components to project onto scalar spherical harmonics,
+    // one entry per variable in psurfs->variables_sh (empty if unused).
+    AthenaArray<int> N_cpts_sh;
+
+    // Channel index into the middle ("kind") dimension of a_lm below:
+    //   sh_a0 - m=0 coefficients   (RealHarmonicTable::spec0, l = 0..lmax_sh)
+    //   sh_ac - m>0 cosine coefficients (RealHarmonicTable::specc)
+    //   sh_as - m>0 sine   coefficients (RealHarmonicTable::specs)
+    // sh_a0 only populates the first (lmax_sh + 1) entries of the trailing
+    // (lm) dimension; the remainder is unused padding shared with the
+    // (larger) ac/as extent so all three channels fit in one array.
+    enum sh_channel { sh_a0 = 0, sh_ac = 1, sh_as = 2, sh_nch = 3 };
+
+    // Extent of the trailing (lm) dimension of a_lm, i.e. (lmax_sh+1)^2;
+    // set alongside a_lm's allocation. 0 when SH projection is unused.
+    int lmpoints_sh = 0;
+
+    // Projected (l,m) scalar spherical-harmonic coefficients for all field
+    // components listed (flattened) across psurfs->variables_sh, stored
+    // together in a single array rather than one AthenaArray per kind:
+    //   a_lm(c, sh_a0/sh_ac/sh_as, lm)
+    // where c indexes field components and lm = RealHarmonicTable::lmindex.
+    // Only allocated (geometry-specific) when psurfs->lmax_sh >= 0.
+    aliases::AA a_lm;
+
     // Get ptr to the data based on variety
     aliases::AA * GetRawData(Surfaces::variety_data vd, MeshBlock * pmb);
 
@@ -314,10 +354,15 @@ class Surface
     virtual void PrepareInterpolators() = 0;
     // Geometry-specific: interpolate all variables on the grid
     virtual void DoInterpolations() = 0;
+    // Geometry-specific: project variables_sh onto scalar spherical
+    // harmonics, filling a_lm_0/a_lm_c/a_lm_s. Default is a no-op so
+    // geometries without a natural angular basis (Cartesian, Cylindrical)
+    // need not implement it. Only SurfaceSpherical currently overrides this.
+    virtual void DoProjections() {}
 
     // Tear down interpolators (clear pools, reset masks)
     void TearDownInterpolators();
-    // Chunked MPI_Allreduce on u_vars
+    // Chunked MPI_Allreduce on u_vars, a_lm
     void MPI_Reduce();
 
   protected:
@@ -552,7 +597,10 @@ class SurfaceCartesian : public Surface
 class SurfaceSpherical : public Surface
 {
   public:
-    enum class variety_sampling { uniform };
+    // uniform:      midpoint sampling in theta, uniform in phi
+    // gausslegendre: Gauss-Legendre nodes in cos(theta), uniform in phi;
+    //                requires N_th == N_ph / 2 (as in grid_theta_phi::Grid)
+    enum class variety_sampling { uniform, gausslegendre };
     enum class variety_interpolator { Lagrange, LagrangeLinear };
 
     SurfaceSpherical(Mesh *pm,
@@ -571,6 +619,14 @@ class SurfaceSpherical : public Surface
     aliases::AA th;
     aliases::AA ph;
     aliases::AA x_o_th_ph;  // (x1(rad,th,ph), x2(rad,th,ph), x3(rad,th,ph))
+
+    // Quadrature weights (solid-angle element) at each (th_i, ph_j); used
+    // only for scalar spherical-harmonic projection (see DoProjections()).
+    aliases::AA weights;
+
+    // Real scalar spherical-harmonic table, built on (th, ph) when
+    // psurfs->lmax_sh >= 0. See utils/spherical_harmonics.hpp.
+    gra::sph_harm::RealHarmonicTable ylm;
 
     variety_sampling vs;
     variety_interpolator vi;
@@ -595,10 +651,58 @@ class SurfaceSpherical : public Surface
       }
     }
 
+    // Midpoint quadrature weights: dOmega = sin(th) dth dph.
+    // Assumes th (member array) has already been filled by gr_th().
+    inline void wt_uniform(aliases::AA & w_in)
+    {
+      const Real dth = PI / static_cast<Real>(N_th);
+      const Real dph = 2.0 * PI / static_cast<Real>(N_ph);
+      for (int i=0; i<N_th; ++i)
+      {
+        const Real dcosth = std::sin(th(i)) * dth;
+        for (int j=0; j<N_ph; ++j)
+        {
+          w_in(i, j) = dcosth * dph;
+        }
+      }
+    }
+
+    // Gauss-Legendre nodes in cos(theta), uniform in phi. Fills th and
+    // weights together (weight depends on the same GL node used for th).
+    // Requires N_th == N_ph / 2, matching grid_theta_phi::Grid.
+    inline void gr_wt_gausslegendre(aliases::AA & th_in, aliases::AA & w_in)
+    {
+      if (N_th != N_ph / 2)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in SurfaceSpherical" << std::endl
+            << "gausslegendre requires nth == nph/2, got nth=" << N_th
+            << " nph=" << N_ph << std::endl;
+        ATHENA_ERROR(msg);
+      }
+
+      const Real dph = 2.0 * PI / static_cast<Real>(N_ph);
+
+      std::vector<Real> gl_nodes(N_th);
+      std::vector<Real> gl_weights(N_th);
+      gra::grids::theta_phi::GLQuadNodesWeights(
+        -1.0, 1.0, gl_nodes.data(), gl_weights.data(), N_th);
+
+      for (int i=0; i<N_th; ++i)
+      {
+        th_in(i) = std::acos(gl_nodes[i]);
+        for (int j=0; j<N_ph; ++j)
+        {
+          w_in(i, j) = gl_weights[i] * dph;
+        }
+      }
+    }
+
   // interpolator specific ----------------------------------------------------
   private:
     virtual void PrepareInterpolators() override;
     virtual void DoInterpolations() override;
+    virtual void DoProjections() override;
 
     Real InterpolateAtPoint(aliases::AA & raw_cpt,
                             Surfaces::variety_base_grid vs,
