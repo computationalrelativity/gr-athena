@@ -97,7 +97,7 @@ Real EOSEIR::TemperatureFromEps(Real n, Real eps, Real* Y,
   Real eps_max = MaximumInternalEnergy(n, Y);
   if (eps >= eps_max)
     return max_T;
-  return temperature_from_var(ECLOGEPS, log(eps), n, Y, guess_it);
+  return temperature_from_var(ECLOGEPS, eps, n, Y, guess_it);
 }
 
 Real EOSEIR::TemperatureFromP(Real n, Real p, Real* Y)
@@ -110,7 +110,7 @@ Real EOSEIR::TemperatureFromP(Real n, Real p, Real* Y)
   Real p_max = MaximumPressure(n, Y);
   if (p >= p_max)
     return max_T;
-  return temperature_from_var(ECLOGP, log(p), n, Y);
+  return temperature_from_var(ECLOGP, p, n, Y);
 }
 
 Real EOSEIR::TemperatureFromEntropy(Real n, Real s, Real* Y)
@@ -471,7 +471,7 @@ Real EOSEIR::temperature_from_var(int iv,
   {
     Real var_pt = wn0 * m_table[index(iv, in + 0, it)] +
                   wn1 * m_table[index(iv, in + 1, it)];
-    var_pt = add_rad_ion(iv, var_pt, n, m_t[it], Y);
+    var_pt = add_rad_ion_lin(iv, var_pt, n, m_t[it], Y);
     return var - var_pt;
   };
 
@@ -601,7 +601,7 @@ Real EOSEIR::temperature_from_var(int iv,
   {
     Real wt     = (lt - ltlo) / (lthi - ltlo);
     Real var_pt = (1.0 - wt) * v_lo + wt * v_hi;
-    return var - add_rad_ion(iv, var_pt, n, exp(lt), Y);
+    return var - add_rad_ion_lin(iv, var_pt, n, exp(lt), Y);
   };
 
   Real la = ltlo, lb_ = lthi;

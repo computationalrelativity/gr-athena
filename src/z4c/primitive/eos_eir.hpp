@@ -253,7 +253,12 @@ class EOSEIR : public EOSPolicyInterface
     return c;
   }
 
-  /// Low level function, not intended for outside use
+  /// Low level function, not intended for outside use.
+  ///
+  /// var is the target value itself, not its log, for every channel. The
+  /// root of (var - value) has the same location as the root of
+  /// (log(var) - log(value)) that this used to solve, and staying in linear
+  /// space saves a log per iteration on the log-stored channels.
   Real temperature_from_var(int vi, Real var, Real n, Real* Y,
                             int* guess_it = nullptr) const;
   /// Low level evaluation function, not intended for outside use
