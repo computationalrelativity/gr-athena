@@ -314,10 +314,8 @@ class EOSTransition : public EOSPolicyInterface
 
   void update_bounds();
 
-  /// Low level inversion function, not intended for outside use. ln_n is
-  /// log(n), which every caller already holds.
-  Real temperature_from_var_trans(int iv, Real var, Real n, Real ln_n,
-                                  Real* Y) const;
+  /// Low level inversion function, not intended for outside use
+  Real temperature_from_var_trans(int iv, Real var, Real n, Real* Y) const;
 
   /// Internal variants that assume Y_norm has already been through
   /// GuardMassFractions. The public accessors guard exactly once and route
@@ -325,26 +323,20 @@ class EOSTransition : public EOSPolicyInterface
   /// FromE chain) reuse that composition instead of re-deriving it at every
   /// level. (The Sanitized suffix predates the guard, which replaced the
   /// full sanitize on this path.)
-  /// ln_n = log(n) and lT = log(T) are passed in rather than recomputed:
-  /// every entry point already holds them (or a cached log of a fixed
-  /// bound temperature), and TransitionFactor needs both.
-  Real PressureSanitized(Real n, Real T, Real ln_n, Real lT, Real* Y_norm);
-  Real SpecificInternalEnergySanitized(Real n, Real T, Real ln_n, Real lT,
-                                       Real* Y_norm);
-  Real MinimumPressureSanitized(Real n, Real ln_n, Real* Y_norm);
-  Real MaximumPressureSanitized(Real n, Real ln_n, Real* Y_norm);
-  Real MinimumSpecificInternalEnergySanitized(Real n, Real ln_n,
-                                              Real* Y_norm);
-  Real MaximumSpecificInternalEnergySanitized(Real n, Real ln_n,
-                                              Real* Y_norm);
+  Real PressureSanitized(Real n, Real T, Real* Y_norm);
+  Real SpecificInternalEnergySanitized(Real n, Real T, Real* Y_norm);
+  Real MinimumPressureSanitized(Real n, Real* Y_norm);
+  Real MaximumPressureSanitized(Real n, Real* Y_norm);
+  Real MinimumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
+  Real MaximumSpecificInternalEnergySanitized(Real n, Real* Y_norm);
   /// guess_it warm-starts the EIR-branch bracket across c2p
   /// iterations (validated in EOSEIR::temperature_from_var, so an
   /// index written by the compose interior path is harmless).
-  Real TemperatureFromEpsSanitized(Real n, Real eps, Real ln_n, Real* Y_norm,
+  Real TemperatureFromEpsSanitized(Real n, Real eps, Real* Y_norm,
                                    int* guess_it = nullptr);
-  Real TemperatureFromPSanitized(Real n, Real p, Real ln_n, Real* Y_norm);
-  void PressureAndEnthalpySanitized(Real n, Real T, Real ln_n, Real lT,
-                                    Real* Y_norm, Real* P, Real* h);
+  Real TemperatureFromPSanitized(Real n, Real p, Real* Y_norm);
+  void PressureAndEnthalpySanitized(Real n, Real T, Real* Y_norm,
+                                    Real* P, Real* h);
   int comp_it_trans_start, comp_it_trans_end, comp_it_eir_tmax;
 
   // Physical masses. The nucleon pair lives in EOSEIR (single source
@@ -380,8 +372,6 @@ class EOSTransition : public EOSPolicyInterface
   Real m_eir_n_ramp_dec, m_eir_T_ramp_dec;
   // derived: ramp starts (log) and inverse log-widths
   Real m_ln_n_h0, m_ln_T_h0, m_id_ln_n_ramp, m_id_ln_T_ramp;
-  // logs of the fixed bound temperatures, for the log-space TransitionFactor
-  Real m_ln_min_T, m_ln_max_T, m_ln_comp_min_T;
 
   class RootFunctor
   {
@@ -395,14 +385,12 @@ class EOSTransition : public EOSPolicyInterface
                     Real dlt,
                     Real n,
                     Real ln,
-                    Real ln_ne,
                     Real* Y,
                     Real var,
                     const EOSTransition* peos) const
     {
       // lt = log(t) is known exactly, so hand it (and the loop-invariant
-      // ln = log(n), ln_ne = log(n*Ye)) to the log-space TransitionFactor
-      // and to the Helmholtz lookup.
+      // ln = log(n)) to the log-space TransitionFactor.
       Real lt      = lt0 + wt * dlt;
       Real t       = exp(lt);
       Real f_trans = peos->TransitionFactor(n, t, ln, lt);
@@ -412,11 +400,11 @@ class EOSTransition : public EOSPolicyInterface
       Real var_eir;
       if (iv == EOSCompOSE::ECLOGP)
       {
-        var_eir = peos->eir_eos->PressureAtLog(ln_ne, lt, n, t, Y);
+        var_eir = peos->eir_eos->Pressure(n, t, Y);
       }
       else if (iv == EOSCompOSE::ECLOGE)
       {
-        var_eir = peos->eir_eos->EnergyAtLog(ln_ne, lt, n, t, Y);
+        var_eir = peos->eir_eos->Energy(n, t, Y);
       }
       else
       {

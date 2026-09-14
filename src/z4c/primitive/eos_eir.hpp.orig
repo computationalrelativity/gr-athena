@@ -262,31 +262,6 @@ class EOSEIR : public EOSPolicyInterface
   Real eval_at_lnty(int vi, Real ln, Real lT) const;
   /// Low level function to add the analytic terms
   Real add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const;
-  /// Linear-space counterpart of add_rad_ion for the two log-stored
-  /// channels: it returns the physical value, of which add_rad_ion returns
-  /// the log. Callers that want the value (rather than its log) use this
-  /// and skip an exp(log(.)) pair; the other channels are already linear
-  /// and are forwarded unchanged.
-  Real add_rad_ion_lin(int vi, Real var, Real n, Real T, Real* Y) const;
-  /// Table lookup plus analytic terms, in linear space, from logs the
-  /// caller already holds (ln_ne = log(n*Ye), lT = log(T)).
-  inline Real eval_lin_at_lnty(int vi, Real ln_ne, Real lT, Real n, Real T,
-                               Real* Y) const
-  {
-    return add_rad_ion_lin(vi, eval_at_lnty(vi, ln_ne, lT), n, T, Y);
-  }
-
-  /// Pressure / energy density at a point whose logs the caller already
-  /// holds (the transition strip solver, where ln_ne is loop-invariant and
-  /// lT is a compose grid node). Same result as Pressure/Energy.
-  inline Real PressureAtLog(Real ln_ne, Real lT, Real n, Real T, Real* Y) const
-  {
-    return eval_lin_at_lnty(ECLOGP, ln_ne, lT, n, T, Y);
-  }
-  inline Real EnergyAtLog(Real ln_ne, Real lT, Real n, Real T, Real* Y) const
-  {
-    return (eval_lin_at_lnty(ECLOGEPS, ln_ne, lT, n, T, Y) + 1) * n * mb;
-  }
 
   /// Evaluate interpolation weight for density
   void weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const;
@@ -306,10 +281,6 @@ class EOSEIR : public EOSPolicyInterface
   // (per MPI process)
   static Real* m_log_ne;
   static Real* m_log_t;
-  // Linear temperature grid, m_t[it] == exp(m_log_t[it]). Precomputed
-  // because the bracket search evaluates the analytic ion/radiation terms
-  // at grid nodes and would otherwise exp() the same values every call.
-  static Real* m_t;
   static Real* m_table;
 
   // bool to protect against access of uninitialised table, and prevent

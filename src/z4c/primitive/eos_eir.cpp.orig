@@ -59,7 +59,6 @@ EOSEIR::~EOSEIR()
 // Definitions for static members
 Real* EOSEIR::m_log_ne     = nullptr;
 Real* EOSEIR::m_log_t      = nullptr;
-Real* EOSEIR::m_t          = nullptr;
 Real* EOSEIR::m_table      = nullptr;
 bool EOSEIR::m_initialized = false;
 
@@ -127,19 +126,19 @@ Real EOSEIR::TemperatureFromEntropy(Real n, Real s, Real* Y)
 Real EOSEIR::SpecificInternalEnergy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  return eval_lin_at_lnty(ECLOGEPS, log(n * Y[SCYE]), log(T), n, T, Y);
+  return exp(eval_at_nty(ECLOGEPS, n, T, Y));
 }
 
 Real EOSEIR::Energy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  return EnergyAtLog(log(n * Y[SCYE]), log(T), n, T, Y);
+  return (SpecificInternalEnergy(n, T, Y) + 1) * n * mb;
 }
 
 Real EOSEIR::Pressure(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  return eval_lin_at_lnty(ECLOGP, log(n * Y[SCYE]), log(T), n, T, Y);
+  return exp(eval_at_nty(ECLOGP, n, T, Y));
 }
 
 Real EOSEIR::Abar(Real n, Real T, Real* Y)
@@ -157,11 +156,8 @@ Real EOSEIR::Entropy(Real n, Real T, Real* Y)
 Real EOSEIR::Enthalpy(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  // Both channels sit at the same table point: take the logs once.
-  Real const ln_ne = log(n * Y[SCYE]);
-  Real const lT    = log(T);
-  Real const P     = PressureAtLog(ln_ne, lT, n, T, Y);
-  Real const e     = EnergyAtLog(ln_ne, lT, n, T, Y);
+  Real const P = Pressure(n, T, Y);
+  Real const e = Energy(n, T, Y);
   return (P + e) / n;
 }
 
@@ -171,18 +167,11 @@ Real EOSEIR::SoundSpeed(Real n, Real T, Real* Y)
   // Timmes & Arnett (1999) Gamma_1 from the (n, T) derivatives, translated
   // to nuclear units. eps and cv = deps/dT are per unit mass (eps
   // dimensionless, cv in 1/MeV), so the mass density is rho = n * mb.
-  // Five channels are read at the same table point; take the two logs once
-  // instead of once per lookup.
-  Real const ln_ne = log(n * Y[SCYE]);
-  Real const lT    = log(T);
-  Real pres    = eval_lin_at_lnty(ECLOGP, ln_ne, lT, n, T, Y);
-  Real eps     = eval_lin_at_lnty(ECLOGEPS, ln_ne, lT, n, T, Y);
-  Real dpresdt = add_rad_ion(ECDPDT, eval_at_lnty(ECDPDT, ln_ne, lT),
-                             n, T, Y);           // dP/dT  [fm^-3]
-  Real dpresdn = add_rad_ion(ECDPDN, eval_at_lnty(ECDPDN, ln_ne, lT),
-                             n, T, Y);           // dP/dn  [MeV]
-  Real cv      = add_rad_ion(ECDEPSDT, eval_at_lnty(ECDEPSDT, ln_ne, lT),
-                             n, T, Y);           // deps/dT [1/MeV]
+  Real pres    = Pressure(n, T, Y);
+  Real eps     = SpecificInternalEnergy(n, T, Y);
+  Real dpresdt = eval_at_nty(ECDPDT, n, T, Y);   // dP/dT  [fm^-3]
+  Real dpresdn = eval_at_nty(ECDPDN, n, T, Y);   // dP/dn  [MeV]
+  Real cv      = eval_at_nty(ECDEPSDT, n, T, Y); // deps/dT [1/MeV]
   Real chit    = T / pres * dpresdt;
   Real chin    = n / pres * dpresdn;
   Real x       = pres * chit / (n * mb * T * cv);
@@ -306,7 +295,6 @@ void EOSEIR::ReadTableFromFile(std::string fname,
       // -------------------------------------------------------------------------
       m_log_ne        = new Real[m_nn];
       m_log_t         = new Real[m_nt];
-      m_t             = new Real[m_nt];
       m_table         = new Real[ECNVARS * m_nn * m_nt];
       double* scratch = new double[m_nn * m_nt];
 
@@ -329,9 +317,6 @@ void EOSEIR::ReadTableFromFile(std::string fname,
       for (int it = 0; it < m_nt; ++it)
       {
         m_log_t[it] = log(scratch[it]);
-        // exp(log(t)) rather than t, so that the precomputed grid is
-        // bit-identical to what the old exp(m_log_t[it]) produced.
-        m_t[it] = exp(m_log_t[it]);
       }
       m_id_log_t = 1.0 / (m_log_t[1] - m_log_t[0]);
 
@@ -471,7 +456,7 @@ Real EOSEIR::temperature_from_var(int iv,
   {
     Real var_pt = wn0 * m_table[index(iv, in + 0, it)] +
                   wn1 * m_table[index(iv, in + 1, it)];
-    var_pt = add_rad_ion(iv, var_pt, n, m_t[it], Y);
+    var_pt = add_rad_ion(iv, var_pt, n, exp(m_log_t[it]), Y);
     return var - var_pt;
   };
 
@@ -661,9 +646,22 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
   switch (vi)
   {
     case ECLOGP:
-    case ECLOGEPS:
     {
-      return log(add_rad_ion_lin(vi, var, n, T, Y));
+      Real prad = asol / 3.0 * T * T * T * T;
+      Real pion = n * inverse_abar(Y) * T;
+      Real ptot = exp(var) + prad + pion;
+      if (use_coulomb)
+      {
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        Real pcoul = n * c.y_chg * T * c.u / 3.0;
+        // helmeos-style guard: drop the (negative) correction rather than
+        // take the log of a non-positive pressure
+        if (ptot + pcoul > 0.0)
+        {
+          ptot += pcoul;
+        }
+      }
+      return log(ptot);
     }
     case ECENT:
     {
@@ -705,6 +703,24 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
         scoul                = c.y_chg * c.s;
       }
       return Ye * var + srad + sn + sp + sa + sh + scoul;
+    }
+    case ECLOGEPS:
+    {
+      Real erad  = asol * T * T * T * T / (n * mb);
+      Real eion  = 1.5 * T * inverse_abar(Y) / mb;
+      Real ebind = Y[SCEB];
+      Real etot  = eps_fac * exp(var) + erad + eion + ebind;
+      if (use_coulomb)
+      {
+        const CoulombTerms c = coulomb_terms(n, T, Y);
+        Real ecoul = c.y_chg * T * c.u / mb;
+        // same guard as the pressure channel (the eps channel stores a log)
+        if (etot + ecoul > 0.0)
+        {
+          etot += ecoul;
+        }
+      }
+      return log(etot);
     }
     case ECDEPSDT:
     {
@@ -753,55 +769,6 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
     }
   }
   throw std::logic_error("Invalid variable index in add_rad_ion");
-}
-
-Real EOSEIR::add_rad_ion_lin(int vi, Real var, Real n, Real T,
-                                   Real* Y) const
-{
-  // See add_rad_ion for the unit conventions; this is the same expression
-  // without the final log, so that callers wanting the value itself do not
-  // pay for an exp(log(.)) round trip.
-  switch (vi)
-  {
-    case ECLOGP:
-    {
-      Real prad = asol / 3.0 * T * T * T * T;
-      Real pion = n * inverse_abar(Y) * T;
-      Real ptot = exp(var) + prad + pion;
-      if (use_coulomb)
-      {
-        const CoulombTerms c = coulomb_terms(n, T, Y);
-        Real pcoul = n * c.y_chg * T * c.u / 3.0;
-        // helmeos-style guard: drop the (negative) correction rather than
-        // return a non-positive pressure (add_rad_ion takes its log)
-        if (ptot + pcoul > 0.0)
-        {
-          ptot += pcoul;
-        }
-      }
-      return ptot;
-    }
-    case ECLOGEPS:
-    {
-      Real erad  = asol * T * T * T * T / (n * mb);
-      Real eion  = 1.5 * T * inverse_abar(Y) / mb;
-      Real ebind = Y[SCEB];
-      Real etot  = Y[SCYE] / mb * exp(var) + erad + eion + ebind;
-      if (use_coulomb)
-      {
-        const CoulombTerms c = coulomb_terms(n, T, Y);
-        Real ecoul = c.y_chg * T * c.u / mb;
-        // same guard as the pressure channel
-        if (etot + ecoul > 0.0)
-        {
-          etot += ecoul;
-        }
-      }
-      return etot;
-    }
-  }
-  // The remaining channels are stored (and combined) linearly already.
-  return add_rad_ion(vi, var, n, T, Y);
 }
 
 Real EOSEIR::eval_at_nty(int vi, Real n, Real T, Real* Y) const
