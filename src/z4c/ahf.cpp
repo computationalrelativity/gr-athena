@@ -607,7 +607,8 @@ void AHF::ExpansionAndNormal(int i,
                              const ATP_N_sym& dFdidj,
                              ATP_N_vec& R,
                              Real& H,
-                             Real& u)
+                             Real& u,
+                             Real& sigma)
 {
   using namespace LinearAlgebra;
 
@@ -704,6 +705,28 @@ void AHF::ExpansionAndNormal(int i,
   // Outward unit normal: s^a = dF^a / |nabla F|
   for (int a = 0; a < NDIM; ++a)
     R(a) = dFdi_u(a) * divu;
+
+
+  const Real drdi0 = grid_.con_J(0, 0, i, j);
+  const Real drdi1 = grid_.con_J(0, 1, i, j);
+  const Real drdi2 = grid_.con_J(0, 2, i, j);
+
+  // Compute the factor sigma for the flow function rho = H*u*sigma
+
+  Real sigma_para = (ginv(0, 0) + ginv(1, 1) + ginv(2, 2) -
+                      ginv(0, 0) * SQR(drdi0) - ginv(1, 1) * SQR(drdi1) -
+                      ginv(2, 2) * SQR(drdi2) -
+                      2 * (ginv(0, 1) * drdi0 * drdi1 +
+                           ginv(0, 2) * drdi0 * drdi2 +
+                           ginv(1, 2) * drdi1 * drdi2) -
+                      SQR(R(0)) - SQR(R(1)) - SQR(R(2)) +
+                      SQR(R(0)) * SQR(drdi0) + SQR(R(1)) * SQR(drdi1) +
+                      SQR(R(2)) * SQR(drdi2) +
+                      2 * (R(0) * R(1) * drdi0 * drdi1 +
+                           R(0) * R(2) * drdi0 * drdi2 +
+                           R(1) * R(2) * drdi1 * drdi2));
+
+  sigma = 2 * SQR(rr(i, j)) * (1 / sigma_para);
 }
 
 //----------------------------------------------------------------------------------------
@@ -802,9 +825,11 @@ void AHF::SurfaceIntegrals()
         break;
 
       // Expansion and outward unit normal
-      Real H, u;
-      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u);
-      rho(i, j) = H * u;
+≈      Real H, u, sigma;
+      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u, sigma);
+
+      // New flow function rho = H * u * sigma , old flow function rho = H * u
+      rho(i, j) = H * u * sigma;
 
       // Surface area element
       Real deth = SurfaceElement(i, j);

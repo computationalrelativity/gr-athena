@@ -232,7 +232,8 @@ class AHF
                           const ATP_N_sym& dFdidj,
                           ATP_N_vec& R,
                           Real& H,
-                          Real& u);
+                          Real& u,
+                          Real& sigma);
   Real SurfaceElement(int i, int j);
   void SpinIntegrand(Real xp,
                      Real yp,
