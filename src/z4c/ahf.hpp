@@ -129,6 +129,7 @@ class AHF
     int mpi_root;
     std::string ofname_summary;
     std::string ofname_shape;
+    std::string ofname_shear;
     std::string ofname_verbose;
   } opt;
 
@@ -157,6 +158,19 @@ class AHF
   AA rr, rr_dth, rr_dph;
   AA rho;
 
+  // -- Shear tensor / spin-2 shear scalar -------------------------------------
+  AT_N_sym sigma_dd;      // sigma_ij  (transverse-traceless part of B_ij)
+  AT_N_sym sigma_uu;      // sigma^ij = g^{ik} g^{jl} sigma_kl
+  AA shear2;              // sigma_ij sigma^ij           (real, on the grid)
+  AA shear_re, shear_im;  // Re/Im[sigma_ab m^a m^b], m=(v-iw)/sqrt2 (on grid)
+
+  // Precomputed spin-weight -2 harmonics, l = 2..lmax, m = -l..l, packed via
+  // gra::sph_harm::lmindex_complex / lmpoints_complex (same packing as
+  // ComplexHarmonicTable, so indices are directly comparable elsewhere).
+  AA swsh2_re, swsh2_im;  // (ntheta, nphi, lmpoints_complex(lmax))
+  AA c2_re, c2_im;        // accumulated/reduced coefficients,
+                          // size lmpoints_complex(lmax)
+
   // -- Surface integral bookkeeping ------------------------------------------
   enum
   {
@@ -167,6 +181,7 @@ class AHF
     iSx,
     iSy,
     iSz,
+    ishear2,  // area-weighted sum of sigma_ij sigma^ij
     invar
   };
   Real integrals[invar];
@@ -185,6 +200,7 @@ class AHF
     hchi,
     hmeanradius,
     hminradius,
+    hshearrms,  // sqrt(<sigma_ij sigma^ij>_area)
     hnvar
   };
   Real ah_prop[hnvar];
@@ -202,6 +218,7 @@ class AHF
   // -- I/O -------------------------------------------------------------------
   FILE* pofile_summary;
   FILE* pofile_shape;
+  FILE* pofile_shear;
   FILE* pofile_verbose;
 
   // -- Back-pointers ---------------------------------------------------------
@@ -232,7 +249,21 @@ class AHF
                           const ATP_N_sym& dFdidj,
                           ATP_N_vec& R,
                           Real& H,
-                          Real& u);
+                          Real& u,
+                          ATP_N_sym& nnF_out,
+                          ATP_N_sym& ginv_out,
+                          ATP_N_vec& dFdi_u_out);
+  void ShearTensor(int i,
+                   int j,
+                   const ATP_N_vec& dFdi,
+                   const ATP_N_vec& dFdi_u,
+                   const ATP_N_sym& nnF,
+                   const ATP_N_sym& ginv,
+                   Real u,
+                   Real& shear2_out,
+                   Real& sre,
+                   Real& sim);
+  void PrepareSWSH2Table();
   Real SurfaceElement(int i, int j);
   void SpinIntegrand(Real xp,
                      Real yp,
