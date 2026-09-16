@@ -106,3 +106,9 @@ extern/
 **/*.out
 **/*.err
 **/RNS_DATA
+**/BATCH
+**/batch.sub
+**/JOBID
+**/PREVIOUS
+**/parent
+**/*.lock

@@ -26,7 +26,7 @@ c_func = lambda xm, xp: 0.5 * (xm + xp)
 # vol_func requires 6 arguments: the min and max faces for all 3 dimensions
 v_func = lambda x1m, x1p, x2m, x2p, x3m, x3p: (x1p - x1m) * (x2p - x2m) * (x3p - x3m)
 
-def plot_rho_equator(output_path, indices):
+def plot_rho_equator(output_path, indices, PLOT_DIR):
     """
     Plots the equatorial density (rho) from a given Athena++ output file.
 
@@ -34,9 +34,6 @@ def plot_rho_equator(output_path, indices):
     - output_path: str, path to the output directory
     - indices: list of integers, the indices of the output files to plot
     """
-
-    PLOT_DIR = f"{output_path}/plots/rho_eq_plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
 
     for index in indices:
         #if index is one digit, it should fill as 0000i and so forth
@@ -101,7 +98,7 @@ def plot_rho_equator(output_path, indices):
         plt.savefig(f'{PLOT_DIR}/rho_eq_t{time_val:.1f}.png', dpi=600)
         plt.close(fig)
 
-def plot_vel_equator(output_path, indices):
+def plot_vel_equator(output_path, indices, PLOT_DIR):
     """
     Plots the equatorial velocity from a given Athena++ output file.
 
@@ -109,9 +106,6 @@ def plot_vel_equator(output_path, indices):
     - output_path: str, path to the output directory
     - indices: list of integers, the indices of the output files to plot
     """
-
-    PLOT_DIR = f"{output_path}/plots/vel_eq_plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
 
     for index in indices:
         #if index is one digit, it should fill as 0000i and so forth
@@ -176,9 +170,7 @@ def plot_vel_equator(output_path, indices):
         plt.savefig(f'{PLOT_DIR}/vel_eq_t{time_val:.1f}.png', dpi=600)
         plt.close(fig)
 
-def plot_rho_max_vs_time(output_path):
-    PLOT_DIR = f"{output_path}/plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
+def plot_rho_max_vs_time(output_path, PLOT_DIR):
 
     data = np.loadtxt(rf"{output_path}/gr_rns.hst", comments='#')
 
@@ -191,7 +183,7 @@ def plot_rho_max_vs_time(output_path):
     times = times * M_to_ms
 
     max_rhos = data[:, 20]
-
+    print(max_rhos[0])
     normalised_rho = (max_rhos) / max_rhos[0]
 
 
@@ -204,12 +196,10 @@ def plot_rho_max_vs_time(output_path):
     # ax.legend()
 
     plt.tight_layout()
-    plt.savefig(rf"{PLOT_DIR}/frac_change_rho_max.png", dpi=600)
+    # plt.savefig(rf"{PLOT_DIR}/frac_change_rho_max.png", dpi=600)
     plt.close(fig)
 
-def plot_mass_bar_vs_time(output_path):
-    PLOT_DIR = f"{output_path}/plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
+def plot_mass_bar_vs_time(output_path, PLOT_DIR):
 
     data = np.loadtxt(rf"{output_path}/gr_rns.hst", comments='#')
 
@@ -234,9 +224,7 @@ def plot_mass_bar_vs_time(output_path):
     plt.savefig(rf"{PLOT_DIR}/frac_change_mass_bar.png", dpi=600)
     plt.close(fig)
 
-def plot_rho_u_y_along_x(output_path, time_idx_1, time_idx_2):
-    PLOT_DIR = f"{output_path}/plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
+def plot_rho_u_y_along_x(output_path, time_idx_1, time_idx_2, PLOT_DIR):
 
     # 2. Setup Figure with Dual Y-Axes
     fig, ax1 = plt.subplots(figsize=(8, 5))
@@ -320,8 +308,8 @@ def main():
 
     # plot_rho_equator(output_path, indices)
     # plot_vel_equator(output_path, [407])
-    # plot_rho_max_vs_time(output_path)
-    plot_mass_bar_vs_time(output_path)
+    plot_rho_max_vs_time(output_path)
+    # plot_mass_bar_vs_time(output_path)
     # plot_rho_u_y_along_x(output_path, 0, 407)
 
 if __name__ == "__main__":
