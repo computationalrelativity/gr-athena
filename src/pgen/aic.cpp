@@ -11,6 +11,10 @@
 #include <sstream>
 #include <string>
 
+#include <vector>
+#include <fstream>
+#include <algorithm>
+
 // Athena++ core headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -65,6 +69,9 @@ namespace {
       Deleptonization(ParameterInput* pin);
       Real Ye_of_rho(Real rho) const;
     private:
+      std::vector<Real> rho_table_;
+      std::vector<Real> Ye_table_;
+
       Real log10_rho1, log10_rho2, Ye_2, Ye_c, Ye_H;
   };
 
@@ -73,6 +80,7 @@ namespace {
   enum class opt_deleptonization_method { Liebendoerfer, Simple, None };
   opt_deleptonization_method opt_dlp_mtd_;
   
+  bool use_ye_of_rho_table = false;
   bool opt_update_conserved = false;
   bool opt_update_entropy   = true;
 
@@ -187,6 +195,7 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   opt_E_nu_avg         = pin->GetOrAddReal("problem", "E_nu_avg", 10.0);
   opt_rho_trap         = pin->GetOrAddReal("problem", "rho_trap", 1e12) / UDENS;
   opt_rho_cut          = pin->GetOrAddReal("problem", "rho_cut", -INF) / UDENS;
+  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", false);
   pdelept = new Deleptonization(pin);
 
   // 5. Initialize Magnetic Field Parameters
@@ -518,22 +527,101 @@ Deleptonization::Deleptonization(ParameterInput* pin) {
   Ye_2       = pin->GetOrAddReal("deleptonization", "Ye_2", 0.308);
   Ye_c       = pin->GetOrAddReal("deleptonization", "Ye_c", 0.0412);
   Ye_H       = pin->GetOrAddReal("deleptonization", "Ye_H", 0.257);
+  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", false);
+
+  if (use_ye_of_rho_table) {
+    std::string filename =
+        pin->GetOrAddString("problem", "Ye_rho_table", "");
+
+    if (filename.empty()) {
+      throw std::runtime_error("Ye_rho_table was not specified");
+    }
+
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+      throw std::runtime_error(
+          "Could not open Ye-rho table: " + filename);
+    }
+
+    Real Ye, rho;
+
+    // rho from the table is in log10
+    while (file >> rho >> Ye) {
+      Ye_table_.push_back(Ye);
+      rho_table_.push_back(rho);
+    }
+
+    file.close();
+
+    if (rho_table_.size() < 2) {
+      throw std::runtime_error(
+          "Ye-rho table must contain at least two points");
+    }
+
+    std::cout << "Loaded Ye-rho table with "
+              << rho_table_.size()
+              << " points." << std::endl;
+  }
 }
 
 Real Deleptonization::Ye_of_rho(Real rho) const {
-  Real const Ye_1       = 0.5;
-  Real const log10_rhoH = 15;
 
-  Real const log10_rho = log10(rho * UDENS);
-  Real const x = std::max(-1.0, std::min(1.0, 
-                 (2 * log10_rho - log10_rho2 - log10_rho1) / (log10_rho2 - log10_rho1)));
-  Real const m = (Ye_H - Ye_2) / (log10_rhoH - log10_rho2);
+  if (!use_ye_of_rho_table) {
+    Real const Ye_1       = 0.5;
+    Real const log10_rhoH = 15;
 
-  if (log10_rho > log10_rho2) {
-    return Ye_2 + m * (log10_rho - log10_rho2);
+    Real const log10_rho = log10(rho * UDENS);
+    Real const x = std::max(-1.0, std::min(1.0, 
+                  (2 * log10_rho - log10_rho2 - log10_rho1) / (log10_rho2 - log10_rho1)));
+    Real const m = (Ye_H - Ye_2) / (log10_rhoH - log10_rho2);
+
+    if (log10_rho > log10_rho2) {
+      return Ye_2 + m * (log10_rho - log10_rho2);
+    } else {
+      return 0.5 * (Ye_2 + Ye_1) + 0.5 * x * (Ye_2 - Ye_1) +
+            Ye_c * (1 - std::abs(x) + 4 * std::abs(x) * (std::abs(x) - 0.5) * (std::abs(x) - 1));
+    }
   } else {
-    return 0.5 * (Ye_2 + Ye_1) + 0.5 * x * (Ye_2 - Ye_1) +
-           Ye_c * (1 - std::abs(x) + 4 * std::abs(x) * (std::abs(x) - 0.5) * (std::abs(x) - 1));
+    // Convert code density to cgs density
+    Real log10_rho_cgs = log10(rho * UDENS);
+
+    // ------------------------------------------------------------
+    // Below the first table point
+    // ------------------------------------------------------------
+    if (log10_rho_cgs <= rho_table_.front()) {
+      return Ye_table_.front();
+    }
+
+    // ------------------------------------------------------------
+    // Above the last table point
+    // ------------------------------------------------------------
+    if (log10_rho_cgs >= rho_table_.back()) {
+      return Ye_table_.back();
+    }
+
+    // ------------------------------------------------------------
+    // Find interval containing rho
+    // ------------------------------------------------------------
+    auto it = std::lower_bound(
+        rho_table_.begin(),
+        rho_table_.end(),
+        log10_rho_cgs);
+
+    int i = std::distance(rho_table_.begin(), it);
+
+    // ------------------------------------------------------------
+    // Linear interpolation
+    // ------------------------------------------------------------
+    Real rho1 = rho_table_[i - 1];
+    Real rho2 = rho_table_[i];
+
+    Real Ye1 = Ye_table_[i - 1];
+    Real Ye2 = Ye_table_[i];
+
+    Real f = (log10_rho_cgs - rho1) / (rho2 - rho1);
+
+    return Ye1 + f * (Ye2 - Ye1);
   }
 }
 
