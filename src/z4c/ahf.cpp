@@ -1018,7 +1018,9 @@ void AHF::ShearTensor(int i,
 //  so (gbar_ij - grad_i r grad_j r) = delta_ij - n_i n_j is the flat-space
 //  angular projector, and n_i reduces to (sin(th)cos(ph), sin(th)sin(ph),
 //  cos(th)) since the surface point is already center-relative (see
-//  LevelSetGradient).
+//  LevelSetGradient). Note s^i = dFdi_u/u is unit w.r.t. the PHYSICAL metric
+//  g, not w.r.t. the flat metric, so sum_a(s^a)^2 != 1 in general and must
+//  be computed explicitly when contracting against the flat delta_ij.
 Real AHF::FlowFunctionRho(int i,
                           int j,
                           Real H,
@@ -1044,19 +1046,23 @@ Real AHF::FlowFunctionRho(int i,
                           grid_.sin_theta(i) * grid_.sin_phi(j),
                           grid_.cos_theta(i) };
 
-      // s^i = dFdi_u(i)/u (outward unit normal, raised index)
-      Real trace_ginv = 0.0, nGn = 0.0, sn = 0.0;
+      // s^i = dFdi_u(i)/u is normalized w.r.t. the PHYSICAL metric g
+      // (g_ij s^i s^j = 1); it is NOT Euclidean-unit, so sum_a (s^a)^2 must
+      // be computed explicitly rather than assumed to equal 1.
+      Real trace_ginv = 0.0, nGn = 0.0, sn = 0.0, ss_flat = 0.0;
       for (int a = 0; a < NDIM; ++a)
       {
+        const Real sa = dFdi_u(a) / u;
         trace_ginv += ginv(a, a);
-        sn += (dFdi_u(a) / u) * n[a];
+        sn += sa * n[a];
+        ss_flat += sa * sa;
         for (int b = 0; b < NDIM; ++b)
           nGn += ginv(a, b) * n[a] * n[b];
       }
 
       // D = (g^ij - s^i s^j)(delta_ij - n_i n_j)
-      //   = trace(g^ij) - 1 - [n^T g^{-1} n - (s.n)^2]
-      const Real D = trace_ginv - 1.0 - (nGn - SQR(sn));
+      //   = trace(g^ij) - n^T g^{-1} n - sum_a(s^a)^2 + (s.n)^2
+      const Real D = trace_ginv - nGn - ss_flat + SQR(sn);
 
       if (!(std::isfinite(D)) || std::fabs(D) < 1.0e-14)
         return H * u;  // degenerate fallback: behave like Hu
