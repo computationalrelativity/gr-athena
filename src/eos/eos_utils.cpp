@@ -627,6 +627,13 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
   const Real oo_mb    = OO(GetEOS().GetBaryonMass());
   Real Y[MAX_SPECIES] = { 0.0 };
 
+  // Reference enthalpy for the Bernoulli criterion (IX_HU_d_0). The global
+  // table minimum, not the value at (min_n, min_T) for the local Y: that
+  // corner is a dissociated nucleon gas in a CompOSE table (and depends on
+  // the SCEB scalar in the transition EOS), so h/h_inf < 1 for cold bound
+  // matter and the Bernoulli mask comes out stricter than the geodesic one.
+  const Real h_inf = GetEOS().GetMinimumEnthalpy();
+
   const bool sp_kj = (skip_physical && (pmb->js <= j) && (j <= pmb->je) &&
                       (pmb->ks <= k) && (k <= pmb->ke));
 
@@ -671,7 +678,6 @@ void EquationOfState::DerivedQuantities(AA& hyd_der_ms,
     const Real n     = oo_mb * prim(IDN, k, j, i);
     const Real T     = hyd_der_ms(IX_T, k, j, i);
     const Real h     = hyd_der_ms(IX_ETH, k, j, i);
-    const Real h_inf = GetEOS().GetAsymptoticEnthalpy(Y);
 
     hyd_der_ms(IX_U_d_0, k, j, i) =
       -alp * W + bx * vWx * gxx + by * vWy * gyy + bz * vWz * gzz +
