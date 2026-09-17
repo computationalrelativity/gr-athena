@@ -76,6 +76,30 @@ void AHF::ReadOptions(ParameterInput* pin)
   opt.flow_alpha_beta_const =
     pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
 
+  // Flow function (weight applied to H before spectral projection):
+  //   "H"  : rho = H
+  //   "Hu" : rho = H * u                              (default)
+  //   "F3" : rho = H * 2 r^2 |grad F| / [(g^ij - s^i s^j)(gbar_ij - grad_i r
+  //          grad_j r)], the Gundlach (1998) area-normalized flow weight
+  {
+    std::string ff =
+      pin->GetOrAddString("ahf", parkey("flow_function_"), "Hu");
+    if (ff == "H")
+      opt.flow_function = FlowFunction::H;
+    else if (ff == "Hu")
+      opt.flow_function = FlowFunction::Hu;
+    else if (ff == "F3")
+      opt.flow_function = FlowFunction::F3;
+    else
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF::ReadOptions" << std::endl;
+      msg << "Unknown flow_function_" << n_str << " '" << ff
+          << "' (expected: H | Hu | F3)";
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
+
   opt.hmean_tol    = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
   opt.mass_tol     = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-3);
   opt.spec_tol     = pin->GetOrAddReal("ahf", parkey("spec_tol_"), 1e-5);
@@ -980,6 +1004,70 @@ void AHF::ShearTensor(int i,
 }
 
 //----------------------------------------------------------------------------------------
+//! \fn Real AHF::FlowFunctionRho(...)
+//  \brief Evaluate the fast-flow driving function rho = weight(theta,phi)*H
+//  at surface point (i,j), per opt.flow_function (Gundlach 1998,
+//  gr-qc/9809004 eq. 8-9):
+//    H  : weight = 1
+//    Hu : weight = u = |grad F|                                   (default)
+//    F3 : weight = 2 r^2 |grad F| /
+//           [ (g^ij - s^i s^j)(gbar_ij - grad_i r grad_j r) ]
+//  For F3, gbar is the flat background metric of (r,theta,phi); in the
+//  Cartesian components used throughout this file, gbar_ij = delta_ij and
+//  grad_i r = n_i = (x-xc,y-yc,z-zc)_i / r is the flat radial unit covector,
+//  so (gbar_ij - grad_i r grad_j r) = delta_ij - n_i n_j is the flat-space
+//  angular projector, and n_i reduces to (sin(th)cos(ph), sin(th)sin(ph),
+//  cos(th)) since the surface point is already center-relative (see
+//  LevelSetGradient).
+Real AHF::FlowFunctionRho(int i,
+                          int j,
+                          Real H,
+                          Real u,
+                          const ATP_N_vec& dFdi_u,
+                          const ATP_N_sym& ginv)
+{
+  switch (opt.flow_function)
+  {
+    case FlowFunction::H:
+      return H;
+
+    case FlowFunction::Hu:
+      return H * u;
+
+    case FlowFunction::F3:
+    default:
+    {
+      const Real r = rr(i, j);
+
+      // Flat radial unit covector (center-relative, see LevelSetGradient)
+      const Real n[3] = { grid_.sin_theta(i) * grid_.cos_phi(j),
+                          grid_.sin_theta(i) * grid_.sin_phi(j),
+                          grid_.cos_theta(i) };
+
+      // s^i = dFdi_u(i)/u (outward unit normal, raised index)
+      Real trace_ginv = 0.0, nGn = 0.0, sn = 0.0;
+      for (int a = 0; a < NDIM; ++a)
+      {
+        trace_ginv += ginv(a, a);
+        sn += (dFdi_u(a) / u) * n[a];
+        for (int b = 0; b < NDIM; ++b)
+          nGn += ginv(a, b) * n[a] * n[b];
+      }
+
+      // D = (g^ij - s^i s^j)(delta_ij - n_i n_j)
+      //   = trace(g^ij) - 1 - [n^T g^{-1} n - (s.n)^2]
+      const Real D = trace_ginv - 1.0 - (nGn - SQR(sn));
+
+      if (!(std::isfinite(D)) || std::fabs(D) < 1.0e-14)
+        return H * u;  // degenerate fallback: behave like Hu
+
+      const Real weight = 2.0 * SQR(r) * u / D;
+      return H * weight;
+    }
+  }
+}
+
+//----------------------------------------------------------------------------------------
 //! \fn Real AHF::SurfaceElement(...)
 //  \brief Compute the determinant of the induced 2-metric on the horizon
 //  surface at point (i,j).  Returns det(h) (clamped >= 0).
@@ -1090,10 +1178,10 @@ void AHF::SurfaceIntegrals()
         break;
 
       // Expansion and outward unit normal (also returns nnF, ginv, dFdi_u
-      // for reuse by ShearTensor)
+      // for reuse by ShearTensor and FlowFunctionRho)
       Real H, u;
       ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u, nnF, ginv, dFdi_u);
-      rho(i, j) = H * u;
+      rho(i, j) = FlowFunctionRho(i, j, H, u, dFdi_u, ginv);
 
       // Shear tensor sigma_ij, sigma_ij sigma^ij, and its complex spin-2
       // dyad projection sigma_ab m^a m^b at this surface point

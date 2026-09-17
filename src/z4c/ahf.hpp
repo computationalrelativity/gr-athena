@@ -43,6 +43,23 @@ class AHF
     bb2
   };
 
+  // Fast-flow driving function: the array `rho` fed into the spectral
+  // update is rho = weight(theta,phi) * H, i.e. the projected quantity is
+  // always (weight * Theta) per Gundlach 1997 (gr-qc/9809004 eq. 8-9).
+  //   H  : weight = 1            (pure mean-curvature/expansion flow)
+  //   Hu : weight = u = |grad F| (default; regularizes near coordinate
+  //                               poles / grazing incidence)
+  //   F3 : weight = 2 r^2 |grad F| /
+  //          [ (g^ij - s^i s^j)(gbar_ij - grad_i r grad_j r) ]
+  //        with gbar the flat background metric of (r,theta,phi) -- the
+  //        area/normalization-aware weight from Gundlach's original paper.
+  enum class FlowFunction
+  {
+    H,
+    Hu,
+    F3
+  };
+
   // FastFlowLoop termination status
   enum class ExitCode
   {
@@ -110,6 +127,7 @@ class AHF
     Real retry_grow;
     int flow_iterations;
     Real flow_alpha_beta_const;
+    FlowFunction flow_function = FlowFunction::Hu;
     StepRule step_rule = StepRule::monotone;
     Real alpha_min;
     Real alpha_max;
@@ -264,6 +282,12 @@ class AHF
                    Real& sre,
                    Real& sim);
   void PrepareSWSH2Table();
+  Real FlowFunctionRho(int i,
+                       int j,
+                       Real H,
+                       Real u,
+                       const ATP_N_vec& dFdi_u,
+                       const ATP_N_sym& ginv);
   Real SurfaceElement(int i, int j);
   void SpinIntegrand(Real xp,
                      Real yp,
