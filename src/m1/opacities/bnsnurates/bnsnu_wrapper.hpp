@@ -264,11 +264,13 @@ class BNSNuRatesWrapper
     grey_op_params.opacity_pars.use_NN_medium_corr = params.use_NN_medium_corr;
     grey_op_params.opacity_pars.neglect_blocking   = params.neglect_blocking;
     grey_op_params.opacity_pars.use_decay          = params.use_decay;
-    grey_op_params.opacity_pars.use_BRT_brem       = params.use_BRT_brem;
+    grey_op_params.opacity_pars.brem_implementation =
+      params.use_BRT_brem ? BREM_BRT06 : BREM_HR98;
 
     // EOS quantities in nurates_units (NGS)
     grey_op_params.eos_pars.nb   = nb * unit_num_dens;  // [nm^-3]
     grey_op_params.eos_pars.temp = temp;  // [MeV]  (same in both systems)
+    grey_op_params.eos_pars.ye   = ye;    // [-]
     grey_op_params.eos_pars.yp =
       pmy_eos->GetProtonFraction(nb, temp, ye);  // [-]
     grey_op_params.eos_pars.yn =
