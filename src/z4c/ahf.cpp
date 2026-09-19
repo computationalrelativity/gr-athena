@@ -18,6 +18,7 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -74,6 +75,30 @@ void AHF::ReadOptions(ParameterInput* pin)
 
   opt.flow_alpha_beta_const =
     pin->GetOrAddReal("ahf", parkey("flow_alpha_beta_const_"), 1.0);
+
+  // Flow function (weight applied to H before spectral projection):
+  //   "H"  : rho = H
+  //   "Hu" : rho = H * u                              (default)
+  //   "F3" : rho = H * 2 r^2 |grad F| / [(g^ij - s^i s^j)(gbar_ij - grad_i r
+  //          grad_j r)], the Gundlach (1998) area-normalized flow weight
+  {
+    std::string ff =
+      pin->GetOrAddString("ahf", parkey("flow_function_"), "Hu");
+    if (ff == "H")
+      opt.flow_function = FlowFunction::H;
+    else if (ff == "Hu")
+      opt.flow_function = FlowFunction::Hu;
+    else if (ff == "F3")
+      opt.flow_function = FlowFunction::F3;
+    else
+    {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in AHF::ReadOptions" << std::endl;
+      msg << "Unknown flow_function_" << n_str << " '" << ff
+          << "' (expected: H | Hu | F3)";
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
 
   opt.hmean_tol    = pin->GetOrAddReal("ahf", parkey("hmean_tol_"), 100.);
   opt.mass_tol     = pin->GetOrAddReal("ahf", parkey("mass_tol_"), 1e-3);
@@ -243,6 +268,11 @@ void AHF::ReadOptions(ParameterInput* pin)
     "ahf", parkey("horizon_file_shape_"), "horizon_shape_" + n_str);
   opt.ofname_shape += ".txt";
 
+  opt.ofname_shear = pin->GetString("job", "problem_id") + ".";
+  opt.ofname_shear += pin->GetOrAddString(
+    "ahf", parkey("horizon_file_shear_"), "horizon_shear_" + n_str);
+  opt.ofname_shear += ".txt";
+
   if (opt.verbose)
   {
     opt.ofname_verbose = pin->GetString("job", "problem_id") + ".";
@@ -319,10 +349,66 @@ void AHF::PrepareArrays()
   // Array computed in surface integrals
   rho.NewAthenaArray(grid_.ntheta, grid_.nphi);
 
+  // --- Shear tensor storage ------------------------------------------------
+  sigma_dd.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  sigma_uu.NewAthenaTensor(grid_.ntheta, grid_.nphi);
+  shear2.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  shear_re.NewAthenaArray(grid_.ntheta, grid_.nphi);
+  shear_im.NewAthenaArray(grid_.ntheta, grid_.nphi);
+
+  // --- Spin -2 harmonic table + coefficient storage -------------------------
+  PrepareSWSH2Table();
+  const int n_s2 = gra::sph_harm::lmpoints_complex(opt.lmax);
+  c2_re.NewAthenaArray(n_s2);
+  c2_im.NewAthenaArray(n_s2);
+  c2_re.ZeroClear();
+  c2_im.ZeroClear();
+
   // Initialize horizon properties to NAN
   for (int v = 0; v < hnvar; ++v)
   {
     ah_prop[v] = NAN;
+  }
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::PrepareSWSH2Table()
+//  \brief Precompute the spin-weight -2 spherical harmonics _{-2}Y_lm on the
+//  AHF's (theta,phi) grid, for l = 2..lmax, m = -l..l. Packing follows
+//  gra::sph_harm::lmindex_complex/lmpoints_complex so indices agree with
+//  ComplexHarmonicTable elsewhere in the code. Spin-2 harmonics vanish
+//  identically for l < 2, so those modes are simply never populated/used.
+void AHF::PrepareSWSH2Table()
+{
+  const int lmax   = opt.lmax;
+  const int n_s2   = gra::sph_harm::lmpoints_complex(lmax);
+  const int lmin_s = 2;
+
+  swsh2_re.NewAthenaArray(grid_.ntheta, grid_.nphi, std::max(n_s2, 1));
+  swsh2_im.NewAthenaArray(grid_.ntheta, grid_.nphi, std::max(n_s2, 1));
+  swsh2_re.ZeroClear();
+  swsh2_im.ZeroClear();
+
+  if (lmax < lmin_s)
+    return;
+
+#pragma omp parallel for collapse(2) schedule(static)
+  for (int i = 0; i < grid_.ntheta; ++i)
+  {
+    for (int j = 0; j < grid_.nphi; ++j)
+    {
+      const Real theta = grid_.th_grid(i);
+      const Real phi   = grid_.ph_grid(j);
+      for (int l = lmin_s; l <= lmax; ++l)
+        for (int m = -l; m <= l; ++m)
+        {
+          const int lm = gra::sph_harm::lmindex_complex(l, m);
+          Real YR, YI;
+          gra::sph_harm::sYlm(-2, l, m, theta, phi, &YR, &YI);
+          swsh2_re(i, j, lm) = YR;
+          swsh2_im(i, j, lm) = YI;
+        }
+    }
   }
 }
 
@@ -352,8 +438,38 @@ void AHF::SetupIO()
       fprintf(pofile_summary,
               "# 1:iter 2:time 3:mass 4:mass_irr 5:Sx 6:Sy 7:Sz 8:S 9:chi "
               "10:area 11:hrms 12:hmean 13:meanradius 14:minradius "
-              "15:exit_code 16:num_iters 17:spec_resid\n");
+              "15:shear_rms 16:gw_flux "
+              "17:exit_code 18:num_iters 19:spec_resid\n");
       fflush(pofile_summary);
+    }
+
+    // Shear file: write a one-time explanatory header (file itself is
+    // opened/appended per-Write() call, same as the shape file).
+    bool shear_new_file = true;
+    if (access(opt.ofname_shear.c_str(), F_OK) == 0)
+    {
+      shear_new_file = false;
+    }
+    if (shear_new_file)
+    {
+      FILE* pf_shear_hdr = fopen(opt.ofname_shear.c_str(), "a");
+      if (pf_shear_hdr == nullptr)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in AHF constructor" << std::endl;
+        msg << "Could not open file '" << opt.ofname_shear
+            << "' for writing!";
+        throw std::runtime_error(msg.str().c_str());
+      }
+      fprintf(pf_shear_hdr,
+              "# col1: shear_rms = sqrt(<sigma_ij sigma^ij>_area)\n"
+              "# col2: gw_flux = (1/16pi) * oint sigma_ij sigma^ij dA "
+              "(instantaneous GW flux through the horizon)\n"
+              "# then Re(c_lm) Im(c_lm) pairs for l=2..lmax, m=-l..l, where\n"
+              "# sigma(theta,phi) = sigma_ab m^a m^b = sum_lm c_lm "
+              "_{-2}Y_lm(theta,phi)\n");
+      fflush(pf_shear_hdr);
+      fclose(pf_shear_hdr);
     }
 
     if (opt.verbose)
@@ -374,6 +490,8 @@ void AHF::SetupIO()
 AHF::~AHF()
 {
   // Close files
+  // (pofile_shape / pofile_shear are opened and closed per Write() call,
+  //  same pattern as before -- nothing persistent to close here for them.)
   if (Globals::my_rank == opt.mpi_root)
   {
     fclose(pofile_summary);
@@ -401,7 +519,7 @@ void AHF::Write(int iter, Real time)
     fprintf(pofile_summary, "%d %g ", iter, time);
     fprintf(pofile_summary,
             "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e "
-            "%.15e %.15e",
+            "%.15e %.15e %.15e %.15e",
             ah_prop[hmass],
             ah_prop[hmass_irr],
             ah_prop[hSx],
@@ -413,7 +531,9 @@ void AHF::Write(int iter, Real time)
             ah_prop[hhrms],
             ah_prop[hhmean],
             ah_prop[hmeanradius],
-            ah_prop[hminradius]);
+            ah_prop[hminradius],
+            ah_prop[hshearrms],
+            ah_prop[hgwflux]);
     fprintf(pofile_summary,
             " %d %d %.15e",
             static_cast<int>(last_exit),
@@ -447,6 +567,29 @@ void AHF::Write(int iter, Real time)
       }
       fprintf(pofile_shape, "\n");
       fclose(pofile_shape);
+
+      // Shear file (area-rms + complex spin-2 coefficients c_lm, l=2..lmax)
+      pofile_shear = fopen(opt.ofname_shear.c_str(), "a");
+      if (pofile_shear == nullptr)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in AHF constructor" << std::endl;
+        msg << "Could not open file '" << opt.ofname_shear
+            << "' for writing!";
+        throw std::runtime_error(msg.str().c_str());
+      }
+      fprintf(pofile_shear, "# iter = %d, Time = %g\n", iter, time);
+      fprintf(pofile_shear, "%.15e %.15e ", ah_prop[hshearrms], ah_prop[hgwflux]);
+      for (int l = 2; l <= opt.lmax; l++)
+      {
+        for (int m = -l; m <= l; m++)
+        {
+          const int lm = gra::sph_harm::lmindex_complex(l, m);
+          fprintf(pofile_shear, "%.15e %.15e ", c2_re(lm), c2_im(lm));
+        }
+      }
+      fprintf(pofile_shear, "\n");
+      fclose(pofile_shear);
     }
   }
 
@@ -600,14 +743,19 @@ bool AHF::LevelSetGradient(int i,
 //! \fn void AHF::ExpansionAndNormal(...)
 //  \brief Compute the expansion H and outward unit normal R from the metric,
 //  extrinsic curvature, metric derivatives, and level-set derivatives at
-//  surface point (i,j).
+//  surface point (i,j). Also hands back the covariant Hessian nnF, inverse
+//  3-metric ginv, and raised gradient dFdi_u so that ShearTensor() can reuse
+//  them without recomputing.
 void AHF::ExpansionAndNormal(int i,
                              int j,
                              const ATP_N_vec& dFdi,
                              const ATP_N_sym& dFdidj,
                              ATP_N_vec& R,
                              Real& H,
-                             Real& u)
+                             Real& u,
+                             ATP_N_sym& nnF_out,
+                             ATP_N_sym& ginv_out,
+                             ATP_N_vec& dFdi_u_out)
 {
   using namespace LinearAlgebra;
 
@@ -704,6 +852,230 @@ void AHF::ExpansionAndNormal(int i,
   // Outward unit normal: s^a = dF^a / |nabla F|
   for (int a = 0; a < NDIM; ++a)
     R(a) = dFdi_u(a) * divu;
+
+  // Hand back the working set for ShearTensor()
+  nnF_out    = nnF;
+  ginv_out   = ginv;
+  dFdi_u_out = dFdi_u;
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn void AHF::ShearTensor(...)
+//  \brief Compute the horizon shear tensor sigma_ij = B_ij - 1/2 q_ij B, with
+//  B_ij = q_i^k q_j^l (D_k s_l - K_kl), and its complex spin-weight -2
+//  projection sigma_ab m^a m^b, m = (v - i w)/sqrt(2), where (v,w) are the
+//  orthonormal (theta,phi)-tangent dyad Gram-Schmidt'd from the Strahlkoerper
+//  parametrization -- consistent with the (u,v,w) tetrad convention used in
+//  Z4c::Z4cWeyl for Psi4 (uvec=normal, vvec~theta, wvec~phi, m=(v-iw)/sqrt2).
+//
+//  Uses the identity q_i^k q_j^l D_k s_l = (1/u) q_i^k q_j^l nabla_k nabla_l F
+//  (the normalization-derivative term is annihilated by the projector), so no
+//  extra derivatives beyond nnF (already built in ExpansionAndNormal) are
+//  needed. As a byproduct, tr_g(B_ij) reproduces H exactly.
+void AHF::ShearTensor(int i,
+                      int j,
+                      const ATP_N_vec& dFdi,
+                      const ATP_N_vec& dFdi_u,
+                      const ATP_N_sym& nnF,
+                      const ATP_N_sym& ginv,
+                      Real u,
+                      Real& shear2_out,
+                      Real& sre,
+                      Real& sim)
+{
+  // s_a (down), s^a (up)
+  ATP_N_vec s_d, s_u;
+  for (int a = 0; a < NDIM; ++a)
+  {
+    s_d(a) = dFdi(a) / u;
+    s_u(a) = dFdi_u(a) / u;
+  }
+
+  // T_kl = nnF(k,l)/u - K_kl
+  ATP_N_sym T;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      T(a, b) = nnF(a, b) / u - K(a, b, i, j);
+      T(b, a) = T(a, b);
+    }
+
+  // sT_l = s^k T_kl ; ssT = s^k s^l T_kl
+  ATP_N_vec sT;
+  Real ssT = 0.0;
+  for (int l = 0; l < NDIM; ++l)
+  {
+    sT(l) = 0.0;
+    for (int k = 0; k < NDIM; ++k)
+      sT(l) += s_u(k) * T(k, l);
+  }
+  for (int l = 0; l < NDIM; ++l)
+    ssT += s_u(l) * sT(l);
+
+  // B_ij = q_i^k q_j^l T_kl = T_ij - s_i sT_j - s_j sT_i + s_i s_j ssT
+  ATP_N_sym B;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      B(a, b) = T(a, b) - s_d(a) * sT(b) - s_d(b) * sT(a) +
+                s_d(a) * s_d(b) * ssT;
+      B(b, a) = B(a, b);
+    }
+
+  // Trace: Btrace = g^{ab} B_ab  (== H from ExpansionAndNormal, by
+  // construction; kept as an independent local computation here so
+  // ShearTensor() is self-contained given (nnF, ginv, u, dFdi, dFdi_u, K)).
+  Real Btrace = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+      Btrace += ginv(a, b) * B(a, b);
+
+  // q_ij = g_ij - s_i s_j ; sigma_ij = B_ij - 1/2 q_ij Btrace
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      const Real q_ab = g(a, b, i, j) - s_d(a) * s_d(b);
+      sigma_dd(a, b, i, j) = B(a, b) - 0.5 * q_ab * Btrace;
+      sigma_dd(b, a, i, j) = sigma_dd(a, b, i, j);
+    }
+
+  // sigma^{ij} = g^{ik} g^{jl} sigma_kl ; sigma_ij sigma^ij
+  shear2_out = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = a; b < NDIM; ++b)
+    {
+      Real s_ab_up = 0.0;
+      for (int k = 0; k < NDIM; ++k)
+        for (int l = 0; l < NDIM; ++l)
+          s_ab_up += ginv(a, k) * ginv(b, l) * sigma_dd(k, l, i, j);
+      sigma_uu(a, b, i, j) = s_ab_up;
+      sigma_uu(b, a, i, j) = s_ab_up;
+    }
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+      shear2_out += sigma_dd(a, b, i, j) * sigma_uu(a, b, i, j);
+
+  // --- orthonormal (theta,phi) tangent dyad from the parametrization -----
+  const Real costh = grid_.cos_theta(i), sinth = grid_.sin_theta(i);
+  const Real cosph = grid_.cos_phi(j),   sinph = grid_.sin_phi(j);
+
+  const Real n[3]    = { sinth * cosph, sinth * sinph, costh };
+  const Real n_th[3] = { costh * cosph, costh * sinph, -sinth };
+  const Real n_ph[3] = { -sinth * sinph, sinth * cosph, 0.0 };
+
+  Real e_th[3], e_ph[3];
+  for (int a = 0; a < NDIM; ++a)
+  {
+    e_th[a] = rr_dth(i, j) * n[a] + rr(i, j) * n_th[a];
+    e_ph[a] = rr_dph(i, j) * n[a] + rr(i, j) * n_ph[a];
+  }
+
+  auto inner = [&](const Real* X, const Real* Y)
+  {
+    Real r = 0.0;
+    for (int a = 0; a < NDIM; ++a)
+      for (int b = 0; b < NDIM; ++b)
+        r += g(a, b, i, j) * X[a] * Y[b];
+    return r;
+  };
+
+  const Real norm_th = std::sqrt(inner(e_th, e_th));
+  Real v[3];  // ~ E_theta (unit tangent)
+  for (int a = 0; a < NDIM; ++a)
+    v[a] = e_th[a] / norm_th;
+
+  const Real proj = inner(v, e_ph);
+  Real e_ph_perp[3];
+  for (int a = 0; a < NDIM; ++a)
+    e_ph_perp[a] = e_ph[a] - proj * v[a];
+  const Real norm_ph = std::sqrt(inner(e_ph_perp, e_ph_perp));
+  Real w[3];  // ~ E_phi (unit tangent)
+  for (int a = 0; a < NDIM; ++a)
+    w[a] = e_ph_perp[a] / norm_ph;
+
+  // sigma = sigma_ab m^a m^b, m = (v - i w)/sqrt(2), same sign convention as
+  // Z4c::Z4cWeyl's Tr = v.v - w.w, Ti = -(v.w + w.v):
+  //   sigma = [ (sigma_vv - sigma_ww) - 2 i sigma_vw ] / 2
+  // and sigma is trace-free in the induced 2-metric => sigma_ww = -sigma_vv.
+  Real s_vv = 0.0, s_vw = 0.0;
+  for (int a = 0; a < NDIM; ++a)
+    for (int b = 0; b < NDIM; ++b)
+    {
+      s_vv += sigma_dd(a, b, i, j) * v[a] * v[b];
+      s_vw += sigma_dd(a, b, i, j) * v[a] * w[b];
+    }
+  sre = s_vv;   // Re[sigma] = (sigma_vv - sigma_ww)/2 = sigma_vv
+  sim = -s_vw;  // Im[sigma] = -sigma_vw
+}
+
+//----------------------------------------------------------------------------------------
+//! \fn Real AHF::FlowFunctionRho(...)
+//  \brief Evaluate the fast-flow driving function rho = weight(theta,phi)*H
+//  at surface point (i,j), per opt.flow_function (Gundlach 1998,
+//  gr-qc/9809004 eq. 8-9):
+//    H  : weight = 1
+//    Hu : weight = u = |grad F|                                   (default)
+//    F3 : weight = 2 r^2 |grad F| /
+//           [ (g^ij - s^i s^j)(gbar_ij - grad_i r grad_j r) ]
+//  For F3, gbar is the flat background metric of (r,theta,phi); in the
+//  Cartesian components used throughout this file, gbar_ij = delta_ij and
+//  grad_i r = n_i = (x-xc,y-yc,z-zc)_i / r is the flat radial unit covector,
+//  so (gbar_ij - grad_i r grad_j r) = delta_ij - n_i n_j is the flat-space
+//  angular projector, and n_i reduces to (sin(th)cos(ph), sin(th)sin(ph),
+//  cos(th)) since the surface point is already center-relative (see
+//  LevelSetGradient). Note s^i = dFdi_u/u is unit w.r.t. the PHYSICAL metric
+//  g, not w.r.t. the flat metric, so sum_a(s^a)^2 != 1 in general and must
+//  be computed explicitly when contracting against the flat delta_ij.
+Real AHF::FlowFunctionRho(int i,
+                          int j,
+                          Real H,
+                          Real u,
+                          const ATP_N_vec& dFdi_u,
+                          const ATP_N_sym& ginv)
+{
+  switch (opt.flow_function)
+  {
+    case FlowFunction::H:
+      return H;
+
+    case FlowFunction::Hu:
+      return H * u;
+
+    case FlowFunction::F3:
+    default:
+    {
+      const Real r = rr(i, j);
+
+      // Flat radial unit covector (center-relative, see LevelSetGradient)
+      const Real n[3] = { grid_.sin_theta(i) * grid_.cos_phi(j),
+                          grid_.sin_theta(i) * grid_.sin_phi(j),
+                          grid_.cos_theta(i) };
+
+      // s^i = dFdi_u(i)/u is normalized w.r.t. the PHYSICAL metric g
+      // (g_ij s^i s^j = 1); it is NOT Euclidean-unit, so sum_a (s^a)^2 must
+      // be computed explicitly rather than assumed to equal 1.
+      Real trace_ginv = 0.0, nGn = 0.0, sn = 0.0, ss_flat = 0.0;
+      for (int a = 0; a < NDIM; ++a)
+      {
+        const Real sa = dFdi_u(a) / u;
+        trace_ginv += ginv(a, a);
+        sn += sa * n[a];
+        ss_flat += sa * sa;
+        for (int b = 0; b < NDIM; ++b)
+          nGn += ginv(a, b) * n[a] * n[b];
+      }
+
+      // D = (g^ij - s^i s^j)(delta_ij - n_i n_j)
+      //   = trace(g^ij) - n^T g^{-1} n - sum_a(s^a)^2 + (s.n)^2
+      const Real D = trace_ginv - nGn - ss_flat + SQR(sn);
+
+      if (!(std::isfinite(D)) || std::fabs(D) < 1.0e-14)
+        return H * u;  // degenerate fallback: behave like Hu
+
+      const Real weight = 2.0 * SQR(r) * u / D;
+      return H * weight;
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------------
@@ -780,16 +1152,31 @@ void AHF::SurfaceIntegrals()
     integrals[v] = 0.0;
   rho.ZeroClear();
 
-  Real sum_area = 0.0, sum_coarea = 0.0, sum_hrms = 0.0, sum_hmean = 0.0;
-  Real sum_Sx = 0.0, sum_Sy = 0.0, sum_Sz = 0.0;
+  const int n_s2 = gra::sph_harm::lmpoints_complex(opt.lmax);
+  c2_re.ZeroClear();
+  c2_im.ZeroClear();
 
-#pragma omp parallel for schedule(dynamic) reduction( \
-    + : sum_area, sum_coarea, sum_hrms, sum_hmean, sum_Sx, sum_Sy, sum_Sz)
+  Real sum_area = 0.0, sum_coarea = 0.0, sum_hrms = 0.0, sum_hmean = 0.0;
+  Real sum_Sx = 0.0, sum_Sy = 0.0, sum_Sz = 0.0, sum_shear2 = 0.0;
+
+#pragma omp parallel for schedule(dynamic) reduction(+ : sum_area, \
+                                                      sum_coarea,  \
+                                                      sum_hrms,    \
+                                                      sum_hmean,   \
+                                                      sum_Sx,      \
+                                                      sum_Sy,      \
+                                                      sum_Sz,      \
+                                                      sum_shear2)
   for (int i = 0; i < grid_.ntheta; i++)
   {
     ATP_N_vec dFdi;
     ATP_N_sym dFdidj;
     ATP_N_vec R;
+    ATP_N_sym nnF, ginv;
+    ATP_N_vec dFdi_u;
+
+    // Thread-private accumulators for the spin-2 projection
+    std::vector<Real> t_c2_re(n_s2, 0.0), t_c2_im(n_s2, 0.0);
 
     for (int j = 0; j < grid_.nphi; j++)
     {
@@ -801,10 +1188,19 @@ void AHF::SurfaceIntegrals()
       if (!LevelSetGradient(i, j, dFdi, dFdidj, xp, yp, zp))
         break;
 
-      // Expansion and outward unit normal
+      // Expansion and outward unit normal (also returns nnF, ginv, dFdi_u
+      // for reuse by ShearTensor and FlowFunctionRho)
       Real H, u;
-      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u);
-      rho(i, j) = H * u;
+      ExpansionAndNormal(i, j, dFdi, dFdidj, R, H, u, nnF, ginv, dFdi_u);
+      rho(i, j) = FlowFunctionRho(i, j, H, u, dFdi_u, ginv);
+
+      // Shear tensor sigma_ij, sigma_ij sigma^ij, and its complex spin-2
+      // dyad projection sigma_ab m^a m^b at this surface point
+      Real sh2, sre, sim;
+      ShearTensor(i, j, dFdi, dFdi_u, nnF, ginv, u, sh2, sre, sim);
+      shear2(i, j)   = sh2;
+      shear_re(i, j) = sre;
+      shear_im(i, j) = sim;
 
       // Surface area element
       Real deth = SurfaceElement(i, j);
@@ -825,8 +1221,35 @@ void AHF::SurfaceIntegrals()
       sum_Sx += da * Sx;
       sum_Sy += da * Sy;
       sum_Sz += da * Sz;
+      sum_shear2 += da * sh2;
+
+      // Project sigma(theta,phi) onto conj(_{-2}Y_lm) using the pure
+      // angular measure (grid_.weights alone, no sqrt(deth)/sinth factor --
+      // this is a decomposition on the round parameter sphere, following
+      // the same convention as ComplexHarmonicTable::ProjectScalar: the
+      // conjugate Y* flips the sign of the imaginary part).
+      for (int l = 2; l <= opt.lmax; ++l)
+      {
+        for (int m = -l; m <= l; ++m)
+        {
+          const int lm  = gra::sph_harm::lmindex_complex(l, m);
+          const Real YR = swsh2_re(i, j, lm);
+          const Real YI = swsh2_im(i, j, lm);
+          t_c2_re[lm] += wght * (sre * YR + sim * YI);
+          t_c2_im[lm] += wght * (sim * YR - sre * YI);
+        }
+      }
 
     }  // phi loop
+
+#pragma omp critical
+    {
+      for (int lm = 0; lm < n_s2; ++lm)
+      {
+        c2_re(lm) += t_c2_re[lm];
+        c2_im(lm) += t_c2_im[lm];
+      }
+    }
   }  // theta loop
 
   integrals[iarea]   = sum_area;
@@ -836,6 +1259,7 @@ void AHF::SurfaceIntegrals()
   integrals[iSx]     = sum_Sx;
   integrals[iSy]     = sum_Sy;
   integrals[iSz]     = sum_Sz;
+  integrals[ishear2] = sum_shear2;
 }
 
 //----------------------------------------------------------------------------------------
@@ -1046,11 +1470,13 @@ void AHF::FastFlowLoop()
     gs_prev.assign(ylm_.lmpoints, 0.0);
   }
 
-  // Combined buffer: integrals[invar] + spec_buf[ntotal]
-  const int combined_size = invar + ntotal;
+  // Combined buffer: integrals[invar] + spec_buf[ntotal] + shear c2[2*n_s2]
+  const int n_s2           = gra::sph_harm::lmpoints_complex(opt.lmax);
+  const int combined_size  = invar + ntotal + 2 * n_s2;
   std::vector<Real> combined_buf(combined_size);
   Real* cb_integrals = combined_buf.data();
   Real* cb_spec_buf  = combined_buf.data() + invar;
+  Real* cb_shear_buf = cb_spec_buf + ntotal;
 
   // mode_ramp: continuation in lmax.
   if (opt.mode_ramp_lmin < opt.lmax)
@@ -1127,10 +1553,15 @@ void AHF::FastFlowLoop()
                  specs,
                  [this](int i, int j) { return grid_.IsOwned(i, j); });
 
-    // Pack integrals into the combined buffer
+    // Pack integrals + local shear spin-2 coefficients into the combined
+    // buffer (folded into the same reduce as the spectral update, avoiding
+    // an extra communication round-trip)
     std::memcpy(cb_integrals, integrals, invar * sizeof(Real));
+    std::memcpy(cb_shear_buf, c2_re.data(), n_s2 * sizeof(Real));
+    std::memcpy(cb_shear_buf + n_s2, c2_im.data(), n_s2 * sizeof(Real));
 
-    // Single batched MPI_Allreduce for both integrals and spectral sums
+    // Single batched MPI_Allreduce for integrals, spectral sums, and shear
+    // spin-2 coefficients
 #ifdef MPI_PARALLEL
     MPI_Allreduce(MPI_IN_PLACE,
                   combined_buf.data(),
@@ -1140,8 +1571,10 @@ void AHF::FastFlowLoop()
                   MPI_COMM_WORLD);
 #endif
 
-    // Unpack reduced integrals
+    // Unpack reduced integrals and shear coefficients
     std::memcpy(integrals, cb_integrals, invar * sizeof(Real));
+    std::memcpy(c2_re.data(), cb_shear_buf, n_s2 * sizeof(Real));
+    std::memcpy(c2_im.data(), cb_shear_buf + n_s2, n_s2 * sizeof(Real));
 
     // mode_ramp: zero gradient components for l > lmax_active.
     if (lmax_active < opt.lmax)
@@ -1480,6 +1913,11 @@ void AHF::FastFlowLoop()
     ah_prop[hSy]         = Sy;
     ah_prop[hSz]         = Sz;
     ah_prop[hS]          = S;
+    ah_prop[hshearrms]   = std::sqrt(integrals[ishear2] / area);
+    // Instantaneous GW flux through the horizon (Ashtekar-Krishnan
+    // dynamical-horizon flux law, gravitational-shear term):
+    //   dE/dt = 1/(16 pi) * oint sigma_ij sigma^ij dA
+    ah_prop[hgwflux]     = integrals[ishear2] / (16.0 * M_PI);
     // Christodoulou mass
     ah_prop[hmass]     = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
     ah_prop[hmass_irr] = mass;
@@ -1503,6 +1941,8 @@ void AHF::FastFlowLoop()
       fprintf(pofile_verbose, " Sz = %f\n", Sz);
       fprintf(pofile_verbose, " S  = %f\n", S);
       fprintf(pofile_verbose, " chi = %f\n", ah_prop[hchi]);
+      fprintf(pofile_verbose, " shear_rms = %f\n", ah_prop[hshearrms]);
+      fprintf(pofile_verbose, " gw_flux = %e\n", ah_prop[hgwflux]);
     }
     else if (!failed && !ah_found)
     {
