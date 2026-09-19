@@ -438,7 +438,8 @@ void AHF::SetupIO()
       fprintf(pofile_summary,
               "# 1:iter 2:time 3:mass 4:mass_irr 5:Sx 6:Sy 7:Sz 8:S 9:chi "
               "10:area 11:hrms 12:hmean 13:meanradius 14:minradius "
-              "15:exit_code 16:num_iters 17:spec_resid\n");
+              "15:shear_rms 16:gw_flux "
+              "17:exit_code 18:num_iters 19:spec_resid\n");
       fflush(pofile_summary);
     }
 
@@ -462,6 +463,8 @@ void AHF::SetupIO()
       }
       fprintf(pf_shear_hdr,
               "# col1: shear_rms = sqrt(<sigma_ij sigma^ij>_area)\n"
+              "# col2: gw_flux = (1/16pi) * oint sigma_ij sigma^ij dA "
+              "(instantaneous GW flux through the horizon)\n"
               "# then Re(c_lm) Im(c_lm) pairs for l=2..lmax, m=-l..l, where\n"
               "# sigma(theta,phi) = sigma_ab m^a m^b = sum_lm c_lm "
               "_{-2}Y_lm(theta,phi)\n");
@@ -516,7 +519,7 @@ void AHF::Write(int iter, Real time)
     fprintf(pofile_summary, "%d %g ", iter, time);
     fprintf(pofile_summary,
             "%.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e %.15e "
-            "%.15e %.15e",
+            "%.15e %.15e %.15e %.15e",
             ah_prop[hmass],
             ah_prop[hmass_irr],
             ah_prop[hSx],
@@ -528,7 +531,9 @@ void AHF::Write(int iter, Real time)
             ah_prop[hhrms],
             ah_prop[hhmean],
             ah_prop[hmeanradius],
-            ah_prop[hminradius]);
+            ah_prop[hminradius],
+            ah_prop[hshearrms],
+            ah_prop[hgwflux]);
     fprintf(pofile_summary,
             " %d %d %.15e",
             static_cast<int>(last_exit),
@@ -574,7 +579,7 @@ void AHF::Write(int iter, Real time)
         throw std::runtime_error(msg.str().c_str());
       }
       fprintf(pofile_shear, "# iter = %d, Time = %g\n", iter, time);
-      fprintf(pofile_shear, "%.15e ", ah_prop[hshearrms]);
+      fprintf(pofile_shear, "%.15e %.15e ", ah_prop[hshearrms], ah_prop[hgwflux]);
       for (int l = 2; l <= opt.lmax; l++)
       {
         for (int m = -l; m <= l; m++)
@@ -1909,6 +1914,10 @@ void AHF::FastFlowLoop()
     ah_prop[hSz]         = Sz;
     ah_prop[hS]          = S;
     ah_prop[hshearrms]   = std::sqrt(integrals[ishear2] / area);
+    // Instantaneous GW flux through the horizon (Ashtekar-Krishnan
+    // dynamical-horizon flux law, gravitational-shear term):
+    //   dE/dt = 1/(16 pi) * oint sigma_ij sigma^ij dA
+    ah_prop[hgwflux]     = integrals[ishear2] / (16.0 * M_PI);
     // Christodoulou mass
     ah_prop[hmass]     = std::sqrt(SQR(mass) + 0.25 * SQR(S / mass));
     ah_prop[hmass_irr] = mass;
@@ -1933,6 +1942,7 @@ void AHF::FastFlowLoop()
       fprintf(pofile_verbose, " S  = %f\n", S);
       fprintf(pofile_verbose, " chi = %f\n", ah_prop[hchi]);
       fprintf(pofile_verbose, " shear_rms = %f\n", ah_prop[hshearrms]);
+      fprintf(pofile_verbose, " gw_flux = %e\n", ah_prop[hgwflux]);
     }
     else if (!failed && !ah_found)
     {

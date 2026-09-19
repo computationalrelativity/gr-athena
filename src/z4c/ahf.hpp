@@ -93,6 +93,10 @@ class AHF
   {
     return ah_prop[hmeanradius];
   }
+  Real GetGWFlux() const
+  {
+    return ah_prop[hgwflux];
+  }
   Real GetHorizonMinRadius() const
   {
     return rr_min;
@@ -218,7 +222,8 @@ class AHF
     hchi,
     hmeanradius,
     hminradius,
-    hshearrms,  // sqrt(<sigma_ij sigma^ij>_area)
+    hshearrms,   // sqrt(<sigma_ij sigma^ij>_area)
+    hgwflux,     // instantaneous GW flux: (1/16pi) * oint sigma_ij sigma^ij dA
     hnvar
   };
   Real ah_prop[hnvar];
