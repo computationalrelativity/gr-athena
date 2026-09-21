@@ -370,43 +370,91 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
 
       const std::string str_n_pts = "hw_n_pts_" + hstwn;
 
-      const Real rho_min = pin->GetOrAddReal(pib->block_name, "rho_min", 0.0);
-      const Real rho_max = pin->GetOrAddReal(pib->block_name, "rho_max", 1e99);
-
-      // get number of points that satisfy the density window
-      auto fcn_hw_n_pts = [rho_min, rho_max](MeshBlock* pmb, int iout)
+      // The window is on rho (rho_min, rho_max) unless window_scalar names a
+      // passive scalar, in which case it is on that scalar (window_min,
+      // window_max), e.g. an NSE / ash marker.
+      const int iws = pin->GetOrAddInteger(pib->block_name, "window_scalar", -1);
+      const Real wmin = (iws < 0)
+        ? pin->GetOrAddReal(pib->block_name, "rho_min", 0.0)
+        : pin->GetOrAddReal(pib->block_name, "window_min", 0.0);
+      const Real wmax = (iws < 0)
+        ? pin->GetOrAddReal(pib->block_name, "rho_max", 1e99)
+        : pin->GetOrAddReal(pib->block_name, "window_max", 1e99);
+#if NSCALARS > 0
+      if (iws >= NSCALARS)
       {
-        return windowed_npts(pmb, IDN, pmb->phydro->w, rho_min, rho_max, iout);
+        std::stringstream msg;
+        msg << "### FATAL ERROR in " << pib->block_name
+            << ": window_scalar " << iws << " >= NSCALARS " << NSCALARS;
+        ATHENA_ERROR(msg);
+      }
+#else
+      if (iws >= 0)
+      {
+        std::stringstream msg;
+        msg << "### FATAL ERROR in " << pib->block_name
+            << ": window_scalar needs NSCALARS > 0";
+        ATHENA_ERROR(msg);
+      }
+#endif
+      auto win_ix  = [iws]() { return (iws < 0) ? IDN : iws; };
+      auto win_arr = [iws](MeshBlock* pmb) -> AA&
+      {
+#if NSCALARS > 0
+        if (iws >= 0)
+          return pmb->pscalars->r;
+#endif
+        return pmb->phydro->w;
       };
 
-      // sum quantities that live in the density window -----------------------
-      auto fcn_hw_sum = [rho_min, rho_max](MeshBlock* pmb, int iout)
+      // get number of points that satisfy the window
+      auto fcn_hw_n_pts = [=](MeshBlock* pmb, int iout)
+      {
+        return windowed_npts(pmb, win_ix(), win_arr(pmb), wmin, wmax, iout);
+      };
+
+      // sum quantities that live in the window -------------------------------
+      auto fcn_hw_sum = [=](MeshBlock* pmb, int iout)
       {
         return windowed_int(pmb,
                             IDN,
                             pmb->phydro->u,
-                            IDN,
-                            pmb->phydro->w,
-                            rho_min,
-                            rho_max,
+                            win_ix(),
+                            win_arr(pmb),
+                            wmin,
+                            wmax,
                             iout);
       };
 
-      auto fcn_hw_sum_T = [rho_min, rho_max](MeshBlock* pmb, int iout)
+      auto fcn_hw_sum_T = [=](MeshBlock* pmb, int iout)
       {
         return windowed_weighted_avg(pmb,
                                      IX_T,
                                      pmb->phydro->derived_ms,
                                      IDN,
                                      pmb->phydro->u,
-                                     IDN,
-                                     pmb->phydro->w,
-                                     rho_min,
-                                     rho_max,
+                                     win_ix(),
+                                     win_arr(pmb),
+                                     wmin,
+                                     wmax,
                                      iout);
       };
 
-      auto fcn_hw_sum_Y = [rho_min, rho_max](MeshBlock* pmb, int iout)
+      auto fcn_hw_sum_s = [=](MeshBlock* pmb, int iout)
+      {
+        return windowed_weighted_avg(pmb,
+                                     IX_SPB,
+                                     pmb->phydro->derived_ms,
+                                     IDN,
+                                     pmb->phydro->u,
+                                     win_ix(),
+                                     win_arr(pmb),
+                                     wmin,
+                                     wmax,
+                                     iout);
+      };
+
+      auto fcn_hw_sum_Y = [=](MeshBlock* pmb, int iout)
       {
         const int IX_Y = 0;
         return windowed_weighted_avg(pmb,
@@ -414,24 +462,24 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
                                      pmb->pscalars->r,
                                      IDN,
                                      pmb->phydro->u,
-                                     IDN,
-                                     pmb->phydro->w,
-                                     rho_min,
-                                     rho_max,
+                                     win_ix(),
+                                     win_arr(pmb),
+                                     wmin,
+                                     wmax,
                                      iout);
       };
 
-      auto fcn_hw_sum_Om = [rho_min, rho_max](MeshBlock* pmb, int iout)
+      auto fcn_hw_sum_Om = [=](MeshBlock* pmb, int iout)
       {
         return windowed_weighted_avg(pmb,
                                      IX_OM,
                                      pmb->phydro->derived_ms,
                                      IDN,
                                      pmb->phydro->u,
-                                     IDN,
-                                     pmb->phydro->w,
-                                     rho_min,
-                                     rho_max,
+                                     win_ix(),
+                                     win_arr(pmb),
+                                     wmin,
+                                     wmax,
                                      iout);
       };
 
@@ -443,6 +491,9 @@ void Mesh::EnrollUserStandardHydro(ParameterInput* pin)
 
       EnrollUserHistoryOutput(
         fcn_hw_sum_T, ("hw_T_" + hstwn).c_str(), UserHistoryOperation::sum);
+
+      EnrollUserHistoryOutput(
+        fcn_hw_sum_s, ("hw_s_" + hstwn).c_str(), UserHistoryOperation::sum);
 
       EnrollUserHistoryOutput(
         fcn_hw_sum_Om, ("hw_Om_" + hstwn).c_str(), UserHistoryOperation::sum);
