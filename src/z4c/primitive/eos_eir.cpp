@@ -466,12 +466,15 @@ Real EOSEIR::temperature_from_var(int iv,
   int in;
   Real wn0, wn1;
   weight_idx_ln(&wn0, &wn1, &in, log(n * Y[SCYE]));
+  // (n, Y)-only pieces of the ion/Coulomb terms, identical at every node
+  const CoulombPrep cp = coulomb_prep(n, Y);
+  const Real inv_abar  = inverse_abar(Y);
 
   auto f = [=](int it)
   {
     Real var_pt = wn0 * m_table[index(iv, in + 0, it)] +
                   wn1 * m_table[index(iv, in + 1, it)];
-    var_pt = add_rad_ion_lin(iv, var_pt, n, m_t[it], Y);
+    var_pt = add_rad_ion_lin(iv, var_pt, n, m_t[it], Y, cp, inv_abar);
     return var - var_pt;
   };
 
@@ -601,7 +604,7 @@ Real EOSEIR::temperature_from_var(int iv,
   {
     Real wt     = (lt - ltlo) / (lthi - ltlo);
     Real var_pt = (1.0 - wt) * v_lo + wt * v_hi;
-    return var - add_rad_ion_lin(iv, var_pt, n, exp(lt), Y);
+    return var - add_rad_ion_lin(iv, var_pt, n, exp(lt), Y, cp, inv_abar);
   };
 
   Real la = ltlo, lb_ = lthi;
@@ -758,6 +761,16 @@ Real EOSEIR::add_rad_ion(int vi, Real var, Real n, Real T, Real* Y) const
 Real EOSEIR::add_rad_ion_lin(int vi, Real var, Real n, Real T,
                                    Real* Y) const
 {
+  if (vi == ECLOGP || vi == ECLOGEPS)
+    return add_rad_ion_lin(vi, var, n, T, Y, coulomb_prep(n, Y),
+                           inverse_abar(Y));
+  // The remaining channels are stored (and combined) linearly already.
+  return add_rad_ion(vi, var, n, T, Y);
+}
+
+Real EOSEIR::add_rad_ion_lin(int vi, Real var, Real n, Real T, Real* Y,
+                             const CoulombPrep& cp, Real inv_abar) const
+{
   // See add_rad_ion for the unit conventions; this is the same expression
   // without the final log, so that callers wanting the value itself do not
   // pay for an exp(log(.)) round trip.
@@ -766,11 +779,11 @@ Real EOSEIR::add_rad_ion_lin(int vi, Real var, Real n, Real T,
     case ECLOGP:
     {
       Real prad = asol / 3.0 * T * T * T * T;
-      Real pion = n * inverse_abar(Y) * T;
+      Real pion = n * inv_abar * T;
       Real ptot = exp(var) + prad + pion;
       if (use_coulomb)
       {
-        const CoulombTerms c = coulomb_terms(n, T, Y);
+        const CoulombTerms c = coulomb_terms(cp, T);
         Real pcoul = n * c.y_chg * T * c.u / 3.0;
         // helmeos-style guard: drop the (negative) correction rather than
         // return a non-positive pressure (add_rad_ion takes its log)
@@ -784,12 +797,12 @@ Real EOSEIR::add_rad_ion_lin(int vi, Real var, Real n, Real T,
     case ECLOGEPS:
     {
       Real erad  = asol * T * T * T * T / (n * mb);
-      Real eion  = 1.5 * T * inverse_abar(Y) / mb;
+      Real eion  = 1.5 * T * inv_abar / mb;
       Real ebind = Y[SCEB];
       Real etot  = Y[SCYE] / mb * exp(var) + erad + eion + ebind;
       if (use_coulomb)
       {
-        const CoulombTerms c = coulomb_terms(n, T, Y);
+        const CoulombTerms c = coulomb_terms(cp, T);
         Real ecoul = c.y_chg * T * c.u / mb;
         // same guard as the pressure channel
         if (etot + ecoul > 0.0)

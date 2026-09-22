@@ -217,18 +217,46 @@ class EOSEIR : public EOSPolicyInterface
     Real du;     // du/dGamma
     Real s;      // S_C per ion in kB
   };
-  inline CoulombTerms coulomb_terms(Real n, Real T, Real* Y) const
+  // The (n, Y)-only part of the correction: charged ions per baryon, mean
+  // charge and ion-sphere radius (the cbrt). Hoisted out of temperature
+  // scans, where it is identical at every node; same arithmetic as before.
+  struct CoulombPrep
   {
-    CoulombTerms c = {0.0, 0.0, 0.0, 0.0, 0.0};
+    Real y_chg;
+    Real zbar;
+    Real a_i;
+    bool active;
+  };
+  inline CoulombPrep coulomb_prep(Real n, Real* Y) const
+  {
+    CoulombPrep p = {0.0, 0.0, 0.0, false};
     Real y_chg = Y[SCXP] + Y[SCXA] / 4 +
                  ((Y[SCXH] > 0.0) ? Y[SCXH] / Y[SCAH] : 0.0);
-    if (!(y_chg > 1e-30) || !(Y[SCYE] > 0.0) || !(T > 0.0))
+    if (!(y_chg > 1e-30) || !(Y[SCYE] > 0.0))
+    {
+      return p;
+    }
+    p.y_chg  = y_chg;
+    p.zbar   = Y[SCYE] / y_chg;  // charge neutrality
+    Real n_i = n * y_chg;
+    p.a_i    = cbrt(3.0 / (4.0 * M_PI * n_i));
+    p.active = true;
+    return p;
+  }
+  inline CoulombTerms coulomb_terms(Real n, Real T, Real* Y) const
+  {
+    return coulomb_terms(coulomb_prep(n, Y), T);
+  }
+  inline CoulombTerms coulomb_terms(const CoulombPrep& p, Real T) const
+  {
+    CoulombTerms c = {0.0, 0.0, 0.0, 0.0, 0.0};
+    if (!p.active || !(T > 0.0))
     {
       return c;
     }
-    Real zbar  = Y[SCYE] / y_chg;  // charge neutrality
-    Real n_i   = n * y_chg;
-    Real a_i   = cbrt(3.0 / (4.0 * M_PI * n_i));
+    const Real zbar  = p.zbar;
+    const Real a_i   = p.a_i;
+    const Real y_chg = p.y_chg;
     Real gamma = zbar * zbar * esqu / (a_i * T);
     constexpr Real a1 = -0.898004, b1 = 0.96786, c1 = 0.220703,
                    d1 = -0.86097, e1 = 2.5269;
@@ -273,6 +301,10 @@ class EOSEIR : public EOSPolicyInterface
   /// and skip an exp(log(.)) pair; the other channels are already linear
   /// and are forwarded unchanged.
   Real add_rad_ion_lin(int vi, Real var, Real n, Real T, Real* Y) const;
+  /// Same, with the (n, Y)-only Coulomb part and 1/abar precomputed by the
+  /// caller (temperature scans evaluate this at many T for one n, Y).
+  Real add_rad_ion_lin(int vi, Real var, Real n, Real T, Real* Y,
+                       const CoulombPrep& cp, Real inv_abar) const;
   /// Table lookup plus analytic terms, in linear space, from logs the
   /// caller already holds (ln_ne = log(n*Ye), lT = log(T)).
   inline Real eval_lin_at_lnty(int vi, Real ln_ne, Real lT, Real n, Real T,
