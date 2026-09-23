@@ -80,7 +80,7 @@ namespace {
   enum class opt_deleptonization_method { Liebendoerfer, Simple, None };
   opt_deleptonization_method opt_dlp_mtd_;
   
-  bool use_ye_of_rho_table = false;
+  bool use_ye_of_rho_table = true;
   bool opt_update_conserved = false;
   bool opt_update_entropy   = true;
 
@@ -195,7 +195,7 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   opt_E_nu_avg         = pin->GetOrAddReal("problem", "E_nu_avg", 10.0);
   opt_rho_trap         = pin->GetOrAddReal("problem", "rho_trap", 1e12) / UDENS;
   opt_rho_cut          = pin->GetOrAddReal("problem", "rho_cut", -INF) / UDENS;
-  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", false);
+  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", true);
   pdelept = new Deleptonization(pin);
 
   // 5. Initialize Magnetic Field Parameters
@@ -313,81 +313,116 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   );
 
 
-  // ============================================================
-  // Diagnostic: global density immediately after RNS interpolation
-  // ============================================================
-  // {
-  //   Real rho_local_max = 0.0;
-  //   Real rho_local_min = std::numeric_limits<Real>::max();
+//   Real rho_min = pin->GetReal("hydro", "dfloor");
+//   Real initial_Ye = pin->GetOrAddReal("problem", "initial_Ye", 0.5); // Standard C/O WD Ye
 
-  //   for (int q = 0; q < sz; ++q) {
-  //     rho_local_max = std::max(rho_local_max, rho[q]);
-  //     rho_local_min = std::min(rho_local_min, rho[q]);
-  //   }
+//   for (int k = 0; k < ncells3; ++k) {
+//     for (int j = 0; j < ncells2; ++j) {
+//       for (int i = 0; i < ncells1; ++i) {
+//         int flat_ix = i + n[0] * (j + n[1] * k);
 
-  //   Real rho_global_max = rho_local_max;
-  //   Real rho_global_min = rho_local_min;
+// #if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
+//         rho[flat_ix] *= ceos->mb / mb_rnsc;  // adjust for rns baryon mass
+// #endif
+//         // commenting out to rewrite the RNS ID        
+//         // if (rho[flat_ix] > rho_min) {
+//         //   pres[flat_ix] = ceos->GetPressure(rho[flat_ix]);
+//         // }
 
-  // #ifdef MPI_PARALLEL
-  //   MPI_Allreduce(&rho_local_max, &rho_global_max, 1,
-  //                 MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+//         // Apply density cutoff (from ccsn.cpp logic)
+//         if (opt_rho_cut > 0 && rho[flat_ix] < opt_rho_cut) {
+//             rho[flat_ix] = rho_min;
+//         }
 
-  //   MPI_Allreduce(&rho_local_min, &rho_global_min, 1,
-  //                 MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-  // #endif
+//         phydro->w(IDN, k, j, i) = rho[flat_ix];
+//         phydro->w(IPR, k, j, i) = pres[flat_ix];
+//         phydro->w(IVX, k, j, i) = ux[flat_ix];
+//         phydro->w(IVY, k, j, i) = uy[flat_ix];
+//         phydro->w(IVZ, k, j, i) = uz[flat_ix];
 
-  //   // Print local ranges from every MPI rank
-  //   std::cout << "Rank " << Globals::my_rank
-  //             << ": RNS interpolated rho range = ["
-  //             << std::scientific << rho_local_min << ", "
-  //             << rho_local_max << "]"
-  //             << std::endl;
-
-  //   // Print the global range once
-  //   if (Globals::my_rank == 0) {
-  //     std::cout << std::scientific
-  //               << "GLOBAL RNS interpolated rho range = ["
-  //               << rho_global_min << ", "
-  //               << rho_global_max << "]"
-  //               << std::endl;
-
-  //     std::cout << "Expected RNS central rho = "
-  //               << 1.61081431e-08
-  //               << std::endl;
-  //   }
-  // }
-  // ============================================================
-
+//         // --- The AIC Twist: Explicitly set Electron Fraction ---
+//         // pscalars->r(IYE, k, j, i) = initial_Ye;
+//         pscalars->r(IYE, k, j, i) = pdelept->Ye_of_rho(rho[flat_ix]);
+//       }
+//     }
+//   }
 
   Real rho_min = pin->GetReal("hydro", "dfloor");
-  Real initial_Ye = pin->GetOrAddReal("problem", "initial_Ye", 0.5); // Standard C/O WD Ye
+  Real initial_Ye = pin->GetOrAddReal("problem", "initial_Ye", 0.5);
+
+  const Real mb = ceos->GetBaryonMass();
+  auto reos = peos->GetEOS();
 
   for (int k = 0; k < ncells3; ++k) {
     for (int j = 0; j < ncells2; ++j) {
       for (int i = 0; i < ncells1; ++i) {
+
         int flat_ix = i + n[0] * (j + n[1] * k);
 
-#if defined(USE_COMPOSE_EOS) || defined(USE_HYBRID_EOS)
-        rho[flat_ix] *= ceos->mb / mb_rnsc;  // adjust for rns baryon mass
-#endif
-        
-        if (rho[flat_ix] > rho_min) {
-          pres[flat_ix] = ceos->GetPressure(rho[flat_ix]);
-        }
-
-        // Apply density cutoff (from ccsn.cpp logic)
-        if (opt_rho_cut > 0 && rho[flat_ix] < opt_rho_cut) {
-            rho[flat_ix] = rho_min;
-        }
-
-        phydro->w(IDN, k, j, i) = rho[flat_ix];
-        phydro->w(IPR, k, j, i) = pres[flat_ix];
-        phydro->w(IVX, k, j, i) = ux[flat_ix];
-        phydro->w(IVY, k, j, i) = uy[flat_ix];
-        phydro->w(IVZ, k, j, i) = uz[flat_ix];
-
-        // --- The AIC Twist: Explicitly set Electron Fraction ---
-        pscalars->r(IYE, k, j, i) = initial_Ye;
+		if (rho[flat_ix] > rho_min) {
+			const Real P_ID   = pres[flat_ix];
+			        
+	        Real rho_ID = ceos->GetDensityFromPressure(P_ID);
+	        
+	        if (!std::isfinite(rho_ID)) {
+	          std::cout << "BAD rho_ID: "
+	                    << "i=" << i << " j=" << j << " k=" << k
+	                    << " P_ID=" << P_ID
+	                    << " rho_ID=" << rho_ID
+	                    << std::endl;
+	        }
+	        
+	        // Apply density cutoff
+	        if (opt_rho_cut > 0 && rho_ID < opt_rho_cut) {
+	          rho_ID = rho_min;
+	        }
+	
+	        const Real n_b = rho_ID / mb;
+	
+	        Real Y_old[MAX_SPECIES]{0.0};
+	        Y_old[IYE] = initial_Ye;
+	
+	        const Real T = reos.GetTemperatureFromP(
+	            n_b, P_ID, Y_old);
+	
+			if (!std::isfinite(T)) {
+				std::cout << "BAD T: "
+	            << "i=" << i << " j=" << j << " k=" << k
+	            << " P_ID=" << P_ID
+	            << " rho_ID=" << rho_ID
+	            << " n_b=" << n_b
+	            << " Ye_old=" << initial_Ye
+	            << " T=" << T
+	            << std::endl;
+			}
+	
+	        Real Ye_new = pdelept->Ye_of_rho(rho_ID);
+	
+	        Real Y_new[MAX_SPECIES]{0.0};
+	        Y_new[IYE] = Ye_new;
+	
+	        const Real P_new = reos.GetPressure(
+	            n_b, T, Y_new);
+			if (!std::isfinite(P_new)) {
+			  std::cout << "BAD P_new: "
+			            << "i=" << i << " j=" << j << " k=" << k
+			            << " P_ID=" << P_ID
+			            << " rho_ID=" << rho_ID
+			            << " T=" << T
+			            << " Ye_new=" << Ye_new
+			            << " P_new=" << P_new
+			            << std::endl;
+			}
+			
+	        phydro->w(IDN, k, j, i) = rho_ID;
+	        phydro->w(IPR, k, j, i) = P_new;
+	
+	        phydro->w(IVX, k, j, i) = ux[flat_ix];
+	        phydro->w(IVY, k, j, i) = uy[flat_ix];
+	        phydro->w(IVZ, k, j, i) = uz[flat_ix];
+	
+	        pscalars->r(IYE, k, j, i) = Ye_new;
+		}
       }
     }
   }
@@ -527,7 +562,7 @@ Deleptonization::Deleptonization(ParameterInput* pin) {
   Ye_2       = pin->GetOrAddReal("deleptonization", "Ye_2", 0.308);
   Ye_c       = pin->GetOrAddReal("deleptonization", "Ye_c", 0.0412);
   Ye_H       = pin->GetOrAddReal("deleptonization", "Ye_H", 0.257);
-  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", false);
+  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", true);
 
   if (use_ye_of_rho_table) {
     std::string filename =
@@ -558,10 +593,11 @@ Deleptonization::Deleptonization(ParameterInput* pin) {
       throw std::runtime_error(
           "Ye-rho table must contain at least two points");
     }
-
-    std::cout << "Loaded Ye-rho table with "
-              << rho_table_.size()
-              << " points." << std::endl;
+    //if (Globals::my_rank == 0) {
+    //	std::cout << "Loaded Ye-rho table with "
+    //          	<< rho_table_.size()
+    //          	<< " points." << std::endl;
+    //}          	
   }
 }
 

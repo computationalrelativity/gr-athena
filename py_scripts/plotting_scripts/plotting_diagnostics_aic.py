@@ -17,11 +17,21 @@ M_to_ms = 4.92549095e-6 * 1e3
 # rho to CGS units factor [g/cm^3]
 rho_to_cgs = 6.177e17
 
+# mass to CGS
+mass_to_cgs = 1.989e33  # solar mass in grams
+
 # code units to km factor
 code_to_km = 1.47662504
 
-# pressure to CGS units factor [dyne/cm^2]
-press_to_cgs = rho_to_cgs * (code_to_km / M_to_ms)**2  # P = rho * c^2, where c = code_to_km / M_to_ms
+code_to_cm = code_to_km * 1e5
+
+M_to_s = M_to_ms * 1e-3
+
+c_cgs = code_to_cm / M_to_s
+
+press_to_cgs = rho_to_cgs * (c_cgs)**2  
+
+energy_to_cgs = mass_to_cgs * (c_cgs)**2
 
 # 1. Correct Cartesian geometry functions matching the athena_read.py API
 # face_func requires 4 arguments: xmin, xmax, ratio, and number of points
@@ -33,256 +43,79 @@ c_func = lambda xm, xp: 0.5 * (xm + xp)
 # vol_func requires 6 arguments: the min and max faces for all 3 dimensions
 v_func = lambda x1m, x1p, x2m, x2p, x3m, x3p: (x1p - x1m) * (x2p - x2m) * (x3p - x3m)
 
-def plot_rho_equator(output_path, indices, PLOT_DIR):
-    """
-    Plots the equatorial density (rho) from a given Athena++ output file.
-
-    Parameters:
-    - output_path: str, path to the output directory
-    - indices: list of integers, the indices of the output files to plot
-    - PLOT_DIR: str, path to the plot directory
-    """
-
-    PLOTS_DIR = f"{PLOT_DIR}/rho_eq_plots"
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-
-    for index in indices:
-        filepath = f"{output_path}/aic.out3.{index:05d}.athdf"
-
-        with h5py.File(filepath, 'r') as f:
-            time_val = f.attrs['Time']
-
-        # 2. Extract and stitch SMR data, chooses the highest resolution level available
-        data = athena_read.athdf(
-            filepath, 
-            quantities=['hydro.prim.rho'],  # Use 'hydro.prim.rho' if your specific fork requires it
-            vol_func=v_func,
-            face_func_1=f_func,
-            face_func_2=f_func,
-            face_func_3=f_func,
-            center_func_1=c_func,
-            center_func_2=c_func,
-            center_func_3=c_func
-        )
-
-        # 3. Find the index closest to z = 0 using cell-centered (v) coordinates
-        z_coords = data['x3v']
-        # print(z_coords)
-        z_idx = np.argmin(np.abs(z_coords - 0.0))
-
-        # 4. Extract the 2D density array and face-centered (f) bounding coordinates
-        rho_equator = data['hydro.prim.rho'][z_idx, :, :]
-        x = data['x1f']
-        y = data['x2f']
-
-        # 5. Render the Plot
-        fig, ax = plt.subplots(figsize=(6, 5))
-
-        mesh = ax.pcolormesh(
-            x*code_to_km, y*code_to_km, rho_equator, 
-            cmap='magma', 
-            norm=LogNorm(vmin=1e-10, vmax=rho_equator.max())
-        )
-
-        # Formatting
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        cbar = plt.colorbar(mesh, cax=cax)
-        cbar.set_label(r'Rest Mass Density $\rho$', fontsize=12)
-
-        # ax.set_xlim(-20.0, 20.0)
-        # ax.set_ylim(-20.0, 20.0)
-        ax.set_xlabel(r'$x$ (km)', fontsize=12)
-        ax.set_ylabel(r'$y$ (km)', fontsize=12)
-        ax.set_title(rf'$t={time_val*M_to_ms:.3f}$ ms', fontsize=14)
-
-        ax.set_aspect('equal')
-        plt.tight_layout()
-        plt.savefig(f'{PLOTS_DIR}/rho_eq_t{time_val:.3f}.png', dpi=600)
-        plt.close(fig)
-
-def plot_vel_equator(output_path, indices, PLOT_DIR):
-    """
-    Plots the equatorial velocity from a given Athena++ output file.
-
-    Parameters:
-    - output_path: str, path to the output directory
-    - indices: list of integers, the indices of the output files to plot
-    - PLOT_DIR: str, path to the plot directory
-    """
-
-    PLOTS_DIR = f"{PLOT_DIR}/vel_eq_plots"
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-
-    for index in indices:
-        filepath = f"{output_path}/aic.out3.{index:05d}.athdf"
-
-        with h5py.File(filepath, 'r') as f:
-            time_val = f.attrs['Time']
-
-        data = athena_read.athdf(
-                            filepath, 
-                            quantities=['hydro.prim.util_u_1', 'hydro.prim.util_u_2'],
-                            vol_func=v_func, face_func_1=f_func, face_func_2=f_func, face_func_3=f_func,
-                            center_func_1=c_func, center_func_2=c_func, center_func_3=c_func
-                        )
-
-        # 3. Pull directly from Z-index 0 (since the grid is 2D)
-        z_coords = data['x3v']
-        z_idx = np.argmin(np.abs(z_coords - 0.0))
-
-        ux = data['hydro.prim.util_u_1'][z_idx, :, :]
-        uy = data['hydro.prim.util_u_2'][z_idx, :, :]
-
-        # 4. Calculate Radial Velocity
-        xv, yv = np.meshgrid(data['x1v'], data['x2v'])
-        r = np.sqrt(xv**2 + yv**2)
-        r[r == 0] = 1e-10  # Prevent division by zero at origin
-
-        ur = (xv * ux + yv * uy) / r
-
-        # 5. Render Plot
-        fig, ax = plt.subplots(figsize=(6, 5))
-
-        # Keep limits extremely tight to catch numerical noise at the surface
-        # find the max positive and negative values of ur, and set the vmin and vmax to be symmetric around zero
-        vmax = np.max(np.abs(ur))
-        vmin = -vmax
-        mesh = ax.pcolormesh(
-            data['x1f']*code_to_km, data['x2f']*code_to_km, ur, 
-            cmap='RdBu_r',
-            norm=Normalize(vmin=vmin, vmax=vmax)
-        )
-
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        
-        cbar = plt.colorbar(mesh, cax=cax)
-        cbar.set_label(r'Radial Velocity $u_r$', fontsize=12)
-        # control the height of the bar
-        cbar.ax.set_ylim(-vmax, vmax)
-
-        # ax.set_xlim(-20.0, 20.0)
-        # ax.set_ylim(-20.0, 20.0)
-        ax.set_xlabel(r'$x$ (km)', fontsize=12)
-        ax.set_ylabel(r'$y$ (km)', fontsize=12)
-        ax.set_title(rf'$t={time_val*M_to_ms:.3f}$ ms', fontsize=14)
-        ax.set_aspect('equal')
-
-        plt.tight_layout()
-        plt.savefig(f'{PLOTS_DIR}/vel_eq_t{time_val:.3f}.png', dpi=600)
-        plt.close(fig)
-
-def plot_rho_u_y_along_x(output_path, time_idx_1, time_idx_2):
-    PLOT_DIR = f"{output_path}/plots"
-    os.makedirs(PLOT_DIR, exist_ok=True)
-
-    # 2. Setup Figure with Dual Y-Axes
-    fig, ax1 = plt.subplots(figsize=(8, 5))
-    ax2 = ax1.twinx() 
-
-    # Format assumes standard GR-Athena++ naming: gr_rns.out3.00010.athdf
-    filepath_1 = f"{output_path}/gr_rns.out3.{time_idx_1:05d}.athdf"
-    filepath_2 = f"{output_path}/gr_rns.out3.{time_idx_2:05d}.athdf"
-
-    # Extract data
-    data_1 = athena_read.athdf(
-        filepath_1, 
-        quantities=['hydro.prim.rho', 'hydro.prim.util_u_2'],
-        vol_func=v_func, face_func_1=f_func, face_func_2=f_func, face_func_3=f_func,
-        center_func_1=c_func, center_func_2=c_func, center_func_3=c_func
-    )
-
-    data_2 = athena_read.athdf(
-        filepath_2, 
-        quantities=['hydro.prim.rho', 'hydro.prim.util_u_2'],
-        vol_func=v_func, face_func_1=f_func, face_func_2=f_func, face_func_3=f_func,
-        center_func_1=c_func, center_func_2=c_func, center_func_3=c_func
-    )
-    with h5py.File(filepath_1, 'r') as f:
-        time_val_1 = f.attrs['Time']
-    with h5py.File(filepath_2, 'r') as f:
-        time_val_2 = f.attrs['Time']
-
-    # Isolate the x-axis (where y=0 and z=0)
-    z_idx = np.argmin(np.abs(data_1['x3v'] - 0.0))
-    y_idx = np.argmin(np.abs(data_1['x2v'] - 0.0))
-    
-    x_1d = data_1['x1v']
-    rho_1 = data_1['hydro.prim.rho'][z_idx, y_idx, :]
-    uy_1 = data_1['hydro.prim.util_u_2'][z_idx, y_idx, :]
-
-    rho_2 = data_2['hydro.prim.rho'][z_idx, y_idx, :]
-    uy_2 = data_2['hydro.prim.util_u_2'][z_idx, y_idx, :]
-
-    # Plot Density on the left axis (solid line)
-    ax1.plot(x_1d, rho_1*rho_to_cgs, color='navy', linestyle='-', linewidth=2, label=rf'$\rho$ (t={time_val_1*M_to_ms:.1f} ms)')
-    ax1.plot(x_1d, rho_2*rho_to_cgs, color='navy', linestyle='-.', linewidth=2, label=rf'$\rho$ (t={time_val_2*M_to_ms:.1f} ms)')
-    
-    # Plot Velocity on the right axis (dashed line)
-    ax2.plot(x_1d, uy_1, color='red', linestyle='-', linewidth=2, label=rf'$u_y$ (t={time_val_1*M_to_ms:.1f} ms)')
-    ax2.plot(x_1d, uy_2, color='red', linestyle='-.', linewidth=2, label=rf'$u_y$ (t={time_val_2*M_to_ms:.1f} ms)')
-
-    # 3. Formatting Left Axis (Density)
-    ax1.set_xlabel(r'$x$ (Code Units)', fontsize=12)
-    ax1.set_ylabel(r'$\rho \left(\rm{g/cm^3}\right)$ ', fontsize=12, color='navy')
-    ax1.set_yscale('log')
-    # ax1.set_ylim(1e-12, 1e-3)  # Adjust based on your SFHo central density
-    ax1.tick_params(axis='y', labelcolor='navy')
-    ax1.grid(True, alpha=0.3)
-    
-    # 4. Formatting Right Axis (Velocity)
-    ax2.set_ylabel(r'$u_y / c$', fontsize=12, color='red')
-    ax2.tick_params(axis='y', labelcolor='red')
-
-    # Combine legends from both axes
-    lines_1, labels_1 = ax1.get_legend_handles_labels()
-    lines_2, labels_2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left', fontsize=9, ncol=2)
-
-    ax1.set_xlim(-40.0, 40.0)
-
-    # add minor ticks to both axes
-    ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10)*1.0, numticks=30))
-    ax2.minorticks_on()
-
-    ax1.tick_params(axis='both', which='both', direction='in', top=True, right=False)
-    ax2.tick_params(axis='y', which='both', direction='in')
-
-    plt.tight_layout()
-    plt.savefig(f"{PLOT_DIR}/1d_profile_rho_uy_x_axis.png", dpi=600)
-    plt.close()
-
-def plot_from_hst_vs_time(output_path, PLOT_DIR):
+def plot_from_hst_vs_time(variables, output_path, PLOT_DIR):
 
     data = np.loadtxt(rf"{output_path}/aic.hst", comments='#')
     times = data[:, 0]
 
     max_rhos = data[:, 23]
     mass = data[:, 3]
+    mass_per_cell = data[:, 47]
+    E_kin = data[:, 28]
+    min_alpha = data[:, 45]
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(times*M_to_ms, max_rhos*rho_to_cgs, color='navy')
-    ax.set_xlabel('Time (ms)', fontsize=12)
-    ax.set_ylabel(r'$\rho_{\rm max} $ (g/cm$^3$)', fontsize=12)
-    ax.set_title('Max Density', fontsize=14)
-    ax.grid(True, linestyle='--', alpha=0.7)
-    # ax.set_ylim(-0.1e14, 1e14) 
+    if "rho" in variables:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(times*M_to_ms, max_rhos*rho_to_cgs, color='navy')
+        ax.set_xlabel('Time (ms)', fontsize=12)
+        ax.set_ylabel(r'$\rho_{\rm max} $ (g/cm$^3$)', fontsize=12)
+        ax.set_title('Max Density', fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        # ax.set_yscale("log")
+        # ax.set_ylim(-0.1e14, 1e14) 
 
-    plt.tight_layout()
-    plt.savefig(rf"{PLOT_DIR}/rho_max_vs_time.png", dpi=600)
-    plt.close(fig)
+        ax.set_xbound([80, 102])
+        plt.tight_layout()
+        plt.savefig(rf"{PLOT_DIR}/rho_max_vs_time.png", dpi=600)
+        plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(times*M_to_ms, mass, color='navy')
-    ax.set_xlabel('Time (ms)', fontsize=12)
-    ax.set_ylabel(r'$M_{\rm b}$', fontsize=12)
-    ax.set_title('Barionic Mass', fontsize=14)
-    ax.grid(True, linestyle='--', alpha=0.7)
+    if "alpha" in variables:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(times*M_to_ms, min_alpha, color='navy')
+        ax.set_xlabel('Time (ms)', fontsize=12)
+        ax.set_ylabel(r'$\alpha_{\rm min}$', fontsize=12)
+        ax.set_title('Min Lapse', fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
 
-    plt.tight_layout()
-    plt.savefig(rf"{PLOT_DIR}/mass_bar_vs_time.png", dpi=600)
-    plt.close(fig)
+        plt.tight_layout()
+        plt.savefig(rf"{PLOT_DIR}/alpha_min_vs_time.png", dpi=600)
+        plt.close(fig)
+    
+    if "mass" in variables:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(times*M_to_ms, mass, color='navy')
+        ax.set_xlabel('Time (ms)', fontsize=12)
+        ax.set_ylabel(r'$M_{\rm b}$', fontsize=12)
+        ax.set_title('Barionic Mass', fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
+
+        plt.tight_layout()
+        plt.savefig(rf"{PLOT_DIR}/mass_bar_vs_time.png", dpi=600)
+        plt.close(fig)
+
+    if "mass_per_cell" in variables:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(times*M_to_ms, mass_per_cell, color='navy')
+        ax.set_xlabel('Time (ms)', fontsize=12)
+        ax.set_ylabel(r'$M_{\rm b}$ per cell', fontsize=12)
+        ax.set_title('Barionic Mass per cell', fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_yscale("log")
+        plt.tight_layout()
+        plt.savefig(rf"{PLOT_DIR}/mass_per_cell_vs_time.png", dpi=600)
+        plt.close(fig)
+
+    if "E_kin" in variables:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(times*M_to_ms, E_kin*energy_to_cgs, color='navy')
+        ax.set_xlabel('Time (ms)', fontsize=12)
+        ax.set_ylabel(r'$E_{\rm kin} $ (erg)', fontsize=12)
+        ax.set_title('Kinetic Energy', fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_yscale("log")
+        plt.tight_layout()
+        plt.savefig(rf"{PLOT_DIR}/kinetic_energy_vs_time.png", dpi=600)
+        plt.close(fig)
 
 def plot_hydro_along_x(variables, output_path, time_idxs, PLOT_DIR):
     
@@ -305,7 +138,7 @@ def plot_hydro_along_x(variables, output_path, time_idxs, PLOT_DIR):
         'hydro.aux.T': {
             'ylabel': r'$T \left(\rm{MeV}\right)$', 
             'scale': 1.0, 
-            'log': False, 
+            'log': True, 
             'filename': 'temp_x_axis.png',
             'label_sym': r'$T$'
         },
@@ -461,25 +294,371 @@ def plot_hydro_along_x(variables, output_path, time_idxs, PLOT_DIR):
         fig_rho.savefig(f"{PLOT_DIR}/ye_vs_rho.png", dpi=600)
         plt.close(fig_rho)
 
+def plot_hydro_equator_2d(variables, output_path, time_idxs, PLOT_DIR):
+    
+    # 1. Configuration dictionary for 2D specific formatting
+    var_format = {
+        'hydro.prim.rho': {
+            'cbar_label': r'$\rho \left(\rm{g/cm^3}\right)$', 
+            'scale': rho_to_cgs, 
+            'cmap': 'magma',
+            'log': True, 
+            'diverging': False,
+            'folder': 'rho_equator',
+            'title_sym': r'$\rho$'
+        },
+        'hydro.prim.p': {
+            'cbar_label': r'$P \left(\rm{dyn/cm^2}\right)$', 
+            'scale': press_to_cgs,
+            'cmap': 'viridis',
+            'log': True, 
+            'diverging': False,
+            'folder': 'pressure_equator',
+            'title_sym': r'$P$'
+        },
+        'hydro.aux.T': {
+            'cbar_label': r'$T \left(\rm{MeV}\right)$', 
+            'scale': 1.0, 
+            'cmap': 'inferno',
+            'log': True, 
+            'diverging': False,
+            'folder': 'temp_equator',
+            'title_sym': r'$T$'
+        },
+        'passive_scalar.r_0': {
+            'cbar_label': r'$Y_e$', 
+            'scale': 1.0, 
+            'cmap': 'RdYlBu',
+            'log': False, 
+            'diverging': False,
+            'folder': 'ye_equator',
+            'title_sym': r'$Y_e$'
+        },
+        'velocity_r': {
+            'cbar_label': r'Radial Velocity $u_r$', 
+            'scale': 1.0, 
+            'cmap': 'RdBu_r',  # Diverging colormap
+            'log': False, 
+            'diverging': True, # Triggers symmetric colorbar around 0
+            'folder': 'vel_equator',
+            'title_sym': r'$u_r$'
+        }
+    }
+
+    # 2. Dependency Resolution
+    ye_var = 'passive_scalar.r_0'
+    
+    # Determine exactly which variables need to be extracted from HDF5
+    fetch_vars_3 = set(v for v in variables if v not in [ye_var, 'velocity_r'])
+    fetch_vars_4 = set([ye_var]) if ye_var in variables else set()
+    
+    # If radial velocity is requested, we must fetch the underlying momentum/velocity components
+    if 'velocity_r' in variables:
+        fetch_vars_3.add('hydro.prim.util_u_1')
+        fetch_vars_3.add('hydro.prim.util_u_2')
+        
+    fetch_vars_3 = list(fetch_vars_3)
+    fetch_vars_4 = list(fetch_vars_4)
+
+    # 3. Iterate ONLY over the explicitly requested time indices
+    for time_idx in time_idxs:
+        file_3 = f"{output_path}/aic.out3.{time_idx:05d}.athdf"
+        
+        # Read out3 variables
+        data_3 = athena_read.athdf(
+            file_3, quantities=fetch_vars_3,
+            vol_func=v_func, face_func_1=f_func, face_func_2=f_func, face_func_3=f_func,
+            center_func_1=c_func, center_func_2=c_func, center_func_3=c_func, raw=True
+        )
+
+        with h5py.File(file_3, 'r') as f:
+            time_val = f.attrs['Time']
+
+        # Read out4 variables (Ye) if required
+        data_4 = None
+        if fetch_vars_4:
+            file_4 = f"{output_path}/aic.out4.{time_idx:05d}.athdf"
+            data_4 = athena_read.athdf(
+                file_4, quantities=fetch_vars_4,
+                vol_func=v_func, face_func_1=f_func, face_func_2=f_func, face_func_3=f_func,
+                center_func_1=c_func, center_func_2=c_func, center_func_3=c_func, raw=True
+            )
+
+        num_blocks = data_3['x1f'].shape[0]
+        slices_2d = {var: [] for var in variables}
+        
+        # 4. Extract Equatorial Slices (Z=0)
+        for b in range(num_blocks):
+            z_min, z_max = data_3['x3f'][b, 0], data_3['x3f'][b, -1]
+            
+            # Filter: Only process MeshBlocks that straddle the equator (z=0)
+            if z_min <= 0.0 <= z_max:
+                k = np.argmin(np.abs(data_3['x3v'][b, :] - 0.0))
+                
+                # Face coordinates for rendering
+                x_faces = data_3['x1f'][b, :] * code_to_km
+                y_faces = data_3['x2f'][b, :] * code_to_km
+                X, Y = np.meshgrid(x_faces, y_faces)
+                
+                for var in variables:
+                    if var == ye_var:
+                        slice_data = data_4[var][b, k, :, :]
+                    elif var == 'velocity_r':
+                        # Compute derived radial velocity for this block
+                        ux = data_3['hydro.prim.util_u_1'][b, k, :, :]
+                        uy = data_3['hydro.prim.util_u_2'][b, k, :, :]
+                        
+                        # Center coordinates for vector math
+                        xv, yv = np.meshgrid(data_3['x1v'][b, :], data_3['x2v'][b, :])
+                        r = np.sqrt(xv**2 + yv**2)
+                        r[r == 0] = 1e-10  # Prevent division by zero
+                        
+                        slice_data = (xv * ux + yv * uy) / r
+                    else:
+                        slice_data = data_3[var][b, k, :, :]
+                        
+                    slices_2d[var].append((X, Y, slice_data))
+
+        # 5. Render and Save Plots (Into variable-specific subdirectories)
+        for var in variables:
+            fmt = var_format.get(var, {
+                'cbar_label': var, 'scale': 1.0, 'cmap': 'viridis', 'log': False, 
+                'diverging': False, 'folder': f'{var.replace(".", "_")}_equator', 'title_sym': var
+            })
+            
+            # Create specific subdirectory for this variable
+            var_dir = f"{PLOT_DIR}/{fmt['folder']}"
+            os.makedirs(var_dir, exist_ok=True)
+            
+            fig, ax = plt.subplots(figsize=(8, 7))
+            
+            # Calculate global min/max across all MeshBlocks
+            all_data = np.concatenate([s[2].flatten() for s in slices_2d[var]]) * fmt['scale']
+            
+            if fmt['diverging']:
+                # Symmetric limits centered exactly on 0
+                vmax = max(np.nanmax(np.abs(all_data)), 1e-10) # 1e-10 prevents vmin=vmax=0 collapse
+                norm = Normalize(vmin=-vmax, vmax=vmax)
+            elif fmt['log']:
+                all_data_positive = all_data[all_data > 0]
+                vmin = np.nanmin(all_data_positive) if len(all_data_positive) > 0 else 1e-10
+                vmax = np.nanmax(all_data)
+                norm = LogNorm(vmin=vmin, vmax=vmax)
+            else:
+                vmin, vmax = np.nanmin(all_data), np.nanmax(all_data)
+                norm = Normalize(vmin=vmin, vmax=vmax)
+
+            # Render each MeshBlock natively
+            mesh = None
+            for X, Y, slice_data in slices_2d[var]:
+                scaled_data = slice_data * fmt['scale']
+                mesh = ax.pcolormesh(X, Y, scaled_data, cmap=fmt['cmap'], norm=norm, 
+                                     shading='flat', edgecolors='none', rasterized=True)
+
+            # Formatting
+            ax.set_aspect('equal')
+            ax.set_xlabel(r'$x$ (km)', fontsize=12)
+            ax.set_ylabel(r'$y$ (km)', fontsize=12)
+            ax.set_title(rf"{fmt['title_sym']} Equatorial Plane ($z=0$) | $t={time_val*M_to_ms:.2f}$ ms", fontsize=14)
+            
+            ax.set_xlim(-250, 250)
+            ax.set_ylim(-250, 250)
+
+            # Setup Colorbar
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label(fmt['cbar_label'], fontsize=12)
+            
+            ax.minorticks_on()
+            ax.tick_params(axis='both', which='both', direction='in', top=True, right=True)
+            
+            plt.tight_layout()
+            
+            # Save inside the dynamically created subdirectory
+            filename = f"{var_dir}/{fmt['folder']}_{time_idx:05d}.png"
+            plt.savefig(filename, dpi=300) 
+            plt.close(fig)
+
+def check_min_max_grid_spacing_x_y_z(output_path, time_idxs):
+    """
+    Calculates the minimum and maximum grid spacings (dx, dy, dz) for Athena++ 
+    AMR grids by extracting the face coordinates using athena_read.
+    """
+    for time_idx in time_idxs:
+        file_path = f"{output_path}/aic.out3.{time_idx:05d}.athdf"
+        
+        try:
+            # We don't need any hydro quantities, just the grid geometry.
+            # raw=True ensures we bypass any coordinate transformation logic.
+            data = athena_read.athdf(file_path, quantities=[], raw=True)
+            with h5py.File(file_path, 'r') as f:
+                time_val = f.attrs['Time']
+            # athena_read returns face arrays of shape [num_blocks, num_faces_per_block]
+            # Spacing is constant within a single block, so we just subtract the 
+            # first face from the second face for all blocks simultaneously.
+            dx_blocks = data['x1f'][:, 1] - data['x1f'][:, 0]
+            dy_blocks = data['x2f'][:, 1] - data['x2f'][:, 0]
+            dz_blocks = data['x3f'][:, 1] - data['x3f'][:, 0]
+            
+            # Find the global min and max spacing across all blocks
+            dx_min, dx_max = np.min(dx_blocks), np.max(dx_blocks)
+            dy_min, dy_max = np.min(dy_blocks), np.max(dy_blocks)
+            dz_min, dz_max = np.min(dz_blocks), np.max(dz_blocks)
+            
+            # Extract active AMR levels for context
+            levels = data['Levels']
+            l_min, l_max = np.min(levels), np.max(levels)
+            
+            print(f"--- Time: {time_val*M_to_ms:1.5e} ms (Levels {l_min} to {l_max}) ---")
+            print(f"  dx: min = {dx_min*code_to_km:1.5e} km, max = {dx_max*code_to_km:1.5e} km")
+            print(f"  dy: min = {dy_min*code_to_km:1.5e} km, max = {dy_max*code_to_km:1.5e} km")
+            print(f"  dz: min = {dz_min*code_to_km:1.5e} km, max = {dz_max*code_to_km:1.5e} km\n")
+            
+        except FileNotFoundError:
+            print(f"Error: Could not find {file_path}\n")
+        except Exception as e:
+            print(f"Error processing {file_path}: {e}\n")
+
+def mass_of_star(output_path, time_idxs, RHO_CUTOFF=1e11):
+    """
+    OBLATE_FACTOR: Accounts for rotational flattening. 
+    1.0 = perfect sphere. ~0.75-0.85 is typical for rapidly rotating AIC cores.
+    """
+    
+    for time_idx in time_idxs:
+        filepath = f"{output_path}/aic.out3.{time_idx:05d}.athdf"
+        with h5py.File(filepath, 'r') as f:
+            time_val = f.attrs['Time']
+            
+        data = athena_read.athdf(filepath, quantities=['hydro.prim.rho'], raw=True)
+        num_blocks = data['x1f'].shape[0]
+        
+        r_list, rho_list, dA_list = [], [], []
+        
+        # 1. Extract every cell's radius, density, and exact 2D area
+        for b in range(num_blocks):
+            z_min, z_max = data['x3f'][b, 0], data['x3f'][b, -1]
+            
+            if z_min <= 0.0 <= z_max:
+                k = np.argmin(np.abs(data['x3v'][b, :] - 0.0))
+                
+                # Physical cell dimensions
+                dx = (data['x1f'][b, 1:] - data['x1f'][b, :-1]) * code_to_cm
+                dy = (data['x2f'][b, 1:] - data['x2f'][b, :-1]) * code_to_cm
+                DX, DY = np.meshgrid(dx, dy)
+                cell_area = DX * DY
+                
+                # Center coordinates
+                xv, yv = np.meshgrid(data['x1v'][b, :], data['x2v'][b, :])
+                r_slice = np.sqrt((xv * code_to_cm)**2 + (yv * code_to_cm)**2)
+                
+                rho_slice = data['hydro.prim.rho'][b, k, :, :] * rho_to_cgs
+                
+                r_list.append(r_slice.flatten())
+                rho_list.append(rho_slice.flatten())
+                dA_list.append(cell_area.flatten())
+
+        r_flat = np.concatenate(r_list)
+        rho_flat = np.concatenate(rho_list)
+        dA_flat = np.concatenate(dA_list)
+
+        mask = rho_flat >= RHO_CUTOFF
+        r_core = r_flat[mask]
+        rho_core = rho_flat[mask]
+        dA_core = dA_flat[mask]
+
+        if len(rho_core) == 0:
+            print(f"Time {time_val*M_to_ms:.4f}: No matter found above {RHO_CUTOFF:.1e} g/cm^3")
+            continue
+
+        # 2. Area-Weighted Radial Binning (Eliminates grid noise)
+        num_bins = 200
+        r_bins = np.linspace(0, np.max(r_core), num_bins)
+        dr = r_bins[1] - r_bins[0]
+        r_mid = r_bins[:-1] + dr / 2
+
+        # Sum the (density * area) in each bin, and the total area in each bin
+        mass_2d, _ = np.histogram(r_core, bins=r_bins, weights=rho_core * dA_core)
+        area_2d, _ = np.histogram(r_core, bins=r_bins, weights=dA_core)
+        
+        valid = area_2d > 0
+        rho_1d = np.zeros_like(r_mid)
+        rho_1d[valid] = mass_2d[valid] / area_2d[valid] # True average density of the ring
+
+        # 3. Spherical Integration with Oblate Correction
+        # dV = 4 * pi * r^2 * dr
+        dV = 4.0 * np.pi * (r_mid**2) * dr
+        mass_grams = np.sum(rho_1d * dV)
+        mass_msun = mass_grams / mass_to_cgs
+
+        print(f"Time {time_val*M_to_ms:.4f} | Core Mass (> {RHO_CUTOFF:.0e}): {mass_msun:.4f} M_sun")
+
+def compare_rho_max_evolution(output_path_1, output_path_2, PLOT_DIR):
+    data_1 = np.loadtxt(rf"{output_path_1}/aic.hst", comments='#')
+    times_1 = data_1[:, 0]
+    
+    data_2 = np.loadtxt(rf"{output_path_2}/aic.hst", comments='#')
+    times_2 = data_2[:, 0]
+
+    max_rhos_1 = data_1[:, 23]
+    max_rhos_2 = data_2[:, 23]
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(times_1*M_to_ms, max_rhos_1*rho_to_cgs, color='navy', label='SFHo')
+    ax.plot(times_2*M_to_ms, max_rhos_2*rho_to_cgs, color='red', label='LS220')
+
+    ax.set_xlabel('Time (ms)', fontsize=12)
+    ax.set_ylabel(r'$\rho_{\rm max} $ (g/cm$^3$)', fontsize=12)
+    ax.set_title('Max Density', fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    # ax.set_yscale("log")
+    # ax.set_ylim(-0.1e14, 1e14) 
+
+    ax.legend()
+    ax.set_xbound([90, 105])
+    plt.tight_layout()
+    plt.savefig(rf"{PLOT_DIR}/compare_rho_max_vs_time.png", dpi=600)
+    plt.close(fig)
+
 def main():
-    # output_path = '/home/mi58rip/gr-athena/runs/aic_SFHo_64_64_64/test3_3'
-    # PLOT_DIR = '/home/mi58rip/gr-athena/plots/aic_SFHo_64_64_64_test3_3'
+    output_path = '/home/mi58rip/gr-athena/runs/aic_SFHo_64_64_64/test_rewrite_ID_AMR_M1'
+    PLOT_DIR = '/home/mi58rip/gr-athena/plots/aic_SFHo_64_64_64_test_rewrite_ID_AMR_M1'
 
-    output_path = '/home/mi58rip/gr-athena/runs/aic_LS220_64_64_64/testnone'
-    PLOT_DIR = '/home/mi58rip/gr-athena/plots/aic_LS220_64_64_64_testnone'
-
-    os.makedirs(PLOT_DIR, exist_ok=True)
+    # Create the output directory if it doesn't exist, if exists, then clean it
+    if not os.path.exists(PLOT_DIR):
+        os.makedirs(PLOT_DIR)
+    else:
+        # Clean the directory
+        for f in os.listdir(PLOT_DIR):
+            file_path = os.path.join(PLOT_DIR, f)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    import shutil
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}')
 
     all_outputs = sorted([int(f.split('.')[2]) for f in os.listdir(output_path) if f.startswith('aic.out3.') and f.endswith('.athdf')])
-    indices = [all_outputs[i] for i in np.linspace(0, len(all_outputs)-2, 4, dtype=int)]
-    print(np.array(indices) * 100 / 203)
+    indices = all_outputs #[all_outputs[i] for i in np.linspace(0, len(all_outputs)-1, 18, dtype=int)]
+    #print(np.array(indices))
+    #print(np.array(indices) * 100 * M_to_ms)
     
-    plot_from_hst_vs_time(output_path, PLOT_DIR)
+    #plot_from_hst_vs_time(["rho", "alpha", "mass", "mass_per_cell", "E_kin"], output_path, PLOT_DIR)
+    # plot_from_hst_vs_time(["rho"], output_path, PLOT_DIR)
+    # plot_from_hst_vs_time(["mass_per_cell"], output_path, PLOT_DIR)
 
-    #indices = [0, 4, 8, 12, 16, 20, 25]
-    plot_hydro_along_x(["hydro.prim.rho", "hydro.prim.p", "hydro.aux.T", "passive_scalar.r_0"], output_path, indices, PLOT_DIR)
-    #plot_hydro_along_x(["hydro.prim.rho", "passive_scalar.r_0"], output_path, indices, PLOT_DIR)
+    # indices = [186, 192, 197]
+    #check_min_max_grid_spacing_x_y_z(output_path, indices)
+
+    #plot_hydro_along_x(["hydro.prim.rho", "hydro.prim.p", "hydro.aux.T", "passive_scalar.r_0"], output_path, indices, PLOT_DIR)
+    plot_hydro_equator_2d(["hydro.prim.rho", "hydro.prim.p", "hydro.aux.T", "passive_scalar.r_0", "velocity_r"], output_path, indices, PLOT_DIR)
+
+    #mass_of_star(output_path, indices, RHO_CUTOFF=1e11)
+
+    # compare_rho_max_evolution('/home/mi58rip/gr-athena/runs/aic_SFHo_64_64_64/test_rewrite_ID_AMR', 
+    #                           '/home/mi58rip/gr-athena/runs/aic_LS220_64_64_64/test_rewrite_ID_AMR', 
+    #                           '/home/mi58rip/gr-athena/plots/aic')
     
-
 if __name__ == "__main__":
     main()

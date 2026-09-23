@@ -102,6 +102,8 @@ src/tags
 # temporaries 
 eos_tables/
 extern/
+**/*.txt
+**/*.png
 **/*.log
 **/*.out
 **/*.err
