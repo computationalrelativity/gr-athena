@@ -243,6 +243,19 @@ void EOSCompOSE::FindTBracketAndWeights(Real n,
   boundary_lo = false;
   boundary_hi = false;
 
+  // Classify invalid energies before log(e): NaN and non-positive values use
+  // the cold boundary, while positive infinity uses the hot boundary.
+  if (!(e > 0.0))
+  {
+    boundary_lo = true;
+    return;
+  }
+  if (!std::isfinite(e))
+  {
+    boundary_hi = true;
+    return;
+  }
+
   Real log_n = log(n);
   weight_idx_ln(&wn0, &wn1, &in, log_n);
   weight_idx_yq(&wy0, &wy1, &iy, Y[0]);

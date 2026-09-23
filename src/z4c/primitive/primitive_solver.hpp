@@ -154,9 +154,20 @@ class PrimitiveSolver
       // Estimate the energy density.
       Real eoverD = qbar - mu * rbarsq + 1.0;
       Real ehat   = D * eoverD;
-      // Note: ApplyEnergyLimits is not needed here because
-      // GetTemperatureFromE already clamps to min_T/max_T when
-      // the energy falls outside the table bounds.
+      // The EOS clamps out-of-table energies in LOG space, so that clamp only
+      // ever covers e > 0. eoverD goes negative whenever mu*rbarsq exceeds
+      // qbar + 1, which happens routinely at the upper end of the mu bracket:
+      // the velocity cap protects iWhat and nhat, but not eoverD, which keeps
+      // the uncapped rbarsq. log(e) is then NaN, every bound test below it
+      // compares false, and the table lookup walks off its bracket. The root
+      // itself always has e > 0, so flooring these iterates cannot move it.
+      // eoverD is re-derived from the clamped value because nu_b reads it
+      // again below.
+      if (!(ehat > 0.0))
+      {
+        peos->ApplyEnergyLimits(ehat, nhat, Y);
+        eoverD = ehat / D;
+      }
 
       // Now we can get an estimate of the pressure and enthalpy.
       Real Phat, hhat;
