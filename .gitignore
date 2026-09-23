@@ -98,3 +98,7 @@ src/tags
 # temporaries
 *.bak
 *.old
+
+# patch / merge leftovers
+*.orig
+*.rej
