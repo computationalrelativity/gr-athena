@@ -114,3 +114,5 @@ extern/
 **/PREVIOUS
 **/parent
 **/*.lock
+py_scripts/
+runs/

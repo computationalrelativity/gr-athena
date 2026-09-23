@@ -1,9 +1,0 @@
-rns_verbose=2
-rns_rhoc=8.830e-4
-rns_axes_ratio=0.85
-rns_save_2ddata=1
-outputdir=RNS_DATA
-atm_level_rho=1e-20
-rns_eos_type=tab
-#rns_eos_tab=/home/mi58rip/gr-athena/eos_tables/SFHo_stitched_200.rns
-rns_eos_tab=/home/mi58rip/gr-athena/eos_tables/SFHo_200.rns
