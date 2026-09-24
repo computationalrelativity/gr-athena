@@ -102,3 +102,7 @@ src/tags
 # patch / merge leftovers
 *.orig
 *.rej
+
+# unit-driver build output
+tst/unit/.build/
+tst/unit/test_eos_entropy_inversion

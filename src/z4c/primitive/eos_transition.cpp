@@ -140,8 +140,60 @@ Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps, Real ln_n,
 
 Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real* Y)
 {
-  throw std::logic_error(
-    "EOSTransition::TemperatureFromEntropy not currently implemented.");
+  assert(m_initialized);
+  Real yq;
+  if (InteriorYq(n, Y, yq))
+    return compose_eos->TemperatureFromEntropy(n, s, &yq);
+
+  Real Y_fb__[SCNVAR];
+  Real* Y_norm    = GuardMassFractions(Y, Y_fb__);
+  Real const ln_n = log(n);
+
+  if (n < compose_eos->min_n)
+    return eir_eos->TemperatureFromEntropy(n, s, Y_norm);
+
+  // Bounds first, as in TemperatureFromEps: states pinned at the
+  // temperature floor or ceiling are common and must not enter the scan.
+  if (s <= MinimumEntropy(n, Y_norm))
+    return (ln_n >= m_ln_n_h0) ? compose_eos->min_T : min_T;
+  if (s >= MaximumEntropy(n, Y_norm))
+    return max_T;
+
+  // Pure-regime candidates: invert each sub-EOS and accept the result if
+  // the transition weight there agrees. Inside the density-validity ramp
+  // the weight is nonzero at every valid temperature, so the EIR
+  // candidate is skipped (see TemperatureFromEps).
+  if (ln_n < m_ln_n_h0)
+  {
+    Real T_h = eir_eos->TemperatureFromEntropy(n, s, Y_norm);
+    if (TransitionFactor(n, T_h, ln_n, log(T_h)) == 0.0)
+      return T_h;
+  }
+  // Search the blended region before accepting a pure-compose root, as the
+  // energy inversion does, so the two agree on which branch they follow.
+  Real T_b = temperature_from_var_trans(compose_eos->ECENT, s, n, ln_n,
+                                        Y_norm);
+  if (!std::isnan(T_b))
+    return T_b;
+  Real T_c = compose_eos->TemperatureFromEntropy(n, s, Y_norm);
+  if (TransitionFactor(n, T_c, ln_n, log(T_c)) == 1.0)
+    return T_c;
+
+  // As in TemperatureFromEps: an expected outcome for some surface/floor
+  // states, so warn once rather than per cell.
+  static bool warned = false;
+  if (!warned)
+  {
+    warned = true;
+    printf(
+      "EOSTransition::TemperatureFromEntropy: no consistent root (first "
+      "occurrence at n = %.5e, s = %.5e); returning the compose inverse "
+      "%.5e. Silencing further reports.\n",
+      n,
+      s,
+      T_c);
+  }
+  return T_c;
 }
 
 Real EOSTransition::TemperatureFromE(Real n, Real e, Real* Y)
@@ -1076,9 +1128,11 @@ Real EOSTransition::temperature_from_var_trans(int iv,
   // Loop invariants of the bracket scan: the Helmholtz table coordinate
   // log(n*Ye), and the target in linear space. The scan below only uses
   // the sign of f, so comparing values rather than their logs is
-  // equivalent and saves a log per grid node.
-  Real const ln_ne = log(n * Yq);
-  Real const evar  = exp(var);
+  // equivalent and saves a log per grid node. The entropy channel is
+  // already linear in both tables and passes through untouched.
+  bool const linear = (iv == compose_eos->ECENT);
+  Real const ln_ne  = log(n * Yq);
+  Real const evar   = linear ? var : exp(var);
 
   auto f = [=](int it)
   {
@@ -1093,10 +1147,12 @@ Real EOSTransition::temperature_from_var_trans(int iv,
       var_eir = eir_eos->PressureAtLog(ln_ne, lT, n, T, Y);
     else if (iv == compose_eos->ECLOGE)
       var_eir = eir_eos->EnergyAtLog(ln_ne, lT, n, T, Y);
+    else if (linear)
+      var_eir = eir_eos->EntropyAtLog(ln_ne, lT, n, T, Y);
     else
       throw std::logic_error(
         "EOSTransition::temperature_from_var_trans only implemented for "
-        "log(P) and log(e).");
+        "log(P), log(e) and entropy.");
 
     Real var_comp =
       wn0 *
@@ -1110,7 +1166,8 @@ Real EOSTransition::temperature_from_var_trans(int iv,
          wy1 *
            compose_eos->m_table[compose_eos->index(iv, in + 1, iy + 1, it)]);
 
-    return evar - (var_eir * (1 - w) + exp(var_comp) * w);
+    return evar -
+           (var_eir * (1 - w) + (linear ? var_comp : exp(var_comp)) * w);
   };
 
   // Inside the density-validity ramp (n >= n_h0) the blend extends in
@@ -1211,23 +1268,31 @@ Real EOSTransition::temperature_from_var_trans(int iv,
   if (!result && !warned_conv)
   {
     warned_conv = true;
+    // Linear endpoint values, whichever channel this is.
     Real vh0, vh1;
     if (iv == compose_eos->ECLOGP)
     {
-      vh0 = log(eir_eos->Pressure(n, exp(lt0), Y));
-      vh1 = log(eir_eos->Pressure(n, exp(lt0 + dlt), Y));
+      vh0 = eir_eos->Pressure(n, exp(lt0), Y);
+      vh1 = eir_eos->Pressure(n, exp(lt0 + dlt), Y);
     }
     else if (iv == compose_eos->ECLOGE)
     {
-      vh0 = log(eir_eos->Energy(n, exp(lt0), Y));
-      vh1 = log(eir_eos->Energy(n, exp(lt0 + dlt), Y));
+      vh0 = eir_eos->Energy(n, exp(lt0), Y);
+      vh1 = eir_eos->Energy(n, exp(lt0 + dlt), Y);
+    }
+    else if (linear)
+    {
+      vh0 = eir_eos->Entropy(n, exp(lt0), Y);
+      vh1 = eir_eos->Entropy(n, exp(lt0 + dlt), Y);
     }
     else
     {
       throw std::logic_error(
         "EOSTransition::temperature_from_var_trans only implemented for "
-        "log(P) and log(e).");
+        "log(P), log(e) and entropy.");
     }
+    Real const vc0 = linear ? v0 : exp(v0);
+    Real const vc1 = linear ? v1 : exp(v1);
 
     Real w0 = TransitionFactor(n, exp(lt0));
     Real w1 = TransitionFactor(n, exp(lt0 + dlt));
@@ -1244,17 +1309,17 @@ Real EOSTransition::temperature_from_var_trans(int iv,
       n,
       Y[SCYE],
       iv,
-      exp(var),
+      evar,
       exp(lt0),
       exp(lt0 + dlt),
-      exp(vh0),
-      exp(vh1),
-      exp(v0),
-      exp(v1),
+      vh0,
+      vh1,
+      vc0,
+      vc1,
       w0,
       w1,
-      exp(vh0) * (1 - w0) + exp(v0) * w0,
-      exp(vh1) * (1 - w1) + exp(v1) * w1,
+      vh0 * (1 - w0) + vc0 * w0,
+      vh1 * (1 - w1) + vc1 * w1,
       evar - flo,
       evar - fhi);
   }

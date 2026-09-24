@@ -409,6 +409,11 @@ class EOSTransition : public EOSPolicyInterface
       // iv is an EOSCompOSE table index; it must not be passed to the
       // EIR table, whose variable indexing is different (and which
       // stores log(eps) rather than log(e)).
+      // The pressure and energy channels are stored as logs in the compose
+      // table and blended linearly, so they exp on the way in and log on
+      // the way out. The entropy channel is stored linearly in both tables
+      // and skips both.
+      const bool linear = (iv == EOSCompOSE::ECENT);
       Real var_eir;
       if (iv == EOSCompOSE::ECLOGP)
       {
@@ -418,15 +423,28 @@ class EOSTransition : public EOSPolicyInterface
       {
         var_eir = peos->eir_eos->EnergyAtLog(ln_ne, lt, n, t, Y);
       }
+      else if (linear)
+      {
+        var_eir = peos->eir_eos->EntropyAtLog(ln_ne, lt, n, t, Y);
+      }
       else
       {
         throw std::logic_error(
-          "EOSTransition::RootFunctor only implemented for log(P) and "
-          "log(e).");
+          "EOSTransition::RootFunctor only implemented for log(P), log(e) "
+          "and entropy.");
       }
-      Real var_comp = exp(v0 + wt * dv);
-      Real var_pt   = log(var_comp * f_trans + var_eir * (1 - f_trans));
+      Real var_comp = linear ? (v0 + wt * dv) : exp(v0 + wt * dv);
+      Real blend    = var_comp * f_trans + var_eir * (1 - f_trans);
 
+      // Entropy per baryon passes through zero in the cold EIR corner
+      // (classical ions at the temperature floor), so the residual is
+      // normalised by one k_B instead of by the target.
+      if (linear)
+      {
+        return (var - blend) / (std::abs(var) + 1.0);
+      }
+
+      Real var_pt = log(blend);
       return (var - var_pt) / var;  // N.B error is expected to be relative
     }
   };

@@ -324,6 +324,12 @@ class EOSEIR : public EOSPolicyInterface
   {
     return (eval_lin_at_lnty(ECLOGEPS, ln_ne, lT, n, T, Y) + 1) * n * mb;
   }
+  /// Entropy per baryon at the same pre-logged point. The entropy channel
+  /// is stored and combined linearly, so this is Entropy(n, T, Y) exactly.
+  inline Real EntropyAtLog(Real ln_ne, Real lT, Real n, Real T, Real* Y) const
+  {
+    return eval_lin_at_lnty(ECENT, ln_ne, lT, n, T, Y);
+  }
 
   /// Evaluate interpolation weight for density
   void weight_idx_ln(Real* w0, Real* w1, int* in, Real log_n) const;
