@@ -196,7 +196,8 @@ enum ScalarVariables
   SCXH   = 4,  //! mass fraction of heavy nuclei
   SCAH   = 5,  //! average atomic mass of heavy nuclei
   SCEB   = 6,  //! binding energy per baryon relative to baryon mass factor
-  SCNVAR = 7   //! number of scalar variables
+  SCASH  = 7,  //! ash marker: 1 where the matter is in NSE, 0 in the fuel
+  SCNVAR = 8   //! number of scalar variables
 };
 #endif
 enum PrimIndex

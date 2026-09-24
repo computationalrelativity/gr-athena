@@ -190,6 +190,10 @@ EquationOfState::EquationOfState(MeshBlock* pmb, ParameterInput* pin)
     eos.SetEIRNMax(eir_n_max);
   if (eir_T_max > 0.0)
     eos.SetEIRTMax(eir_T_max);
+  // widths (decades) of the validity ramps below the eir cutoffs
+  eos.SetEIRRampDecades(
+    pin->GetOrAddReal("hydro", "eir_n_ramp_dec", 1.0),
+    pin->GetOrAddReal("hydro", "eir_T_ramp_dec", 0.5));
   // ion Coulomb (OCP) correction of the EIR branch; must match the setting
   // the cold-slice/initial-data tables were built with
   eos.SetEIRCoulomb(pin->GetOrAddBoolean("hydro", "eir_coulomb", true));

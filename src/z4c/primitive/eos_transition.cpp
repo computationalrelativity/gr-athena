@@ -21,7 +21,7 @@ EOSTransition::EOSTransition()
 {
   compose_eos   = new EOSCompOSE();
   eir_eos = new EOSEIR();
-  n_species     = 7;
+  n_species     = 8;
   eos_units     = &Nuclear;
   min_Y[SCYE]   = 0.0;  // will be overwritten by update_bounds
   min_Y[SCXN]   = 0.0;
@@ -30,6 +30,7 @@ EOSTransition::EOSTransition()
   min_Y[SCXH]   = 0.0;
   min_Y[SCAH]   = 1.0;
   min_Y[SCEB]   = 0.0;
+  min_Y[SCASH]  = 0.0;
 
   max_Y[SCYE] = 1.0;  // will be overwritten by update_bounds
   max_Y[SCXN] = 1.0;
@@ -38,6 +39,7 @@ EOSTransition::EOSTransition()
   max_Y[SCXH] = 1.0;
   max_Y[SCAH] = 300.0;  // RHINE network domain cap (rhine_optim.hpp)
   max_Y[SCEB] = 1e-2;  // will be overwritten by SetBaryonMass
+  max_Y[SCASH] = 1.0;
 
   m_min_h          = numeric_limits<Real>::max();
   m_trans_T_width  = numeric_limits<Real>::quiet_NaN();
@@ -105,7 +107,7 @@ Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps, Real ln_n,
   if (ln_n < m_ln_n_h0)
   {
     Real T_h = eir_eos->TemperatureFromEps(n, eps, Y_norm, guess_it);
-    if (TransitionFactor(n, T_h, ln_n, log(T_h)) == 0.0)
+    if (TransitionWeight(n, T_h, ln_n, log(T_h), Y_norm) == 0.0)
       return T_h;
   }
   // Search the blended region before accepting a pure-compose root: the
@@ -116,7 +118,7 @@ Real EOSTransition::TemperatureFromEpsSanitized(Real n, Real eps, Real ln_n,
   if (!std::isnan(T_b))
     return T_b;
   Real T_c = compose_eos->TemperatureFromEps(n, eps, Y_norm);
-  if (TransitionFactor(n, T_c, ln_n, log(T_c)) == 1.0)
+  if (TransitionWeight(n, T_c, ln_n, log(T_c), Y_norm) == 1.0)
     return T_c;
 
   // Falling back to the compose inverse is an expected outcome for some
@@ -166,7 +168,7 @@ Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real* Y)
   if (ln_n < m_ln_n_h0)
   {
     Real T_h = eir_eos->TemperatureFromEntropy(n, s, Y_norm);
-    if (TransitionFactor(n, T_h, ln_n, log(T_h)) == 0.0)
+    if (TransitionWeight(n, T_h, ln_n, log(T_h), Y_norm) == 0.0)
       return T_h;
   }
   // Search the blended region before accepting a pure-compose root, as the
@@ -176,7 +178,7 @@ Real EOSTransition::TemperatureFromEntropy(Real n, Real s, Real* Y)
   if (!std::isnan(T_b))
     return T_b;
   Real T_c = compose_eos->TemperatureFromEntropy(n, s, Y_norm);
-  if (TransitionFactor(n, T_c, ln_n, log(T_c)) == 1.0)
+  if (TransitionWeight(n, T_c, ln_n, log(T_c), Y_norm) == 1.0)
     return T_c;
 
   // As in TemperatureFromEps: an expected outcome for some surface/floor
@@ -233,7 +235,7 @@ Real EOSTransition::TemperatureFromPSanitized(Real n, Real p, Real ln_n,
   if (ln_n < m_ln_n_h0)
   {
     Real T_h = eir_eos->TemperatureFromP(n, p, Y_norm);
-    if (TransitionFactor(n, T_h, ln_n, log(T_h)) == 0.0)
+    if (TransitionWeight(n, T_h, ln_n, log(T_h), Y_norm) == 0.0)
       return T_h;
   }
   Real T_b =
@@ -241,7 +243,7 @@ Real EOSTransition::TemperatureFromPSanitized(Real n, Real p, Real ln_n,
   if (!std::isnan(T_b))
     return T_b;
   Real T_c = compose_eos->TemperatureFromP(n, p, Y_norm);
-  if (TransitionFactor(n, T_c, ln_n, log(T_c)) == 1.0)
+  if (TransitionWeight(n, T_c, ln_n, log(T_c), Y_norm) == 1.0)
     return T_c;
 
   // See TemperatureFromEps: warn once, not per cell.
@@ -362,7 +364,7 @@ Real EOSTransition::Pressure(Real n, Real T, Real* Y)
 Real EOSTransition::PressureSanitized(Real n, Real T, Real ln_n, Real lT,
                                       Real* Y_norm)
 {
-  Real w = TransitionFactor(n, T, ln_n, lT);
+  Real w = TransitionWeight(n, T, ln_n, lT, Y_norm);
   if (w == 1.0)
     return compose_eos->Pressure(n, T, Y_norm);
   if (w == 0.0)
@@ -380,7 +382,7 @@ Real EOSTransition::Entropy(Real n, Real T, Real* Y)
     return compose_eos->Entropy(n, T, &yq);
   Real Y_fb__[SCNVAR];
   Real* Y_norm = GuardMassFractions(Y, Y_fb__);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y_norm);
   if (w == 1.0)
     return compose_eos->Entropy(n, T, Y_norm);
   if (w == 0.0)
@@ -405,7 +407,7 @@ Real EOSTransition::SoundSpeed(Real n, Real T, Real* Y)
     return compose_eos->SoundSpeed(n, T, &yq);
   Real Y_fb__[SCNVAR];
   Real* Y_norm = GuardMassFractions(Y, Y_fb__);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y_norm);
   if (w == 1.0)
     return compose_eos->SoundSpeed(n, T, Y_norm);
   if (w == 0.0)
@@ -429,7 +431,7 @@ Real EOSTransition::SpecificInternalEnergy(Real n, Real T, Real* Y)
 Real EOSTransition::SpecificInternalEnergySanitized(Real n, Real T, Real ln_n,
                                                     Real lT, Real* Y_norm)
 {
-  Real w = TransitionFactor(n, T, ln_n, lT);
+  Real w = TransitionWeight(n, T, ln_n, lT, Y_norm);
   if (w == 1.0)
     return compose_eos->SpecificInternalEnergy(n, T, Y_norm);
   if (w == 0.0)
@@ -447,7 +449,7 @@ Real EOSTransition::BaryonChemicalPotential(Real n, Real T, Real* Y)
     return compose_eos->BaryonChemicalPotential(n, T, &yq);
   Real Y_fb__[SCNVAR];
   Real* Y_norm = GuardMassFractions(Y, Y_fb__);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y_norm);
   if (w == 1.0)
     return compose_eos->BaryonChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
@@ -465,7 +467,7 @@ Real EOSTransition::ChargeChemicalPotential(Real n, Real T, Real* Y)
     return compose_eos->ChargeChemicalPotential(n, T, &yq);
   Real Y_fb__[SCNVAR];
   Real* Y_norm = GuardMassFractions(Y, Y_fb__);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y_norm);
   if (w == 1.0)
     return compose_eos->ChargeChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
@@ -483,7 +485,7 @@ Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
     return compose_eos->ElectronLeptonChemicalPotential(n, T, &yq);
   Real Y_fb__[SCNVAR];
   Real* Y_norm = GuardMassFractions(Y, Y_fb__);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y_norm);
   if (w == 1.0)
     return compose_eos->ElectronLeptonChemicalPotential(n, T, Y_norm);
   if (w == 0.0)
@@ -496,7 +498,7 @@ Real EOSTransition::ElectronLeptonChemicalPotential(Real n, Real T, Real* Y)
 
 Real EOSTransition::InteractionPotentialDifference(Real n, Real T, Real* Y)
 {
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 0.0)
     return 0.0;
   Real dU = compose_eos->InteractionPotentialDifference(n, T, Y);
@@ -506,7 +508,7 @@ Real EOSTransition::InteractionPotentialDifference(Real n, Real T, Real* Y)
 Real EOSTransition::FrYn(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->FrYn(n, T, Y);
   return Y[SCXN];
@@ -515,7 +517,7 @@ Real EOSTransition::FrYn(Real n, Real T, Real* Y)
 Real EOSTransition::FrYp(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->FrYp(n, T, Y);
   return Y[SCXP];
@@ -524,7 +526,7 @@ Real EOSTransition::FrYp(Real n, Real T, Real* Y)
 Real EOSTransition::FrXa(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->FrXa(n, T, Y);
   return Y[SCXA];
@@ -533,7 +535,7 @@ Real EOSTransition::FrXa(Real n, Real T, Real* Y)
 Real EOSTransition::FrXh(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->FrXh(n, T, Y);
   return Y[SCXH];
@@ -542,7 +544,7 @@ Real EOSTransition::FrXh(Real n, Real T, Real* Y)
 Real EOSTransition::AN(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->AN(n, T, Y);
   return Y[SCAH];
@@ -551,7 +553,7 @@ Real EOSTransition::AN(Real n, Real T, Real* Y)
 Real EOSTransition::ZN(Real n, Real T, Real* Y)
 {
   assert(m_initialized);
-  Real w = TransitionFactor(n, T);
+  Real w = TransitionWeight(n, T, Y);
   if (w == 1.0)
     return compose_eos->ZN(n, T, Y);
   return (Y[SCXH] > 0) ? (Y[SCYE] - Y[SCXP] - Y[SCXA] / 2) / Y[SCXH] * Y[SCAH]
@@ -940,7 +942,7 @@ void EOSTransition::PressureAndEnthalpySanitized(Real n, Real T,
                                                  Real* Y_norm,
                                                  Real* P, Real* h)
 {
-  Real w = TransitionFactor(n, T, ln_n, lT);
+  Real w = TransitionWeight(n, T, ln_n, lT, Y_norm);
   if (w == 1.0)
   {
     compose_eos->PressureAndEnthalpy(n, T, Y_norm, P, h);
@@ -966,6 +968,25 @@ void EOSTransition::PressureAndEnthalpySanitized(Real n, Real T,
   }
   *P = P_pt;
   *h = (P_pt + e_pt) / n;
+}
+
+void EOSTransition::GetNSEComposition(Real n, Real T, Real* Y)
+{
+  if (n < compose_eos->min_n or T < compose_eos->min_T or
+      n > compose_eos->max_n or T > compose_eos->max_T)
+  {
+    return;
+  }
+  Real const Yn = compose_eos->FrYn(n, T, Y);
+  Real const Yp = compose_eos->FrYp(n, T, Y);
+  Real const Xa = compose_eos->FrXa(n, T, Y);
+  Real const Xh = compose_eos->FrXh(n, T, Y);
+  Real const Ah = compose_eos->AN(n, T, Y);
+  Y[SCXN] = Yn;
+  Y[SCXP] = Yp;
+  Y[SCXA] = Xa;
+  Y[SCXH] = Xh;
+  Y[SCAH] = Ah;
 }
 
 Real EOSTransition::GetNSEBindingEnergy(Real n, Real T, Real* Y)
@@ -1141,7 +1162,7 @@ Real EOSTransition::temperature_from_var_trans(int iv,
     // and to the Helmholtz lookup instead of re-taking log(T) there.
     Real lT = compose_eos->m_log_t[it];
     Real T  = exp(lT);
-    Real w  = TransitionFactor(n, T, ln_n, lT);
+    Real w  = TransitionWeight(n, T, ln_n, lT, Y);
     Real var_eir;
     if (iv == compose_eos->ECLOGP)
       var_eir = eir_eos->PressureAtLog(ln_ne, lT, n, T, Y);
@@ -1294,8 +1315,8 @@ Real EOSTransition::temperature_from_var_trans(int iv,
     Real const vc0 = linear ? v0 : exp(v0);
     Real const vc1 = linear ? v1 : exp(v1);
 
-    Real w0 = TransitionFactor(n, exp(lt0));
-    Real w1 = TransitionFactor(n, exp(lt0 + dlt));
+    Real w0 = TransitionWeight(n, exp(lt0), Y);
+    Real w1 = TransitionWeight(n, exp(lt0 + dlt), Y);
     printf(
       "Root not converged in FalsePosition (first occurrence; silencing "
       "further reports):"

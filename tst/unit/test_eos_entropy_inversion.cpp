@@ -32,6 +32,7 @@ static Real RelErr(Real a, Real b)
 // this mixture (see TestStripMonotonicity).
 static void NSELikeComposition(Real* Y)
 {
+  for (int i = 0; i < MAX_SPECIES; ++i) Y[i] = 0.0;
   Y[SCYE] = 0.30; Y[SCXN] = 0.020; Y[SCXP] = 0.001; Y[SCXA] = 0.100;
   Y[SCXH] = 0.879; Y[SCAH] = 56.0; Y[SCEB] = 0.0085;
 }
@@ -41,6 +42,7 @@ static void NSELikeComposition(Real* Y)
 // is non-monotone across the strip. Kept to document that limit.
 static void GenericComposition(Real* Y)
 {
+  for (int i = 0; i < MAX_SPECIES; ++i) Y[i] = 0.0;
   Y[SCYE] = 0.30; Y[SCXN] = 0.55; Y[SCXP] = 0.05; Y[SCXA] = 0.25;
   Y[SCXH] = 0.15; Y[SCAH] = 56.0; Y[SCEB] = 0.002;
 }
@@ -271,6 +273,36 @@ static void TestTrappedIsentropy()
   }
 }
 
+// 7. An ash-marked cell is held on the NSE branch by TransitionWeight even
+//    inside the strip, which is where the deleptonization runs. The
+//    inversion must follow it there.
+static void TestAshBranch()
+{
+  std::printf("Ash-marked cells invert on the NSE branch\n");
+  const Regime ash[] = {
+    { "strip, ash",      1e-8,  0.55 },
+    { "below strip, ash", 1e-8, 0.45 },
+    { "EIR side, ash",   1e-9,  0.30 },
+  };
+  for (auto& r : ash)
+  {
+    Real Y[MAX_SPECIES]; NSELikeComposition(Y);
+    Y[SCASH] = 1.0;
+    Real T_s;
+    try
+    {
+      T_s = peos->GetTemperatureFromEntropy(
+              r.n, peos->GetEntropyPerBaryon(r.n, r.T, Y), Y);
+    }
+    catch (std::exception& ex) { Check(false, r.name, ex.what()); continue; }
+    char buf[192];
+    std::snprintf(buf, sizeof buf, "w=%.3f  T=%.6e (err %.1e)",
+                  ((EOSTransition*)peos)->TransitionWeight(r.n, r.T, Y),
+                  T_s, RelErr(r.T, T_s));
+    Check(RelErr(r.T, T_s) < 1e-6, r.name, buf);
+  }
+}
+
 int main()
 {
   EOS<EOSTransition, ResetFloorTransition> eos;
@@ -305,6 +337,7 @@ int main()
   TestConjugate();
   TestCaptureStep();
   TestTrappedIsentropy();
+  TestAshBranch();
 
   std::printf("\n%d passed, %d failed\n", n_pass, n_fail);
   return n_fail != 0;

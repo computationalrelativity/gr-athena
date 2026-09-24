@@ -199,8 +199,47 @@ class EOSTransition : public EOSPolicyInterface
   /// Get the NSE value of the binding energy per baryon
   Real GetNSEBindingEnergy(Real n, Real T, Real* Y);
 
+  /// Fill Y[SCXN..SCAH] with the NSE composition of the compose table at
+  /// (n, T, Y[SCYE]), bypassing the transition weight. Needed where matter
+  /// is known to be in NSE but the weight is zero because the ignition
+  /// criterion is a density one (the ash core of AIC initial data sits at
+  /// 1e10 g/cc, an order of magnitude below the ignition density). Leaves Y
+  /// untouched outside the compose table. Y[SCEB] is not set here, use
+  /// GetNSEBindingEnergy for it.
+  void GetNSEComposition(Real n, Real T, Real* Y);
+
   /// Get the transition parameters
   void PrintParameters();
+
+  /// The ash marker forces the NSE branch wherever the compose table has a
+  /// density. Below its density floor the marker is meaningless (an advected
+  /// ash cell that reached the atmosphere) and TransitionFactor's zero branch
+  /// has to win, or the blend would read outside the table. There is
+  /// deliberately no temperature condition: the table floor is handled the
+  /// same way the n > eir_n_max branch already handles it, and requiring
+  /// T >= min_T here would make the NSE branch unreachable from below, so
+  /// cold fuel could never flash onto it.
+  inline bool AshOnTable(Real n, const Real* Y) const
+  {
+    return (Y[SCASH] >= 0.5) and (n >= compose_eos->min_n);
+  }
+
+  /// Transition weight as the EOS should see it: the thermodynamic weight
+  /// of TransitionFactor, overridden to 1 wherever the ash marker says the
+  /// matter is already in NSE. Every blending site uses this. The bare
+  /// TransitionFactor below stays the thermodynamic weight alone, which is
+  /// what the ignition latch tests.
+  inline Real TransitionWeight(Real n, Real T, const Real* Y) const
+  {
+    return AshOnTable(n, Y) ? 1.0 : TransitionFactor(n, T);
+  }
+
+  /// Log-space variant, see TransitionFactor(n, T, ln, lT).
+  inline Real TransitionWeight(Real n, Real T, Real ln, Real lT,
+                               const Real* Y) const
+  {
+    return AshOnTable(n, Y) ? 1.0 : TransitionFactor(n, T, ln, lT);
+  }
 
   /// Get the factor to transition between the two EOSs, as a function of
   /// density and temperature
@@ -405,7 +444,7 @@ class EOSTransition : public EOSPolicyInterface
       // and to the Helmholtz lookup.
       Real lt      = lt0 + wt * dlt;
       Real t       = exp(lt);
-      Real f_trans = peos->TransitionFactor(n, t, ln, lt);
+      Real f_trans = peos->TransitionWeight(n, t, ln, lt, Y);
       // iv is an EOSCompOSE table index; it must not be passed to the
       // EIR table, whose variable indexing is different (and which
       // stores log(eps) rather than log(e)).

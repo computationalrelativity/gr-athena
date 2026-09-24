@@ -705,7 +705,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     }
     const Real n = prim(IDN, k, j, i) * oo_mb;  // fm^-3
     const Real T = hyd_der_ms(IX_T, k, j, i);   // MeV, fresh from c2p
-    const Real w = GetEOS().TransitionFactor(n, T);
+    const Real w = GetEOS().TransitionWeight(n, T, Y);
     hyd_der_ms(IX_TRANS, k, j, i) = w;
 
     if (w == 1.0)
@@ -1063,12 +1063,25 @@ void EquationOfState::TransitionNSEResync()
   {
     const Real n = ph->w(IDN, k, j, i) * oo_mb;  // fm^-3
     const Real T = hyd_der_ms(IX_T, k, j, i);    // MeV, fresh from c2p
-    if (GetEOS().TransitionFactor(n, T) < 1.0)
-      continue;
     for (int l = 0; l < NSCALARS; ++l)
     {
       Y[l] = prim_scalar(l, k, j, i);
     }
+    // Ignition latch. The test is the THERMODYNAMIC weight, never the
+    // marker of this cell or of its neighbors: a latch that fired on the
+    // advected marker would let numerical diffusion of the ash interface
+    // flip fuel cells permanently, which is the self-amplifying front that
+    // the density-only ignition was introduced to kill. Burning is
+    // irreversible, so the marker is only ever raised here.
+    if (GetEOS().TransitionFactor(n, T) >= 1.0)
+    {
+      Y[SCASH] = 1.0;
+    }
+    // Everything below is the NSE resync. It runs for matter the marker
+    // says is ash, whether or not the local density still reaches the
+    // ignition threshold, and that is the whole point of carrying a marker.
+    if (GetEOS().TransitionWeight(n, T, Y) < 1.0)
+      continue;
     // NSE: re-synchronize the advected composition and mass-excess
     // scalar with the table (cf. Just et al. 2026, the m-tilde reset
     // above the NSE dropout).
@@ -1078,7 +1091,8 @@ void EquationOfState::TransitionNSEResync()
     prim_scalar(SCAH, k, j, i) = GetEOS().GetAN(n, T, Y);
     prim_scalar(SCXH, k, j, i) = GetEOS().GetXh(n, T, Y);
     prim_scalar(SCEB, k, j, i) = GetEOS().GetNSEBindingEnergy(n, T, Y);
-    for (int l : { SCXN, SCXP, SCXA, SCAH, SCXH, SCEB })
+    prim_scalar(SCASH, k, j, i) = Y[SCASH];
+    for (int l : { SCXN, SCXP, SCXA, SCAH, SCXH, SCEB, SCASH })
     {
       cons_scalar(l, k, j, i) =
         prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
@@ -1101,7 +1115,7 @@ void EquationOfState::TransitionDiagnostics(AA& prim,
   const Real n = prim(IDN, k, j, i) / GetEOS().GetBaryonMass();
   const Real T = hyd_der_ms(IX_T, k, j, i);
 
-  hyd_der_ms(IX_TRANS, k, j, i) = GetEOS().TransitionFactor(n, T);
+  hyd_der_ms(IX_TRANS, k, j, i) = GetEOS().TransitionWeight(n, T, Y);
   hyd_der_ms(IX_XERR, k, j, i) =
     prim_scalar(SCXN, k, j, i) + prim_scalar(SCXP, k, j, i) +
     prim_scalar(SCXA, k, j, i) + prim_scalar(SCXH, k, j, i) - 1;
