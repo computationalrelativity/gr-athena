@@ -111,6 +111,7 @@ namespace {
   Real MassPerMeshBlock(MeshBlock* pmb, int iout);
   Real MaxLevel(MeshBlock* pmb, int iout);
   void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin);
+  void SeedSuwaVarmaMagneticFields(MeshBlock* pmb, ParameterInput* pin);
   void Equilibriate_M1(Mesh* pm, ParameterInput* pin);
 
   // Field data dumped (for user output / visualization)
@@ -540,6 +541,11 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   } else if (bfield_type == "rns") {
     // Exactly as in gr_rns.cpp
     SeedMagneticFields(this, pin);
+
+  } else if (bfield_type == "suwa_varma") {
+
+    SeedSuwaVarmaMagneticFields(this, pin);
+
   } else {
     std::stringstream msg;
     msg << "problem/bfield_type unknown" << std::endl;
@@ -1000,6 +1006,79 @@ void SeedMagneticFields(MeshBlock* pmb, ParameterInput* pin)
       Ay = x * amp;
       Az = 0.0;
     });
+}
+
+void SeedSuwaVarmaMagneticFields(
+    MeshBlock* pmb,
+    ParameterInput* pin)
+{
+  // Parameters are read in code units.
+  const Real r0 =
+      pin->GetReal("problem", "r0");
+
+  const Real Bpol =
+      pin->GetReal("problem", "Bpol");
+
+  const Real Btor =
+      pin->GetReal("problem", "Btor");
+
+  if (r0 <= 0.0) {
+    std::stringstream msg;
+    msg << "problem/r0 must be positive." << std::endl;
+    ATHENA_ERROR(msg);
+  }
+
+  SeedFaceBFromEdgePotential(
+      pmb,
+      [=](Real x, Real y, Real z,
+          Real /*p*/, Real /*rho*/,
+          Real& Ax, Real& Ay, Real& Az) {
+
+        const Real r2 = x*x + y*y + z*z;
+        const Real r  = std::sqrt(r2);
+
+        // Avoid division by zero at the coordinate origin.
+        if (r <= TINY_NUMBER) {
+          Ax = 0.0;
+          Ay = 0.0;
+          Az = 0.0;
+          return;
+        }
+
+        const Real r3  = r*r*r;
+        const Real r03 = r0*r0*r0;
+
+        // f(r) = r0^3 * r / [2 * (r^3 + r0^3)]
+        const Real f =
+            r03 * r /
+            (2.0 * (r3 + r03));
+
+        const Real inv_r  = 1.0 / r;
+        const Real inv_r2 = 1.0 / r2;
+
+        // Toroidal-component contribution.
+        const Real A_tor_x =
+            f * Btor * z * x * inv_r2;
+
+        const Real A_tor_y =
+            f * Btor * z * y * inv_r2;
+
+        const Real A_tor_z =
+            f * Btor * z * z * inv_r2;
+
+        // Poloidal-component contribution.
+        const Real A_pol_x =
+            -f * Bpol * y * inv_r;
+
+        const Real A_pol_y =
+             f * Bpol * x * inv_r;
+
+        const Real A_pol_z = 0.0;
+
+        Ax = A_tor_x + A_pol_x;
+        Ay = A_tor_y + A_pol_y;
+        Az = A_tor_z + A_pol_z;
+      });
 }
 
 } // namespace
