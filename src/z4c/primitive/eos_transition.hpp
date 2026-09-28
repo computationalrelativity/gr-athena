@@ -219,9 +219,14 @@ class EOSTransition : public EOSPolicyInterface
   /// same way the n > eir_n_max branch already handles it, and requiring
   /// T >= min_T here would make the NSE branch unreachable from below, so
   /// cold fuel could never flash onto it.
+  /// With hydro/ash_forces_nse = false (post-bounce) the marker is passive:
+  /// the weight is the thermodynamic one alone, so marked matter freezes out
+  /// through the strip when it expands. The ignition latch still raises the
+  /// marker, so it keeps recording which matter has ever been in NSE.
   inline bool AshOnTable(Real n, const Real* Y) const
   {
-    return (Y[SCASH] >= 0.5) and (n >= compose_eos->min_n);
+    return m_ash_forces_nse and (Y[SCASH] >= 0.5) and
+           (n >= compose_eos->min_n);
   }
 
   /// Transition weight as the EOS should see it: the thermodynamic weight
@@ -305,6 +310,12 @@ class EOSTransition : public EOSPolicyInterface
   bool GetEIRCoulomb() const
   {
     return eir_eos->GetCoulomb();
+  }
+
+  /// Whether the ash marker forces the NSE branch (see AshOnTable)
+  void SetAshForcesNSE(bool use)
+  {
+    m_ash_forces_nse = use;
   }
 
   /// Set the upper temperature for using the eir eos at all
@@ -410,6 +421,7 @@ class EOSTransition : public EOSPolicyInterface
   // bool to protect against access of uninitialised table, and prevent
   // repeated reading of table
   bool m_initialized;
+  bool m_ash_forces_nse = true;
   static bool s_printed_parameters;
   static bool s_printed_nucleon_masses;
 

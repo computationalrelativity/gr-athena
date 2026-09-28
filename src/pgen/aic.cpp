@@ -128,8 +128,8 @@ void SetNSEComposition(EOS_T& reos, Real n, Real T, Real* Y)
 }
 
 // Fuel composition from the cold slice (Ye, mass fractions, A_h, binding
-// energy), mass fractions renormalised, marked as fuel, Ye set to initial_Ye.
-void FuelComposition(Real rho, Real initial_Ye, Real* Y)
+// energy), mass fractions renormalised, marked as fuel.
+void FuelComposition(Real rho, Real* Y)
 {
   for (int l = 0; l < SCASH; ++l)
     Y[l] = ceos->GetY(rho, l);
@@ -142,17 +142,15 @@ void FuelComposition(Real rho, Real initial_Ye, Real* Y)
     Y[SCXA] /= sumX;
     Y[SCXH] /= sumX;
   }
-  Y[IYE] = initial_Ye;
 }
 
 // Per-meshblock record of the flash, printed for the block holding the centre.
 struct AshCoreDiag
 {
-  int n_core  = 0;
-  Real r_cen  = std::numeric_limits<Real>::infinity();
-  Real cen[8] = {
-    0, 0, 0, 0, 0, 0, 0, 0
-  };  // rho [g/cc], T_fuel, T_ash, T_after, Ye, EB_fuel, EB_ash, EB_after
+  int n_core = 0;
+  Real r_cen = std::numeric_limits<Real>::infinity();
+  // rho [g/cc], T_fuel, T_ash, T_after, Ye, EB_fuel, EB_ash, EB_after, Ye_fuel
+  Real cen[9]       = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   Real T_ash_rng[2] = { std::numeric_limits<Real>::infinity(), 0.0 };
   Real T_aft_rng[2] = { std::numeric_limits<Real>::infinity(), 0.0 };
   Real Ye_rng[2]    = { 1.0, 0.0 };
@@ -165,7 +163,8 @@ struct AshCoreDiag
            Real Ye,
            Real EB_fuel,
            Real EB_ash,
-           Real EB_after)
+           Real EB_after,
+           Real Ye_fuel)
   {
     ++n_core;
     T_ash_rng[0] = std::min(T_ash_rng[0], T_ash);
@@ -177,14 +176,14 @@ struct AshCoreDiag
     if (r < r_cen)
     {
       r_cen           = r;
-      const Real c[8] = { rho * UDENS, T_fuel,  T_ash,  T_after,
-                          Ye,          EB_fuel, EB_ash, EB_after };
-      for (int a = 0; a < 8; ++a)
+      const Real c[9] = { rho * UDENS, T_fuel, T_ash,    T_after, Ye,
+                          EB_fuel,     EB_ash, EB_after, Ye_fuel };
+      for (int a = 0; a < 9; ++a)
         cen[a] = c[a];
     }
   }
 
-  void Print(bool verbose, Real dx, Real mb_MeV, Real initial_Ye) const
+  void Print(bool verbose, Real dx, Real mb_MeV) const
   {
     if (n_core > 0 && (verbose || r_cen < dx))
     {
@@ -207,7 +206,7 @@ struct AshCoreDiag
         cen[3],
         cen[4],
         cen[5] * mb_MeV,
-        initial_Ye,
+        cen[8],
         cen[6] * mb_MeV,
         cen[7] * mb_MeV);
     }
@@ -229,6 +228,7 @@ Real FlashAshCore(EOS_T& reos,
 {
   const Real e_fuel  = reos.GetEnergy(n, T_fuel, Y);
   const Real EB_fuel = Y[SCEB];
+  const Real Ye_fuel = Y[IYE];
 
   Y[SCASH]         = 1.0;
   const Real T_ash = reos.GetTemperatureFromE(n, e_fuel, Y);
@@ -249,8 +249,68 @@ Real FlashAshCore(EOS_T& reos,
     }
     SetNSEComposition(reos, n, T, Y);
   }
-  diag.Add(r, rho, T_fuel, T_ash, T, Y[IYE], EB_fuel, EB_ash, Y[SCEB]);
+  diag.Add(
+    r, rho, T_fuel, T_ash, T, Y[IYE], EB_fuel, EB_ash, Y[SCEB], Ye_fuel);
   return reos.GetPressure(n, T, Y);
+}
+
+// --- Collapse-phase EOS settings ---
+// Before bounce the temperature strip, the EIR density cutoff and the ash
+// marker take the hydro/*_pre_bounce values (defaults: strip far above any
+// temperature reached, ignition by density at 1e11 g/cc, marker active).
+// At bounce detection every meshblock's EOS is switched to the plain
+// hydro/* keys and the marker becomes passive. The density strip
+// (trans_n_start/end) is the same in both phases: it multiplies the
+// temperature strip, which is zero everywhere before bounce.
+template <typename EOS_T>
+void SetPhaseEOS(EOS_T& eos, ParameterInput* pin, bool pre_bounce)
+{
+  const std::string s = pre_bounce ? "_pre_bounce" : "";
+  // Unset plain keys (the EOS reader stores them as 0) fall back to the EOS
+  // defaults: T strip 0.5..0.6 MeV, density strip one decade above the NSE
+  // table's low-density edge.
+  Real ld_n, hd_n, ld_t, hd_t;
+  eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  auto get = [&](const char* key, Real def)
+  {
+    const Real v = pin->GetOrAddReal("hydro", key, def);
+    return (v > 0.0) ? v : def;
+  };
+  const Real T_start =
+    get(("trans_t_start" + s).c_str(), pre_bounce ? 25.0 : 0.6);
+  const Real T_end = get(("trans_t_end" + s).c_str(), pre_bounce ? 20.0 : 0.5);
+  const Real n_start = get("trans_n_start", 10.0 * hd_n);
+  const Real n_end   = get("trans_n_end", hd_n);
+  const Real n_max =
+    pin->GetOrAddReal("hydro", "eir_n_max" + s, pre_bounce ? 6.0221e-5 : 0.0);
+  const bool ash_forces =
+    pre_bounce &&
+    pin->GetOrAddBoolean("hydro", "ash_force_nse_pre_bounce", true);
+
+  eos.SetTransition(n_start, n_end, T_start, T_end);
+  // unset (0): the EOS default, min(EIR table max, 1e-6 fm^-3)
+  eos.SetEIRNMax(n_max > 0.0 ? n_max : std::numeric_limits<Real>::quiet_NaN());
+  eos.SetAshForcesNSE(ash_forces);
+  // the floor policy keeps its own copy of the ramp start below eir_n_max
+  eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+  eos.SetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
+
+  static bool printed[2] = { false, false };
+  if (Globals::my_rank == 0 && !printed[pre_bounce])
+  {
+    printed[pre_bounce] = true;
+    std::printf(
+      "aic: %s EOS: strip T %.3g..%.3g MeV, n %.3g..%.3g fm^-3, "
+      "eir_n_max %s%.3g, ash marker %s\n",
+      pre_bounce ? "pre-bounce" : "post-bounce",
+      T_end,
+      T_start,
+      n_end,
+      n_start,
+      n_max > 0.0 ? "" : "default, input ",
+      n_max,
+      ash_forces ? "forces NSE" : "passive");
+  }
 }
 
 // --- 3. Magnetic Field Variables ---
@@ -398,6 +458,16 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   opt_v_hom       = pin->GetOrAddReal("problem", "v_hom", 0.0);
   fac_MeVfm3_code =
     Primitive::Nuclear.PressureConversion(Primitive::GeometricSolar);
+  // the flash puts the core on the NSE branch by raising the marker, so the
+  // marker must be active at t = 0
+  if (opt_nse_core && !resume_flag &&
+      !pin->GetOrAddBoolean("hydro", "ash_force_nse_pre_bounce", true))
+  {
+    std::stringstream msg;
+    msg << "problem/nse_core needs hydro/ash_force_nse_pre_bounce = true"
+        << std::endl;
+    ATHENA_ERROR(msg);
+  }
   if (opt_nse_gate && !opt_nse_core &&
       opt_dlp_mtd_ != opt_deleptonization_method::None &&
       Globals::my_rank == 0)
@@ -643,8 +713,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   //     }
   //   }
 
-  Real rho_min    = pin->GetReal("hydro", "dfloor");
-  Real initial_Ye = pin->GetOrAddReal("problem", "initial_Ye", 0.5);
+  Real rho_min = pin->GetReal("hydro", "dfloor");
 
   const Real mb     = ceos->GetBaryonMass();
   auto& reos        = peos->GetEOS();
@@ -683,7 +752,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
           Real Y_old[MAX_SPECIES]{ 0.0 };
           FuelComposition(
-            rho_ID, initial_Ye, Y_old);  // transition EOS: whole composition
+            rho_ID,
+            Y_old);  // transition EOS: whole composition from the slice
 
           const Real T = reos.GetTemperatureFromP(n_b, P_ID, Y_old);
 
@@ -692,15 +762,15 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
             std::cout << "BAD T: "
                       << "i=" << i << " j=" << j << " k=" << k
                       << " P_ID=" << P_ID << " rho_ID=" << rho_ID
-                      << " n_b=" << n_b << " Ye_old=" << initial_Ye
+                      << " n_b=" << n_b << " Ye_old=" << Y_old[IYE]
                       << " T=" << T << std::endl;
           }
 
           Real Ye_new = pdelept->Ye_of_rho(rho_ID);
 
           Real Y_new[MAX_SPECIES]{ 0.0 };
-          // the fuel keeps initial_Ye; only the ash core is deleptonized at t
-          // = 0
+          // the fuel keeps the slice Ye; only the ash core is deleptonized at
+          // t = 0
           for (int l = 0; l < MAX_SPECIES; ++l)
             Y_new[l] = Y_old[l];
 
@@ -746,7 +816,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
     }
   }
 
-  diag.Print(verbose, pcoord->dx1v(is), mb_MeV, initial_Ye);
+  diag.Print(verbose, pcoord->dx1v(is), mb_MeV);
 
   delete[] rho;
   delete[] pres;
@@ -1278,6 +1348,15 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
   // changed
   const auto& pmb_array = GetMeshBlocksCached();
   FinalizeZ4cADM_Matter(pmb_array);
+}
+
+void MeshBlock::InitUserMeshBlockData(ParameterInput* pin)
+{
+  // collapse-phase EOS until the bounce has been detected, the post-bounce
+  // one on every block created after it (restart, AMR); see SetPhaseEOS
+  SetPhaseEOS(peos->GetEOS(),
+              pin,
+              !pin->GetOrAddBoolean("problem", "post_bounce", false));
 }
 
 void Mesh::UserWorkAfterLoop(ParameterInput* pin)
@@ -1816,6 +1895,11 @@ void Mesh::UserWorkBeforeLoop(ParameterInput* pin)
       std::printf("Bounce detected... @ %.13e\n", time);
     }
     pin->SetReal("problem", "t_bounce", time);
+    // post-bounce EOS: plain hydro/trans_* strip and eir_n_max, passive marker
+    for (MeshBlock* pmb = pblock; pmb != nullptr; pmb = pmb->next)
+    {
+      SetPhaseEOS(pmb->peos->GetEOS(), pin, false);
+    }
     const bool equilibriate_post_bounce =
       pin->GetOrAddBoolean("problem", "equilibriate_post_bounce", true);
     if (equilibriate_post_bounce)

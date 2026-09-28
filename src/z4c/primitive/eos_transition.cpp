@@ -660,14 +660,8 @@ void EOSTransition::SetTransition(Real n_start,
                                   Real T_start,
                                   Real T_end)
 {
-  if (m_initialized)
-  {
-    std::stringstream msg;
-    msg << "### EOSTransition: Transition must be set before initialization."
-        << std::endl;
-    throw std::runtime_error(msg.str());
-  }
-
+  // may be called after initialization (the AIC pgen moves the strip at
+  // bounce); update_bounds below then refreshes the derived indices
   if (n_start <= n_end)
   {
     std::stringstream msg;
@@ -691,6 +685,8 @@ void EOSTransition::SetTransition(Real n_start,
   trans_T_start   = T_start;
   trans_T_end     = T_end;
   m_trans_T_width = T_start - T_end;
+  if (m_initialized)
+    update_bounds();
 }
 
 void EOSTransition::PrintParameters()
@@ -709,6 +705,7 @@ void EOSTransition::PrintParameters()
       printf("  Xh min, max = %e %e\n", min_Y[SCXH], max_Y[SCXH]);
       printf("  Ah min, max = %e %e\n", min_Y[SCAH], max_Y[SCAH]);
       printf("  eir n_max, t_max = %e %e\n", m_eir_n_max, m_eir_T_max);
+      printf("  ash marker forces NSE = %d\n", m_ash_forces_nse);
       printf("  comp n_min, t_min = %e %e\n",
              compose_eos->min_n,
              compose_eos->min_T);

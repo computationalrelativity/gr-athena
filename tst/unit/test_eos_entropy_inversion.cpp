@@ -303,6 +303,32 @@ static void TestAshBranch()
   }
 }
 
+// 8. With ash_forces_nse = false (post-bounce) the marker is passive: the
+//    weight is the thermodynamic one, so marked matter in or below the strip
+//    freezes out like fuel.
+static void TestAshPassive()
+{
+  std::printf("Passive ash marker follows the thermodynamic weight\n");
+  EOSTransition* pt = (EOSTransition*)peos;
+  pt->SetAshForcesNSE(false);
+  const Regime ash[] = {
+    { "strip, passive ash",       1e-8, 0.55 },
+    { "below strip, passive ash", 1e-8, 0.45 },
+    { "EIR side, passive ash",    1e-9, 0.30 },
+  };
+  for (auto& r : ash)
+  {
+    Real Y[MAX_SPECIES]; NSELikeComposition(Y);
+    Y[SCASH] = 1.0;
+    const Real w = pt->TransitionWeight(r.n, r.T, Y);
+    const Real f = pt->TransitionFactor(r.n, r.T);
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "weight %.3f  factor %.3f", w, f);
+    Check(w == f, r.name, buf);
+  }
+  pt->SetAshForcesNSE(true);
+}
+
 int main()
 {
   EOS<EOSTransition, ResetFloorTransition> eos;
@@ -338,6 +364,7 @@ int main()
   TestCaptureStep();
   TestTrappedIsentropy();
   TestAshBranch();
+  TestAshPassive();
 
   std::printf("\n%d passed, %d failed\n", n_pass, n_fail);
   return n_fail != 0;
