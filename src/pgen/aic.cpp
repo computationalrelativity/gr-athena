@@ -88,6 +88,8 @@ namespace {
   Real opt_rho_trap;
   Real opt_rho_cut;
 
+  Real fac_MeVfm3_code;          // n [fm^-3] * E [MeV] -> code energy density
+
   // --- 3. Magnetic Field Variables ---
   Real opt_B0_amp;
   Real opt_B0_rad;
@@ -198,6 +200,8 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   opt_rho_cut          = pin->GetOrAddReal("problem", "rho_cut", -INF) / UDENS;
   use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", true);
   pdelept = new Deleptonization(pin);
+
+  fac_MeVfm3_code = Primitive::Nuclear.PressureConversion(Primitive::GeometricSolar);
 
   // 5. Initialize Magnetic Field Parameters
   opt_B0_amp = pin->GetOrAddReal("problem", "B0_amp", 0.0);
@@ -764,10 +768,6 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
   // Method 2: Simple (Direct Energy Subtraction)
   // -------------------------------------------------------------------------
   auto method_Simple = [&]() {
-    Primitive::UnitSystem* us_gs = &Primitive::GeometricSolar;
-    Primitive::UnitSystem* us_nu = &Primitive::Nuclear;
-    const Real us_fac_MeV2Msun = (us_nu->EnergyConversion(*us_gs)); 
-
     while (pmb != nullptr) {
       EquationOfState* peos = pmb->peos;
       Hydro* ph = pmb->phydro;
@@ -793,18 +793,16 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
           const Real Y_e_bar = pdelept->Ye_of_rho(rho);
           const Real delta_Y_e = std::min(0.0, Y_e_bar - Y_e);
 
-          if ((E_nu_avg > 0)) {
+          if (E_nu_avg > 0 && delta_Y_e < 0) {  // only actual captures, never raise Ye
             // reset electron fraction & update tau variable ------------------
             ps->r(IYE, k, j, i) = Y_e_bar;
             ps->s(IYE, k, j, i) = ph->u(IDN, k, j, i) * Y_e_bar;
 
-            // E_nu_avg [MeV] -> [Msun]
             // Neutrino energy loss: delta_Y_e < 0 from electron capture,
-            // so this term is negative, reducing tau.
-            if (delta_Y_e < 0) {
-              tau += (alpha(k, j, i) * sqrt_detgamma(k, j, i) * aux_W(k, j, i) * n *
-                      delta_Y_e * (us_fac_MeV2Msun * E_nu_avg));
-            }
+            // so this term is negative, reducing tau. n dYe E_nu is an energy
+            // density, hence PressureConversion.
+            tau += (alpha(k, j, i) * sqrt_detgamma(k, j, i) * aux_W(k, j, i) * n *
+                    delta_Y_e * E_nu_avg * fac_MeVfm3_code);
 
             static const int coarse_flag = 0;
             peos->ConservedToPrimitive(ph->u, ph->w1, ph->w, ps->s, ps->r, pf->bcc,
