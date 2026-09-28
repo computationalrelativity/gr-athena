@@ -92,7 +92,19 @@ namespace {
   // The eighth passive scalar SCASH marks matter in NSE (1) or unburnt fuel (0).
   bool opt_nse_gate    = true;   // deleptonize only cells with the ash marker set
   bool opt_nse_refresh = true;   // resync the composition scalars to NSE after a capture
+  bool opt_nse_core    = false;  // flash the initial data inside r_NSE to NSE
+  Real opt_r_nse       = 0.0;    // code units
+  Real opt_v_hom       = 0.0;    // homologous infall velocity of the ash core at r_NSE
   Real fac_MeVfm3_code;          // n [fm^-3] * E [MeV] -> code energy density
+
+  // Energy carried away per captured electron [MeV]: E_nu_avg, but never more
+  // than mu_nu; above rho_trap the neutrinos are trapped and nothing leaves.
+  template <typename EOS_T>
+  Real EscapeEnergy(EOS_T& reos, Real rho, Real n, Real T, Real* Y) {
+    const Real mu_nu = reos.GetElectronLeptonChemicalPotential(n, T, Y);
+    if (!(rho < opt_rho_trap)) return mu_nu;
+    return std::min(opt_E_nu_avg, mu_nu);
+  }
 
   // Composition scalars and binding energy of the NSE table at (n, T, Ye).
   // SCASH is left alone: it is the gate, refreshing it would move the ash front.
@@ -112,6 +124,76 @@ namespace {
       Y[SCXN] /= sumX; Y[SCXP] /= sumX; Y[SCXA] /= sumX; Y[SCXH] /= sumX;
     }
     Y[IYE] = initial_Ye;
+  }
+
+  // Per-meshblock record of the flash, printed for the block holding the centre.
+  struct AshCoreDiag {
+    int n_core = 0;
+    Real r_cen = std::numeric_limits<Real>::infinity();
+    Real cen[8] = {0, 0, 0, 0, 0, 0, 0, 0};  // rho [g/cc], T_fuel, T_ash, T_after, Ye, EB_fuel, EB_ash, EB_after
+    Real T_ash_rng[2] = {std::numeric_limits<Real>::infinity(), 0.0};
+    Real T_aft_rng[2] = {std::numeric_limits<Real>::infinity(), 0.0};
+    Real Ye_rng[2]    = {1.0, 0.0};
+
+    void Add(Real r, Real rho, Real T_fuel, Real T_ash, Real T_after, Real Ye,
+             Real EB_fuel, Real EB_ash, Real EB_after) {
+      ++n_core;
+      T_ash_rng[0] = std::min(T_ash_rng[0], T_ash);
+      T_ash_rng[1] = std::max(T_ash_rng[1], T_ash);
+      T_aft_rng[0] = std::min(T_aft_rng[0], T_after);
+      T_aft_rng[1] = std::max(T_aft_rng[1], T_after);
+      Ye_rng[0]    = std::min(Ye_rng[0], Ye);
+      Ye_rng[1]    = std::max(Ye_rng[1], Ye);
+      if (r < r_cen) {
+        r_cen = r;
+        const Real c[8] = {rho * UDENS, T_fuel, T_ash, T_after, Ye, EB_fuel, EB_ash, EB_after};
+        for (int a = 0; a < 8; ++a) cen[a] = c[a];
+      }
+    }
+
+    void Print(bool verbose, Real dx, Real mb_MeV, Real initial_Ye) const {
+      if (n_core > 0 && (verbose || r_cen < dx)) {
+        std::printf(
+          "aic: NSE core block (r_min %.2f M, %d cells): T_ash %.3f..%.3f "
+          "T_after %.3f..%.3f Ye %.4f..%.4f | innermost cell: rho %.3e g/cc "
+          "T_fuel %.4f T_ash %.4f T_after %.4f MeV Ye %.4f | SCEB*mb [MeV/b]: "
+          "fuel %+.4f ash(Ye %.2f) %+.4f after captures %+.4f\n",
+          r_cen, n_core, T_ash_rng[0], T_ash_rng[1], T_aft_rng[0], T_aft_rng[1],
+          Ye_rng[0], Ye_rng[1], cen[0], cen[1], cen[2], cen[3], cen[4],
+          cen[5] * mb_MeV, initial_Ye, cen[6] * mb_MeV, cen[7] * mb_MeV);
+      }
+    }
+  };
+
+  // Ash core of the initial data: the fuel is burnt to NSE at fixed (n, e), then
+  // deleptonized to Ye_bar(rho) in 16 steps, each at fixed energy minus what the
+  // neutrino carries away. Raising the marker first puts the inversion on the
+  // NSE branch, so the composition follows the trial temperature. Returns P.
+  template <typename EOS_T>
+  Real FlashAshCore(EOS_T& reos, Real n, Real rho, Real T_fuel, Real r, Real* Y,
+                    AshCoreDiag& diag) {
+    const Real e_fuel  = reos.GetEnergy(n, T_fuel, Y);
+    const Real EB_fuel = Y[SCEB];
+
+    Y[SCASH] = 1.0;
+    const Real T_ash = reos.GetTemperatureFromE(n, e_fuel, Y);
+    SetNSEComposition(reos, n, T_ash, Y);
+    const Real EB_ash = Y[SCEB];
+
+    Real E = e_fuel;
+    Real T = T_ash;
+    const int nsub = 16;
+    const Real dYe = (pdelept->Ye_of_rho(rho) - Y[IYE]) / nsub;
+    if (dYe < 0.0) {
+      for (int sub = 0; sub < nsub; ++sub) {
+        E += n * dYe * EscapeEnergy(reos, rho, n, T, Y) * fac_MeVfm3_code;
+        Y[IYE] += dYe;
+        T = reos.GetTemperatureFromE(n, E, Y);
+      }
+      SetNSEComposition(reos, n, T, Y);
+    }
+    diag.Add(r, rho, T_fuel, T_ash, T, Y[IYE], EB_fuel, EB_ash, Y[SCEB]);
+    return reos.GetPressure(n, T, Y);
   }
 
   // --- 3. Magnetic Field Variables ---
@@ -228,7 +310,15 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   // Transition EOS: NSE gate and hot ash core (helpers at the top of the file)
   opt_nse_gate    = pin->GetOrAddBoolean("problem", "nse_gate", true);
   opt_nse_refresh = pin->GetOrAddBoolean("problem", "nse_refresh", true);
+  opt_nse_core    = pin->GetOrAddBoolean("problem", "nse_core", false);
+  opt_r_nse       = pin->GetOrAddReal("problem", "r_NSE", 0.0);
+  opt_v_hom       = pin->GetOrAddReal("problem", "v_hom", 0.0);
   fac_MeVfm3_code = Primitive::Nuclear.PressureConversion(Primitive::GeometricSolar);
+  if (opt_nse_gate && !opt_nse_core &&
+      opt_dlp_mtd_ != opt_deleptonization_method::None && Globals::my_rank == 0) {
+    std::printf("aic: WARNING nse_gate is on but nse_core is off: no cell carries "
+                "the ash marker, the deleptonization will never fire\n");
+  }
 
   // 5. Initialize Magnetic Field Parameters
   opt_B0_amp = pin->GetOrAddReal("problem", "B0_amp", 0.0);
@@ -384,6 +474,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
   const Real mb = ceos->GetBaryonMass();
   auto& reos = peos->GetEOS();
+  const Real mb_MeV = pin->GetOrAddReal("hydro", "bmass", 930.4117);
+  AshCoreDiag diag;
 
   for (int k = 0; k < ncells3; ++k) {
     for (int j = 0; j < ncells2; ++j) {
@@ -410,6 +502,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 	        }
 	
 	        const Real n_b = rho_ID / mb;
+	        const Real r   = std::sqrt(x[i] * x[i] + y[j] * y[j] + z[k] * z[k]);
 	
 	        Real Y_old[MAX_SPECIES]{0.0};
 	        FuelComposition(rho_ID, initial_Ye, Y_old);  // transition EOS: whole composition
@@ -449,16 +542,31 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 			
 	        phydro->w(IDN, k, j, i) = rho_ID;
 	        phydro->w(IPR, k, j, i) = P_new;
+	        if (opt_nse_core && r < opt_r_nse) {  // transition EOS: hot ash core
+	          phydro->w(IPR, k, j, i) = FlashAshCore(reos, n_b, rho_ID, T, r, Y_new, diag);
+	        }
 	
 	        phydro->w(IVX, k, j, i) = ux[flat_ix];
 	        phydro->w(IVY, k, j, i) = uy[flat_ix];
 	        phydro->w(IVZ, k, j, i) = uz[flat_ix];
+	
+	        // homologous infall of the ash core, v_r = -v_hom r / r_NSE
+	        // (Goldreich & Weber 1980), tapered linearly to zero at 2 r_NSE
+	        if (opt_v_hom > 0.0 && opt_nse_core && r > 0.0 && r < 2.0 * opt_r_nse) {
+	          const Real f  = (r <= opt_r_nse) ? r / opt_r_nse : 2.0 - r / opt_r_nse;
+	          const Real vr = -opt_v_hom * f;
+	          phydro->w(IVX, k, j, i) += vr * x[i] / r;
+	          phydro->w(IVY, k, j, i) += vr * y[j] / r;
+	          phydro->w(IVZ, k, j, i) += vr * z[k] / r;
+	        }
 	
 	        for (int l = 0; l < NSCALARS; ++l) pscalars->r(l, k, j, i) = Y_new[l];
 		}
       }
     }
   }
+
+  diag.Print(verbose, pcoord->dx1v(is), mb_MeV, initial_Ye);
 
   delete[] rho; delete[] pres; delete[] ux; delete[] uy; delete[] uz;
   delete[] x; delete[] y; delete[] z;
