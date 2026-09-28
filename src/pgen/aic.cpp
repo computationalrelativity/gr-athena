@@ -352,7 +352,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   Real initial_Ye = pin->GetOrAddReal("problem", "initial_Ye", 0.5);
 
   const Real mb = ceos->GetBaryonMass();
-  auto reos = peos->GetEOS();
+  auto& reos = peos->GetEOS();
 
   for (int k = 0; k < ncells3; ++k) {
     for (int j = 0; j < ncells2; ++j) {
@@ -698,7 +698,7 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
       AA aux_h; aux_h.InitWithShallowSlice(ph->derived_ms, IX_ETH, 1);
       AA aux_e; aux_e.InitWithShallowSlice(ph->derived_ms, IX_SEN, 1);
 
-      auto reos = peos->GetEOS();
+      auto& reos = peos->GetEOS();
       const Real mb_eos = reos.GetBaryonMass();
       AT_N_sca sqrt_detgamma(pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
 
@@ -780,7 +780,7 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
       AT_N_sca sqrt_detgamma(pz4c->storage.aux_extended, Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
       AA aux_W; aux_W.InitWithShallowSlice(ph->derived_ms, IX_LOR, 1);
 
-      auto reos = peos->GetEOS();
+      auto& reos = peos->GetEOS();
       const Real mb_eos = reos.GetBaryonMass();
 
       CC_GLOOP2(k, j) {
