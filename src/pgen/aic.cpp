@@ -90,6 +90,18 @@ namespace {
 
   Real fac_MeVfm3_code;          // n [fm^-3] * E [MeV] -> code energy density
 
+  // Fuel composition from the cold slice (Ye, mass fractions, A_h, binding
+  // energy), mass fractions renormalised, marked as fuel, Ye set to initial_Ye.
+  void FuelComposition(Real rho, Real initial_Ye, Real* Y) {
+    for (int l = 0; l < SCASH; ++l) Y[l] = ceos->GetY(rho, l);
+    Y[SCASH] = 0.0;
+    const Real sumX = Y[SCXN] + Y[SCXP] + Y[SCXA] + Y[SCXH];
+    if (sumX > 0.0) {
+      Y[SCXN] /= sumX; Y[SCXP] /= sumX; Y[SCXA] /= sumX; Y[SCXH] /= sumX;
+    }
+    Y[IYE] = initial_Ye;
+  }
+
   // --- 3. Magnetic Field Variables ---
   Real opt_B0_amp;
   Real opt_B0_rad;
@@ -385,7 +397,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 	        const Real n_b = rho_ID / mb;
 	
 	        Real Y_old[MAX_SPECIES]{0.0};
-	        Y_old[IYE] = initial_Ye;
+	        FuelComposition(rho_ID, initial_Ye, Y_old);  // transition EOS: whole composition
 	
 	        const Real T = reos.GetTemperatureFromP(
 	            n_b, P_ID, Y_old);
@@ -404,7 +416,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 	        Real Ye_new = pdelept->Ye_of_rho(rho_ID);
 	
 	        Real Y_new[MAX_SPECIES]{0.0};
-	        Y_new[IYE] = Ye_new;
+	        // the fuel keeps initial_Ye; only the ash core is deleptonized at t = 0
+	        for (int l = 0; l < MAX_SPECIES; ++l) Y_new[l] = Y_old[l];
 	
 	        const Real P_new = reos.GetPressure(
 	            n_b, T, Y_new);
@@ -426,7 +439,7 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 	        phydro->w(IVY, k, j, i) = uy[flat_ix];
 	        phydro->w(IVZ, k, j, i) = uz[flat_ix];
 	
-	        pscalars->r(IYE, k, j, i) = Ye_new;
+	        for (int l = 0; l < NSCALARS; ++l) pscalars->r(l, k, j, i) = Y_new[l];
 		}
       }
     }
