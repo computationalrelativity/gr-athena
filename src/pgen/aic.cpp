@@ -88,7 +88,19 @@ namespace {
   Real opt_rho_trap;
   Real opt_rho_cut;
 
+  // --- Transition EOS: NSE gate and hot ash core ---
+  // The eighth passive scalar SCASH marks matter in NSE (1) or unburnt fuel (0).
+  bool opt_nse_gate    = true;   // deleptonize only cells with the ash marker set
+  bool opt_nse_refresh = true;   // resync the composition scalars to NSE after a capture
   Real fac_MeVfm3_code;          // n [fm^-3] * E [MeV] -> code energy density
+
+  // Composition scalars and binding energy of the NSE table at (n, T, Ye).
+  // SCASH is left alone: it is the gate, refreshing it would move the ash front.
+  template <typename EOS_T>
+  void SetNSEComposition(EOS_T& reos, Real n, Real T, Real* Y) {
+    reos.GetNSEComposition(n, T, Y);
+    Y[SCEB] = reos.GetNSEBindingEnergy(n, T, Y);
+  }
 
   // Fuel composition from the cold slice (Ye, mass fractions, A_h, binding
   // energy), mass fractions renormalised, marked as fuel, Ye set to initial_Ye.
@@ -213,6 +225,9 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", true);
   pdelept = new Deleptonization(pin);
 
+  // Transition EOS: NSE gate and hot ash core (helpers at the top of the file)
+  opt_nse_gate    = pin->GetOrAddBoolean("problem", "nse_gate", true);
+  opt_nse_refresh = pin->GetOrAddBoolean("problem", "nse_refresh", true);
   fac_MeVfm3_code = Primitive::Nuclear.PressureConversion(Primitive::GeometricSolar);
 
   // 5. Initialize Magnetic Field Parameters
@@ -724,7 +739,12 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
         Real& Y_e = ps->r(IYE, k, j, i); 
         Real Y_old[MAX_SPECIES]{ 0 };
         Real Y_new[MAX_SPECIES]{ 0 };
-        Y_old[IYE] = Y_e;
+        for (int l = 0; l < NSCALARS; ++l) {  // transition EOS: whole composition
+          Y_old[l] = Y_new[l] = ps->r(l, k, j, i);
+        }
+
+        // transition EOS: only NSE matter (ash marker set) has an open capture channel
+        if (opt_nse_gate && Y_old[SCASH] < 0.5) continue;
 
         // Calculate Target Ye based on density
         const Real Y_e_bar   = pdelept->Ye_of_rho(rho);
@@ -748,6 +768,11 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
 
           // update derived hydro quantities
           aux_T(k, j, i) = reos.GetTemperatureFromEntropy(n, aux_s(k, j, i), Y_new);
+          if (opt_nse_refresh) {  // transition EOS: composition scalars follow the NSE table
+            SetNSEComposition(reos, n, aux_T(k, j, i), Y_new);
+            aux_s(k, j, i) = reos.GetEntropyPerBaryon(n, aux_T(k, j, i), Y_new);
+          }
+          for (int l = 0; l < NSCALARS; ++l) ps->r(l, k, j, i) = Y_new[l];
           aux_h(k, j, i) = reos.GetEnthalpy(n, aux_T(k, j, i), Y_new);
           aux_e(k, j, i) = reos.GetSpecificInternalEnergy(n, aux_T(k, j, i), Y_new);
 
@@ -757,7 +782,7 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
 
             // Have new state (s, T, h, E) adjust conserved variables:
             ph->u(IEN, k, j, i) = sqrt_detgamma(k, j, i) * E - ph->u(IDN, k, j, i);
-            ps->s(IYE, k, j, i) = ph->u(IDN, k, j, i) * Y_e;
+            for (int l = 0; l < NSCALARS; ++l) ps->s(l, k, j, i) = ph->u(IDN, k, j, i) * Y_new[l];
 
             // update complementary primitive variables
             static const int coarse_flag = 0;
