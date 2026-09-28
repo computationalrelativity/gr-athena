@@ -893,10 +893,12 @@ int RefinementCondition(MeshBlock* pmb) {
       int ref_tr = Mesh::StandardRefinementCondition(pmb);
       if (ref_tr == 1) return 1;
 
-      // Fallback to mass threshold if tracker didn't trigger
+      // Fallback to mass threshold if tracker didn't trigger. Derefine only
+      // where the tracker does not pin the level (ref_tr == -1), otherwise its
+      // whole region flips down and up again every deref_count cycles.
       Real max_mass = MaxMassInCell(pmb, 0);
       if (max_mass > opt_delta_max_m) return 1;
-      if (max_mass < opt_delta_min_m) return -1;
+      if (max_mass < opt_delta_min_m && ref_tr == -1) return -1;
       break;
     }
     case opt_refinement_method::none:
