@@ -1698,7 +1698,7 @@ if "Elliptica" in args["prob"]:
     raise SystemExit(msg)
 
 # -rns argument
-if args["prob"] == "gr_rns":
+if args["prob"] in ("gr_rns", "aic"):
   #    if not args['gsl']:
   #        raise SystemExit('### CONFIGURE ERROR: To compile with two punctures -gsl is required.')
 

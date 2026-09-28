@@ -106,3 +106,19 @@ src/tags
 # unit-driver build output
 tst/unit/.build/
 tst/unit/test_eos_entropy_inversion
+
+# from project/aic
+eos_tables/
+extern/
+**/*.log
+**/*.out
+**/*.err
+**/RNS_DATA
+**/BATCH
+**/batch.sub
+**/JOBID
+**/PREVIOUS
+**/parent
+**/*.lock
+py_scripts/
+runs/
