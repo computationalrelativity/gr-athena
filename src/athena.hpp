@@ -199,6 +199,8 @@ enum ScalarVariables
   SCASH  = 7,  //! ash marker: 1 where the matter is in NSE, 0 in the fuel
   SCNVAR = 8   //! number of scalar variables
 };
+static_assert(NSCALARS >= SCNVAR,
+              "eos_transition needs --nscalars >= SCNVAR (see ScalarVariables)");
 #endif
 enum PrimIndex
 {
