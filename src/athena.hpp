@@ -198,6 +198,8 @@ enum ScalarVariables
   SCEB   = 6,  //! binding energy per baryon relative to baryon mass factor
   SCNVAR = 7   //! number of scalar variables
 };
+static_assert(NSCALARS >= SCNVAR,
+              "eos_transition needs --nscalars >= SCNVAR (see ScalarVariables)");
 #endif
 enum PrimIndex
 {
