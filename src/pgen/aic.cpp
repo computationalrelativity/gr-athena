@@ -105,7 +105,27 @@ bool opt_nse_refresh =
 bool opt_nse_core = false;  // flash the initial data inside r_NSE to NSE
 Real opt_r_nse    = 0.0;    // code units
 Real opt_v_hom = 0.0;  // homologous infall velocity of the ash core at r_NSE
+// Off-centre ash (Holas et al. 2026): an egg of two half-ellipsoids sharing
+// the equatorial radius r_NSE, semi-axis r_NSE_plus towards the unit vector
+// ash_n (the ignition side) and r_NSE_minus away from it. Both default to
+// r_NSE, the sphere.
+Real opt_r_nse_plus  = 0.0;
+Real opt_r_nse_minus = 0.0;
+Real ash_n[3]        = { 0.0, 0.0, 1.0 };
+// Ash Ye: beta equilibrium (mu_nu = 0) at the centre, tapered as
+// rhat^ash_ye_pow to Ye_of_rho at the edge. Off: Ye_of_rho everywhere.
+bool opt_ash_ye_eq  = false;
+Real opt_ash_ye_pow = 2.0;
 Real fac_MeVfm3_code;  // n [fm^-3] * E [MeV] -> code energy density
+
+// Ash-shape radius: 1 on the ash surface, r / r_NSE for the sphere.
+Real AshRadius(Real x, Real y, Real z)
+{
+  const Real zp = x * ash_n[0] + y * ash_n[1] + z * ash_n[2];
+  const Real s2 = std::max(x * x + y * y + z * z - zp * zp, 0.0);
+  const Real c  = (zp > 0.0) ? opt_r_nse_plus : opt_r_nse_minus;
+  return std::sqrt(s2 / (opt_r_nse * opt_r_nse) + zp * zp / (c * c));
+}
 
 // Energy carried away per captured electron [MeV]: E_nu_avg, but never more
 // than mu_nu; above rho_trap the neutrinos are trapped and nothing leaves.
@@ -213,16 +233,48 @@ struct AshCoreDiag
   }
 };
 
+// Ye at which captures stop (mu_nu = 0), following the same energy-form
+// capture track as FlashAshCore from the flashed state (E, T, Y), which is
+// left unchanged.
+template <typename EOS_T>
+Real EquilibriumYe(EOS_T& reos,
+                   Real rho,
+                   Real n,
+                   Real E,
+                   Real T,
+                   const Real* Y0)
+{
+  Real Y[MAX_SPECIES];
+  for (int l = 0; l < MAX_SPECIES; ++l)
+    Y[l] = Y0[l];
+  const Real dYe = -2e-3;
+  Real mu        = reos.GetElectronLeptonChemicalPotential(n, T, Y);
+  while (mu > 0.0 && Y[IYE] + dYe > 0.1)
+  {
+    E += n * dYe * EscapeEnergy(reos, rho, n, T, Y) * fac_MeVfm3_code;
+    Y[IYE] += dYe;
+    T                 = reos.GetTemperatureFromE(n, E, Y);
+    const Real mu_new = reos.GetElectronLeptonChemicalPotential(n, T, Y);
+    if (!(mu_new > 0.0))  // bracketed: interpolate linearly in mu
+      return Y[IYE] - dYe * mu_new / (mu_new - mu);
+    mu = mu_new;
+  }
+  return Y[IYE];
+}
+
 // Ash core of the initial data: the fuel is burnt to NSE at fixed (n, e), then
 // deleptonized to Ye_bar(rho) in 16 steps, each at fixed energy minus what the
 // neutrino carries away. Raising the marker first puts the inversion on the
-// NSE branch, so the composition follows the trial temperature. Returns P.
+// NSE branch, so the composition follows the trial temperature. With ash_ye_eq
+// the target is the equilibrium Ye at the centre, tapered to Ye_bar(rho) at
+// the ash surface (rhat = 1). Returns P.
 template <typename EOS_T>
 Real FlashAshCore(EOS_T& reos,
                   Real n,
                   Real rho,
                   Real T_fuel,
                   Real r,
+                  Real rhat,
                   Real* Y,
                   AshCoreDiag& diag)
 {
@@ -238,7 +290,14 @@ Real FlashAshCore(EOS_T& reos,
   Real E         = e_fuel;
   Real T         = T_ash;
   const int nsub = 16;
-  const Real dYe = (pdelept->Ye_of_rho(rho) - Y[IYE]) / nsub;
+  Real Ye_tgt    = pdelept->Ye_of_rho(rho);
+  if (opt_ash_ye_eq)
+  {
+    const Real Ye_eq = EquilibriumYe(reos, rho, n, E, T, Y);
+    Ye_tgt           = std::min(
+      Ye_tgt, Ye_eq + (Ye_tgt - Ye_eq) * std::pow(rhat, opt_ash_ye_pow));
+  }
+  const Real dYe = (Ye_tgt - Y[IYE]) / nsub;
   if (dYe < 0.0)
   {
     for (int sub = 0; sub < nsub; ++sub)
@@ -456,6 +515,19 @@ void Mesh::InitUserMeshData(ParameterInput* pin)
   opt_nse_core    = pin->GetOrAddBoolean("problem", "nse_core", false);
   opt_r_nse       = pin->GetOrAddReal("problem", "r_NSE", 0.0);
   opt_v_hom       = pin->GetOrAddReal("problem", "v_hom", 0.0);
+  opt_r_nse_plus  = pin->GetOrAddReal("problem", "r_NSE_plus", opt_r_nse);
+  opt_r_nse_minus = pin->GetOrAddReal("problem", "r_NSE_minus", opt_r_nse);
+  {  // ignition direction: polar angle from the rotation (z) axis, azimuth
+    const Real th =
+      pin->GetOrAddReal("problem", "ash_theta_deg", 0.0) * PI / 180.0;
+    const Real ph =
+      pin->GetOrAddReal("problem", "ash_phi_deg", 0.0) * PI / 180.0;
+    ash_n[0] = std::sin(th) * std::cos(ph);
+    ash_n[1] = std::sin(th) * std::sin(ph);
+    ash_n[2] = std::cos(th);
+  }
+  opt_ash_ye_eq  = pin->GetOrAddBoolean("problem", "ash_ye_eq", false);
+  opt_ash_ye_pow = pin->GetOrAddReal("problem", "ash_ye_pow", 2.0);
   fac_MeVfm3_code =
     Primitive::Nuclear.PressureConversion(Primitive::GeometricSolar);
   // the flash puts the core on the NSE branch by raising the marker, so the
@@ -749,6 +821,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
           const Real n_b = rho_ID / mb;
           const Real r   = std::sqrt(x[i] * x[i] + y[j] * y[j] + z[k] * z[k]);
+          const Real rhat =
+            AshRadius(x[i], y[j], z[k]);  // 1 on the ash surface
 
           Real Y_old[MAX_SPECIES]{ 0.0 };
           FuelComposition(
@@ -786,10 +860,10 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
           phydro->w(IDN, k, j, i) = rho_ID;
           phydro->w(IPR, k, j, i) = P_new;
-          if (opt_nse_core && r < opt_r_nse)
+          if (opt_nse_core && rhat < 1.0)
           {  // transition EOS: hot ash core
             phydro->w(IPR, k, j, i) =
-              FlashAshCore(reos, n_b, rho_ID, T, r, Y_new, diag);
+              FlashAshCore(reos, n_b, rho_ID, T, r, rhat, Y_new, diag);
           }
 
           phydro->w(IVX, k, j, i) = ux[flat_ix];
@@ -798,11 +872,10 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
           // homologous infall of the ash core, v_r = -v_hom r / r_NSE
           // (Goldreich & Weber 1980), tapered linearly to zero at 2 r_NSE
-          if (opt_v_hom > 0.0 && opt_nse_core && r > 0.0 &&
-              r < 2.0 * opt_r_nse)
+          // (rhat in place of r / r_NSE for the egg)
+          if (opt_v_hom > 0.0 && opt_nse_core && r > 0.0 && rhat < 2.0)
           {
-            const Real f =
-              (r <= opt_r_nse) ? r / opt_r_nse : 2.0 - r / opt_r_nse;
+            const Real f  = (rhat <= 1.0) ? rhat : 2.0 - rhat;
             const Real vr = -opt_v_hom * f;
             phydro->w(IVX, k, j, i) += vr * x[i] / r;
             phydro->w(IVY, k, j, i) += vr * y[j] / r;
