@@ -636,8 +636,15 @@ bool g_rhine_verbose = false;
 int g_rhine_pmode  = 1;
 Real g_time_s      = 1.0;       // seconds per code time unit
 
-constexpr Real g_mb_MeV =
-  EquationOfState::transition_baryon_mass_MeV;       // reference baryon mass
+// Baryon mass [MeV] that converts SCEB <-> m-tilde. Must be the EOS mass:
+// SCEB is an eps offset in units of the EOS baryon mass (GetNSEBindingEnergy,
+// eos_eir mbar = mb (1 + SCEB)), and D is densitized with it. A different
+// value here shifts RHINE's m-tilde by (dmb)(1 + SCEB) and the first RHINE
+// call after NSE freeze-out releases that shift as heat (0.143 MeV/baryon for
+// bmass = 930.4117 vs the previous compile-time 930.5548). Set from
+// hydro/bmass (same key and default as eostaudyn_ps_gr) in
+// InitTransitionNetwork.
+Real g_mb_MeV = EquationOfState::transition_baryon_mass_MeV;
 constexpr Real m_u_MeV = 931.4939509082333;  // atomic mass unit [MeV]
 constexpr Real amu_g   = 1.66053906660e-24;  // atomic mass unit [g]
 constexpr Real MeV_erg = 1.602176634e-6;
@@ -654,6 +661,7 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       g_rhine_apply  = pin->GetOrAddBoolean("hydro", "rhine_apply", false);
       g_rhine_verbose = pin->GetOrAddBoolean("hydro", "rhine_verbose", false);
       g_time_s = Primitive::GeometricSolar.TimeConversion(Primitive::CGS);
+      g_mb_MeV = pin->GetOrAddReal("hydro", "bmass", 930.4117);
       std::string path =
         pin->GetOrAddString("hydro", "rhine_models_path", "");
       if (!path.empty())
@@ -663,12 +671,14 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       }
       if (Globals::my_rank == 0)
       {
-        printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s)\n",
+        printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s, "
+               "mb = %.7f MeV)\n",
                g_rhine_ready ? path.c_str()
                              : "disabled (no rhine_models_path)",
                g_rhine_pmode,
                g_rhine_apply ? "true" : "false",
-               g_rhine_verbose ? "true" : "false");
+               g_rhine_verbose ? "true" : "false",
+               g_mb_MeV);
       }
     }
   }
