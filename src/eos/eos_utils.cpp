@@ -634,6 +634,18 @@ bool g_rhine_ready = false;
 bool g_rhine_apply = false;
 bool g_rhine_verbose = false;
 int g_rhine_pmode  = 1;
+// RHINE zeroes every rate below T9 = 0.1 (free-advection regime, Just et al.
+// Sect. II.5.2), which assumes r-process heating keeps ejecta above 0.1 GK
+// until the neutrons are gone. Cold low-entropy tidal matter leaves NSE
+// already below 0.1 GK and then never ignites (X_n ~ 0.7 frozen, ~6 MeV/b
+// unreleased). Neutron capture is not temperature gated, so while free
+// neutrons remain we evaluate the networks at T9 = 0.1, inside their training
+// range (0.03, 6); the released heat lifts the matter back above the cutoff.
+bool g_rhine_clamp_cold = true;
+constexpr Real rhine_T9_low  = 0.1;
+constexpr Real rhine_yn_min  = 1e-3;
+constexpr Real rhine_ye_max  = 0.45;
+constexpr Real rhine_MeV_T9  = 11.604442475978844;  // T9 per MeV
 Real g_time_s      = 1.0;       // seconds per code time unit
 
 // Baryon mass [MeV] that converts SCEB <-> m-tilde. Must be the EOS mass:
@@ -660,6 +672,8 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       g_rhine_pmode  = pin->GetOrAddInteger("hydro", "rhine_pmode", 1);
       g_rhine_apply  = pin->GetOrAddBoolean("hydro", "rhine_apply", false);
       g_rhine_verbose = pin->GetOrAddBoolean("hydro", "rhine_verbose", false);
+      g_rhine_clamp_cold =
+        pin->GetOrAddBoolean("hydro", "rhine_clamp_cold", true);
       g_time_s = Primitive::GeometricSolar.TimeConversion(Primitive::CGS);
       g_mb_MeV = pin->GetOrAddReal("hydro", "bmass", 930.4117);
       std::string path =
@@ -672,13 +686,14 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       if (Globals::my_rank == 0)
       {
         printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s, "
-               "mb = %.7f MeV)\n",
+               "mb = %.7f MeV, clamp_cold = %s)\n",
                g_rhine_ready ? path.c_str()
                              : "disabled (no rhine_models_path)",
                g_rhine_pmode,
                g_rhine_apply ? "true" : "false",
                g_rhine_verbose ? "true" : "false",
-               g_mb_MeV);
+               g_mb_MeV,
+               g_rhine_clamp_cold ? "true" : "false");
       }
     }
   }
@@ -845,8 +860,14 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       }
     }
 
+    Real T_net = T;
+    if (g_rhine_clamp_cold && T * rhine_MeV_T9 < rhine_T9_low &&
+        yn > rhine_yn_min && ye < rhine_ye_max)
+    {
+      T_net = 1.0001 * rhine_T9_low / rhine_MeV_T9;
+    }
     double dye, dyn, dyp, dya, dyh, dah, dma, fnu;
-    g_rhine.run(rho_cgs, T, ye, yn, ya, yh, ah, lam, dt_s,
+    g_rhine.run(rho_cgs, T_net, ye, yn, ya, yh, ah, lam, dt_s,
                 ye0, yn0, ya0, yh0, ah0, mass0,
                 dye, dyn, dyp, dya, dyh, dah, dma, fnu, g_rhine_pmode);
 
