@@ -196,7 +196,9 @@ enum ScalarVariables
   SCXH   = 4,  //! mass fraction of heavy nuclei
   SCAH   = 5,  //! average atomic mass of heavy nuclei
   SCEB   = 6,  //! binding energy per baryon relative to baryon mass factor
-  SCNVAR = 7   //! number of scalar variables
+  SCMIX  = 7,  //! (--nscalars=8 only) accumulated spurious RHINE release:
+               //! integral of -(dma - dm_phys)/mb dt per baryon, advected
+  SCNVAR = 7   //! number of EOS species (SCMIX is not an EOS species)
 };
 static_assert(NSCALARS >= SCNVAR,
               "eos_transition needs --nscalars >= SCNVAR (see ScalarVariables)");
@@ -284,7 +286,10 @@ enum HydroDerivedIndex
   IX_DYH     = 23,  // RHINE rate dYh/dt [1/s]
   IX_DAH     = 24,  // RHINE rate dAh/dt [1/s]
   IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
-  NDRV_HYDRO = 26
+  IX_QPHYS   = 26,  // densitized heating from the reaction increments only
+  IX_QMIX    = 27,  // densitized heating from reconciling m-tilde with the
+                    // advected composition (IX_QPHYS + IX_QMIX = IX_QDOT)
+  NDRV_HYDRO = 28
 };
 #else
   NDRV_HYDRO = 13

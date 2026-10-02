@@ -917,6 +917,41 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
     }
 
+    // Split of the release. dm_phys is the change of the RHINE m-tilde caused
+    // by the reaction increments of this call alone, both ends evaluated on
+    // the current (advected) composition. dm_mix = dma - dm_phys is the
+    // reconciliation of the advected m-tilde with that composition
+    // (transport/mixing, NSE hand-off). Increments as in the apply below.
+    Real dm_phys = 0.0;
+    if (dma != 0.0)
+    {
+      const Real m_now =
+        g_rhine.massExcess(rho_cgs, T_net, ye, yn, ya, yh, ah);
+      const Real dxh = dah * yh0 + ah0 * dyh + dt_s * dah * dyh;
+      Real yn1       = std::max(yn + dyn * dt_s, 0.0);
+      Real ya1       = std::max(ya + dya * dt_s, 0.0);
+      const Real ah1 = std::max(ah + dah * dt_s, 1.0);
+      Real yh1       = std::max(ah * yh + dxh * dt_s, 0.0) / ah1;
+      const Real s1  = yn1 + 4.0 * ya1 + ah1 * yh1;
+      if (s1 > s_max)
+      {
+        const Real f1 = s_max / s1;
+        yn1 *= f1;
+        ya1 *= f1;
+        yh1 *= f1;
+      }
+      const Real m_next = g_rhine.massExcess(
+        rho_cgs, T_net, ye + dye * dt_s, yn1, ya1, yh1, ah1);
+      dm_phys = (m_next - m_now) / dt_s;
+    }
+    const Real dm_mix = dma - dm_phys;
+    {
+      const Real fac = cons(IDN, k, j, i) * (1.0 - fnu) / g_mb_MeV * alpha *
+                       g_time_s;
+      hyd_der_ms(IX_QPHYS, k, j, i) = -dm_phys * fac;
+      hyd_der_ms(IX_QMIX, k, j, i)  = -dm_mix * fac;
+    }
+
     if (apply)
     {
       // Explicit source, substep proper time [s]; RHINE's dt_s stays the
@@ -1003,6 +1038,10 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // Heating enters implicitly: SCEB feeds eps through c2p; no explicit
       // tau heating term (Just et al. Eq. 6).
       cons_scalar(SCEB, k, j, i) += D * (dma / g_mb_MeV) * dt_ap;
+#if NSCALARS > 7
+      // Accumulated spurious (non-reaction) gross release, eps units.
+      cons_scalar(SCMIX, k, j, i) += D * (-dm_mix / g_mb_MeV) * dt_ap;
+#endif
       // Neutrino energy sink (Just et al. Eq. 28); fnu = 0 unless dma < 0.
       // Divisor g_mb_MeV (not m_u): D is densitized with mb per baryon and
       // SCEB enters eps in units of mb, so mb keeps the (1-fnu)/fnu split
