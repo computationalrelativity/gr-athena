@@ -944,13 +944,13 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
         rho_cgs, T_net, ye + dye * dt_s, yn1, ya1, yh1, ah1);
       dm_phys = (m_next - m_now) / dt_s;
     }
+    // In the apply stages dm_mix is the applied reconciliation (accumulated
+    // in SCMIX). In the once-per-step diagnostic call (no apply) the
+    // reference is the post-step state, so dma there is the post-step lag,
+    // not a deposit; only IX_QPHYS is meaningful in that call.
     const Real dm_mix = dma - dm_phys;
-    {
-      const Real fac = cons(IDN, k, j, i) * (1.0 - fnu) / g_mb_MeV * alpha *
-                       g_time_s;
-      hyd_der_ms(IX_QPHYS, k, j, i) = -dm_phys * fac;
-      hyd_der_ms(IX_QMIX, k, j, i)  = -dm_mix * fac;
-    }
+    hyd_der_ms(IX_QPHYS, k, j, i) = -dm_phys * cons(IDN, k, j, i) *
+                                    (1.0 - fnu) / g_mb_MeV * alpha * g_time_s;
 
     if (apply)
     {

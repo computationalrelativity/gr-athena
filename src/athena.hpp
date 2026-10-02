@@ -286,10 +286,9 @@ enum HydroDerivedIndex
   IX_DYH     = 23,  // RHINE rate dYh/dt [1/s]
   IX_DAH     = 24,  // RHINE rate dAh/dt [1/s]
   IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
-  IX_QPHYS   = 26,  // densitized heating from the reaction increments only
-  IX_QMIX    = 27,  // densitized heating from reconciling m-tilde with the
-                    // advected composition (IX_QPHYS + IX_QMIX = IX_QDOT)
-  NDRV_HYDRO = 28
+  IX_QPHYS   = 26,  // densitized heating from the reaction increments
+                    // only (instantaneous, at the current composition)
+  NDRV_HYDRO = 27
 };
 #else
   NDRV_HYDRO = 13
