@@ -642,6 +642,7 @@ int g_rhine_pmode  = 1;
 // neutrons remain we evaluate the networks at T9 = 0.1, inside their training
 // range (0.03, 6); the released heat lifts the matter back above the cutoff.
 bool g_rhine_clamp_cold = true;
+bool g_rhine_fnu_physical = false;  // fnu on the reaction release only
 constexpr Real rhine_T9_low  = 0.1;
 constexpr Real rhine_yn_min  = 1e-3;
 constexpr Real rhine_ye_max  = 0.45;
@@ -674,6 +675,8 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       g_rhine_verbose = pin->GetOrAddBoolean("hydro", "rhine_verbose", false);
       g_rhine_clamp_cold =
         pin->GetOrAddBoolean("hydro", "rhine_clamp_cold", true);
+      g_rhine_fnu_physical =
+        pin->GetOrAddBoolean("hydro", "rhine_fnu_physical", false);
       g_time_s = Primitive::GeometricSolar.TimeConversion(Primitive::CGS);
       g_mb_MeV = pin->GetOrAddReal("hydro", "bmass", 930.4117);
       std::string path =
@@ -686,14 +689,15 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       if (Globals::my_rank == 0)
       {
         printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s, "
-               "mb = %.7f MeV, clamp_cold = %s)\n",
+               "mb = %.7f MeV, clamp_cold = %s, fnu_physical = %s)\n",
                g_rhine_ready ? path.c_str()
                              : "disabled (no rhine_models_path)",
                g_rhine_pmode,
                g_rhine_apply ? "true" : "false",
                g_rhine_verbose ? "true" : "false",
                g_mb_MeV,
-               g_rhine_clamp_cold ? "true" : "false");
+               g_rhine_clamp_cold ? "true" : "false",
+               g_rhine_fnu_physical ? "true" : "false");
       }
     }
   }
@@ -891,48 +895,6 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
              rho_cgs, T, ye, yn, ya, yh, ah, ah0, mass0, (int)apply);
       dye = dyn = dyp = dya = dyh = dah = dma = fnu = 0.0;
     }
-    // fnu (model 8) is only valid while the composition releases energy
-    // (Eq. 27); the gate is the host's responsibility.
-    if (!(dma < 0.0))
-    {
-      fnu = 0.0;
-    }
-
-    // Diagnostic: comoving heating rate per unit volume, (1 - fnu) of the
-    // rest-mass energy release, in erg/cm^3/s.
-    hyd_der_ms(IX_HEAT, k, j, i) =
-      -(1.0 - fnu) * dma * MeV_erg * (n * 1e39);
-    hyd_der_ms(IX_FNU, k, j, i) = fnu;
-
-    // Raw comoving network rates (per second of fluid proper time).
-    hyd_der_ms(IX_DYE, k, j, i) = dye;
-    hyd_der_ms(IX_DYN, k, j, i) = dyn;
-    hyd_der_ms(IX_DYP, k, j, i) = dyp;
-    hyd_der_ms(IX_DYA, k, j, i) = dya;
-    hyd_der_ms(IX_DYH, k, j, i) = dyh;
-    hyd_der_ms(IX_DAH, k, j, i) = dah;
-    hyd_der_ms(IX_DMA, k, j, i) = dma;
-
-    // Densitized code-unit rates for hst volume integrals: for a comoving
-    // energy exchange rate q the four-force is G^mu = q u^mu, and the tau
-    // source is alpha^2 sqrt(gamma) G^t = alpha * D * q/(rho) -- no 1/W
-    // (unlike the per-baryon scalar sources below). Sum(slot * coord. cell
-    // volume) is the total luminosity in code energy per code time.
-    {
-      const Real rate = cons(IDN, k, j, i) * (-dma / g_mb_MeV) *
-                        alpha * g_time_s;
-      hyd_der_ms(IX_QDOT, k, j, i) = (1.0 - fnu) * rate;
-      hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
-      // First release since the last resync: the '0' reference (r0) is the
-      // resynced state, so this is the full exit release (mismatch +
-      // reactions) as a rate over the step. Every stage sees ~the same dma
-      // against the frozen reference; the last stage's value is kept.
-      if (apply && hyd_der_ms(IX_NSEST, k, j, i) >= 2.0)
-      {
-        hyd_der_ms(IX_QEXIT, k, j, i) = (1.0 - fnu) * rate;
-        hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
-      }
-    }
 
     // Split of the release. dm_phys is the change of the RHINE m-tilde caused
     // by the reaction increments of this call alone, both ends evaluated on
@@ -966,8 +928,56 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     // reference is the post-step state, so dma there is the post-step lag,
     // not a deposit; only IX_QPHYS is meaningful in that call.
     const Real dm_mix = dma - dm_phys;
-    hyd_der_ms(IX_QPHYS, k, j, i) = -dm_phys * cons(IDN, k, j, i) *
-                                    (1.0 - fnu) / g_mb_MeV * alpha * g_time_s;
+
+    // Release the neutrino fraction acts on: with hydro/rhine_fnu_physical
+    // only the reaction part (the beta decays that emit the neutrinos);
+    // the m-tilde reconciliation (NSE hand-off, mixing) is not a nuclear
+    // release and stays entirely in the thermal pool. fnu (model 8) is
+    // only valid while that release is positive (Eq. 27); the gate is the
+    // host's responsibility.
+    const Real dm_nu = g_rhine_fnu_physical ? dm_phys : dma;
+    if (!(dm_nu < 0.0))
+    {
+      fnu = 0.0;
+    }
+
+    // Diagnostic: comoving heating rate per unit volume, the rest-mass
+    // energy release minus the neutrino loss, in erg/cm^3/s.
+    hyd_der_ms(IX_HEAT, k, j, i) =
+      -(dma - fnu * dm_nu) * MeV_erg * (n * 1e39);
+    hyd_der_ms(IX_FNU, k, j, i) = fnu;
+
+    // Raw comoving network rates (per second of fluid proper time).
+    hyd_der_ms(IX_DYE, k, j, i) = dye;
+    hyd_der_ms(IX_DYN, k, j, i) = dyn;
+    hyd_der_ms(IX_DYP, k, j, i) = dyp;
+    hyd_der_ms(IX_DYA, k, j, i) = dya;
+    hyd_der_ms(IX_DYH, k, j, i) = dyh;
+    hyd_der_ms(IX_DAH, k, j, i) = dah;
+    hyd_der_ms(IX_DMA, k, j, i) = dma;
+
+    // Densitized code-unit rates for hst volume integrals: for a comoving
+    // energy exchange rate q the four-force is G^mu = q u^mu, and the tau
+    // source is alpha^2 sqrt(gamma) G^t = alpha * D * q/(rho) -- no 1/W
+    // (unlike the per-baryon scalar sources below). Sum(slot * coord. cell
+    // volume) is the total luminosity in code energy per code time.
+    {
+      const Real to_code = cons(IDN, k, j, i) / g_mb_MeV * alpha * g_time_s;
+      const Real lnu     = -fnu * dm_nu * to_code;
+      const Real qdot    = -dma * to_code - lnu;
+      hyd_der_ms(IX_QDOT, k, j, i) = qdot;
+      hyd_der_ms(IX_LNU, k, j, i)  = lnu;
+      // First release since the last resync: the '0' reference (r0) is the
+      // resynced state, so this is the full exit release (mismatch +
+      // reactions) as a rate over the step. Every stage sees ~the same dma
+      // against the frozen reference; the last stage's value is kept.
+      if (apply && hyd_der_ms(IX_NSEST, k, j, i) >= 2.0)
+      {
+        hyd_der_ms(IX_QEXIT, k, j, i) = qdot;
+        hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
+      }
+      hyd_der_ms(IX_QPHYS, k, j, i) = -(1.0 - fnu) * dm_phys * to_code;
+    }
 
     if (apply)
     {
@@ -1059,22 +1069,23 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // Accumulated spurious (non-reaction) gross release, eps units.
       cons_scalar(SCMIX, k, j, i) += D * (-dm_mix / g_mb_MeV) * dt_ap;
 #endif
-      // Neutrino energy sink (Just et al. Eq. 28); fnu = 0 unless dma < 0.
+      // Neutrino energy sink (Just et al. Eq. 28) on dm_nu; fnu = 0 unless
+      // dm_nu < 0.
       // Divisor g_mb_MeV (not m_u): D is densitized with mb per baryon and
-      // SCEB enters eps in units of mb, so mb keeps the (1-fnu)/fnu split
-      // of dma exact between the SCEB channel and this sink.
+      // SCEB enters eps in units of mb, so mb keeps the split of the
+      // release exact between the SCEB channel and this sink.
       // No 1/W here: the tau source of the four-force G^mu = q u^mu is
-      // alpha^2 sqrt(gamma) G^t = alpha * D * (fnu dma/mb), whereas the
+      // alpha^2 sqrt(gamma) G^t = alpha * D * (fnu dm_nu/mb), whereas the
       // per-baryon scalar sources above carry the proper-time factor
       // alpha/W (Eq. 28 likewise: R_{beta,tau} = D fnu mdot/m_u).
       cons(IEN, k, j, i) +=
-        D * fnu * (dma / g_mb_MeV) * dt_apply_code * alpha * g_time_s;
+        D * fnu * (dm_nu / g_mb_MeV) * dt_apply_code * alpha * g_time_s;
       // Momentum projection of the same four-force (radiation drag): the
       // escaping neutrinos carry momentum q u_a; unlike tau this source
       // uses the per-proper-time factor dt_ap since alpha sqrt(g) G_a =
       // D q u_a (alpha/W). Keeps the removed four-momentum parallel to
       // u^mu (Just et al. Eq. 28 drops this term; zero for v = 0).
-      const Real snu = D * fnu * (dma / g_mb_MeV) * dt_ap;
+      const Real snu = D * fnu * (dm_nu / g_mb_MeV) * dt_ap;
       for (int a = 0; a < 3; ++a)
       {
         Real u_d_a = 0.0;
