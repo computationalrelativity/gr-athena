@@ -166,6 +166,9 @@ class Hydro
       "hydro.aux.rhine_dah",
       "hydro.aux.rhine_dma",
       "hydro.aux.rhine_qphys",
+      "hydro.aux.transition_w_prev",
+      "hydro.aux.rhine_qexit",
+      "hydro.aux.rhine_qreent",
 #endif
     };
   };

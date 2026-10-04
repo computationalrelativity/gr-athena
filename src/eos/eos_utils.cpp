@@ -732,6 +732,12 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     const Real T = hyd_der_ms(IX_T, k, j, i);   // MeV, fresh from c2p
     const Real w = GetEOS().TransitionFactor(n, T);
     hyd_der_ms(IX_TRANS, k, j, i) = w;
+    // NSE-crossing flags: the apply stages read w_prev (end of the previous
+    // step, written by the once-per-step diagnostic call below).
+    if (apply)
+      hyd_der_ms(IX_QEXIT, k, j, i) = 0.0;
+    else
+      hyd_der_ms(IX_WPREV, k, j, i) = 1.0 + w;
 
     if (w == 1.0)
     {
@@ -741,7 +747,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // registers between stage combinations and invalidate the frozen
       // r0 reference the network's endpoint positivity is certified
       // against.
-      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      for (int l = IX_HEAT; l < IX_WPREV; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
         hyd_der_ms(l, k, j, i) = 0.0;
@@ -751,7 +757,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
 
     if (!rhine_on || !(T > 0.0))
     {
-      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      for (int l = IX_HEAT; l < IX_WPREV; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
         hyd_der_ms(l, k, j, i) = 0.0;
@@ -915,6 +921,12 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
                         alpha * g_time_s;
       hyd_der_ms(IX_QDOT, k, j, i) = (1.0 - fnu) * rate;
       hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
+      // First step out of NSE: the '0' reference (r0) is the resynced
+      // state, so this is the full exit release (mismatch + reactions) as
+      // a rate over the step. Every stage sees ~the same dma against the
+      // frozen reference; the last stage's value is kept.
+      if (apply && hyd_der_ms(IX_WPREV, k, j, i) == 2.0)
+        hyd_der_ms(IX_QEXIT, k, j, i) = (1.0 - fnu) * rate;
     }
 
     // Split of the release. dm_phys is the change of the RHINE m-tilde caused
@@ -1118,6 +1130,7 @@ void EquationOfState::TransitionNSEResync()
   Real Y[MAX_SPECIES] = { 0.0 };
 
   const Real oo_mb = OO(GetEOS().GetBaryonMass());
+  const Real dt_code = pmb->pmy_mesh->dt;
   // Full block INCLUDING ghosts: this runs after the step's last ghost
   // exchange, so an interior-only resync leaves ghost s stale relative to
   // the neighbor's resynced interior. The xorder fallback mask
@@ -1133,12 +1146,14 @@ void EquationOfState::TransitionNSEResync()
   {
     const Real n = ph->w(IDN, k, j, i) * oo_mb;  // fm^-3
     const Real T = hyd_der_ms(IX_T, k, j, i);    // MeV, fresh from c2p
+    hyd_der_ms(IX_QREENT, k, j, i) = 0.0;
     if (GetEOS().TransitionFactor(n, T) < 1.0)
       continue;
     for (int l = 0; l < NSCALARS; ++l)
     {
       Y[l] = prim_scalar(l, k, j, i);
     }
+    const Real sceb_old = Y[SCEB];
     // NSE: re-synchronize the advected composition and mass-excess
     // scalar with the table (cf. Just et al. 2026, the m-tilde reset
     // above the NSE dropout).
@@ -1152,6 +1167,16 @@ void EquationOfState::TransitionNSEResync()
     {
       cons_scalar(l, k, j, i) =
         prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
+    }
+    // Re-entry (w_prev < 1; 0 = unknown after init/regrid): the reset of
+    // SCEB at fixed tau is the thermal energy RHINE's out-of-NSE release
+    // gives back, in the IX_QDOT convention D W deps/dt.
+    const Real wp1 = hyd_der_ms(IX_WPREV, k, j, i);
+    if (dt_code > 0.0 && wp1 >= 1.0 && wp1 < 2.0)
+    {
+      hyd_der_ms(IX_QREENT, k, j, i) =
+        -ph->u(IDN, k, j, i) * hyd_der_ms(IX_LOR, k, j, i) *
+        (prim_scalar(SCEB, k, j, i) - sceb_old) / dt_code;
     }
   }
 }

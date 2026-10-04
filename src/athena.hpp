@@ -288,7 +288,13 @@ enum HydroDerivedIndex
   IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
   IX_QPHYS   = 26,  // densitized heating from the reaction increments
                     // only (instantaneous, at the current composition)
-  NDRV_HYDRO = 27
+  // NSE-crossing bookkeeping (not touched by the network's slot reset):
+  IX_WPREV   = 27,  // 1 + w at the end of the previous step (0 = unknown)
+  IX_QEXIT   = 28,  // densitized RHINE heating in cells that left NSE
+                    // this step (w_prev = 1), code units like IX_QDOT
+  IX_QREENT  = 29,  // densitized heating by the NSE resync of cells that
+                    // entered NSE this step, -D W dSCEB/dt (code units)
+  NDRV_HYDRO = 30
 };
 #else
   NDRV_HYDRO = 13
