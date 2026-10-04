@@ -289,9 +289,11 @@ enum HydroDerivedIndex
   IX_QPHYS   = 26,  // densitized heating from the reaction increments
                     // only (instantaneous, at the current composition)
   // NSE-crossing bookkeeping (not touched by the network's slot reset):
-  IX_WPREV   = 27,  // 1 + w at the end of the previous step (0 = unknown)
-  IX_QEXIT   = 28,  // densitized RHINE heating in cells that left NSE
-                    // this step (w_prev = 1), code units like IX_QDOT
+  IX_NSEST   = 27,  // NSE crossing state: 0 unknown (init/regrid), 1 out
+                    // of NSE and released, 2 resynced and not yet
+                    // released, 3 first release in progress this step
+  IX_QEXIT   = 28,  // densitized RHINE heating in cells making their first
+                    // release since the last resync, code units like IX_QDOT
   IX_QREENT  = 29,  // densitized heating by the NSE resync of cells that
                     // entered NSE this step, -D W dSCEB/dt (code units)
   NDRV_HYDRO = 30

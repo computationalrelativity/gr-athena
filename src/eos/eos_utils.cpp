@@ -732,12 +732,14 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     const Real T = hyd_der_ms(IX_T, k, j, i);   // MeV, fresh from c2p
     const Real w = GetEOS().TransitionFactor(n, T);
     hyd_der_ms(IX_TRANS, k, j, i) = w;
-    // NSE-crossing flags: the apply stages read w_prev (end of the previous
-    // step, written by the once-per-step diagnostic call below).
-    if (apply)
-      hyd_der_ms(IX_QEXIT, k, j, i) = 0.0;
-    else
-      hyd_der_ms(IX_WPREV, k, j, i) = 1.0 + w;
+    // NSE crossing state (see IX_NSEST): the once-per-step diagnostic call
+    // closes a first release (3 -> 1) and adopts unknown out-of-NSE cells.
+    if (!apply)
+    {
+      const Real st = hyd_der_ms(IX_NSEST, k, j, i);
+      if (st == 3.0 || (st == 0.0 && w < 1.0))
+        hyd_der_ms(IX_NSEST, k, j, i) = 1.0;
+    }
 
     if (w == 1.0)
     {
@@ -747,7 +749,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // registers between stage combinations and invalidate the frozen
       // r0 reference the network's endpoint positivity is certified
       // against.
-      for (int l = IX_HEAT; l < IX_WPREV; ++l)
+      for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
         hyd_der_ms(l, k, j, i) = 0.0;
@@ -757,7 +759,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
 
     if (!rhine_on || !(T > 0.0))
     {
-      for (int l = IX_HEAT; l < IX_WPREV; ++l)
+      for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
         hyd_der_ms(l, k, j, i) = 0.0;
@@ -921,12 +923,15 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
                         alpha * g_time_s;
       hyd_der_ms(IX_QDOT, k, j, i) = (1.0 - fnu) * rate;
       hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
-      // First step out of NSE: the '0' reference (r0) is the resynced
-      // state, so this is the full exit release (mismatch + reactions) as
-      // a rate over the step. Every stage sees ~the same dma against the
-      // frozen reference; the last stage's value is kept.
-      if (apply && hyd_der_ms(IX_WPREV, k, j, i) == 2.0)
+      // First release since the last resync: the '0' reference (r0) is the
+      // resynced state, so this is the full exit release (mismatch +
+      // reactions) as a rate over the step. Every stage sees ~the same dma
+      // against the frozen reference; the last stage's value is kept.
+      if (apply && hyd_der_ms(IX_NSEST, k, j, i) >= 2.0)
+      {
         hyd_der_ms(IX_QEXIT, k, j, i) = (1.0 - fnu) * rate;
+        hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
+      }
     }
 
     // Split of the release. dm_phys is the change of the RHINE m-tilde caused
@@ -1106,6 +1111,12 @@ void EquationOfState::TransitionNetworkApply(const Real dt_scaled,
     {
       ps->r0(l, k, j, i) = ps->r(l, k, j, i);
     }
+    for (int k = pmb->ks; k <= pmb->ke; ++k)
+    for (int j = pmb->js; j <= pmb->je; ++j)
+    for (int i = pmb->is; i <= pmb->ie; ++i)
+    {
+      ph->derived_ms(IX_QEXIT, k, j, i) = 0.0;
+    }
   }
 
   geom_sliced_cc gsc;
@@ -1168,16 +1179,18 @@ void EquationOfState::TransitionNSEResync()
       cons_scalar(l, k, j, i) =
         prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
     }
-    // Re-entry (w_prev < 1; 0 = unknown after init/regrid): the reset of
-    // SCEB at fixed tau is the thermal energy RHINE's out-of-NSE release
-    // gives back, in the IX_QDOT convention D W deps/dt.
-    const Real wp1 = hyd_der_ms(IX_WPREV, k, j, i);
-    if (dt_code > 0.0 && wp1 >= 1.0 && wp1 < 2.0)
+    // Re-entry after a release (state 1 or 3; 0 = unknown after
+    // init/regrid): the reset of SCEB at fixed tau takes back the thermal
+    // energy of RHINE's out-of-NSE release, in the IX_QDOT convention
+    // D W deps/dt.
+    const Real st = hyd_der_ms(IX_NSEST, k, j, i);
+    if (dt_code > 0.0 && (st == 1.0 || st == 3.0))
     {
       hyd_der_ms(IX_QREENT, k, j, i) =
         -ph->u(IDN, k, j, i) * hyd_der_ms(IX_LOR, k, j, i) *
         (prim_scalar(SCEB, k, j, i) - sceb_old) / dt_code;
     }
+    hyd_der_ms(IX_NSEST, k, j, i) = 2.0;
   }
 }
 
