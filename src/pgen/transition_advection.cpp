@@ -47,6 +47,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
   Yr[SCXN] = pin->GetOrAddReal("problem", "xn_r", Y[SCXN]);
   Yr[SCXH] = pin->GetOrAddReal("problem", "xh_r", Y[SCXH]);
   Yr[SCAH] = pin->GetOrAddReal("problem", "ah_r", Y[SCAH]);
+  // optional temperature contact (default: isothermal)
+  const Real T_r = pin->GetOrAddReal("problem", "T_r", T);
 
   pz4c->ADMMinkowski(pz4c->storage.adm);
   pz4c->GaugeGeodesic(pz4c->storage.u);
@@ -65,13 +67,14 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
         const Real vy = vy_l + (vy_r - vy_l) * f;
         Real Yc[NSCALARS];
         for (int l = 0; l < NSCALARS; ++l) Yc[l] = r(l, k, j, i);
+        const Real Tc = T + (T_r - T) * f;
         const Real W = 1.0 / std::sqrt(1.0 - vx * vx - vy * vy);
         phydro->w(IDN, k, j, i) = rho;
-        phydro->w(IPR, k, j, i) = peos->GetEOS().GetPressure(rho / mb, T, Yc);
+        phydro->w(IPR, k, j, i) = peos->GetEOS().GetPressure(rho / mb, Tc, Yc);
         phydro->w(IVX, k, j, i) = W * vx;
         phydro->w(IVY, k, j, i) = W * vy;
         phydro->w(IVZ, k, j, i) = 0.0;
-        phydro->derived_ms(IX_T, k, j, i) = T;
+        phydro->derived_ms(IX_T, k, j, i) = Tc;
       }
   AthenaArray<Real> bb;
   bb.NewAthenaArray(3, ke + 1, je + 1, ie + 1);
