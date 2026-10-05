@@ -288,7 +288,7 @@ enum HydroDerivedIndex
   IX_DAH     = 24,  // RHINE rate dAh/dt [1/s]
   IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
   IX_QPHYS   = 26,  // densitized heating from the reaction increments
-                    // only (instantaneous, at the current composition)
+                    // only, from the same RK stages as IX_QDOT
   // NSE-crossing bookkeeping (not touched by the network's slot reset):
   IX_NSEST   = 27,  // NSE crossing state: 0 unknown (init/regrid), 1 out
                     // of NSE and released, 2 resynced and not yet

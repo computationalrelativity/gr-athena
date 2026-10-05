@@ -724,10 +724,11 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
   // RHINE's QSE relaxation rates are finite differences over dt; skip the
   // network before the first time step is known (initialization).
   const bool rhine_on = g_rhine_ready && (dt_code > 0.0);
-  // The deposited heating (IX_HEAT, IX_QDOT, IX_LNU) is recorded where it is
-  // applied: in the RK stages, against the step-start '0' reference. The
-  // once-per-step diagnostic call measures dma against the post-step m-tilde,
-  // i.e. the residual lag, so it only owns these slots without rhine_apply.
+  // The deposited heating (IX_HEAT, IX_QDOT, IX_LNU, IX_QPHYS) is recorded
+  // where it is applied: in the RK stages, against the step-start '0'
+  // reference. The once-per-step diagnostic call measures dma against the
+  // post-step m-tilde, i.e. the residual lag, so it only owns these slots
+  // without rhine_apply.
   const bool own_rates = apply || !g_rhine_apply;
   Real Y[MAX_SPECIES] = { 0.0 };
 
@@ -761,7 +762,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
-        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU))
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU ||
+                           l == IX_QPHYS))
           continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
@@ -773,7 +775,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
-        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU))
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU ||
+                           l == IX_QPHYS))
           continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
@@ -935,8 +938,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     // In the apply stages dm_mix is the applied reconciliation (accumulated
     // in SCMIX). In the once-per-step diagnostic call (no apply) the
     // reference is the post-step state, so dma there is the post-step lag,
-    // not a deposit; the deposited rates are therefore kept from the stages
-    // (own_rates) and IX_QPHYS is the instantaneous reaction heating.
+    // not a deposit; all deposited rates, IX_QPHYS included, are therefore
+    // kept from the stages (own_rates).
     const Real dm_mix = dma - dm_phys;
 
     // Release the neutrino fraction acts on: with hydro/rhine_fnu_physical
@@ -992,7 +995,10 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
         hyd_der_ms(IX_QEXIT, k, j, i) = qdot;
         hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
       }
-      hyd_der_ms(IX_QPHYS, k, j, i) = -(1.0 - fnu) * dm_phys * to_code;
+      // Same stages and reference for the reaction part, so that
+      // qdot - qphys is the applied mixing / hand-off release (SCMIX).
+      if (own_rates)
+        hyd_der_ms(IX_QPHYS, k, j, i) = -(1.0 - fnu) * dm_phys * to_code;
     }
 
     if (apply)
