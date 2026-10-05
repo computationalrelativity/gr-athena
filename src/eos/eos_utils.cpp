@@ -724,6 +724,11 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
   // RHINE's QSE relaxation rates are finite differences over dt; skip the
   // network before the first time step is known (initialization).
   const bool rhine_on = g_rhine_ready && (dt_code > 0.0);
+  // The deposited heating (IX_HEAT, IX_QDOT, IX_LNU) is recorded where it is
+  // applied: in the RK stages, against the step-start '0' reference. The
+  // once-per-step diagnostic call measures dma against the post-step m-tilde,
+  // i.e. the residual lag, so it only owns these slots without rhine_apply.
+  const bool own_rates = apply || !g_rhine_apply;
   Real Y[MAX_SPECIES] = { 0.0 };
 
   for (int i = pmb->is; i <= pmb->ie; ++i)
@@ -756,6 +761,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU))
+          continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
       continue;
@@ -766,6 +773,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU))
+          continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
       continue;
@@ -926,7 +935,8 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     // In the apply stages dm_mix is the applied reconciliation (accumulated
     // in SCMIX). In the once-per-step diagnostic call (no apply) the
     // reference is the post-step state, so dma there is the post-step lag,
-    // not a deposit; only IX_QPHYS is meaningful in that call.
+    // not a deposit; the deposited rates are therefore kept from the stages
+    // (own_rates) and IX_QPHYS is the instantaneous reaction heating.
     const Real dm_mix = dma - dm_phys;
 
     // Release the neutrino fraction acts on: with hydro/rhine_fnu_physical
@@ -943,8 +953,9 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
 
     // Diagnostic: comoving heating rate per unit volume, the rest-mass
     // energy release minus the neutrino loss, in erg/cm^3/s.
-    hyd_der_ms(IX_HEAT, k, j, i) =
-      -(dma - fnu * dm_nu) * MeV_erg * (n * 1e39);
+    if (own_rates)
+      hyd_der_ms(IX_HEAT, k, j, i) =
+        -(dma - fnu * dm_nu) * MeV_erg * (n * 1e39);
     hyd_der_ms(IX_FNU, k, j, i) = fnu;
 
     // Raw comoving network rates (per second of fluid proper time).
@@ -965,8 +976,13 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       const Real to_code = cons(IDN, k, j, i) / g_mb_MeV * alpha * g_time_s;
       const Real lnu     = -fnu * dm_nu * to_code;
       const Real qdot    = -dma * to_code - lnu;
-      hyd_der_ms(IX_QDOT, k, j, i) = qdot;
-      hyd_der_ms(IX_LNU, k, j, i)  = lnu;
+      if (own_rates)
+      {
+        // Stages see ~the same dma against the frozen reference; the last
+        // stage's value is kept, as for IX_QEXIT.
+        hyd_der_ms(IX_QDOT, k, j, i) = qdot;
+        hyd_der_ms(IX_LNU, k, j, i)  = lnu;
+      }
       // First release since the last resync: the '0' reference (r0) is the
       // resynced state, so this is the full exit release (mismatch +
       // reactions) as a rate over the step. Every stage sees ~the same dma

@@ -277,7 +277,8 @@ enum HydroDerivedIndex
   IX_TRANS   = 14,  // eos transition factor
   IX_XERR    = 15,  // mass fraction error (sum of mass fractions - 1)
   IX_FNU     = 16,  // neutrino loss fraction of the nuclear energy release
-  IX_QDOT    = 17,  // densitized heating rate, code energy / code time / vol
+  IX_QDOT    = 17,  // densitized heating rate as deposited in the RK stages
+                    // (with rhine_apply), code energy / code time / vol
   IX_LNU     = 18,  // densitized fnu neutrino loss rate, code units
   IX_DYE     = 19,  // RHINE rate dYe/dt [1/s, comoving]
   IX_DYN     = 20,  // RHINE rate dYn/dt [1/s]
