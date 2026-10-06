@@ -196,9 +196,7 @@ enum ScalarVariables
   SCXH   = 4,  //! mass fraction of heavy nuclei
   SCAH   = 5,  //! average atomic mass of heavy nuclei
   SCEB   = 6,  //! binding energy per baryon relative to baryon mass factor
-  SCMIX  = 7,  //! (--nscalars=8 only) accumulated spurious RHINE release:
-               //! integral of -(dma - dm_phys)/mb dt per baryon, advected
-  SCNVAR = 7   //! number of EOS species (SCMIX is not an EOS species)
+  SCNVAR = 7   //! number of scalar variables
 };
 static_assert(NSCALARS >= SCNVAR,
               "eos_transition needs --nscalars >= SCNVAR (see ScalarVariables)");

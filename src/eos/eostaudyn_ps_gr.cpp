@@ -561,14 +561,6 @@ void EquationOfState::ConservedToPrimitive(AA& cons,
 
           // Update the primitive variables.
           PrimHelper::ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, mb);
-#if EOS_POLICY_CODE == 4 && NSCALARS > 7
-          // Non-EOS scalars (SCMIX): plain r = s / D.
-          for (int l = SCNVAR; l < NSCALARS; ++l)
-          {
-            prim_scalar(l, k, j, i) =
-              (cons_pt[IDN] > 0.0) ? cons_pt[IYD + l] / cons_pt[IDN] : 0.0;
-          }
-#endif
 
           // Write back conserved variables only if they were modified.
           if (result.cons_adjusted)
@@ -813,13 +805,6 @@ static void PrimitiveToConservedSingle(AA& prim,
     std::cerr << "    sdetg = " << sdetg << "\n";
   }
 
-#if EOS_POLICY_CODE == 4 && NSCALARS > 7
-  // Non-EOS scalars (SCMIX) are not set by PrimToCon: s = D r.
-  for (int l = SCNVAR; l < NSCALARS; ++l)
-  {
-    cons_pt[IYD + l] = cons_pt[IDN] * prim_pt[IYF + l];
-  }
-#endif
   // Push the densitized conserved variables to Athena.
   PrimHelper::ScatterConsHydro(cons_pt, cons, k, j, i, sdetg);
   PrimHelper::ScatterConsScalars(cons_pt, cons_scalar, k, j, i, sdetg);

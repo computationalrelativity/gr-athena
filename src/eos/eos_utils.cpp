@@ -935,12 +935,11 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
         rho_cgs, T_net, ye + dye * dt_s, yn1, ya1, yh1, ah1);
       dm_phys = (m_next - m_now) / dt_s;
     }
-    // In the apply stages dm_mix is the applied reconciliation (accumulated
-    // in SCMIX). In the once-per-step diagnostic call (no apply) the
-    // reference is the post-step state, so dma there is the post-step lag,
-    // not a deposit; all deposited rates, IX_QPHYS included, are therefore
-    // kept from the stages (own_rates).
-    const Real dm_mix = dma - dm_phys;
+    // In the apply stages dm_mix is the applied reconciliation. In the
+    // once-per-step diagnostic call (no apply) the reference is the post-step
+    // state, so dma there is the post-step lag, not a deposit; all deposited
+    // rates, IX_QPHYS included, are therefore kept from the stages
+    // (own_rates).
 
     // Release the neutrino fraction acts on: with hydro/rhine_fnu_physical
     // only the reaction part (the beta decays that emit the neutrinos);
@@ -996,7 +995,7 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
         hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
       }
       // Same stages and reference for the reaction part, so that
-      // qdot - qphys is the applied mixing / hand-off release (SCMIX).
+      // qdot - qphys is the applied mixing / hand-off release.
       if (own_rates)
         hyd_der_ms(IX_QPHYS, k, j, i) = -(1.0 - fnu) * dm_phys * to_code;
     }
@@ -1087,10 +1086,6 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // Heating enters implicitly: SCEB feeds eps through c2p; no explicit
       // tau heating term (Just et al. Eq. 6).
       cons_scalar(SCEB, k, j, i) += D * (dma / g_mb_MeV) * dt_ap;
-#if NSCALARS > 7
-      // Accumulated spurious (non-reaction) gross release, eps units.
-      cons_scalar(SCMIX, k, j, i) += D * (-dm_mix / g_mb_MeV) * dt_ap;
-#endif
       // Neutrino energy sink (Just et al. Eq. 28) on dm_nu; fnu = 0 unless
       // dm_nu < 0.
       // Divisor g_mb_MeV (not m_u): D is densitized with mb per baryon and
