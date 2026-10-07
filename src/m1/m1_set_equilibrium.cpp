@@ -58,10 +58,11 @@ void SetEquilibrium(M1& pm1,
 
   const Real w_rho = pm1.hydro.sc_w_rho(k, j, i);
   const Real w_p   = pm1.hydro.sc_w_p(k, j, i);
-  const Real w_Y_e = pm1.hydro.sc_w_Ye(k, j, i);
-
-  Real Y[MAX_SPECIES] = { 0.0 };
-  Y[0]                = pm1.hydro.sc_w_Ye(k, j, i);
+  Real Y[Opacities::Common::N_Y] = { 0.0 };
+  for (int n = 0; n < NSCALARS; ++n)
+  {
+    Y[n] = pmb->pscalars->r(n, k, j, i);
+  }
 
   Real const nb = w_rho / (peos->GetEOS().GetBaryonMass());
 
@@ -82,7 +83,7 @@ void SetEquilibrium(M1& pm1,
   nudens.Fill(0.0);
 
   // Optically thick weak equilibrium
-  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
+  popac->CalculateEquilibriumDensity(w_rho, w_T, Y, nudens);
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
   // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)
@@ -469,8 +470,12 @@ void SetEquilibrium_E_F_d_n_nG(
 
   const Real w_rho = pm1.hydro.sc_w_rho(k,j,i);
   const Real w_p   = pm1.hydro.sc_w_p(k,j,i);
-  const Real w_Y_e = pm1.hydro.sc_w_Ye(k,j,i);
   const Real w_T   = pm1.hydro.sc_T(k,j,i);
+  Real Y[Opacities::Common::N_Y] = { 0.0 };
+  for (int n = 0; n < NSCALARS; ++n)
+  {
+    Y[n] = pmb->pscalars->r(n, k, j, i);
+  }
 
   // Short-circuit at low density
   // Convert from code units to CGS for this comparison?
@@ -488,7 +493,7 @@ void SetEquilibrium_E_F_d_n_nG(
   nudens.Fill(0.0);
 
   // Optically thick weak equilibrium
-  popac->CalculateEquilibriumDensity(w_rho, w_T, w_Y_e, nudens);
+  popac->CalculateEquilibriumDensity(w_rho, w_T, Y, nudens);
 
   // Set equilibrium in fiducial frame (sc_J, st_H_d={sc_H_t, sp_H_d}, sc_n)
   // Reconstruct Eulerian: (sc_E, sp_F_d, sc_nG)

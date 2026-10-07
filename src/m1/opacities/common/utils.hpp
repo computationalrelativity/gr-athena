@@ -14,6 +14,7 @@
 #include "../../../coordinates/coordinates.hpp"
 #include "../../../eos/eos.hpp"
 #include "../../../hydro/hydro.hpp"
+#include "../../../scalars/scalars.hpp"
 #include "../../m1.hpp"
 #include "error_codes.hpp"
 
@@ -26,6 +27,11 @@ namespace M1::Opacities::Common
 /// OpacityUtils::ComputeEquilibriumDensities.  Backends that want to
 /// recompute opacities with adjusted (T_star, Y_e_star) pass their own
 /// callable instead.
+// Length of the species vector handed to the EOS: the advected passive
+// scalars of a point, Y[0] = Y_e. The EOS policy decides how many entries
+// it reads (compose: Y[0]; transition: the mass fractions too).
+constexpr int N_Y = (NSCALARS > 0) ? NSCALARS : 1;
+
 struct NoOpRecompute
 {
   int operator()(int /*k*/,
@@ -33,7 +39,7 @@ struct NoOpRecompute
                  int /*i*/,
                  Real /*rho*/,
                  Real /*T*/,
-                 Real /*Y_e*/) const
+                 const Real* /*Y*/) const
   {
     return 0;
   }
@@ -499,22 +505,34 @@ class OpacityUtils
   // -------------------------------------------------------------------------
   // GetHydro
   // -------------------------------------------------------------------------
+  // Y: species vector of the point (N_Y entries), Y[0] = Y_e (averaged if
+  // opt.use_averages).
   inline void GetHydro(const int k,
                        const int j,
                        const int i,
                        Real& rho,
                        Real& T,
-                       Real& Y_e)
+                       Real* Y)
   {
+    GetSpecies(k, j, i, Y);
     if (opt.use_averages)
     {
-      GetHydroAveraged(k, j, i, rho, T, Y_e);
+      GetHydroAveraged(k, j, i, rho, T, Y[0]);
     }
     else
     {
       rho = pm1->hydro.sc_w_rho(k, j, i);
       T   = pm1->hydro.sc_T(k, j, i);
-      Y_e = pm1->hydro.sc_w_Ye(k, j, i);
+    }
+  }
+
+  // Advected species of the point: Y[n] = r(n, k, j, i), n < NSCALARS.
+  inline void GetSpecies(const int k, const int j, const int i, Real* Y)
+  {
+    Y[0] = 0.0;
+    for (int n = 0; n < NSCALARS; ++n)
+    {
+      Y[n] = pmy_block->pscalars->r(n, k, j, i);
     }
   }
 
@@ -602,8 +620,9 @@ class OpacityUtils
                                       int j,
                                       int i)
   {
-    Real rho, T, Y_e;
-    GetHydro(k, j, i, rho, T, Y_e);
+    Real rho, T;
+    Real Y[N_Y];
+    GetHydro(k, j, i, rho, T, Y);
     Real tau =
       std::min(CalculateTau(NUE, k, j, i), CalculateTau(NUA, k, j, i));
 
@@ -623,7 +642,7 @@ class OpacityUtils
       << "  Real  dt    = " << dt << ";\n"
       << "  rho         = " << rho << ";\n"
       << "  T           = " << T << ";\n"
-      << "  Y_e         = " << Y_e << ";\n"
+      << "  Y_e         = " << Y[0] << ";\n"
       << "  tau         = " << tau << ";\n"
       << "  pm1->rad.sc_n(0,NUE)(k,j,i) = " << pm1->rad.sc_n(0, NUE)(k, j, i)
       << ";\n"
@@ -1432,7 +1451,7 @@ class OpacityUtils
   //                         Real& e0_eq, Real& e1_eq, Real& e2_eq);
   //
   //   RecomputeOpacFn (optional, defaults to NoOpRecompute) must expose:
-  //     int operator()(int k, int j, int i, Real rho, Real T, Real Y_e);
+  //     int operator()(int k, int j, int i, Real rho, Real T, const Real* Y);
   // -------------------------------------------------------------------------
   template <typename EquilibriumProvider,
             typename RecomputeOpacFn = NoOpRecompute>
@@ -1444,7 +1463,7 @@ class OpacityUtils
     const Real dt,
     const Real rho,
     const Real T,
-    const Real Y_e,
+    const Real* Y,
     const Real tau,
     const cmp_eql_dens_ini initial_guess,
     const bool using_averaging_fix,
@@ -1474,7 +1493,7 @@ class OpacityUtils
     bool calculate_trapped = true;
 
     Real T_star   = T;
-    Real Y_e_star = Y_e;
+    Real Y_e_star = Y[0];
 
     Real dens_n[3];
     Real dens_e[3];
@@ -1493,7 +1512,7 @@ class OpacityUtils
     {
       ierr_nd = provider->NeutrinoDensity(rho,
                                           T,
-                                          Y_e,
+                                          Y,
                                           dens_n_thin[0],
                                           dens_n_thin[1],
                                           dens_n_thin[2],
@@ -1560,7 +1579,7 @@ class OpacityUtils
       ierr_we =
         provider->WeakEquilibrium(rho,
                                   T,
-                                  Y_e,
+                                  Y,
                                   (ignore_current_data) ? 0.0 : dens_n[0],
                                   (ignore_current_data) ? 0.0 : dens_n[1],
                                   (ignore_current_data) ? 0.0 : dens_n[2],
@@ -1581,8 +1600,10 @@ class OpacityUtils
         // Try averaging fix if applicable
         if (!opt.use_averages && opt.use_averaging_fix && !using_averaging_fix)
         {
-          Real rho, T, Y_e;
-          GetHydroAveraged(k, j, i, rho, T, Y_e);
+          Real rho, T;
+          Real Y_avg[N_Y];
+          GetSpecies(k, j, i, Y_avg);
+          GetHydroAveraged(k, j, i, rho, T, Y_avg[0]);
 
           return ComputeEquilibriumDensities(provider,
                                              k,
@@ -1591,7 +1612,7 @@ class OpacityUtils
                                              dt,
                                              rho,
                                              T,
-                                             Y_e,
+                                             Y_avg,
                                              tau,
                                              initial_guess,
                                              true,
@@ -1618,7 +1639,7 @@ class OpacityUtils
     {
       // No trapped calculation, so leave T,Y_e unmodified if later propagated
       T_star   = T;
-      Y_e_star = Y_e;
+      Y_e_star = Y[0];
     }
 
     // Set the black body function
@@ -1662,7 +1683,7 @@ class OpacityUtils
 
         // Intermediate regime: interpolate T,Y_e
         T_star   = lam * T_star + (1.0 - lam) * T;
-        Y_e_star = lam * Y_e_star + (1.0 - lam) * Y_e;
+        Y_e_star = lam * Y_e_star + (1.0 - lam) * Y[0];
       }
     }
     else
@@ -1688,7 +1709,9 @@ class OpacityUtils
     if ((opt.recompute_opacities_trapped && regime_trapped) ||
         (opt.recompute_opacities_interpolated && calculate_trapped))
     {
-      const int ierr_opac = recompute_opac(k, j, i, rho, T_star, Y_e_star);
+      Real Y_star[N_Y];
+      provider->TrialSpecies(Y, Y_e_star, Y_star);
+      const int ierr_opac = recompute_opac(k, j, i, rho, T_star, Y_star);
 
       if (ierr_opac)
       {

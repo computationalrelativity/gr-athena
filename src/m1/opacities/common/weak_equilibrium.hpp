@@ -78,6 +78,7 @@ class WeakEquilibriumSolver
   //  Post-solve: y_eq[3] and e_eq[3] are TOTAL for all 4 heavy-lepton
   //  species.
   void SolveWeakEquilibrium(Real rho,
+                            const Real* Y,
                             Real T,
                             Real y_in[4],
                             Real e_in[4],
@@ -113,7 +114,7 @@ class WeakEquilibriumSolver
       x0[0] = vec_guess[na][0] * T;        // T guess  [MeV]
       x0[1] = vec_guess[na][1] * y_in[0];  // Ye guess [#/baryon]
 
-      new_raph_2dim(rho, u, yl, x0, x1, ierr);
+      new_raph_2dim(rho, Y, u, yl, x0, x1, ierr);
       na += 1;
     }
 
@@ -137,7 +138,9 @@ class WeakEquilibriumSolver
 
     // Compute equilibrated neutrino properties
     Real mu_n, mu_p, mu_e;
-    eos_->ChemicalPotentials_cgs(rho, T_eq, y_eq[0], mu_n, mu_p, mu_e);
+    Real Yt[N_Y];
+    eos_->TrialSpecies(Y, y_eq[0], Yt);
+    eos_->ChemicalPotentials_cgs(rho, T_eq, Yt, mu_n, mu_p, mu_e);
 
     Real mus[2]     = { 0.0 };
     Real eta[3]     = { 0.0 };
@@ -192,7 +195,8 @@ class WeakEquilibriumSolver
     e_eq[0] = u - e_eq[1] - e_eq[2] - e_eq[3];  // fluid energy [erg/cm^3]
 
     // Validate: energy above table minimum
-    Real e_min = eos_->GetMinimumEnergyDensity(rho, y_eq[0]);
+    eos_->TrialSpecies(Y, y_eq[0], Yt);
+    Real e_min = eos_->GetMinimumEnergyDensity(rho, Yt);
 
     if (e_eq[0] < e_min)
     {
@@ -216,7 +220,7 @@ class WeakEquilibriumSolver
   //  Returns 0 on success, WE_ND_NONFINITE if any output is non-finite.
   int NeutrinoDensity_cgs(Real rho,
                           Real temp,
-                          Real ye,
+                          const Real* Y,
                           Real& n_nue,
                           Real& n_anue,
                           Real& n_nux,
@@ -228,7 +232,7 @@ class WeakEquilibriumSolver
 
     // Obtain chemical potentials from the EoS [MeV]
     Real mu_n, mu_p, mu_e;
-    eos_->ChemicalPotentials_cgs(rho, temp, ye, mu_n, mu_p, mu_e);
+    eos_->ChemicalPotentials_cgs(rho, temp, Y, mu_n, mu_p, mu_e);
 
     // Degeneracy parameters
     Real chem_pot[2] = { mu_e, mu_n - mu_p };
@@ -269,7 +273,7 @@ class WeakEquilibriumSolver
   //  Returns 0 on success, WE_ND_NONFINITE if any output is non-finite.
   int NeutrinoDensity_cgs_erg(Real rho,
                               Real temp,
-                              Real ye,
+                              const Real* Y,
                               Real& n_nue,
                               Real& n_anue,
                               Real& n_nux,
@@ -278,7 +282,7 @@ class WeakEquilibriumSolver
                               Real& en_nux)
   {
     int iout = NeutrinoDensity_cgs(
-      rho, temp, ye, n_nue, n_anue, n_nux, en_nue, en_anue, en_nux);
+      rho, temp, Y, n_nue, n_anue, n_nux, en_nue, en_anue, en_nux);
     // Convert energy densities from MeV/cm^3 to erg/cm^3
     en_nue *= mev_to_erg;
     en_anue *= mev_to_erg;
@@ -293,7 +297,7 @@ class WeakEquilibriumSolver
   //  Returns 0 on success, raw WE_ error code on failure.
   int WeakEquilibrium_cgs(Real rho,
                           Real temp,
-                          Real ye,
+                          const Real* Y,
                           Real n_nue,
                           Real n_nua,
                           Real n_nux,
@@ -313,14 +317,14 @@ class WeakEquilibriumSolver
 
     // Pack number fractions [#/baryon]
     Real y_in[4] = { 0.0 };
-    y_in[0]      = ye;
+    y_in[0]      = Y[0];
     y_in[1]      = n_nue / nb;
     y_in[2]      = n_nua / nb;
     y_in[3]      = 0.25 * n_nux / nb;  // single-species (total / 4)
 
     // Pack energies [erg/cm^3]
     Real e_in[4] = { 0.0 };
-    e_in[0]      = eos_->GetEnergyDensity(rho, temp, ye);
+    e_in[0]      = eos_->GetEnergyDensity(rho, temp, Y);
     e_in[1]      = e_nue;
     e_in[2]      = e_nua;
     e_in[3]      = e_nux;
@@ -330,7 +334,8 @@ class WeakEquilibriumSolver
     Real e_eq[4] = { 0.0 };
     int na       = 0;
     int ierr     = 0;
-    SolveWeakEquilibrium(rho, temp, y_in, e_in, temp_eq, y_eq, e_eq, na, ierr);
+    SolveWeakEquilibrium(
+      rho, Y, temp, y_in, e_in, temp_eq, y_eq, e_eq, na, ierr);
 
     // Unpack
     ye_eq    = y_eq[0];
@@ -402,6 +407,7 @@ class WeakEquilibriumSolver
   //  intentionally unsatisfied with the "missing" lepton fraction absorbed
   //  by accepting Ye at the boundary.
   void new_raph_1dim_ye_clamped(Real rho,
+                                const Real* Y,
                                 Real u,
                                 Real yl,
                                 Real ye_bnd,
@@ -413,7 +419,7 @@ class WeakEquilibriumSolver
     x1[1] = ye_bnd;
 
     Real y[2] = { 0.0 };
-    func_eq_weak(rho, u, yl, x1, y);
+    func_eq_weak(rho, Y, u, yl, x1, y);
 
     // For the 1D solve we only care about the energy residual y[1].
     Real err = std::fabs(y[1]);
@@ -425,7 +431,7 @@ class WeakEquilibriumSolver
       // Compute Jacobian (we only need J[1][0] = d(y[1])/dT)
       Real J[2][2] = { { 0.0 } };
       int ierr_jac = 0;
-      jacobi_eq_weak(rho, u, yl, x1, J, ierr_jac);
+      jacobi_eq_weak(rho, Y, u, yl, x1, J, ierr_jac);
       if (ierr_jac != 0)
       {
         ierr = WE_FAIL_JACOBIAN;
@@ -459,7 +465,7 @@ class WeakEquilibriumSolver
 
         eos_->ApplyTableLimits(rho, x1[0], x1[1]);
 
-        func_eq_weak(rho, u, yl, x1, y);
+        func_eq_weak(rho, Y, u, yl, x1, y);
         err = std::fabs(y[1]);
 
         n_cut += 1;
@@ -478,6 +484,7 @@ class WeakEquilibriumSolver
   //  and the Newton step wanting to push Ye further out, it falls back to
   //  new_raph_1dim_ye_clamped to solve for T only at the boundary Ye.
   void new_raph_2dim(Real rho,
+                     const Real* Y,
                      Real u,
                      Real yl,
                      Real x0[2],
@@ -490,7 +497,7 @@ class WeakEquilibriumSolver
     bool KKT = false;
 
     Real y[2] = { 0.0 };
-    func_eq_weak(rho, u, yl, x1, y);
+    func_eq_weak(rho, Y, u, yl, x1, y);
 
     Real err = 0.0;
     error_func_eq_weak(yl, u, y, err);
@@ -509,7 +516,7 @@ class WeakEquilibriumSolver
 
     while (err > eps_lim && n_iter <= n_max_iter && !KKT)
     {
-      jacobi_eq_weak(rho, u, yl, x1, J, ierr);
+      jacobi_eq_weak(rho, Y, u, yl, x1, J, ierr);
       if (ierr != 0)
       {
         ierr = WE_FAIL_JACOBIAN;
@@ -557,7 +564,7 @@ class WeakEquilibriumSolver
         if (ye_bnd_stuck_count >= ye_bnd_stuck_limit)
         {
           Real ye_bnd = ye_at_min ? eos_ye_min_ : eos_ye_max_;
-          new_raph_1dim_ye_clamped(rho, u, yl, ye_bnd, x1[0], x1, ierr);
+          new_raph_1dim_ye_clamped(rho, Y, u, yl, ye_bnd, x1[0], x1, ierr);
           return;
         }
       }
@@ -583,7 +590,7 @@ class WeakEquilibriumSolver
           if (opt_->equilibrium_ye_bnd_reduce && norm[1] != 0.0)
           {
             Real ye_bnd = (norm[1] < 0.0) ? eos_ye_min_ : eos_ye_max_;
-            new_raph_1dim_ye_clamped(rho, u, yl, ye_bnd, x1[0], x1, ierr);
+            new_raph_1dim_ye_clamped(rho, Y, u, yl, ye_bnd, x1[0], x1, ierr);
             return;
           }
           KKT  = true;
@@ -614,7 +621,7 @@ class WeakEquilibriumSolver
 
         eos_->ApplyTableLimits(rho, x1_tmp[0], x1_tmp[1]);
 
-        func_eq_weak(rho, u, yl, x1_tmp, y);
+        func_eq_weak(rho, Y, u, yl, x1_tmp, y);
         error_func_eq_weak(yl, u, y, err);
 
         n_cut += 1;
@@ -632,15 +639,19 @@ class WeakEquilibriumSolver
   }
 
   //! Residuals for energy + lepton conservation.
-  void func_eq_weak(Real rho, Real u, Real yl, Real x[2], Real y[2])
+  void func_eq_weak(
+    Real rho, const Real* Y, Real u, Real yl, Real x[2], Real y[2])
   {
     Real nb = rho / atomic_mass_;
 
+    Real Yt[N_Y];
+    eos_->TrialSpecies(Y, x[1], Yt);
+
     Real mu_n, mu_p, mu_e;
-    eos_->ChemicalPotentials_cgs(rho, x[0], x[1], mu_n, mu_p, mu_e);
+    eos_->ChemicalPotentials_cgs(rho, x[0], Yt, mu_n, mu_p, mu_e);
     Real mus[2] = { mu_e, mu_n - mu_p };
 
-    Real e = eos_->GetEnergyDensity(rho, x[0], x[1]);
+    Real e = eos_->GetEnergyDensity(rho, x[0], Yt);
 
     Real eta_vec[3] = { 0.0 };
     nu_deg_param_trap(x[0], mus, eta_vec);
@@ -664,6 +675,7 @@ class WeakEquilibriumSolver
 
   //! Jacobian for the 2D Newton-Raphson.
   void jacobi_eq_weak(Real rho,
+                      const Real* Y,
                       Real u,
                       Real yl,
                       Real x[2],
@@ -673,8 +685,11 @@ class WeakEquilibriumSolver
     Real t  = x[0];
     Real ye = x[1];
 
+    Real Yt[N_Y];
+    eos_->TrialSpecies(Y, ye, Yt);
+
     Real mu_n, mu_p, mu_e;
-    eos_->ChemicalPotentials_cgs(rho, t, ye, mu_n, mu_p, mu_e);
+    eos_->ChemicalPotentials_cgs(rho, t, Yt, mu_n, mu_p, mu_e);
     Real mus[2] = { mu_e, mu_n - mu_p };
 
     Real eta_vec[3] = { 0.0 };
@@ -683,7 +698,7 @@ class WeakEquilibriumSolver
     Real eta2 = eta * eta;
 
     Real detadt, detadye, dedt, dedye;
-    eta_e_gradient(rho, t, ye, eta, detadt, detadye, dedt, dedye, ierr);
+    eta_e_gradient(rho, Y, t, ye, eta, detadt, detadye, dedt, dedye, ierr);
     if (ierr != 0)
       return;
 
@@ -723,6 +738,7 @@ class WeakEquilibriumSolver
 
   //! Numerical gradients of eta and internal energy via 4 EOS calls.
   void eta_e_gradient(Real rho,
+                      const Real* Y,
                       Real t,
                       Real ye,
                       Real eta,
@@ -733,19 +749,22 @@ class WeakEquilibriumSolver
                       int& ierr)
   {
     Real mu_n, mu_p, mu_e;
+    Real Yt[N_Y];
 
     // --- Vary ye ---
     Real ye1 = std::max(ye - delta_ye, eos_ye_min_);
 
-    eos_->ChemicalPotentials_cgs(rho, t, ye1, mu_n, mu_p, mu_e);
+    eos_->TrialSpecies(Y, ye1, Yt);
+    eos_->ChemicalPotentials_cgs(rho, t, Yt, mu_n, mu_p, mu_e);
     Real mus1[2] = { mu_e, mu_n - mu_p };
-    Real e1      = eos_->GetEnergyDensity(rho, t, ye1);
+    Real e1      = eos_->GetEnergyDensity(rho, t, Yt);
 
     Real ye2 = std::min(ye + delta_ye, eos_ye_max_);
 
-    eos_->ChemicalPotentials_cgs(rho, t, ye2, mu_n, mu_p, mu_e);
+    eos_->TrialSpecies(Y, ye2, Yt);
+    eos_->ChemicalPotentials_cgs(rho, t, Yt, mu_n, mu_p, mu_e);
     Real mus2[2] = { mu_e, mu_n - mu_p };
-    Real e2      = eos_->GetEnergyDensity(rho, t, ye2);
+    Real e2      = eos_->GetEnergyDensity(rho, t, Yt);
 
     Real dmuedye   = (mus2[0] - mus1[0]) / (ye2 - ye1);
     Real dmuhatdye = (mus2[1] - mus1[1]) / (ye2 - ye1);
@@ -755,15 +774,17 @@ class WeakEquilibriumSolver
     Real t1 = std::max(t - delta_t, eos_temp_min_);
     Real t2 = std::min(t + delta_t, eos_temp_max_);
 
-    eos_->ChemicalPotentials_cgs(rho, t1, ye, mu_n, mu_p, mu_e);
+    eos_->TrialSpecies(Y, ye, Yt);
+
+    eos_->ChemicalPotentials_cgs(rho, t1, Yt, mu_n, mu_p, mu_e);
     mus1[0] = mu_e;
     mus1[1] = mu_n - mu_p;
-    e1      = eos_->GetEnergyDensity(rho, t1, ye);
+    e1      = eos_->GetEnergyDensity(rho, t1, Yt);
 
-    eos_->ChemicalPotentials_cgs(rho, t2, ye, mu_n, mu_p, mu_e);
+    eos_->ChemicalPotentials_cgs(rho, t2, Yt, mu_n, mu_p, mu_e);
     mus2[0] = mu_e;
     mus2[1] = mu_n - mu_p;
-    e2      = eos_->GetEnergyDensity(rho, t2, ye);
+    e2      = eos_->GetEnergyDensity(rho, t2, Yt);
 
     Real dmuedt   = (mus2[0] - mus1[0]) / (t2 - t1);
     Real dmuhatdt = (mus2[1] - mus1[1]) / (t2 - t1);

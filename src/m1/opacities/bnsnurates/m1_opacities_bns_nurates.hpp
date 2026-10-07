@@ -105,9 +105,15 @@ class BNSNuRates
   //   anti-nu_mu, anti-nu_tau).  The x4 factor is applied inside the
   //   common solver (NeutrinoDensity_cgs_erg).
   // =========================================================================
+  // Trial species vector for a Y_e off the point's own (see EoSWrapper).
+  inline void TrialSpecies(const Real* Y, const Real ye, Real* Yt) const
+  {
+    pmy_eos->TrialSpecies(Y, ye, Yt);
+  }
+
   int NeutrinoDensity(Real rho,
                       Real T,
-                      Real Y_e,
+                      const Real* Y,
                       Real& n_nue,
                       Real& n_anue,
                       Real& n_nux,
@@ -121,7 +127,7 @@ class BNSNuRates
 
     // Delegate to common solver (returns n in cm^-3, e in erg/cm^3)
     int ierr = solver_.NeutrinoDensity_cgs_erg(
-      rho_cgs, T, Y_e, n_nue, n_anue, n_nux, e_nue, e_anue, e_nux);
+      rho_cgs, T, Y, n_nue, n_anue, n_nux, e_nue, e_anue, e_nux);
 
     // Convert outputs from CGS to code units
     //   NeutrinoDensity_cgs_erg already applied mev_to_erg for energy
@@ -164,7 +170,7 @@ class BNSNuRates
   // =========================================================================
   int WeakEquilibrium(Real rho,
                       Real temp,
-                      Real ye,
+                      const Real* Y,
                       Real n_nue,
                       Real n_nua,
                       Real n_nux,
@@ -187,7 +193,7 @@ class BNSNuRates
     int ierr = solver_.WeakEquilibrium_cgs(
       rho * code_units->MassDensityConversion(*wr_units),
       temp * T_conv,
-      ye,
+      Y,
       n_nue * n_conv,
       n_nua * n_conv,
       n_nux * n_conv,
@@ -258,7 +264,7 @@ class BNSNuRates
                                           int i,
                                           Real rho,
                                           Real T,
-                                          Real Y_e)
+                                          const Real* Y)
   {
     typedef M1::vars_RadMat RM;
     RM& rm = pm1->radmat;
@@ -269,12 +275,12 @@ class BNSNuRates
     // Chemical potentials (code units input, MeV output)
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
     Real mu_n, mu_p, mu_e, dU;
-    pmy_eos->ChemicalPotentials_npe(nb_eos, T, Y_e, mu_n, mu_p, mu_e);
+    pmy_eos->ChemicalPotentials_npe(nb_eos, T, Y, mu_n, mu_p, mu_e);
 
     // Respect parameters set
     if (pmy_nurates->GetParams().use_dU)
     {
-      pmy_eos->InteractionPotentialDifference(nb_eos, T, Y_e, dU);
+      pmy_eos->InteractionPotentialDifference(nb_eos, T, Y, dU);
     }
     else
     {
@@ -310,7 +316,7 @@ class BNSNuRates
 
     int opac_err = pmy_nurates->ComputeOpacities(nb,
                                                  T,
-                                                 Y_e,
+                                                 Y,
                                                  mu_n,
                                                  mu_p,
                                                  mu_e,
@@ -404,13 +410,14 @@ class BNSNuRates
                                          const Real dt,
                                          const Real rho,
                                          const Real T,
-                                         const Real Y_e,
+                                         const Real* Y,
                                          const Real tau,
                                          const cmp_eql_dens_ini initial_guess,
                                          const bool using_averaging_fix)
   {
-    auto recompute = [this](int k, int j, int i, Real rho, Real T, Real Y_e)
-    { return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y_e); };
+    auto recompute =
+      [this](int k, int j, int i, Real rho, Real T, const Real* Y)
+    { return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y); };
 
     return opu.ComputeEquilibriumDensities(this,
                                            k,
@@ -419,7 +426,7 @@ class BNSNuRates
                                            dt,
                                            rho,
                                            T,
-                                           Y_e,
+                                           Y,
                                            tau,
                                            initial_guess,
                                            using_averaging_fix,

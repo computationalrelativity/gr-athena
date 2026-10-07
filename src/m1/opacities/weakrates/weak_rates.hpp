@@ -100,12 +100,12 @@ class WeakRates {
   // =========================================================================
   // NeutrinoEmission
   //
-  // Input:  rho, temp, ye in code units
+  // Input:  rho, temp, Y (species, Y[0] = ye) in code units
   // Output: number rates [code units], energy rates [code units]
   // =========================================================================
   int NeutrinoEmission(Real rho,
                        Real temp,
-                       Real ye,
+                       const Real* Y,
                        Real& emi_n_nue,
                        Real& emi_n_nua,
                        Real& emi_n_nux,
@@ -116,11 +116,12 @@ class WeakRates {
     // --- Convert code units -> CGS/MeV ---
     Real rho_cgs  = rho * code_units->MassDensityConversion(*my_units);
     Real temp_mev = temp * code_units->TemperatureConversion(*my_units);
-    Real ye_loc   = ye;  // dimensionless
+    Real Y_loc[Common::N_Y];  // Y[0] may be clamped to the table
+    WR_EoS.TrialSpecies(Y, Y[0], Y_loc);
 
     // --- Bounds check (CGS/MeV) ---
     int bc = C::CheckAndApplyBounds(
-      rho_cgs, temp_mev, ye_loc, rho_min, temp_min, &WR_EoS);
+      rho_cgs, temp_mev, Y_loc[0], rho_min, temp_min, &WR_EoS);
     if (bc == -2)
     {
       emi_n_nue = 0.0;
@@ -137,7 +138,7 @@ class WeakRates {
     // --- Core physics (CGS/MeV) ---
     int err = Emissions_cgs(rho_cgs,
                             temp_mev,
-                            ye_loc,
+                            Y_loc,
                             emi_n_nue,
                             emi_n_nua,
                             emi_n_nux,
@@ -172,12 +173,12 @@ class WeakRates {
   // =========================================================================
   // NeutrinoAbsorptionOpacity
   //
-  // Input:  rho, temp, ye in code units
+  // Input:  rho, temp, Y (species, Y[0] = ye) in code units
   // Output: absorption opacities [code units, 1/length]
   // =========================================================================
   int NeutrinoAbsorptionOpacity(Real rho,
                                 Real temp,
-                                Real ye,
+                                const Real* Y,
                                 Real& abs_n_nue,
                                 Real& abs_n_nua,
                                 Real& abs_n_nux,
@@ -188,11 +189,12 @@ class WeakRates {
     // --- Convert code units -> CGS/MeV ---
     Real rho_cgs  = rho * code_units->MassDensityConversion(*my_units);
     Real temp_mev = temp * code_units->TemperatureConversion(*my_units);
-    Real ye_loc   = ye;  // dimensionless
+    Real Y_loc[Common::N_Y];  // Y[0] may be clamped to the table
+    WR_EoS.TrialSpecies(Y, Y[0], Y_loc);
 
     // --- Bounds check (CGS/MeV) ---
     int bc = C::CheckAndApplyBounds(
-      rho_cgs, temp_mev, ye_loc, rho_min, temp_min, &WR_EoS);
+      rho_cgs, temp_mev, Y_loc[0], rho_min, temp_min, &WR_EoS);
     if (bc == -2)
     {
       abs_n_nue = 0.0;
@@ -211,7 +213,7 @@ class WeakRates {
     // original code which incorrectly passed pre-bounds-check values).
     int err = Absorption_cgs(rho_cgs,
                              temp_mev,
-                             ye_loc,
+                             Y_loc,
                              abs_n_nue,
                              abs_n_nua,
                              abs_n_nux,
@@ -245,12 +247,12 @@ class WeakRates {
   // =========================================================================
   // NeutrinoScatteringOpacity
   //
-  // Input:  rho, temp, ye in code units
+  // Input:  rho, temp, Y (species, Y[0] = ye) in code units
   // Output: scattering opacities [code units, 1/length]
   // =========================================================================
   int NeutrinoScatteringOpacity(Real rho,
                                 Real temp,
-                                Real ye,
+                                const Real* Y,
                                 Real& sct_n_nue,
                                 Real& sct_n_nua,
                                 Real& sct_n_nux,
@@ -261,11 +263,12 @@ class WeakRates {
     // --- Convert code units -> CGS/MeV ---
     Real rho_cgs  = rho * code_units->MassDensityConversion(*my_units);
     Real temp_mev = temp * code_units->TemperatureConversion(*my_units);
-    Real ye_loc   = ye;  // dimensionless
+    Real Y_loc[Common::N_Y];  // Y[0] may be clamped to the table
+    WR_EoS.TrialSpecies(Y, Y[0], Y_loc);
 
     // --- Bounds check (CGS/MeV) ---
     int bc = C::CheckAndApplyBounds(
-      rho_cgs, temp_mev, ye_loc, rho_min, temp_min, &WR_EoS);
+      rho_cgs, temp_mev, Y_loc[0], rho_min, temp_min, &WR_EoS);
     if (bc == -2)
     {
       sct_n_nue = 0.0;
@@ -284,7 +287,7 @@ class WeakRates {
     // original code which incorrectly passed pre-bounds-check values).
     int err = Scattering_cgs(rho_cgs,
                              temp_mev,
-                             ye_loc,
+                             Y_loc,
                              sct_n_nue,
                              sct_n_nua,
                              sct_n_nux,
@@ -319,12 +322,12 @@ class WeakRates {
   // NeutrinoDensity
   //
   // Equilibrium neutrino number and energy densities (mu_nue = -mu_n + mu_p +
-  // mu_e). Input:  rho, temp, ye in code units Output: number densities [code
+  // mu_e). Input:  rho, temp, Y (species, Y[0] = ye) in code units Output: number densities [code
   // units], energy densities [code units]
   // =========================================================================
   int NeutrinoDensity(Real rho,
                       Real temp,
-                      Real ye,
+                      const Real* Y,
                       Real& n_nue,
                       Real& n_nua,
                       Real& n_nux,
@@ -347,7 +350,7 @@ class WeakRates {
     }
 
     int ierr = solver_.NeutrinoDensity_cgs_erg(
-      rho_wr, temp_wr, ye, n_nue, n_nua, n_nux, e_nue, e_nua, e_nux);
+      rho_wr, temp_wr, Y, n_nue, n_nua, n_nux, e_nue, e_nua, e_nux);
 
     Real n_conv = my_units->NumberDensityConversion(*code_units);
     Real e_conv = my_units->EnergyDensityConversion(*code_units);
@@ -365,12 +368,12 @@ class WeakRates {
   // WeakEquilibrium
   //
   // Equilibrium T*, Ye* and neutrino densities from energy/lepton
-  // conservation. Input:  rho, temp, ye, neutrino densities in code units
+  // conservation. Input:  rho, temp, Y (species, Y[0] = ye), neutrino densities in code units
   // Output: temp_eq, ye_eq in code units; equilibrium densities in code units
   // =========================================================================
   int WeakEquilibrium(Real rho,
                       Real temp,
-                      Real ye,
+                      const Real* Y,
                       Real n_nue,
                       Real n_nua,
                       Real n_nux,
@@ -405,7 +408,7 @@ class WeakRates {
 
     int ierr = solver_.WeakEquilibrium_cgs(rho_wr,
                                            temp_wr,
-                                           ye,
+                                           Y,
                                            n_nue * n_conv,
                                            n_nua * n_conv,
                                            n_nux * n_conv,
@@ -442,6 +445,12 @@ class WeakRates {
     return am;
   }
 
+  // Trial species vector for a Y_e off the point's own (see EoSWrapper).
+  inline void TrialSpecies(const Real* Y, const Real ye, Real* Yt) const
+  {
+    WR_EoS.TrialSpecies(Y, ye, Yt);
+  }
+
   private:
   Primitive::EOS<Primitive::EOS_POLICY, Primitive::ERROR_POLICY>* PS_EoS;
   const Opt& opt_;
@@ -462,7 +471,7 @@ class WeakRates {
   // -----------------------------------------------------------------
   // Emissions_cgs
   //
-  // Input:  rho [g/cm^3], temp [MeV], ye [dimensionless]
+  // Input:  rho [g/cm^3], temp [MeV], Y (species, Y[0] = ye)
   // Output: number rates [1/(s cm^3)], energy rates [erg/(s cm^3)]
   //
   // Processes:
@@ -473,7 +482,7 @@ class WeakRates {
   // -----------------------------------------------------------------
   inline int Emissions_cgs(Real rho,
                            Real temp,
-                           Real ye,
+                           const Real* Y,
                            Real& emi_n_nue,
                            Real& emi_n_nua,
                            Real& emi_n_nux,
@@ -485,10 +494,10 @@ class WeakRates {
 
     Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
     WR_EoS.GetEtas(
-      rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
+      rho, temp, Y, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
 
     Real xn, xp, xh, abar, zbar;
-    WR_EoS.GetFracs(rho, temp, ye, xn, xp, xh, abar, zbar);
+    WR_EoS.GetFracs(rho, temp, Y, xn, xp, xh, abar, zbar);
 
     // B5 B6 B7 Energy moments of electron and positrons
     const Real hc_3   = C::WR_POW3(C::hc_mevcm);
@@ -619,12 +628,12 @@ class WeakRates {
   // -----------------------------------------------------------------
   // Absorption_cgs - charged-current absorption on nucleons (Bruenn 1985)
   //
-  // Input:  rho [g/cm^3], temp [MeV], ye [dimensionless]
+  // Input:  rho [g/cm^3], temp [MeV], Y (species, Y[0] = ye)
   // Output: absorption opacities [1/cm]
   // -----------------------------------------------------------------
   inline int Absorption_cgs(Real rho,
                             Real temp,
-                            Real ye,
+                            const Real* Y,
                             Real& abs_n_nue,
                             Real& abs_n_nua,
                             Real& abs_n_nux,
@@ -636,7 +645,7 @@ class WeakRates {
 
     Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
     WR_EoS.GetEtas(
-      rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
+      rho, temp, Y, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
 
     // ABSORPTION
     const Real abs_zeta = (1.0 + 3.0 * (C::alpha * C::alpha)) * 0.25 *
@@ -675,12 +684,12 @@ class WeakRates {
   // Scattering_cgs - neutrino-nucleon + coherent neutrino-nucleus
   //                  scattering (Shapiro & Teukolsky 1983)
   //
-  // Input:  rho [g/cm^3], temp [MeV], ye [dimensionless]
+  // Input:  rho [g/cm^3], temp [MeV], Y (species, Y[0] = ye)
   // Output: scattering opacities [1/cm]
   // -----------------------------------------------------------------
   inline int Scattering_cgs(Real rho,
                             Real temp,
-                            Real ye,
+                            const Real* Y,
                             Real& sct_n_nue,
                             Real& sct_n_nua,
                             Real& sct_n_nux,
@@ -692,10 +701,10 @@ class WeakRates {
 
     Real eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn;
     WR_EoS.GetEtas(
-      rho, temp, ye, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
+      rho, temp, Y, eta_nue, eta_nua, eta_nux, eta_e, eta_np, eta_pn);
 
     Real xn, xp, xh, abar, zbar;
-    WR_EoS.GetFracs(rho, temp, ye, xn, xp, xh, abar, zbar);
+    WR_EoS.GetFracs(rho, temp, Y, xn, xp, xh, abar, zbar);
 
     // SCATTERING
     const Real nb = rho / atomic_mass;
