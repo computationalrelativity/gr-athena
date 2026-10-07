@@ -90,9 +90,53 @@ class EoSWrapper
     // mb [g]
     atomic_mass =
       PS_EoS->GetRawBaryonMass() * code_units->MassConversion(*wr_units);
+
+#if EOS_POLICY_CODE == 4
+    dEB_dYe_ = PS_EoS->GetSCEBPerYe();
+#endif
   };
 
   ~EoSWrapper() {};
+
+  // -----------------------------------------------------------------------
+  // Species vectors
+  // -----------------------------------------------------------------------
+  // Every EOS call below takes the species vector Y of the point (N_Y
+  // entries, Y[0] = Y_e) as the EOS policy expects it. A solver that varies
+  // Y_e builds its trial vector with TrialSpecies: the point's Y with Y[0]
+  // replaced.
+  static constexpr int NY = N_Y;
+
+  inline void TrialSpecies(const Real* Y, const Real ye, Real* Yt) const
+  {
+    for (int n = 0; n < NY; ++n)
+    {
+      Yt[n] = Y[n];
+    }
+    Yt[0] = ye;
+#if EOS_POLICY_CODE == 4
+    // A trial Ye off the point's own (equilibrium solver, trapped regime)
+    // means |d| worth of captures on free nucleons. Mirror what
+    // CoupleSourcesYe applies, so the EIR branch sees the matching
+    // composition and rest mass: dXp = d, dXn = -d (clamped at zero; a
+    // trial beyond the free protons asks for captures on nuclei, which the
+    // rates do not model), dSCEB = dEB_dYe * d. d = 0 in the thin regime.
+    static_assert(NY >= SCNVAR, "transition EOS needs NSCALARS >= SCNVAR");
+    const Real d = ye - Y[SCYE];
+    Yt[SCXP]     = std::max(Y[SCXP] + d, 0.0);
+    Yt[SCXN]     = std::max(Y[SCXN] - d, 0.0);
+    Yt[SCEB]     = Y[SCEB] + dEB_dYe_ * d;
+#endif
+  }
+
+  private:
+  // The primitive-solver accessors take Real* but never write through it.
+  static inline Real* ps_Y(const Real* Y)
+  {
+    return const_cast<Real*>(Y);
+  }
+
+  public:
 
   // -----------------------------------------------------------------------
   // Chemical potentials
@@ -105,15 +149,14 @@ class EoSWrapper
   // out:   mus     [MeV]
   void ChemicalPotentials_npe(Real nb_eos,
                               Real T,
-                              Real Ye,
+                              const Real* Y,
                               Real& mu_n,
                               Real& mu_p,
                               Real& mu_e)
   {
-    Real Y[1] = { Ye };
-    Real mu_b = PS_EoS->GetBaryonChemicalPotential(nb_eos, T, Y);
-    Real mu_q = PS_EoS->GetChargeChemicalPotential(nb_eos, T, Y);
-    Real mu_l = PS_EoS->GetElectronLeptonChemicalPotential(nb_eos, T, Y);
+    Real mu_b = PS_EoS->GetBaryonChemicalPotential(nb_eos, T, ps_Y(Y));
+    Real mu_q = PS_EoS->GetChargeChemicalPotential(nb_eos, T, ps_Y(Y));
+    Real mu_l = PS_EoS->GetElectronLeptonChemicalPotential(nb_eos, T, ps_Y(Y));
     mu_n      = mu_b;
     mu_p      = mu_b + mu_q;
     mu_e      = mu_l - mu_q;
@@ -133,7 +176,7 @@ class EoSWrapper
   // on output for unit-system clarity.
   void ChemicalPotentials_npe_cgs(Real rho,
                                   Real temp,
-                                  Real Ye,
+                                  const Real* Y,
                                   Real& mu_n,
                                   Real& mu_p,
                                   Real& mu_e)
@@ -141,7 +184,7 @@ class EoSWrapper
     ChemicalPotentials_npe(
       rho / atomic_mass * wr_units->NumberDensityConversion(*eos_units),
       temp,
-      Ye,
+      Y,
       mu_n,
       mu_p,
       mu_e);
@@ -160,12 +203,12 @@ class EoSWrapper
   // out:  mu_n  [MeV], mu_p [MeV], mu_e [MeV]
   void ChemicalPotentials_cgs(Real rho,
                               Real temp,
-                              Real Ye,
+                              const Real* Y,
                               Real& mu_n,
                               Real& mu_p,
                               Real& mu_e)
   {
-    ChemicalPotentials_npe_cgs(rho, temp, Ye, mu_n, mu_p, mu_e);
+    ChemicalPotentials_npe_cgs(rho, temp, Y, mu_n, mu_p, mu_e);
   }
 
   // -----------------------------------------------------------------------
@@ -177,10 +220,12 @@ class EoSWrapper
   //        T       [MeV]
   //        Ye      [-]
   // out:   dU      [MeV]
-  void InteractionPotentialDifference(Real nb_eos, Real T, Real Ye, Real& dU)
+  void InteractionPotentialDifference(Real nb_eos,
+                                      Real T,
+                                      const Real* Y,
+                                      Real& dU)
   {
-    Real Y[1] = { Ye };
-    dU        = PS_EoS->GetInteractionPotentialDifference(nb_eos, T, Y);
+    dU        = PS_EoS->GetInteractionPotentialDifference(nb_eos, T, ps_Y(Y));
   }
 
   // Nucleon interaction potential difference in MeV from cgs+MeV inputs.
@@ -195,13 +240,13 @@ class EoSWrapper
   // on output for unit-system clarity.
   void InteractionPotentialDifference_cgs(Real rho,
                                           Real temp,
-                                          Real Ye,
+                                          const Real* Y,
                                           Real& dU)
   {
     InteractionPotentialDifference(
       rho / atomic_mass * wr_units->NumberDensityConversion(*eos_units),
       temp,
-      Ye,
+      Y,
       dU);
     dU *= code_units->TemperatureConversion(*wr_units);
   }
@@ -218,13 +263,12 @@ class EoSWrapper
   //
   // When tabulated_particle_fractions is false, returns the free-particle
   // approximation Yn = 1 - Ye.
-  Real GetNeutronFraction(Real nb, Real T, Real Ye)
+  Real GetNeutronFraction(Real nb, Real T, const Real* Y)
   {
     if (!opt_.tabulated_particle_fractions)
-      return 1.0 - Ye;
-    Real Y[1]   = { Ye };
+      return 1.0 - Y[0];
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    Real yn     = PS_EoS->GetYn(nb_eos, T, Y);
+    Real yn     = PS_EoS->GetYn(nb_eos, T, ps_Y(Y));
     if (opt_.clamp_nonneg_frac_np)
       yn = std::max(0.0, yn);
     return yn;
@@ -238,13 +282,12 @@ class EoSWrapper
   //
   // When tabulated_particle_fractions is false, returns the free-particle
   // approximation Yp = Ye.
-  Real GetProtonFraction(Real nb, Real T, Real Ye)
+  Real GetProtonFraction(Real nb, Real T, const Real* Y)
   {
     if (!opt_.tabulated_particle_fractions)
-      return Ye;
-    Real Y[1]   = { Ye };
+      return Y[0];
     Real nb_eos = nb * code_units->NumberDensityConversion(*eos_units);
-    Real yp     = PS_EoS->GetYp(nb_eos, T, Y);
+    Real yp     = PS_EoS->GetYp(nb_eos, T, ps_Y(Y));
     if (opt_.clamp_nonneg_frac_np)
       yp = std::max(0.0, yp);
     return yp;
@@ -262,7 +305,7 @@ class EoSWrapper
   //       Zb    [-]  average charge number of heavy nuclei
   void GetFracs(Real rho,
                 Real temp,
-                Real ye,
+                const Real* Y,
                 Real& xn,
                 Real& xp,
                 Real& xh,
@@ -278,11 +321,9 @@ class EoSWrapper
         (wr_units->MassDensityConversion(*code_units));
       const Real nb = rho * rho_conv_factor / PS_EoS->GetBaryonMass();
 
-      Real Y[1] = { ye };
-
-      xp = PS_EoS->GetYp(nb, temp, Y);
-      xn = PS_EoS->GetYn(nb, temp, Y);
-      xh = PS_EoS->GetXh(nb, temp, Y);
+      xp = PS_EoS->GetYp(nb, temp, ps_Y(Y));
+      xn = PS_EoS->GetYn(nb, temp, ps_Y(Y));
+      xh = PS_EoS->GetXh(nb, temp, ps_Y(Y));
 
       // The following suppresses coherent neutrinos nucleus scattering
       // i.e. dodging a zero-division.
@@ -296,14 +337,14 @@ class EoSWrapper
       }
       else
       {
-        Ab = PS_EoS->GetAN(nb, temp, Y);
-        Zb = PS_EoS->GetZN(nb, temp, Y);
+        Ab = PS_EoS->GetAN(nb, temp, ps_Y(Y));
+        Zb = PS_EoS->GetZN(nb, temp, ps_Y(Y));
       }
     }
     else
     {
-      xp = ye;
-      xn = 1 - ye;
+      xp = Y[0];
+      xn = 1 - Y[0];
       Ab = 1.0;
       Zb = 1.0;
       xh = 0.0;
@@ -348,7 +389,7 @@ class EoSWrapper
   //       eta_np, eta_pn             [cm^-3]  nucleon blocking factors
   void GetEtas(Real rho,
                Real temp,
-               Real ye,
+               const Real* Y,
                Real& eta_nue,
                Real& eta_nua,
                Real& eta_nux,
@@ -363,12 +404,12 @@ class EoSWrapper
     Real nb = rho / AtomicMassImpl();
 
     Real mu_n, mu_p, mu_e;
-    ChemicalPotentials_npe_cgs(rho, temp, ye, mu_n, mu_p, mu_e);
+    ChemicalPotentials_npe_cgs(rho, temp, Y, mu_n, mu_p, mu_e);
 
     Real xn, xp, xh;
     Real abar, zbar;
 
-    GetFracs(rho, temp, ye, xn, xp, xh, abar, zbar);
+    GetFracs(rho, temp, Y, xn, xp, xh, abar, zbar);
 
     /*
     !Compute the neutrino degeneracy assuming that neutrons and
@@ -438,14 +479,13 @@ class EoSWrapper
   //
   // Internally converts rho,temp -> code_units for the EOS call, then
   // converts the result back to wr_units.
-  Real GetEnergyDensity(Real rho, Real temp, Real ye)
+  Real GetEnergyDensity(Real rho, Real temp, const Real* Y)
   {
     Real mb_code = PS_EoS->GetBaryonMass();
     Real nb_code =
       rho * wr_units->MassDensityConversion(*code_units) / mb_code;
     Real temp_code = temp * wr_units->TemperatureConversion(*code_units);
-    Real Y[1]      = { ye };
-    Real e         = PS_EoS->GetEnergy(nb_code, temp_code, Y) *
+    Real e         = PS_EoS->GetEnergy(nb_code, temp_code, ps_Y(Y)) *
              code_units->EnergyDensityConversion(*wr_units);
     return e;
   }
@@ -457,15 +497,14 @@ class EoSWrapper
   // out:  return [erg/cm^3] (wr_units energy density)
   //
   // Uses eos_temp_min (CGS+MeV, set during construction).
-  Real GetMinimumEnergyDensity(Real rho, Real ye)
+  Real GetMinimumEnergyDensity(Real rho, const Real* Y)
   {
     Real mb_code = PS_EoS->GetBaryonMass();
     Real nb_code =
       rho * wr_units->MassDensityConversion(*code_units) / mb_code;
     Real temp_code =
       eos_temp_min * wr_units->TemperatureConversion(*code_units);
-    Real Y[1] = { ye };
-    Real e    = PS_EoS->GetEnergy(nb_code, temp_code, Y) *
+    Real e    = PS_EoS->GetEnergy(nb_code, temp_code, ps_Y(Y)) *
              code_units->EnergyDensityConversion(*wr_units);
     return e;
   }
@@ -600,6 +639,8 @@ class EoSWrapper
   Units::UnitSystem* eos_units;
 
   Real atomic_mass;
+  // d(SCEB)/d(Ye) of a capture on free nucleons (transition EOS only)
+  Real dEB_dYe_ = 0.0;
 
   Real eos_rho_min;
   Real eos_rho_max;

@@ -104,7 +104,7 @@ public:
   //
   // in:   w_rho  [code_units]  (mass density, GeometricSolar)
   //       w_T    [MeV]         (temperature = code_units for GeometricSolar)
-  //       w_Y_e  [-]           (electron fraction, dimensionless)
+  //       Y      [-]           (species vector, Y[0] = Y_e)
   // out:  nudens(0, s)  [code_units]  (number density for species s)
   //       nudens(1, s)  [code_units]  (energy density for species s)
   //
@@ -117,7 +117,7 @@ public:
   void CalculateEquilibriumDensity(
     const Real w_rho,
     const Real w_T,
-    const Real w_Y_e,
+    const Real* Y,
     AA & nudens)
   {
     switch (opt.opacity_variety)
@@ -137,7 +137,7 @@ public:
         const int ierr = popac_weakrates->pmy_weakrates->NeutrinoDensity(
           w_rho,        // Real rho,
           w_T,          // Real temp,
-          w_Y_e,        // Real ye,
+          Y,            // const Real* Y,
           nudens(0, 0), // Real &n_nue,
           nudens(0, 1), // Real &n_nua,
           nudens(0, 2), // Real &n_nux,
@@ -166,7 +166,7 @@ public:
         const int ierr = popac_bns_nurates->NeutrinoDensity(
           w_rho,        // Real rho,
           w_T,          // Real temp,
-          w_Y_e,        // Real ye,
+          Y,            // const Real* Y,
           nudens(0, 0), // Real &n_nue,
           nudens(0, 1), // Real &n_nua,
           nudens(0, 2), // Real &n_nux,

@@ -276,7 +276,8 @@ enum HydroDerivedIndex
   IX_TRANS   = 14,  // eos transition factor
   IX_XERR    = 15,  // mass fraction error (sum of mass fractions - 1)
   IX_FNU     = 16,  // neutrino loss fraction of the nuclear energy release
-  IX_QDOT    = 17,  // densitized heating rate, code energy / code time / vol
+  IX_QDOT    = 17,  // densitized heating rate as deposited in the RK stages
+                    // (with rhine_apply), code energy / code time / vol
   IX_LNU     = 18,  // densitized fnu neutrino loss rate, code units
   IX_DYE     = 19,  // RHINE rate dYe/dt [1/s, comoving]
   IX_DYN     = 20,  // RHINE rate dYn/dt [1/s]
@@ -285,7 +286,17 @@ enum HydroDerivedIndex
   IX_DYH     = 23,  // RHINE rate dYh/dt [1/s]
   IX_DAH     = 24,  // RHINE rate dAh/dt [1/s]
   IX_DMA     = 25,  // RHINE rate dma/dt [MeV/baryon/s]
-  NDRV_HYDRO = 26
+  IX_QPHYS   = 26,  // densitized heating from the reaction increments
+                    // only, from the same RK stages as IX_QDOT
+  // NSE-crossing bookkeeping (not touched by the network's slot reset):
+  IX_NSEST   = 27,  // NSE crossing state: 0 unknown (init/regrid), 1 out
+                    // of NSE and released, 2 resynced and not yet
+                    // released, 3 first release in progress this step
+  IX_QEXIT   = 28,  // densitized RHINE heating in cells making their first
+                    // release since the last resync, code units like IX_QDOT
+  IX_QREENT  = 29,  // densitized heating by the NSE resync of cells that
+                    // entered NSE this step, -D W dSCEB/dt (code units)
+  NDRV_HYDRO = 30
 };
 #else
   NDRV_HYDRO = 13

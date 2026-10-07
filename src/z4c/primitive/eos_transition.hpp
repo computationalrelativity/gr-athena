@@ -302,6 +302,22 @@ class EOSTransition : public EOSPolicyInterface
     return compose_eos->GetTableNeutronMass();
   }
 
+  /// Runtime baryon mass convention [MeV]; SCEB is the mean atomic mass per
+  /// baryon in units of this, minus one.
+  Real GetBaryonMassMeV() const
+  {
+    return mb;
+  }
+
+  /// d(SCEB)/d(Ye) of a charged-current capture on free nucleons:
+  /// p + e- -> n raises the mean atomic mass per baryon by (mn - mp - me)
+  /// per unit |dYe| (SCEB is in the atomic convention, electron masses in).
+  Real GetSCEBPerYe()
+  {
+    constexpr Real me = 0.5109989461;  // MeV
+    return -(GetTableNeutronMass() - GetTableProtonMass() - me) / mb;
+  }
+
   /// Enable/disable the ion Coulomb (OCP) correction of the EIR branch
   void SetEIRCoulomb(bool use)
   {

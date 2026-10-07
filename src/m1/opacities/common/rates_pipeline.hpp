@@ -38,9 +38,9 @@ namespace M1::Opacities::Common
 //   - M1 *pm1
 //   - Common::OpacityUtils opu
 //   - int CalculateOpacityCoefficients(int k, int j, int i,
-//                                      Real rho, Real T, Real Y_e)
+//                                      Real rho, Real T, const Real* Y)
 //   - int ComputeEquilibriumDensities(int k, int j, int i,
-//                                     Real dt, Real rho, Real T, Real Y_e,
+//                                     Real dt, Real rho, Real T, const Real* Y,
 //                                     Real tau,
 //                                     OpacityUtils::cmp_eql_dens_ini ini,
 //                                     bool using_averaging_fix)
@@ -87,10 +87,11 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
   M1_FLOOP3(k, j, i)
   if (calc_state(k, j, i) == cstate::need)
   {
-    Real rho, T, Y_e;
-    opu.GetHydro(k, j, i, rho, T, Y_e);
+    Real rho, T;
+    Real Y[Common::N_Y];
+    opu.GetHydro(k, j, i, rho, T, Y);
 
-    ierr(k, j, i) = b.CalculateOpacityCoefficients(k, j, i, rho, T, Y_e);
+    ierr(k, j, i) = b.CalculateOpacityCoefficients(k, j, i, rho, T, Y);
 
     if (ierr(k, j, i))
     {
@@ -123,14 +124,15 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     M1_NS_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
-      Real rho, T, Y_e;
-      opu.GetHydro(k, j, i, rho, T, Y_e);
+      Real rho, T;
+      Real Y[Common::N_Y];
+      opu.GetHydro(k, j, i, rho, T, Y);
 
       const Real tau = std::min(opu.CalculateTau(NUE, k, j, i),
                                 opu.CalculateTau(NUA, k, j, i));
 
       ierr(k, j, i) = b.ComputeEquilibriumDensities(
-        k, j, i, dt, rho, T, Y_e, tau, cmp_eql_dens_ini::current_sv, false);
+        k, j, i, dt, rho, T, Y, tau, cmp_eql_dens_ini::current_sv, false);
 
       if (ierr(k, j, i))
       {
@@ -170,8 +172,9 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
         if (num_failing == 0)
           continue;
 
-        Real rho, T, Y_e;
-        opu.GetHydro(k, j, i, rho, T, Y_e);
+        Real rho, T;
+        Real Y[Common::N_Y];
+        opu.GetHydro(k, j, i, rho, T, Y);
 
         const Real tau = std::min(opu.CalculateTau(NUE, k, j, i),
                                   opu.CalculateTau(NUA, k, j, i));
@@ -179,7 +182,7 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
         for (const auto& ini_method : ced_fallback)
         {
           ierr(k, j, i) = b.ComputeEquilibriumDensities(
-            k, j, i, dt, rho, T, Y_e, tau, ini_method, false);
+            k, j, i, dt, rho, T, Y, tau, ini_method, false);
 
           if (ierr(k, j, i) && opu.opt.verbose_warn_weak)
           {
@@ -300,8 +303,9 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     M1_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
-      Real rho, T, Y_e;
-      opu.GetHydro(k, j, i, rho, T, Y_e);
+      Real rho, T;
+      Real Y[Common::N_Y];
+      opu.GetHydro(k, j, i, rho, T, Y);
 
       opu.FlagEquilibrium(
         dt, rho, T, k, j, i, opu.opt.flag_equilibrium_species);
@@ -351,8 +355,9 @@ inline int RatesPipeline(Real const dt, AA& u, Backend& b)
     M1_FLOOP3(k, j, i)
     if (calc_state(k, j, i) == cstate::need)
     {
-      Real rho, T, Y_e;
-      opu.GetHydro(k, j, i, rho, T, Y_e);
+      Real rho, T;
+      Real Y[Common::N_Y];
+      opu.GetHydro(k, j, i, rho, T, Y);
 
       opu.FlagEquilibrium(
         dt, rho, T, k, j, i, opu.opt.flag_equilibrium_species);

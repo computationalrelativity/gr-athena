@@ -85,7 +85,7 @@ class WeakRates
   //   k, j, i         grid indices
   //   rho             [code_units mass density]   (GeometricSolar)
   //   T               [MeV]
-  //   Y_e             [-]                         (dimensionless)
+  //   Y               [-]                         species vector, Y[0] = Y_e
   //
   // Output (stored in pm1->radmat, code_units):
   //   eta_0            [code_units number rate density]  (1/time/volume)
@@ -116,7 +116,7 @@ class WeakRates
                                           int i,
                                           Real rho,
                                           Real T,
-                                          Real Y_e)
+                                          const Real* Y)
   {
     int iem, iab, isc;
 
@@ -128,7 +128,7 @@ class WeakRates
     iem            = pmy_weakrates->NeutrinoEmission(
       rho,
       T,
-      Y_e,
+      Y,
       rm.sc_eta_0(ix_g, NUE)(k, j, i),  // eta_n[NUE]
       rm.sc_eta_0(ix_g, NUA)(k, j, i),  // eta_n[NUA]
       rm.sc_eta_0(ix_g, NUX)(k, j, i),  // eta_n[NUX]
@@ -140,7 +140,7 @@ class WeakRates
     iab = pmy_weakrates->NeutrinoAbsorptionOpacity(
       rho,
       T,
-      Y_e,
+      Y,
       rm.sc_kap_a_0(ix_g, NUE)(k, j, i),  // kap_a_n[NUE]
       rm.sc_kap_a_0(ix_g, NUA)(k, j, i),  // kap_a_n[NUA]
       rm.sc_kap_a_0(ix_g, NUX)(k, j, i),  // kap_a_n[NUX]
@@ -153,7 +153,7 @@ class WeakRates
     isc = pmy_weakrates->NeutrinoScatteringOpacity(
       rho,
       T,
-      Y_e,
+      Y,
       kap_s_n[NUE],
       kap_s_n[NUA],
       kap_s_n[NUX],
@@ -176,7 +176,7 @@ class WeakRates
   //   dt                        [code_units time]
   //   rho                       [code_units mass density]
   //   T                         [MeV]
-  //   Y_e                       [-]
+  //   Y                         [-]  species vector, Y[0] = Y_e
   //   tau                       [code_units time]  (equilibration timescale)
   //   initial_guess             enum selecting initial state for NR solver
   //   using_averaging_fix       whether hydro averaging fallback is active
@@ -195,14 +195,15 @@ class WeakRates
     const Real dt,
     const Real rho,
     const Real T,
-    const Real Y_e,
+    const Real* Y,
     const Real tau,
     const cmp_eql_dens_ini initial_guess,
     const bool using_averaging_fix  // call with true to prevent inf. rec.
   )
   {
-    auto recompute = [this](int k, int j, int i, Real rho, Real T, Real Y_e)
-    { return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y_e); };
+    auto recompute =
+      [this](int k, int j, int i, Real rho, Real T, const Real* Y)
+    { return this->CalculateOpacityCoefficients(k, j, i, rho, T, Y); };
     return opu.ComputeEquilibriumDensities(pmy_weakrates,
                                            k,
                                            j,
@@ -210,7 +211,7 @@ class WeakRates
                                            dt,
                                            rho,
                                            T,
-                                           Y_e,
+                                           Y,
                                            tau,
                                            initial_guess,
                                            using_averaging_fix,

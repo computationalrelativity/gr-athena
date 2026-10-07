@@ -642,6 +642,7 @@ int g_rhine_pmode  = 1;
 // neutrons remain we evaluate the networks at T9 = 0.1, inside their training
 // range (0.03, 6); the released heat lifts the matter back above the cutoff.
 bool g_rhine_clamp_cold = true;
+bool g_rhine_fnu_physical = false;  // fnu on the reaction release only
 constexpr Real rhine_T9_low  = 0.1;
 constexpr Real rhine_yn_min  = 1e-3;
 constexpr Real rhine_ye_max  = 0.45;
@@ -674,6 +675,8 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       g_rhine_verbose = pin->GetOrAddBoolean("hydro", "rhine_verbose", false);
       g_rhine_clamp_cold =
         pin->GetOrAddBoolean("hydro", "rhine_clamp_cold", true);
+      g_rhine_fnu_physical =
+        pin->GetOrAddBoolean("hydro", "rhine_fnu_physical", false);
       g_time_s = Primitive::GeometricSolar.TimeConversion(Primitive::CGS);
       g_mb_MeV = pin->GetOrAddReal("hydro", "bmass", 930.4117);
       std::string path =
@@ -686,14 +689,15 @@ void EquationOfState::InitTransitionNetwork(ParameterInput* pin)
       if (Globals::my_rank == 0)
       {
         printf("RHINE: %s (pmode = %d, apply = %s, verbose = %s, "
-               "mb = %.7f MeV, clamp_cold = %s)\n",
+               "mb = %.7f MeV, clamp_cold = %s, fnu_physical = %s)\n",
                g_rhine_ready ? path.c_str()
                              : "disabled (no rhine_models_path)",
                g_rhine_pmode,
                g_rhine_apply ? "true" : "false",
                g_rhine_verbose ? "true" : "false",
                g_mb_MeV,
-               g_rhine_clamp_cold ? "true" : "false");
+               g_rhine_clamp_cold ? "true" : "false",
+               g_rhine_fnu_physical ? "true" : "false");
       }
     }
   }
@@ -720,6 +724,12 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
   // RHINE's QSE relaxation rates are finite differences over dt; skip the
   // network before the first time step is known (initialization).
   const bool rhine_on = g_rhine_ready && (dt_code > 0.0);
+  // The deposited heating (IX_HEAT, IX_QDOT, IX_LNU, IX_QPHYS) is recorded
+  // where it is applied: in the RK stages, against the step-start '0'
+  // reference. The once-per-step diagnostic call measures dma against the
+  // post-step m-tilde, i.e. the residual lag, so it only owns these slots
+  // without rhine_apply.
+  const bool own_rates = apply || !g_rhine_apply;
   Real Y[MAX_SPECIES] = { 0.0 };
 
   for (int i = pmb->is; i <= pmb->ie; ++i)
@@ -732,6 +742,14 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     const Real T = hyd_der_ms(IX_T, k, j, i);   // MeV, fresh from c2p
     const Real w = GetEOS().TransitionWeight(n, T, Y);
     hyd_der_ms(IX_TRANS, k, j, i) = w;
+    // NSE crossing state (see IX_NSEST): the once-per-step diagnostic call
+    // closes a first release (3 -> 1) and adopts unknown out-of-NSE cells.
+    if (!apply)
+    {
+      const Real st = hyd_der_ms(IX_NSEST, k, j, i);
+      if (st == 3.0 || (st == 0.0 && w < 1.0))
+        hyd_der_ms(IX_NSEST, k, j, i) = 1.0;
+    }
 
     if (w == 1.0)
     {
@@ -741,9 +759,12 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // registers between stage combinations and invalidate the frozen
       // r0 reference the network's endpoint positivity is certified
       // against.
-      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU ||
+                           l == IX_QPHYS))
+          continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
       continue;
@@ -751,9 +772,12 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
 
     if (!rhine_on || !(T > 0.0))
     {
-      for (int l = IX_HEAT; l < NDRV_HYDRO; ++l)
+      for (int l = IX_HEAT; l < IX_NSEST; ++l)
       {
         if (l == IX_TRANS || l == IX_XERR) continue;
+        if (!own_rates && (l == IX_HEAT || l == IX_QDOT || l == IX_LNU ||
+                           l == IX_QPHYS))
+          continue;
         hyd_der_ms(l, k, j, i) = 0.0;
       }
       continue;
@@ -883,17 +907,57 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
              rho_cgs, T, ye, yn, ya, yh, ah, ah0, mass0, (int)apply);
       dye = dyn = dyp = dya = dyh = dah = dma = fnu = 0.0;
     }
-    // fnu (model 8) is only valid while the composition releases energy
-    // (Eq. 27); the gate is the host's responsibility.
-    if (!(dma < 0.0))
+
+    // Split of the release. dm_phys is the change of the RHINE m-tilde caused
+    // by the reaction increments of this call alone, both ends evaluated on
+    // the current (advected) composition. dm_mix = dma - dm_phys is the
+    // reconciliation of the advected m-tilde with that composition
+    // (transport/mixing, NSE hand-off). Increments as in the apply below.
+    Real dm_phys = 0.0;
+    if (dma != 0.0)
+    {
+      const Real m_now =
+        g_rhine.massExcess(rho_cgs, T_net, ye, yn, ya, yh, ah);
+      const Real dxh = dah * yh0 + ah0 * dyh + dt_s * dah * dyh;
+      Real yn1       = std::max(yn + dyn * dt_s, 0.0);
+      Real ya1       = std::max(ya + dya * dt_s, 0.0);
+      const Real ah1 = std::max(ah + dah * dt_s, 1.0);
+      Real yh1       = std::max(ah * yh + dxh * dt_s, 0.0) / ah1;
+      const Real s1  = yn1 + 4.0 * ya1 + ah1 * yh1;
+      if (s1 > s_max)
+      {
+        const Real f1 = s_max / s1;
+        yn1 *= f1;
+        ya1 *= f1;
+        yh1 *= f1;
+      }
+      const Real m_next = g_rhine.massExcess(
+        rho_cgs, T_net, ye + dye * dt_s, yn1, ya1, yh1, ah1);
+      dm_phys = (m_next - m_now) / dt_s;
+    }
+    // In the apply stages dm_mix is the applied reconciliation. In the
+    // once-per-step diagnostic call (no apply) the reference is the post-step
+    // state, so dma there is the post-step lag, not a deposit; all deposited
+    // rates, IX_QPHYS included, are therefore kept from the stages
+    // (own_rates).
+
+    // Release the neutrino fraction acts on: with hydro/rhine_fnu_physical
+    // only the reaction part (the beta decays that emit the neutrinos);
+    // the m-tilde reconciliation (NSE hand-off, mixing) is not a nuclear
+    // release and stays entirely in the thermal pool. fnu (model 8) is
+    // only valid while that release is positive (Eq. 27); the gate is the
+    // host's responsibility.
+    const Real dm_nu = g_rhine_fnu_physical ? dm_phys : dma;
+    if (!(dm_nu < 0.0))
     {
       fnu = 0.0;
     }
 
-    // Diagnostic: comoving heating rate per unit volume, (1 - fnu) of the
-    // rest-mass energy release, in erg/cm^3/s.
-    hyd_der_ms(IX_HEAT, k, j, i) =
-      -(1.0 - fnu) * dma * MeV_erg * (n * 1e39);
+    // Diagnostic: comoving heating rate per unit volume, the rest-mass
+    // energy release minus the neutrino loss, in erg/cm^3/s.
+    if (own_rates)
+      hyd_der_ms(IX_HEAT, k, j, i) =
+        -(dma - fnu * dm_nu) * MeV_erg * (n * 1e39);
     hyd_der_ms(IX_FNU, k, j, i) = fnu;
 
     // Raw comoving network rates (per second of fluid proper time).
@@ -911,10 +975,29 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
     // (unlike the per-baryon scalar sources below). Sum(slot * coord. cell
     // volume) is the total luminosity in code energy per code time.
     {
-      const Real rate = cons(IDN, k, j, i) * (-dma / g_mb_MeV) *
-                        alpha * g_time_s;
-      hyd_der_ms(IX_QDOT, k, j, i) = (1.0 - fnu) * rate;
-      hyd_der_ms(IX_LNU, k, j, i)  = fnu * rate;
+      const Real to_code = cons(IDN, k, j, i) / g_mb_MeV * alpha * g_time_s;
+      const Real lnu     = -fnu * dm_nu * to_code;
+      const Real qdot    = -dma * to_code - lnu;
+      if (own_rates)
+      {
+        // Stages see ~the same dma against the frozen reference; the last
+        // stage's value is kept, as for IX_QEXIT.
+        hyd_der_ms(IX_QDOT, k, j, i) = qdot;
+        hyd_der_ms(IX_LNU, k, j, i)  = lnu;
+      }
+      // First release since the last resync: the '0' reference (r0) is the
+      // resynced state, so this is the full exit release (mismatch +
+      // reactions) as a rate over the step. Every stage sees ~the same dma
+      // against the frozen reference; the last stage's value is kept.
+      if (apply && hyd_der_ms(IX_NSEST, k, j, i) >= 2.0)
+      {
+        hyd_der_ms(IX_QEXIT, k, j, i) = qdot;
+        hyd_der_ms(IX_NSEST, k, j, i) = 3.0;
+      }
+      // Same stages and reference for the reaction part, so that
+      // qdot - qphys is the applied mixing / hand-off release.
+      if (own_rates)
+        hyd_der_ms(IX_QPHYS, k, j, i) = -(1.0 - fnu) * dm_phys * to_code;
     }
 
     if (apply)
@@ -1003,22 +1086,23 @@ void EquationOfState::TransitionNetworkStep(AA& prim,
       // Heating enters implicitly: SCEB feeds eps through c2p; no explicit
       // tau heating term (Just et al. Eq. 6).
       cons_scalar(SCEB, k, j, i) += D * (dma / g_mb_MeV) * dt_ap;
-      // Neutrino energy sink (Just et al. Eq. 28); fnu = 0 unless dma < 0.
+      // Neutrino energy sink (Just et al. Eq. 28) on dm_nu; fnu = 0 unless
+      // dm_nu < 0.
       // Divisor g_mb_MeV (not m_u): D is densitized with mb per baryon and
-      // SCEB enters eps in units of mb, so mb keeps the (1-fnu)/fnu split
-      // of dma exact between the SCEB channel and this sink.
+      // SCEB enters eps in units of mb, so mb keeps the split of the
+      // release exact between the SCEB channel and this sink.
       // No 1/W here: the tau source of the four-force G^mu = q u^mu is
-      // alpha^2 sqrt(gamma) G^t = alpha * D * (fnu dma/mb), whereas the
+      // alpha^2 sqrt(gamma) G^t = alpha * D * (fnu dm_nu/mb), whereas the
       // per-baryon scalar sources above carry the proper-time factor
       // alpha/W (Eq. 28 likewise: R_{beta,tau} = D fnu mdot/m_u).
       cons(IEN, k, j, i) +=
-        D * fnu * (dma / g_mb_MeV) * dt_apply_code * alpha * g_time_s;
+        D * fnu * (dm_nu / g_mb_MeV) * dt_apply_code * alpha * g_time_s;
       // Momentum projection of the same four-force (radiation drag): the
       // escaping neutrinos carry momentum q u_a; unlike tau this source
       // uses the per-proper-time factor dt_ap since alpha sqrt(g) G_a =
       // D q u_a (alpha/W). Keeps the removed four-momentum parallel to
       // u^mu (Just et al. Eq. 28 drops this term; zero for v = 0).
-      const Real snu = D * fnu * (dma / g_mb_MeV) * dt_ap;
+      const Real snu = D * fnu * (dm_nu / g_mb_MeV) * dt_ap;
       for (int a = 0; a < 3; ++a)
       {
         Real u_d_a = 0.0;
@@ -1055,6 +1139,12 @@ void EquationOfState::TransitionNetworkApply(const Real dt_scaled,
     {
       ps->r0(l, k, j, i) = ps->r(l, k, j, i);
     }
+    for (int k = pmb->ks; k <= pmb->ke; ++k)
+    for (int j = pmb->js; j <= pmb->je; ++j)
+    for (int i = pmb->is; i <= pmb->ie; ++i)
+    {
+      ph->derived_ms(IX_QEXIT, k, j, i) = 0.0;
+    }
   }
 
   geom_sliced_cc gsc;
@@ -1079,6 +1169,7 @@ void EquationOfState::TransitionNSEResync()
   Real Y[MAX_SPECIES] = { 0.0 };
 
   const Real oo_mb = OO(GetEOS().GetBaryonMass());
+  const Real dt_code = pmb->pmy_mesh->dt;
   // Full block INCLUDING ghosts: this runs after the step's last ghost
   // exchange, so an interior-only resync leaves ghost s stale relative to
   // the neighbor's resynced interior. The xorder fallback mask
@@ -1094,6 +1185,7 @@ void EquationOfState::TransitionNSEResync()
   {
     const Real n = ph->w(IDN, k, j, i) * oo_mb;  // fm^-3
     const Real T = hyd_der_ms(IX_T, k, j, i);    // MeV, fresh from c2p
+    hyd_der_ms(IX_QREENT, k, j, i) = 0.0;
     for (int l = 0; l < NSCALARS; ++l)
     {
       Y[l] = prim_scalar(l, k, j, i);
@@ -1113,6 +1205,7 @@ void EquationOfState::TransitionNSEResync()
     // ignition threshold, and that is the whole point of carrying a marker.
     if (GetEOS().TransitionWeight(n, T, Y) < 1.0)
       continue;
+    const Real sceb_old = Y[SCEB];
     // NSE: re-synchronize the advected composition and mass-excess
     // scalar with the table (cf. Just et al. 2026, the m-tilde reset
     // above the NSE dropout).
@@ -1128,6 +1221,18 @@ void EquationOfState::TransitionNSEResync()
       cons_scalar(l, k, j, i) =
         prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
     }
+    // Re-entry after a release (state 1 or 3; 0 = unknown after
+    // init/regrid): the reset of SCEB at fixed tau takes back the thermal
+    // energy of RHINE's out-of-NSE release, in the IX_QDOT convention
+    // D W deps/dt.
+    const Real st = hyd_der_ms(IX_NSEST, k, j, i);
+    if (dt_code > 0.0 && (st == 1.0 || st == 3.0))
+    {
+      hyd_der_ms(IX_QREENT, k, j, i) =
+        -ph->u(IDN, k, j, i) * hyd_der_ms(IX_LOR, k, j, i) *
+        (prim_scalar(SCEB, k, j, i) - sceb_old) / dt_code;
+    }
+    hyd_der_ms(IX_NSEST, k, j, i) = 2.0;
   }
 }
 

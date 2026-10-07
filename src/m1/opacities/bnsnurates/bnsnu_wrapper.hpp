@@ -206,7 +206,7 @@ class BNSNuRatesWrapper
   // -------------------------------------------------------------------
   int ComputeOpacities(Real nb,
                        Real temp,
-                       Real ye,
+                       const Real* Y,
                        Real mu_n,
                        Real mu_p,
                        Real mu_e,
@@ -270,9 +270,9 @@ class BNSNuRatesWrapper
     grey_op_params.eos_pars.nb   = nb * unit_num_dens;  // [nm^-3]
     grey_op_params.eos_pars.temp = temp;  // [MeV]  (same in both systems)
     grey_op_params.eos_pars.yp =
-      pmy_eos->GetProtonFraction(nb, temp, ye);  // [-]
+      pmy_eos->GetProtonFraction(nb, temp, Y);  // [-]
     grey_op_params.eos_pars.yn =
-      pmy_eos->GetNeutronFraction(nb, temp, ye);  // [-]
+      pmy_eos->GetNeutronFraction(nb, temp, Y);  // [-]
     grey_op_params.eos_pars.mu_e = mu_e;  // [MeV]  (same in both systems)
     grey_op_params.eos_pars.mu_p = mu_p;  // [MeV]  (same in both systems)
     grey_op_params.eos_pars.mu_n = mu_n;  // [MeV]  (same in both systems)

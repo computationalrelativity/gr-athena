@@ -42,7 +42,7 @@
                        (NFIELD) + (NSCALARS) + \
                        3 * (WAVE_ENABLED) + \
                        8 * (Z4C_ENABLED) + \
-                       2 * ((EOS_POLICY_CODE == 4) && (FLUID_ENABLED)))
+                       6 * ((EOS_POLICY_CODE == 4) && (FLUID_ENABLED)))
 
 // Index of the WAVE "err-max-pw" slot (a max, not a sum).
 // Only meaningful when WAVE_ENABLED=1.
@@ -209,6 +209,13 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
           // to the total in code energy per code time.
           hst_data[isum++] += vol(i)*phyd->derived_ms(IX_QDOT,k,j,i);
           hst_data[isum++] += vol(i)*phyd->derived_ms(IX_LNU,k,j,i);
+          hst_data[isum++] += vol(i)*phyd->derived_ms(IX_QPHYS,k,j,i);
+          hst_data[isum++] += vol(i)*phyd->derived_ms(IX_QEXIT,k,j,i);
+          hst_data[isum++] += vol(i)*phyd->derived_ms(IX_QREENT,k,j,i);
+          // Rest mass outside NSE (w < 1, from the last network call)
+          if (phyd->derived_ms(IX_TRANS,k,j,i) < 1.0)
+            hst_data[isum] += vol(i)*phyd->u(IDN,k,j,i);
+          isum++;
 #endif
         }
       }
@@ -441,6 +448,10 @@ void HistoryOutput::WriteOutputFile(Mesh *pm, ParameterInput *pin, bool flag)
 #if EOS_POLICY_CODE == 4 && FLUID_ENABLED
       std::fprintf(pfile,"[%d]=rhine-qdot ", iout++);
       std::fprintf(pfile,"[%d]=rhine-Lfnu ", iout++);
+      std::fprintf(pfile,"[%d]=rhine-qphys ", iout++);
+      std::fprintf(pfile,"[%d]=rhine-qexit ", iout++);
+      std::fprintf(pfile,"[%d]=rhine-qreent ", iout++);
+      std::fprintf(pfile,"[%d]=m-nonNSE ", iout++);
 #endif
 
       for (int n=0; n<nuser_history_output_; n++)
