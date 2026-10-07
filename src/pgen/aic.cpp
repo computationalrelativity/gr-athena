@@ -1199,6 +1199,9 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
 
   const Real E_nu_avg = opt_E_nu_avg;
   const Real rho_trap = opt_rho_trap;
+  // hst/dump diagnostic: energy the capture step removes from the fluid,
+  // per cell and step, as a densitized rate -dtau/dt (IX_QNU, code units)
+  const Real oo_dt = (dt > 0.0) ? 1.0 / dt : 0.0;
 
   // -------------------------------------------------------------------------
   // Method 1: Liebendoerfer (Complex Entropy Update)
@@ -1222,6 +1225,9 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
       aux_h.InitWithShallowSlice(ph->derived_ms, IX_ETH, 1);
       AA aux_e;
       aux_e.InitWithShallowSlice(ph->derived_ms, IX_SEN, 1);
+      AA aux_qnu;
+      aux_qnu.InitWithShallowSlice(ph->derived_ms, IX_QNU, 1);
+      aux_qnu.Fill(0.0);
 
       auto& reos        = peos->GetEOS();
       const Real mb_eos = reos.GetBaryonMass();
@@ -1230,8 +1236,9 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
 
       CC_GLOOP3(k, j, i)
       {
-        const Real rho = ph->w(IDN, k, j, i);
-        Real& Y_e      = ps->r(IYE, k, j, i);
+        const Real rho     = ph->w(IDN, k, j, i);
+        const Real tau_old = ph->u(IEN, k, j, i);
+        Real& Y_e          = ps->r(IYE, k, j, i);
         Real Y_old[MAX_SPECIES]{ 0 };
         Real Y_new[MAX_SPECIES]{ 0 };
         for (int l = 0; l < NSCALARS; ++l)
@@ -1325,6 +1332,7 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
             peos->PrimitiveToConserved(
               ph->w, ps->r, pf->bcc, ph->u, ps->s, pco, i, i, j, j, k, k);
           }
+          aux_qnu(k, j, i) = (tau_old - ph->u(IEN, k, j, i)) * oo_dt;
         }
       }
       pmb = pmb->next;
@@ -1350,6 +1358,9 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
                              Z4c::I_AUX_EXTENDED_ms_sqrt_detgamma);
       AA aux_W;
       aux_W.InitWithShallowSlice(ph->derived_ms, IX_LOR, 1);
+      AA aux_qnu;
+      aux_qnu.InitWithShallowSlice(ph->derived_ms, IX_QNU, 1);
+      aux_qnu.Fill(0.0);
 
       auto& reos        = peos->GetEOS();
       const Real mb_eos = reos.GetBaryonMass();
@@ -1375,8 +1386,11 @@ void Mesh::UserWorkInLoop(ParameterInput* pin)
             // Neutrino energy loss: delta_Y_e < 0 from electron capture,
             // so this term is negative, reducing tau. n dYe E_nu is an energy
             // density, hence PressureConversion.
-            tau += (alpha(k, j, i) * sqrt_detgamma(k, j, i) * aux_W(k, j, i) *
-                    n * delta_Y_e * E_nu_avg * fac_MeVfm3_code);
+            const Real dtau =
+              (alpha(k, j, i) * sqrt_detgamma(k, j, i) * aux_W(k, j, i) * n *
+               delta_Y_e * E_nu_avg * fac_MeVfm3_code);
+            tau += dtau;
+            aux_qnu(k, j, i) = -dtau * oo_dt;
 
             static const int coarse_flag = 0;
             peos->ConservedToPrimitive(ph->u,

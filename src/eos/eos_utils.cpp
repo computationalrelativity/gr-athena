@@ -1186,6 +1186,7 @@ void EquationOfState::TransitionNSEResync()
     const Real n = ph->w(IDN, k, j, i) * oo_mb;  // fm^-3
     const Real T = hyd_der_ms(IX_T, k, j, i);    // MeV, fresh from c2p
     hyd_der_ms(IX_QREENT, k, j, i) = 0.0;
+    hyd_der_ms(IX_QNSE, k, j, i)   = 0.0;
     for (int l = 0; l < NSCALARS; ++l)
     {
       Y[l] = prim_scalar(l, k, j, i);
@@ -1221,16 +1222,21 @@ void EquationOfState::TransitionNSEResync()
       cons_scalar(l, k, j, i) =
         prim_scalar(l, k, j, i) * ph->u(IDN, k, j, i);
     }
+    // The reset of SCEB at fixed tau moves rest-mass energy into thermal
+    // energy, in the IX_QDOT convention D W deps/dt: the nuclear energy
+    // release (ignition flash, binding-energy shifts with n and T).
+    const Real q_nse = (dt_code > 0.0)
+                       ? -ph->u(IDN, k, j, i) * hyd_der_ms(IX_LOR, k, j, i) *
+                           (prim_scalar(SCEB, k, j, i) - sceb_old) / dt_code
+                       : 0.0;
+    hyd_der_ms(IX_QNSE, k, j, i) = q_nse;
     // Re-entry after a release (state 1 or 3; 0 = unknown after
-    // init/regrid): the reset of SCEB at fixed tau takes back the thermal
-    // energy of RHINE's out-of-NSE release, in the IX_QDOT convention
-    // D W deps/dt.
+    // init/regrid): the same reset takes back the thermal energy of
+    // RHINE's out-of-NSE release.
     const Real st = hyd_der_ms(IX_NSEST, k, j, i);
-    if (dt_code > 0.0 && (st == 1.0 || st == 3.0))
+    if (st == 1.0 || st == 3.0)
     {
-      hyd_der_ms(IX_QREENT, k, j, i) =
-        -ph->u(IDN, k, j, i) * hyd_der_ms(IX_LOR, k, j, i) *
-        (prim_scalar(SCEB, k, j, i) - sceb_old) / dt_code;
+      hyd_der_ms(IX_QREENT, k, j, i) = q_nse;
     }
     hyd_der_ms(IX_NSEST, k, j, i) = 2.0;
   }

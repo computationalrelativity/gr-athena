@@ -169,6 +169,8 @@ class Hydro
       "hydro.aux.nse_state",
       "hydro.aux.rhine_qexit",
       "hydro.aux.rhine_qreent",
+      "hydro.aux.nse_qdot",
+      "hydro.aux.delept_lnu",
 #endif
     };
   };

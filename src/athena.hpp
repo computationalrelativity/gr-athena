@@ -296,7 +296,13 @@ enum HydroDerivedIndex
                     // release since the last resync, code units like IX_QDOT
   IX_QREENT  = 29,  // densitized heating by the NSE resync of cells that
                     // entered NSE this step, -D W dSCEB/dt (code units)
-  NDRV_HYDRO = 30
+  IX_QNSE    = 30,  // densitized heating by the NSE resync of EVERY resynced
+                    // cell, -D W dSCEB/dt (code units): the ignition flash
+                    // plus the (n, T) binding-energy shifts inside NSE
+  IX_QNU     = 31,  // densitized energy removed from the fluid by a pgen's
+                    // parametrized deleptonization step, -dtau/dt (code
+                    // units, positive = loss); zero unless the pgen fills it
+  NDRV_HYDRO = 32
 };
 #else
   NDRV_HYDRO = 13
