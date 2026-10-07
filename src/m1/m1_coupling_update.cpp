@@ -295,6 +295,16 @@ void M1::CoupleSourcesYe(const Real mb, AA& ps)
 {
   Z4c* pz4c = pmy_block->pz4c;
 
+#if EOS_POLICY_CODE == 4
+  // Rest-mass bookkeeping of the captures on the EIR side: SCEB is the mean
+  // ATOMIC mass per baryon over mb, minus one. p + e- -> n raises it by
+  // (mn - mp - me) per unit |dYe|; on the compose branch the table carries
+  // this in eps(Ye) and SCEB is reset there, so the increment is harmless.
+  // RHINE re-anchors SCEB to its mass-excess network from the r0 snapshot,
+  // which already contains this increment, so it is not counted twice.
+  const Real dEB_dYe = pmy_block->peos->GetEOS().GetSCEBPerYe();
+#endif
+
   for (int ix_g = 0; ix_g < N_GRPS; ++ix_g)
   {
     AT_C_sca& S_sc_nG_nue = sources.sc_nG(ix_g, 0);
@@ -317,6 +327,7 @@ void M1::CoupleSourcesYe(const Real mb, AA& ps)
       // Sum over species is preserved (dXn = -dXp).
       ps(SCXN, k, j, i) -= dye;
       ps(SCXP, k, j, i) += dye;
+      ps(SCEB, k, j, i) += dEB_dYe * dye;
 #endif
       if (!std::isfinite(S_sc_nG_nue(k, j, i)) ||
           !std::isfinite(S_sc_nG_nua(k, j, i)))
