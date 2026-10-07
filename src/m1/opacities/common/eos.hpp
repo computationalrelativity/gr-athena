@@ -90,6 +90,10 @@ class EoSWrapper
     // mb [g]
     atomic_mass =
       PS_EoS->GetRawBaryonMass() * code_units->MassConversion(*wr_units);
+
+#if EOS_POLICY_CODE == 4
+    dEB_dYe_ = PS_EoS->GetSCEBPerYe();
+#endif
   };
 
   ~EoSWrapper() {};
@@ -110,6 +114,19 @@ class EoSWrapper
       Yt[n] = Y[n];
     }
     Yt[0] = ye;
+#if EOS_POLICY_CODE == 4
+    // A trial Ye off the point's own (equilibrium solver, trapped regime)
+    // means |d| worth of captures on free nucleons. Mirror what
+    // CoupleSourcesYe applies, so the EIR branch sees the matching
+    // composition and rest mass: dXp = d, dXn = -d (clamped at zero; a
+    // trial beyond the free protons asks for captures on nuclei, which the
+    // rates do not model), dSCEB = dEB_dYe * d. d = 0 in the thin regime.
+    static_assert(NY >= SCNVAR, "transition EOS needs NSCALARS >= SCNVAR");
+    const Real d = ye - Y[SCYE];
+    Yt[SCXP]     = std::max(Y[SCXP] + d, 0.0);
+    Yt[SCXN]     = std::max(Y[SCXN] - d, 0.0);
+    Yt[SCEB]     = Y[SCEB] + dEB_dYe_ * d;
+#endif
   }
 
   private:
@@ -622,6 +639,8 @@ class EoSWrapper
   Units::UnitSystem* eos_units;
 
   Real atomic_mass;
+  // d(SCEB)/d(Ye) of a capture on free nucleons (transition EOS only)
+  Real dEB_dYe_ = 0.0;
 
   Real eos_rho_min;
   Real eos_rho_max;
