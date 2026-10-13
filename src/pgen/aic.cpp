@@ -318,7 +318,8 @@ Real FlashAshCore(EOS_T& reos,
 // marker take the hydro/*_pre_bounce values (defaults: strip far above any
 // temperature reached, ignition by density at 1e11 g/cc, marker active).
 // At bounce detection every meshblock's EOS is switched to the plain
-// hydro/* keys and the marker becomes passive. The density strip
+// hydro/* keys and the marker becomes passive; an unset plain eir_n_max
+// keeps the pre-bounce cutoff. The density strip
 // (trans_n_start/end) is the same in both phases: it multiplies the
 // temperature strip, which is zero everywhere before bounce.
 template <typename EOS_T>
@@ -340,15 +341,18 @@ void SetPhaseEOS(EOS_T& eos, ParameterInput* pin, bool pre_bounce)
   const Real T_end = get(("trans_t_end" + s).c_str(), pre_bounce ? 20.0 : 0.5);
   const Real n_start = get("trans_n_start", 10.0 * hd_n);
   const Real n_end   = get("trans_n_end", hd_n);
-  const Real n_max =
-    pin->GetOrAddReal("hydro", "eir_n_max" + s, pre_bounce ? 6.0221e-5 : 0.0);
+  // The EIR density cutoff keeps the pre-bounce value unless the plain key
+  // is set: the EOS default (1e-6 fm^-3, ~1.7e9 g/cc) is two decades lower
+  // and would re-evaluate all unburnt fuel in between on the NSE table in one
+  // step at bounce (an instantaneous, unshocked ash front).
+  const Real n_max_pre = get("eir_n_max_pre_bounce", 6.0221e-5);
+  const Real n_max     = pre_bounce ? n_max_pre : get("eir_n_max", n_max_pre);
   const bool ash_forces =
     pre_bounce &&
     pin->GetOrAddBoolean("hydro", "ash_force_nse_pre_bounce", true);
 
   eos.SetTransition(n_start, n_end, T_start, T_end);
-  // unset (0): the EOS default, min(EIR table max, 1e-6 fm^-3)
-  eos.SetEIRNMax(n_max > 0.0 ? n_max : std::numeric_limits<Real>::quiet_NaN());
+  eos.SetEIRNMax(n_max);
   eos.SetAshForcesNSE(ash_forces);
   // the floor policy keeps its own copy of the ramp start below eir_n_max
   eos.GetTableBoundaries(ld_n, hd_n, ld_t, hd_t);
@@ -360,13 +364,12 @@ void SetPhaseEOS(EOS_T& eos, ParameterInput* pin, bool pre_bounce)
     printed[pre_bounce] = true;
     std::printf(
       "aic: %s EOS: strip T %.3g..%.3g MeV, n %.3g..%.3g fm^-3, "
-      "eir_n_max %s%.3g, ash marker %s\n",
+      "eir_n_max %.3g, ash marker %s\n",
       pre_bounce ? "pre-bounce" : "post-bounce",
       T_end,
       T_start,
       n_end,
       n_start,
-      n_max > 0.0 ? "" : "default, input ",
       n_max,
       ash_forces ? "forces NSE" : "passive");
   }
