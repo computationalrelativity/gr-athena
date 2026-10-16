@@ -892,6 +892,7 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
 
       // Compute minimum enthalpy
       // -------------------------------------------------------------------------
+      int in_min, iy_min, it_min;
       for (int in = 0; in < m_nn; ++in)
       {
         Real const nb = exp(m_log_nb[in]);
@@ -900,9 +901,48 @@ void EOSCompOSE::ReadTableFromFile(std::string fname)
           Real const t = exp(m_log_t[it]);
           for (int iy = 0; iy < m_ny; ++iy)
           {
-            m_min_h = min(m_min_h, Enthalpy(nb, t, &m_yq[iy]));
+            Real h_test = Enthalpy(nb, t, &m_yq[iy]);
+            if (h_test < m_min_h) {
+              m_min_h = h_test;
+              in_min = in;
+              iy_min = iy;
+              it_min = it;
+            }
           }
         }
+      }
+      // The minimum enthalpy does not necessarily exist at a table point
+      // because h \propto 1/n. Computing the true minimum requires an iterative
+      // procedure with a proper optimization algorithm, but we can compute a
+      // conservative lower bound on min_h using the derivative at the minimum
+      // at a table point with O(dlog n) accuracy.
+      Real loge = m_table[index(ECLOGE, in_min, iy_min, it_min)];
+      Real logp = m_table[index(ECLOGP, in_min, iy_min, it_min)];
+      Real nb = exp(m_log_nb[in_min]);
+      Real e = exp(loge);
+      Real p = exp(logp);
+      Real loge_left = loge;
+      Real logp_left = logp;
+      if (in_min > 0) {
+        loge_left = m_table[index(ECLOGE, in_min-1, iy_min, it_min)];
+        logp_left = m_table[index(ECLOGP, in_min-1, iy_min, it_min)];
+      }
+      Real dhdn = fabs(((loge - loge_left)*m_id_log_nb - 1.0)*e +
+                       ((logp - logp_left)*m_id_log_nb - 1.0)*p)/nb;
+      Real loge_right = loge;
+      Real logp_right = logp;
+      if (in_min < m_nn-1) {
+        loge_right = m_table[index(ECLOGE, in_min+1, iy_min, it_min)];
+        logp_right = m_table[index(ECLOGP, in_min+1, iy_min, it_min)];
+      }
+      dhdn = fmax(fabs(((loge_right - loge)*m_id_log_nb - 1.0)*e +
+                       ((logp_right - logp)*m_id_log_nb - 1.0)*p)/nb, dhdn);
+      m_min_h -= dhdn/m_id_log_nb;
+      if (m_min_h <= 0.0) {
+        std::cerr << "EOSCompOSE: there was a problem computing the minimum "
+                     "enthalpy in the table!"
+                  << std::endl;
+        assert(false);
       }
 
       // Now that we have read everything locally, we must populate
