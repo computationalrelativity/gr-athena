@@ -73,6 +73,8 @@ namespace {
       std::vector<Real> Ye_table_;
 
       Real log10_rho1, log10_rho2, Ye_2, Ye_c, Ye_H;
+      bool smooth_ye_of_rho;
+      Real delta_log10_rho;
   };
 
   Deleptonization* pdelept = nullptr;
@@ -423,6 +425,21 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 	        phydro->w(IVZ, k, j, i) = uz[flat_ix];
 	
 	        pscalars->r(IYE, k, j, i) = Ye_new;
+		} else {
+	        // Atmospheric and ghost cells outside the star
+	        Real Y_atm[MAX_SPECIES]{0.0};
+	        Y_atm[IYE] = initial_Ye;
+	        const Real n_b_atm = rho_min / mb;
+	        const Real tfloor = pin->GetOrAddReal("hydro", "tfloor", 0.1);
+	        const Real P_atm = reos.GetPressure(n_b_atm, tfloor, Y_atm);
+
+	        phydro->w(IDN, k, j, i) = rho_min;
+	        phydro->w(IPR, k, j, i) = P_atm;
+	        phydro->w(IVX, k, j, i) = 0.0;
+	        phydro->w(IVY, k, j, i) = 0.0;
+	        phydro->w(IVZ, k, j, i) = 0.0;
+
+	        pscalars->r(IYE, k, j, i) = initial_Ye;
 		}
       }
     }
@@ -486,6 +503,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
         for (int i = 0; i < ncells1; ++i) {
           PrimHelper::ApplyPrimitiveFloors(peos->GetEOS(), phydro->w, pscalars->r, k, j, i);
         }
+    peos->PrimitiveToConserved(phydro->w, pscalars->r, pfield->bcc, phydro->u, pscalars->s, 
+                               pcoord, il, iu, jl, ju, kl, ku);
   }
   // {
   //   Real local_max = 0.0;
@@ -546,6 +565,8 @@ void MeshBlock::ProblemGenerator(ParameterInput* pin)
 
     SeedSuwaVarmaMagneticFields(this, pin);
 
+  } else if (bfield_type == "none") {
+    // No magnetic fields seeded
   } else {
     std::stringstream msg;
     msg << "problem/bfield_type unknown" << std::endl;
@@ -568,7 +589,9 @@ Deleptonization::Deleptonization(ParameterInput* pin) {
   Ye_2       = pin->GetOrAddReal("deleptonization", "Ye_2", 0.308);
   Ye_c       = pin->GetOrAddReal("deleptonization", "Ye_c", 0.0412);
   Ye_H       = pin->GetOrAddReal("deleptonization", "Ye_H", 0.257);
-  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", true);
+  smooth_ye_of_rho = pin->GetOrAddBoolean("problem", "smooth_ye_of_rho", false);
+  delta_log10_rho  = pin->GetOrAddReal("problem", "delta_log10_rho", 0.3);
+  use_ye_of_rho_table = pin->GetOrAddBoolean("problem", "use_ye_of_rho_table", false);
 
   if (use_ye_of_rho_table) {
     std::string filename =
@@ -614,15 +637,54 @@ Real Deleptonization::Ye_of_rho(Real rho) const {
     Real const log10_rhoH = 15;
 
     Real const log10_rho = log10(rho * UDENS);
-    Real const x = std::max(-1.0, std::min(1.0, 
-                  (2 * log10_rho - log10_rho2 - log10_rho1) / (log10_rho2 - log10_rho1)));
     Real const m = (Ye_H - Ye_2) / (log10_rhoH - log10_rho2);
 
-    if (log10_rho > log10_rho2) {
-      return Ye_2 + m * (log10_rho - log10_rho2);
+    auto eval_liebendoerfer = [&](Real lrho) -> Real {
+      if (lrho > log10_rho2) {
+        return Ye_2 + m * (lrho - log10_rho2);
+      } else {
+        Real const x = std::max(-1.0, std::min(1.0, 
+                      (2 * lrho - log10_rho2 - log10_rho1) / (log10_rho2 - log10_rho1)));
+        Real const abs_x = std::abs(x);
+        return 0.5 * (Ye_2 + Ye_1) + 0.5 * x * (Ye_2 - Ye_1) +
+              Ye_c * (1 - abs_x + 4 * abs_x * (abs_x - 0.5) * (abs_x - 1));
+      }
+    };
+
+    if (!smooth_ye_of_rho) {
+      return eval_liebendoerfer(log10_rho);
     } else {
-      return 0.5 * (Ye_2 + Ye_1) + 0.5 * x * (Ye_2 - Ye_1) +
-            Ye_c * (1 - std::abs(x) + 4 * std::abs(x) * (std::abs(x) - 0.5) * (std::abs(x) - 1));
+      // C^1 smooth transition enforcing dYe/d(log10 rho) = 0 at log10_rho1
+      if (log10_rho <= log10_rho1) {
+        return Ye_1;
+      }
+
+      Real const rho_start = log10_rho1;
+      Real const rho_end   = log10_rho1 + delta_log10_rho;
+
+      if (log10_rho >= rho_end) {
+        return eval_liebendoerfer(log10_rho);
+      }
+
+      // Cubic Hermite interpolation in [rho_start, rho_end]
+      Real const L = delta_log10_rho;
+      Real const y_start = Ye_1;
+      Real const d_start = 0.0; // Enforce zero slope at transition
+
+      Real const y_end = eval_liebendoerfer(rho_end);
+      Real const eps   = 1e-5;
+      Real const d_end = (eval_liebendoerfer(rho_end + eps) - eval_liebendoerfer(rho_end - eps)) / (2.0 * eps);
+
+      Real const u = (log10_rho - rho_start) / L;
+      Real const u2 = u * u;
+      Real const u3 = u2 * u;
+
+      Real const h00 =  2.0 * u3 - 3.0 * u2 + 1.0;
+      Real const h10 =        u3 - 2.0 * u2 + u;
+      Real const h01 = -2.0 * u3 + 3.0 * u2;
+      Real const h11 =        u3 -       u2;
+
+      return h00 * y_start + h10 * (L * d_start) + h01 * y_end + h11 * (L * d_end);
     }
   } else {
     // Convert code density to cgs density
@@ -663,7 +725,7 @@ Real Deleptonization::Ye_of_rho(Real rho) const {
 
     Real f = (log10_rho_cgs - rho1) / (rho2 - rho1);
 
-    return Ye1 + f * (Ye2 - Ye1);
+    return std::min(Ye1, Ye1 + f * (Ye2 - Ye1)) ;
   }
 }
 
@@ -876,29 +938,43 @@ Real MaxLevel(MeshBlock* pmb, int iout) {
   return pmb->pmy_mesh->M_info.max_level;
 }
 
-int RefinementCondition(MeshBlock* pmb) {
-  switch (opt_refm_) {
-    case opt_refinement_method::MassPerMeshBlock: {
+int RefinementCondition(MeshBlock* pmb)
+{
+  switch (opt_refm_)
+  {
+    case opt_refinement_method::MassPerMeshBlock:
+    {
       Real M_loc = MassPerMeshBlock(pmb, 0);
-      if (M_loc > opt_delta_max_m) return 1;
-      if (M_loc < opt_delta_min_m) return -1;
+      if (M_loc > opt_delta_max_m)
+        return 1;
+      if (M_loc < opt_delta_min_m)
+        return -1;
       break;
     }
-    case opt_refinement_method::MaxMassInCell: {
+    case opt_refinement_method::MaxMassInCell:
+    {
       Real max_mass = MaxMassInCell(pmb, 0);
-      if (max_mass > opt_delta_max_m) return 1;
-      if (max_mass < opt_delta_min_m) return -1;
+      if (max_mass > opt_delta_max_m)
+        return 1;
+      if (max_mass < opt_delta_min_m)
+        return -1;
       break;
     }
-    case opt_refinement_method::MaxMassInCellTracker: {
+    case opt_refinement_method::MaxMassInCellTracker:
+    {
       // Allow standard ExtremaTracker to increase refinement level first
       int ref_tr = Mesh::StandardRefinementCondition(pmb);
-      if (ref_tr == 1) return 1;
+      if (ref_tr == 1)
+        return 1;
 
-      // Fallback to mass threshold if tracker didn't trigger
+      // Fallback to mass threshold if tracker didn't trigger. Derefine only
+      // where the tracker does not pin the level (ref_tr == -1), otherwise its
+      // whole region flips down and up again every deref_count cycles.
       Real max_mass = MaxMassInCell(pmb, 0);
-      if (max_mass > opt_delta_max_m) return 1;
-      if (max_mass < opt_delta_min_m) return -1;
+      if (max_mass > opt_delta_max_m)
+        return 1;
+      if (max_mass < opt_delta_min_m && ref_tr == -1)
+        return -1;
       break;
     }
     case opt_refinement_method::none:

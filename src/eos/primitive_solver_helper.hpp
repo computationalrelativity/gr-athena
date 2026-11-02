@@ -15,6 +15,8 @@
 //  (NPRIM, ITM, IYF, PrimitiveSolver EOS types, ...) requires fluid support.
 //========================================================================================
 
+#include <limits>
+
 #include "../athena.hpp"          // Real, NHYDRO, NSCALARS, IDN, ...
 #include "../athena_aliases.hpp"  // AT_N_sym
 #include "../athena_arrays.hpp"   // AthenaArray
@@ -280,6 +282,7 @@ inline void SetPrimAtmo(EOS_t& eos,
                         AthenaArray<Real>* ptemperature = nullptr)
 {
   Real prim_pt[NPRIM] = { 0.0 };
+  prim_pt[IDN]        = std::numeric_limits<Real>::quiet_NaN();
   eos.DoFailureResponse(prim_pt);
   ScatterPrim(prim_pt, prim, prim_scalar, k, j, i, eos.GetBaryonMass());
   if (ptemperature)
@@ -295,6 +298,7 @@ inline void SetPrimAtmo(EOS_t& eos,
                         AthenaArray<Real>* ptemperature = nullptr)
 {
   Real prim_pt[NPRIM] = { 0.0 };
+  prim_pt[IDN]        = std::numeric_limits<Real>::quiet_NaN();
   eos.DoFailureResponse(prim_pt);
   ScatterPrim(prim_pt, prim, prim_scalar, i, eos.GetBaryonMass());
   if (ptemperature)
